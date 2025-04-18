@@ -1,0 +1,41 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "declaration": true,
+    "removeComments": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowSyntheticDefaultImports": true,
+    "target": "ES2023",
+    "sourceMap": true,
+    "outDir": "./dist",
+    "baseUrl": "./",
+    "incremental": true,
+    "skipLibCheck": true,
+    "strictNullChecks": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "noFallthroughCasesInSwitch": false,
+    "paths": {
+      "@cardano-backend/auth": [
+        "libs/auth/src"
+      ],
+      "@cardano-backend/auth/*": [
+        "libs/auth/src/*"
+      ],
+      "@cardano-backend/common": [
+        "libs/common/src"
+      ],
+      "@cardano-backend/common/*": [
+        "libs/common/src/*"
+      ],
+      "@cardano-backend/database": [
+        "libs/database/src"
+      ],
+      "@cardano-backend/database/*": [
+        "libs/database/src/*"
+      ]
+    }
+  }
+}
