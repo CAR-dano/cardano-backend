@@ -35,15 +35,6 @@
         "tsConfigPath": "apps/blockchain-service/tsconfig.app.json"
       }
     },
-    "cardano-backend": {
-      "type": "application",
-      "root": "apps/cardano-backend",
-      "entryFile": "main",
-      "sourceRoot": "apps/cardano-backend/src",
-      "compilerOptions": {
-        "tsConfigPath": "apps/cardano-backend/tsconfig.app.json"
-      }
-    },
     "common": {
       "type": "library",
       "root": "libs/common",
