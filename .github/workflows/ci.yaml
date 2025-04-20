@@ -1,0 +1,34 @@
+name: Build & Test # Name of the workflow displayed on GitHub
+
+on: # Events that trigger this workflow
+  push:
+    branches: [ main ] # Trigger on pushes to the main branch
+  pull_request:
+    branches: [ main ] # Trigger on pull requests targeting the main branch
+
+jobs: # A workflow run is made up of one or more jobs
+  build-and-test: # The ID of the job
+    name: Build and Test # Name of the job displayed on GitHub
+    runs-on: ubuntu-latest # Use the latest available Ubuntu runner
+
+    steps: # A sequence of tasks that will be executed as part of the job
+      - name: Checkout code # Step 1: Get the code from the repository
+        uses: actions/checkout@v4 # Use the official checkout action (v4)
+
+      - name: Setup Node.js # Step 2: Set up the Node.js environment
+        uses: actions/setup-node@v4 # Use the official setup-node action (v4)
+        with:
+          node-version: '20.x' # Specify the Node.js version (use your project's version or a current LTS)
+          cache: 'npm' # Enable caching for npm dependencies to speed up installs
+
+      - name: Install Dependencies # Step 3: Install project dependencies
+        run: npm ci # Use 'npm ci' for cleaner installs in CI (uses package-lock.json)
+
+      - name: Run Linter # Step 4: Check code formatting and quality
+        run: npm run lint # Assumes you have a 'lint' script in your root package.json
+
+      - name: Build Project # Step 5: Build all applications and libraries
+        run: npm run build # Assumes you have a 'build' script that builds the monorepo
+
+      - name: Run Unit Tests # Step 6: Execute unit tests
+        run: npm run test # Assumes you have a 'test' script in your root package.json
