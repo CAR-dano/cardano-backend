@@ -1,11 +1,9 @@
 {
   "$schema": "https://json.schemastore.org/nest-cli",
   "collection": "@nestjs/schematics",
-  "sourceRoot": "apps/cardano-backend/src",
   "compilerOptions": {
     "deleteOutDir": true,
-    "webpack": true,
-    "tsConfigPath": "apps/cardano-backend/tsconfig.app.json"
+    "webpack": true
   },
   "projects": {
     "api-gateway": {
@@ -63,6 +61,5 @@
       }
     }
   },
-  "monorepo": true,
-  "root": "apps/cardano-backend"
+  "monorepo": true
 }
