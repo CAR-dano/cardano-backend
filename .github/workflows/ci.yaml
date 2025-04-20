@@ -35,9 +35,9 @@ jobs: # A workflow run is made up of one or more jobs
 
       - name: Build Project Applications # Step 7: Build specific applications (Troubleshooting Step)
         run: |
-          nest build api-gateway
-          nest build report-service
-          nest build blockchain-service
+          npx nest build api-gateway
+          npx nest build report-service
+          npx nest build blockchain-service
 
       - name: Run Unit Tests # Step 8: Execute unit tests
         run: npm run test # Assumes you have a 'test' script in your root package.json
