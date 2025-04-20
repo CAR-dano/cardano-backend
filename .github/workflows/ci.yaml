@@ -1,4 +1,4 @@
-name: Build & Test # Name of the workflow displayed on GitHub
+name: Build & Test # Descriptive name for the workflow
 
 on: # Events that trigger this workflow
   push:
@@ -21,14 +21,26 @@ jobs: # A workflow run is made up of one or more jobs
           node-version: '20.x' # Specify the Node.js version (use your project's version or a current LTS)
           cache: 'npm' # Enable caching for npm dependencies to speed up installs
 
-      - name: Install Dependencies # Step 3: Install project dependencies
+      - name: Clear npm cache # Step 3: Clean cache before install (Troubleshooting Step)
+        run: npm cache clean --force
+
+      - name: Remove node_modules and dist # Step 4: Force clean install and build (Troubleshooting Step)
+        run: rm -rf node_modules dist
+
+      - name: Install Dependencies # Step 5: Install project dependencies
         run: npm ci # Use 'npm ci' for cleaner installs in CI (uses package-lock.json)
 
-      - name: Run Linter # Step 4: Check code formatting and quality
+      - name: Run Linter # Step 6: Check code formatting and quality
         run: npm run lint # Assumes you have a 'lint' script in your root package.json
 
-      - name: Build Project # Step 5: Build all applications and libraries
-        run: npm run build # Assumes you have a 'build' script that builds the monorepo
+      - name: Build Project Applications # Step 7: Build specific applications (Troubleshooting Step)
+        run: |
+          nest build api-gateway
+          nest build report-service
+          nest build blockchain-service
 
-      - name: Run Unit Tests # Step 6: Execute unit tests
+      - name: Run Unit Tests # Step 8: Execute unit tests
         run: npm run test # Assumes you have a 'test' script in your root package.json
+
+      - name: Run E2E Tests # Step 9: Execute End-to-End tests for api-gateway
+        run: npm run test:e2e # Assumes test:e2e script points to api-gateway's jest config
