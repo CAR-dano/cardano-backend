@@ -4,9 +4,9 @@ import * as path from 'path';
 import { openApiDocument } from './openapi-spec';
 
 @Controller('api-docs')
-export class DocsController {
+export class ScalarDocsController {
   // Inject Logger for potential future use or minimal error logging
-  private readonly logger = new Logger(DocsController.name);
+  private readonly logger = new Logger(ScalarDocsController.name);
 
   @Get('openapi.json')
   getOpenApiSpec() {
@@ -19,7 +19,7 @@ export class DocsController {
     // Removed console.log and try...catch
     const filePath = path.join(
       process.cwd(),
-      'static',
+      'public',
       'scalar-docs.html'
     );
 
