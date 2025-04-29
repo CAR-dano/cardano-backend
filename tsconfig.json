@@ -37,5 +37,15 @@
         "libs/database/src/*"
       ]
     }
-  }
+  },
+  "include": [
+    "src/**/*",
+    "prisma/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "prisma/migrations",
+    "prisma/seed.ts"
+  ],
 }
