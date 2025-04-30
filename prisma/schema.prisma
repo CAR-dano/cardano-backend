@@ -1,0 +1,39 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enum for User Role
+enum Role {
+  ADMIN
+  REVIEWER
+  INSPECTOR
+  CUSTOMER
+  DEVELOPER
+}
+
+model User {
+  id        String   @id @default(uuid()) // Primary key UUID
+  email     String   @unique // Email must be unique
+  name      String?  // Optional, because Google can provide it
+  googleId  String?  @unique // Optional & unique, for Google login
+  role      Role     @default(CUSTOMER) // Default role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Add a relation to Inspections later
+  // inspections Inspection[]
+  
+  @@map("users") // Explicit table name (optional if same as case-insensitive model name)
+}

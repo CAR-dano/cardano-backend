@@ -9,6 +9,7 @@ import { PublicApiModule } from './public-api/public-api.module';
 import { ReportsModule } from './reports/reports.module';
 import { ScalarDocsModule } from './scalar-docs/scalar-docs.module';
 import { UsersModule } from './users/users.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { UsersModule } from './users/users.module';
     ReportsModule,
     ScalarDocsModule,
     UsersModule,
+    PrismaModule,
   ],
   controllers: [],
   providers: [],
