@@ -4,7 +4,6 @@
 /build
 /prisma/migrations/
 /generated/
-/uploads/inspection-photos
 
 # Logs
 logs
