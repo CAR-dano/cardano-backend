@@ -1,79 +1,119 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+/**
+ * @fileoverview Prisma Schema for the CAR-dano application.
+ * Defines the database models (User, Inspection), enums (Role),
+ * and relations between models. Also configures the database connection
+ * and the Prisma Client generator.
+ */
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
+// Specifies the Prisma Client generator settings.
+// 'prisma-client-js' is the standard generator for Node.js/TypeScript projects.
+// The output location defaults to `node_modules/.prisma/client`, which is recommended.
 generator client {
   provider = "prisma-client-js"
-  // output   = "../generated/prisma"
+  // Output path is commented out to use the default location within node_modules.
+  // output   = "../generated/prisma" // Default: ./node_modules/.prisma/client
 }
 
+// Defines the database connection details.
+// 'provider' specifies the database type (PostgreSQL in this case).
+// 'url' points to the database connection string, typically loaded from environment variables.
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  url      = env("DATABASE_URL") // Loads the connection URL from the .env file
 }
 
-// Enum for User Role
+// Defines the possible roles a user can have within the application.
+// Using an enum ensures type safety and consistency for role values.
 enum Role {
-  ADMIN
-  REVIEWER
-  INSPECTOR
-  CUSTOMER
-  DEVELOPER
+  ADMIN // Administrator with full access
+  REVIEWER // User who reviews inspection reports before blockchain submission (potentially)
+  INSPECTOR // User who performs the vehicle inspection and submits data
+  CUSTOMER // General user who views inspection reports (potentially)
+  DEVELOPER // External developer using the public API
 }
 
+// Defines the User model, representing users in the system.
 model User {
-  id        String   @id @default(uuid()) // Primary key UUID
-  email     String   @unique // Email must be unique
-  name      String? // Optional, because Google can provide it
-  googleId  String?  @unique // Optional & unique, for Google login
-  role      Role     @default(CUSTOMER) // Default role
+  // Primary Key: Automatically generated UUID string.
+  id        String   @id @default(uuid())
+  // User's email: Must be unique across all users. Used for login.
+  email     String   @unique
+  // User's name: Optional, might be provided by Google or set later.
+  name      String?
+  // Google ID: Optional and unique, stores the user's Google profile ID if they log in via Google.
+  googleId  String?  @unique
+  // User's role: Defaults to CUSTOMER upon creation. Uses the Role enum.
+  role      Role     @default(CUSTOMER)
+  // Timestamps: Automatically set when a user is created.
   createdAt DateTime @default(now())
+  // Timestamps: Automatically updated whenever the user record is modified.
   updatedAt DateTime @updatedAt
-  
+
+  // Relation Field: Defines a one-to-many relationship with the Inspection model.
+  // One User can submit many Inspections. 'inspections' is the name of the relation field
+  // on the other side (in the Inspection model).
   Inspection Inspection[] @relation("inspections")
 
-  @@map("users") // Explicit table name (optional if same as case-insensitive model name)
+  // Maps the model name 'User' to the database table name 'users'. Recommended for clarity.
+  @@map("users")
 }
 
+// Defines the Inspection model, representing a single vehicle inspection record.
 model Inspection {
-  id String @id @default(uuid()) // Primary Key
+  // Primary Key: Automatically generated UUID string.
+  id String @id @default(uuid())
 
-  // --- Relasi ke User (Sementara bisa diisi dummy ID) ---
-  // Nanti ini akan diisi oleh ID user yang login dari JWT
-  submittedByUserId String? // Foreign Key (buat opsional dulu jika pakai dummy)
-  submittedByUser   User?   @relation("inspections", fields: [submittedByUserId], references: [id]) // Sesuaikan nama relasi 'inspections' jika berbeda
+  // --- Foreign Key & Relation Field for User ---
+  // Stores the ID of the User who submitted this inspection. Optional ('?') for now to allow dummy/null values during development.
+  submittedByUserId String?
+  // Defines the relation to the User model. Links 'submittedByUserId' field to the 'id' field in the User model.
+  // The first argument "inspections" must match the relation name defined in the User model.
+  submittedByUser   User?   @relation("inspections", fields: [submittedByUserId], references: [id])
 
-  // --- Data Dasar (Contoh, bisa disesuaikan) ---
+  // --- Basic Inspection Data ---
+  // Vehicle's license plate number. Marked as potentially shorter using VarChar(15). Optional.
   vehiclePlateNumber String?   @db.VarChar(15)
+  // Date and time of the inspection. Optional.
   inspectionDate     DateTime?
+  // Overall rating string (e.g., "Excellent", "Good", "Fair", "Poor"). Optional.
   overallRating      String?
 
-  // --- Kolom JSON per Halaman Form ---
-  // Tipe 'Json' akan menyimpan struktur JSON yang dikirim dari frontend
-  page1_identitas     Json?
-  page2_dataKendaraan Json?
-  page3_kelengkapan   Json?
-  page4_hasilInspeksi Json?
-  page5_penilaian     Json?
-  // page6 ada di page3 kan ya? Kalau beda, tambahkan page6_...
+  // --- JSON Columns for Form Data ---
+  // These fields store potentially complex, nested data from different form pages as JSON objects.
+  // Using 'Json?' makes the field optional in the database (can be NULL).
+  // Corresponds to Page 1 (Identitas) data.
+  identityDetails     Json?
+  vehicleData         Json?
+  equipmentChecklist  Json?
+  inspectionSummary   Json?
+  detailedAssessment  Json?
 
-  // --- Info File Foto (Simpan path/nama file, bukan file blob) ---
-  // Kita simpan path relatif atau nama unik file di storage
-  photoPaths String[] @default([]) // Array of strings untuk menyimpan path/nama file foto
+  // --- Photo Information ---
+  // Stores an array of strings, where each string is the filename (or path relative to a base URL)
+  // of an uploaded photo associated with this inspection. Defaults to an empty array.
+  photoPaths String[] @default([])
 
-  // --- Metadata Blockchain & Laporan (Akan diisi nanti) ---
+  // --- Blockchain & Report Metadata (Populated Later) ---
+  // Unique identifier for the corresponding NFT on the Cardano blockchain (Policy ID + Asset Name Hex). Optional and must be unique if set.
   nftAssetId      String? @unique
+  // Hash of the Cardano transaction that minted the NFT and stored metadata. Optional.
   transactionHash String?
+  // URL pointing to the generated PDF report stored off-chain (e.g., on VPS or cloud storage). Optional.
   reportPdfUrl    String?
+  // Cryptographic hash (e.g., SHA-256) of the generated PDF report file. Optional.
   reportHash      String?
 
   // --- Timestamps ---
+  // Automatically records the creation time of the inspection record.
   createdAt DateTime @default(now())
+  // Automatically records the last update time of the inspection record.
   updatedAt DateTime @updatedAt
 
-  @@index([submittedByUserId]) // Index untuk relasi
-  @@index([vehiclePlateNumber]) // Index untuk pencarian plat nomor
+  // --- Database Indexes ---
+  // Creates an index on the foreign key field for faster lookups based on the submitting user.
+  @@index([submittedByUserId])
+  // Creates an index on the vehicle plate number for faster searching by plate number.
+  @@index([vehiclePlateNumber])
+  // Maps the model name 'Inspection' to the database table name 'inspections'.
   @@map("inspections")
 }

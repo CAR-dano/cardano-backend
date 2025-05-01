@@ -106,7 +106,7 @@ export class InspectionsController {
      * @returns {Promise<Inspection>} A promise resolving to the created inspection record from the service.
      */
     @Post()
-    @ApiOperation({ summary: 'Add new inspection record (Multipart)', description: 'Submit inspection data. JSON fields (like page1_identitas) must be sent as stringified JSON. Upload photos under the \'photos\' field.' })
+    @ApiOperation({ summary: 'Add new inspection record (Multipart)', description: 'Submit inspection data. JSON fields (like identityDetails) must be sent as stringified JSON. Upload photos under the \'photos\' field.' })
     @ApiConsumes('multipart/form-data')
     @ApiBody({
         schema: {
@@ -116,11 +116,11 @@ export class InspectionsController {
                 vehiclePlateNumber: { type: 'string', nullable: true, example: 'AB 1234 CD', description: 'Vehicle license plate number' },
                 inspectionDate: { type: 'string', format: 'date-time', nullable: true, example: '2025-06-15T09:00:00Z', description: 'Date of inspection (ISO 8601)' },
                 overallRating: { type: 'string', nullable: true, example: 'Good', description: 'Overall inspection rating' },
-                page1_identitas: { type: 'string', format: 'json', description: 'Stringified JSON for Page 1 (Identitas)', example: '{"namaInspektor":"Test"}' },
-                page2_dataKendaraan: { type: 'string', format: 'json', description: 'Stringified JSON for Page 2 (Data Kendaraan)' },
-                page3_kelengkapan: { type: 'string', format: 'json', description: 'Stringified JSON for Page 3 & 6 (Kelengkapan)' },
-                page4_hasilInspeksi: { type: 'string', format: 'json', description: 'Stringified JSON for Page 4 (Hasil Inspeksi)' },
-                page5_penilaian: { type: 'string', format: 'json', description: 'Stringified JSON for Page 5 (Penilaian)' },
+                identityDetails: { type: 'string', format: 'json', description: 'Stringified JSON for Page 1 (Identitas)', example: '{"namaInspektor":"Test"}' },
+                vehicleData: { type: 'string', format: 'json', description: 'Stringified JSON for Page 2 (Data Kendaraan)' },
+                equipmentChecklist: { type: 'string', format: 'json', description: 'Stringified JSON for Page 3 & 6 (Kelengkapan)' },
+                inspectionSummary: { type: 'string', format: 'json', description: 'Stringified JSON for Page 4 (Hasil Inspeksi)' },
+                detailedAssessment: { type: 'string', format: 'json', description: 'Stringified JSON for Page 5 (Penilaian)' },
                 // --- File Field Description for Swagger ---
                 photos: {
                     type: 'array', // Indicates multiple files can be uploaded for this field

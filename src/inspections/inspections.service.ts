@@ -94,14 +94,14 @@ export class InspectionsService {
 
     try {
       // Parse all the stringified JSON fields using the helper function
-      const page1Data = this.parseJsonField(createInspectionDto.page1_identitas, 'page1_identitas');
-      const page2Data = this.parseJsonField(createInspectionDto.page2_dataKendaraan, 'page2_dataKendaraan');
-      const page3Data = this.parseJsonField(createInspectionDto.page3_kelengkapan, 'page3_kelengkapan');
-      const page4Data = this.parseJsonField(createInspectionDto.page4_hasilInspeksi, 'page4_hasilInspeksi');
-      const page5Data = this.parseJsonField(createInspectionDto.page5_penilaian, 'page5_penilaian');
+      const identityData = this.parseJsonField(createInspectionDto.identityDetails, 'identityDetails');
+      const vehicleDataParsed = this.parseJsonField(createInspectionDto.vehicleData, 'vehicleData');
+      const equipmentData = this.parseJsonField(createInspectionDto.equipmentChecklist, 'equipmentChecklist');
+      const summaryData = this.parseJsonField(createInspectionDto.inspectionSummary, 'inspectionSummary');
+      const assessmentData = this.parseJsonField(createInspectionDto.detailedAssessment, 'detailedAssessment');
 
       // Log the parsed data for debugging
-      this.logger.debug('Parsed JSON Data for DB:', { page1Data, page2Data, page3Data, page4Data, page5Data });
+      this.logger.debug('Parsed JSON Data for DB:', { identityData, vehicleDataParsed, equipmentData, summaryData, assessmentData });
 
       // Construct the data object for Prisma's `create` method
       // Use the specific Prisma.InspectionCreateInput type for type safety
@@ -118,11 +118,11 @@ export class InspectionsService {
         overallRating: createInspectionDto.overallRating,
 
         // Assign parsed JSON objects (or undefined/JsonNull) to the corresponding Json fields
-        page1_identitas: page1Data,
-        page2_dataKendaraan: page2Data,
-        page3_kelengkapan: page3Data,
-        page4_hasilInspeksi: page4Data,
-        page5_penilaian: page5Data,
+        identityDetails: identityData,
+        vehicleData: vehicleDataParsed,
+        equipmentChecklist: equipmentData,
+        inspectionSummary: summaryData,
+        detailedAssessment: assessmentData,
 
         // Assign the array of photo filenames
         photoPaths: photoPaths,

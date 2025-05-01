@@ -76,7 +76,7 @@ export class CreateInspectionDto {
   })
   @IsOptional()
   @IsJSON() // Validates that the provided value *is* a string containing valid JSON syntax
-  page1_identitas?: string; // Property type is string
+  identityDetails?: string; // Property type is string
 
   /**
    * Stringified JSON data containing details from Page 2 (Data Kendaraan) of the inspection form.
@@ -91,7 +91,7 @@ export class CreateInspectionDto {
   })
   @IsOptional()
   @IsJSON()
-  page2_dataKendaraan?: string;
+  vehicleData?: string;
 
   /**
    * Stringified JSON data containing details from Page 3 & 6 (Kelengkapan) of the inspection form.
@@ -106,7 +106,7 @@ export class CreateInspectionDto {
   })
   @IsOptional()
   @IsJSON()
-  page3_kelengkapan?: string;
+  equipmentChecklist?: string;
 
   /**
    * Stringified JSON data containing details from Page 4 (Hasil Inspeksi) of the inspection form.
@@ -121,7 +121,7 @@ export class CreateInspectionDto {
   })
   @IsOptional()
   @IsJSON()
-  page4_hasilInspeksi?: string;
+  inspectionSummary?: string;
 
   /**
    * Stringified JSON data containing details from Page 5 (Penilaian) of the inspection form.
@@ -136,7 +136,7 @@ export class CreateInspectionDto {
   })
   @IsOptional()
   @IsJSON()
-  page5_penilaian?: string;
+  detailedAssessment?: string;
 
   // Note: File upload fields (like 'photos') are handled by interceptors in the controller
   // and are therefore not defined as properties within this DTO.
