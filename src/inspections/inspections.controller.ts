@@ -14,13 +14,17 @@ import {
     UploadedFiles,  // Decorator to access uploaded files
     Logger,         // For logging information and errors
     BadRequestException, // To throw specific HTTP errors
+    Param,
+    ParseUUIDPipe,
+    NotFoundException
 } from '@nestjs/common';
 import { InspectionsService } from './inspections.service'; // The service handling business logic
 import { CreateInspectionDto } from './dto/create-inspection.dto'; // DTO defining the structure of the request body
 import { FileFieldsInterceptor } from '@nestjs/platform-express'; // NestJS interceptor for handling multiple file fields
-import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger'; // Decorators for API documentation (Swagger/Scalar)
+import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody, ApiParam } from '@nestjs/swagger'; // Decorators for API documentation (Swagger/Scalar)
 import { diskStorage } from 'multer'; // Storage engine for Multer (file uploads)
 import { extname } from 'path'; // Node.js utility for handling file extensions
+import { Inspection } from '@prisma/client';
 // Import Guards if/when needed for authentication and authorization
 // import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 // import { RolesGuard } from '../auth/guards/roles.guard';
@@ -177,5 +181,36 @@ export class InspectionsController {
         this.logger.log('Request received for GET /inspections');
         // Call the service method to retrieve all inspections
         return this.inspectionsService.findAll();
+    }
+
+    /**
+   * @Get(':id') Decorator: Defines this method to handle GET requests to '/inspections/:id'.
+   * @ApiOperation Decorator: Describes the endpoint in the API documentation.
+   * @ApiParam Decorator: Documents the 'id' path parameter for Swagger/Scalar.
+   * @ApiResponse Decorators: Document the possible responses (200 OK, 400 Bad Request for invalid UUID, 404 Not Found).
+   *                        We use the Prisma 'Inspection' type for the 200 response schema documentation.
+   *
+   * Retrieves a specific inspection record by its UUID.
+   * Access is currently open.
+   *
+   * @param {string} id - The UUID extracted from the URL path and validated by ParseUUIDPipe.
+   * @returns {Promise<Inspection>} The full inspection record if found.
+   * @throws {BadRequestException} If the provided ID is not a valid UUID (handled by ParseUUIDPipe).
+   * @throws {NotFoundException} If no inspection is found for the given ID (thrown by the service).
+   */
+    @Get(':id')
+    @ApiOperation({ summary: 'Get a specific inspection by ID (Open Access - Dev)' })
+    @ApiParam({ name: 'id', description: 'The UUID of the inspection record', type: String, format: 'uuid' })
+    // @ApiResponse({ status: 200, description: 'Inspection details retrieved.', type: Inspection /* Using Prisma model type directly */ })
+    @ApiResponse({ status: 200, description: 'Inspection details retrieved.'})
+    @ApiResponse({ status: 400, description: 'Bad Request (Invalid UUID format).' })
+    @ApiResponse({ status: 404, description: 'Inspection not found for the given ID.' })
+    async findOne(
+        @Param('id', ParseUUIDPipe) id: string, // Extract 'id' and validate as UUID
+    ): Promise<Inspection> {
+        this.logger.log(`Request received for GET /inspections/${id}`);
+        // Call the service method to find the inspection.
+        // The service will throw NotFoundException if not found.
+        return this.inspectionsService.findOne(id);
     }
 }

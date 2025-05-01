@@ -5,7 +5,7 @@
  * Authentication details (like associating with a real user) are currently using placeholders or omitted.
  */
 
-import { Injectable, Logger, InternalServerErrorException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, InternalServerErrorException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; // Service for Prisma client interaction
 import { CreateInspectionDto } from './dto/create-inspection.dto'; // DTO for incoming creation data
 import { Inspection, Prisma } from '@prisma/client'; // Prisma generated types (Inspection model, Prisma namespace)
@@ -178,5 +178,36 @@ export class InspectionsService {
     }
   }
 
-  // Future methods like findOne, update, delete would go here...
+  /**
+   * Retrieves a single inspection record by its unique ID (UUID).
+   * Throws NotFoundException if no record matches the ID.
+   * Returns the full Inspection object including JSON fields.
+   *
+   * @param {string} id - The UUID of the inspection to retrieve.
+   * @returns {Promise<Inspection>} The found inspection record.
+   * @throws {NotFoundException} If the inspection with the given ID does not exist.
+   * @throws {InternalServerErrorException} If there is a database query error.
+   */
+  async findOne(id: string): Promise<Inspection> {
+    this.logger.log(`Retrieving inspection with ID: ${id}`);
+    try {
+      // findUniqueOrThrow will throw an error if not found (PrismaClientKnownRequestError P2025)
+      const inspection = await this.prisma.inspection.findUniqueOrThrow({
+        where: { id: id },
+        // Optionally include related data:
+        // include: { submittedByUser: { select: { id: true, name: true, email: true } } }
+      });
+      this.logger.log(`Found inspection with ID: ${id}`);
+      return inspection; // Prisma already returns JSON fields as objects
+    } catch (error) {
+      // Check if the error is the specific Prisma error for record not found
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+        this.logger.warn(`Inspection with ID "${id}" not found.`);
+        throw new NotFoundException(`Inspection with ID "${id}" not found.`);
+      }
+      // Handle other potential database errors
+      this.logger.error(`Failed to retrieve inspection with ID ${id}: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(`Could not retrieve inspection with ID ${id}.`);
+    }
+  }
 }
