@@ -26,14 +26,54 @@ enum Role {
 model User {
   id        String   @id @default(uuid()) // Primary key UUID
   email     String   @unique // Email must be unique
-  name      String?  // Optional, because Google can provide it
+  name      String? // Optional, because Google can provide it
   googleId  String?  @unique // Optional & unique, for Google login
   role      Role     @default(CUSTOMER) // Default role
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Add a relation to Inspections later
-  // inspections Inspection[]
   
+  Inspection Inspection[] @relation("inspections")
+
   @@map("users") // Explicit table name (optional if same as case-insensitive model name)
+}
+
+model Inspection {
+  id String @id @default(uuid()) // Primary Key
+
+  // --- Relasi ke User (Sementara bisa diisi dummy ID) ---
+  // Nanti ini akan diisi oleh ID user yang login dari JWT
+  submittedByUserId String? // Foreign Key (buat opsional dulu jika pakai dummy)
+  submittedByUser   User?   @relation("inspections", fields: [submittedByUserId], references: [id]) // Sesuaikan nama relasi 'inspections' jika berbeda
+
+  // --- Data Dasar (Contoh, bisa disesuaikan) ---
+  vehiclePlateNumber String?   @db.VarChar(15)
+  inspectionDate     DateTime?
+  overallRating      String?
+
+  // --- Kolom JSON per Halaman Form ---
+  // Tipe 'Json' akan menyimpan struktur JSON yang dikirim dari frontend
+  page1_identitas     Json?
+  page2_dataKendaraan Json?
+  page3_kelengkapan   Json?
+  page4_hasilInspeksi Json?
+  page5_penilaian     Json?
+  // page6 ada di page3 kan ya? Kalau beda, tambahkan page6_...
+
+  // --- Info File Foto (Simpan path/nama file, bukan file blob) ---
+  // Kita simpan path relatif atau nama unik file di storage
+  photoPaths String[] @default([]) // Array of strings untuk menyimpan path/nama file foto
+
+  // --- Metadata Blockchain & Laporan (Akan diisi nanti) ---
+  nftAssetId      String? @unique
+  transactionHash String?
+  reportPdfUrl    String?
+  reportHash      String?
+
+  // --- Timestamps ---
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([submittedByUserId]) // Index untuk relasi
+  @@index([vehiclePlateNumber]) // Index untuk pencarian plat nomor
+  @@map("inspections")
 }
