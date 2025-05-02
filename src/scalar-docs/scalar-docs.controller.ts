@@ -1,4 +1,10 @@
-import { Controller, Get, Res, Logger, NotFoundException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Res,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Response } from 'express';
 import * as path from 'path';
 import { openApiDocument } from './openapi-spec';
@@ -17,19 +23,18 @@ export class ScalarDocsController {
   @Get()
   getScalarDocs(@Res() res: Response) {
     // Removed console.log and try...catch
-    const filePath = path.join(
-      process.cwd(),
-      'public',
-      'scalar-docs.html'
-    );
+    const filePath = path.join(process.cwd(), 'public', 'scalar-docs.html');
 
     res.sendFile(filePath, (err) => {
       if (err) {
         // Log the error but don't crash the server, let Nest handle response
-        this.logger.error(`Failed to send Scalar docs file from ${filePath}`, err.stack);
+        this.logger.error(
+          `Failed to send Scalar docs file from ${filePath}`,
+          err.stack,
+        );
         // Optionally throw a standard Nest exception if the file MUST exist
         if (!res.headersSent) {
-             throw new NotFoundException(`Scalar documentation file not found.`);
+          throw new NotFoundException(`Scalar documentation file not found.`);
         }
       }
     });

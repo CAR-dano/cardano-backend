@@ -8,7 +8,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from './users.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { NotFoundException, InternalServerErrorException } from '@nestjs/common';
+import {
+  NotFoundException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { User, Role } from '@prisma/client';
 
 // --- Mock PrismaService ---
@@ -65,8 +68,13 @@ describe('UsersService', () => {
   describe('findByEmail', () => {
     const testEmail = 'test@example.com';
     const mockUser: User = {
-      id: 'uuid-email-1', email: testEmail, name: 'Test Email User', googleId: null,
-      role: Role.CUSTOMER, createdAt: new Date(), updatedAt: new Date()
+      id: 'uuid-email-1',
+      email: testEmail,
+      name: 'Test Email User',
+      googleId: null,
+      role: Role.CUSTOMER,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
     /**
@@ -81,7 +89,9 @@ describe('UsersService', () => {
       const result = await service.findByEmail(testEmail);
 
       // Assert: Check prisma call and result
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { email: testEmail } });
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: testEmail },
+      });
       expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
       expect(result).toEqual(mockUser);
     });
@@ -98,7 +108,9 @@ describe('UsersService', () => {
       const result = await service.findByEmail(testEmail);
 
       // Assert: Check prisma call and result
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { email: testEmail } });
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: testEmail },
+      });
       expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
       expect(result).toBeNull();
     });
@@ -114,7 +126,9 @@ describe('UsersService', () => {
 
       // Act & Assert: Expect the service call to reject with the same error
       await expect(service.findByEmail(testEmail)).rejects.toThrow(dbError);
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { email: testEmail } });
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { email: testEmail },
+      });
     });
   });
 
@@ -124,8 +138,13 @@ describe('UsersService', () => {
   describe('findById', () => {
     const testId = 'uuid-id-1';
     const mockUser: User = {
-      id: testId, email: 'id@example.com', name: 'Test ID User', googleId: null,
-      role: Role.ADMIN, createdAt: new Date(), updatedAt: new Date()
+      id: testId,
+      email: 'id@example.com',
+      name: 'Test ID User',
+      googleId: null,
+      role: Role.ADMIN,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     };
 
     /**
@@ -140,7 +159,9 @@ describe('UsersService', () => {
       const result = await service.findById(testId);
 
       // Assert
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: testId } });
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: testId },
+      });
       expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
       expect(result).toEqual(mockUser);
     });
@@ -158,15 +179,17 @@ describe('UsersService', () => {
       const result = await service.findById(testId);
 
       // Assert
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: testId } });
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: testId },
+      });
       expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
       expect(result).toBeNull();
     });
 
     /**
-    * Tests how the service handles errors from the Prisma client during findUnique by ID.
-    * Expects the original Prisma error to be thrown.
-    */
+     * Tests how the service handles errors from the Prisma client during findUnique by ID.
+     * Expects the original Prisma error to be thrown.
+     */
     it('should throw an error if Prisma findUnique fails', async () => {
       // Arrange: Mock findUnique to throw an error
       const dbError = new Error('Database query failed');
@@ -174,7 +197,9 @@ describe('UsersService', () => {
 
       // Act & Assert: Expect the service call to reject with the same error
       await expect(service.findById(testId)).rejects.toThrow(dbError);
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({ where: { id: testId } });
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: testId },
+      });
     });
   });
 
@@ -211,7 +236,9 @@ describe('UsersService', () => {
       mockPrismaService.user.upsert.mockResolvedValue(mockUpsertedUser);
 
       // Act: Call the service method
-      const result = await service.findOrCreateByGoogleProfile(mockGoogleProfileInput);
+      const result = await service.findOrCreateByGoogleProfile(
+        mockGoogleProfileInput,
+      );
 
       // Assert: Verify the arguments passed to prisma.user.upsert
       expect(prisma.user.upsert).toHaveBeenCalledWith({
@@ -238,16 +265,27 @@ describe('UsersService', () => {
       // Arrange: Create profile variations without email
       const profileNoEmails = { ...mockGoogleProfileInput, emails: undefined };
       const profileEmptyEmails = { ...mockGoogleProfileInput, emails: [] };
-      const profileNoEmailValue = { ...mockGoogleProfileInput, emails: [{ value: undefined as any }] }; // Simulate missing value
+      const profileNoEmailValue = {
+        ...mockGoogleProfileInput,
+        emails: [{ value: undefined as any }],
+      }; // Simulate missing value
 
       // Act & Assert: Test each case
-      await expect(service.findOrCreateByGoogleProfile(profileNoEmails))
-        .rejects.toThrow(new InternalServerErrorException('Google profile is missing email.'));
-      await expect(service.findOrCreateByGoogleProfile(profileEmptyEmails))
-        .rejects.toThrow(new InternalServerErrorException('Google profile is missing email.'));
-      await expect(service.findOrCreateByGoogleProfile(profileNoEmailValue))
-        .rejects.toThrow(new InternalServerErrorException('Google profile is missing email.'));
-
+      await expect(
+        service.findOrCreateByGoogleProfile(profileNoEmails),
+      ).rejects.toThrow(
+        new InternalServerErrorException('Google profile is missing email.'),
+      );
+      await expect(
+        service.findOrCreateByGoogleProfile(profileEmptyEmails),
+      ).rejects.toThrow(
+        new InternalServerErrorException('Google profile is missing email.'),
+      );
+      await expect(
+        service.findOrCreateByGoogleProfile(profileNoEmailValue),
+      ).rejects.toThrow(
+        new InternalServerErrorException('Google profile is missing email.'),
+      );
 
       // Assert: Ensure Prisma was never called in these error cases
       expect(prisma.user.upsert).not.toHaveBeenCalled();
@@ -260,12 +298,19 @@ describe('UsersService', () => {
      */
     it('should throw InternalServerErrorException if prisma.user.upsert fails', async () => {
       // Arrange: Mock upsert to throw an error
-      const dbError = new Error('Unique constraint failed or DB connection error');
+      const dbError = new Error(
+        'Unique constraint failed or DB connection error',
+      );
       mockPrismaService.user.upsert.mockRejectedValue(dbError);
 
       // Act & Assert: Expect the service call to reject with the specific InternalServerErrorException
-      await expect(service.findOrCreateByGoogleProfile(mockGoogleProfileInput))
-        .rejects.toThrow(new InternalServerErrorException('Could not process Google user profile.'));
+      await expect(
+        service.findOrCreateByGoogleProfile(mockGoogleProfileInput),
+      ).rejects.toThrow(
+        new InternalServerErrorException(
+          'Could not process Google user profile.',
+        ),
+      );
 
       // Assert: Verify that prisma.user.upsert was indeed called
       expect(prisma.user.upsert).toHaveBeenCalledTimes(1);

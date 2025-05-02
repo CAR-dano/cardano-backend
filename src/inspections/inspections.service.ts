@@ -5,7 +5,13 @@
  * Authentication details (like associating with a real user) are currently using placeholders or omitted.
  */
 
-import { Injectable, Logger, InternalServerErrorException, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; // Service for Prisma client interaction
 import { CreateInspectionDto } from './dto/create-inspection.dto'; // DTO for incoming creation data
 import { Inspection, Prisma } from '@prisma/client'; // Prisma generated types (Inspection model, Prisma namespace)
@@ -16,7 +22,7 @@ export class InspectionsService {
   private readonly logger = new Logger(InspectionsService.name);
 
   // Inject PrismaService dependency via constructor
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Private helper function to safely parse a JSON string.
@@ -34,10 +40,19 @@ export class InspectionsService {
    * @returns {Prisma.InputJsonValue | undefined} The parsed JSON value or undefined.
    * @throws {BadRequestException} If the jsonString is invalid JSON.
    */
-  private parseJsonField(jsonString: string | undefined, fieldName: string): Prisma.InputJsonValue | undefined {
+  private parseJsonField(
+    jsonString: string | undefined,
+    fieldName: string,
+  ): Prisma.InputJsonValue | undefined {
     // Check if the input string is effectively empty
-    if (jsonString === undefined || jsonString === null || jsonString.trim() === '') {
-      this.logger.verbose(`JSON field '${fieldName}' is empty or nullish. Will result in DB NULL.`);
+    if (
+      jsonString === undefined ||
+      jsonString === null ||
+      jsonString.trim() === ''
+    ) {
+      this.logger.verbose(
+        `JSON field '${fieldName}' is empty or nullish. Will result in DB NULL.`,
+      );
       return undefined; // Return undefined for optional fields to store NULL
     }
     try {
@@ -46,7 +61,9 @@ export class InspectionsService {
 
       // Handle the case where the valid JSON literal 'null' was parsed
       if (parsed === null) {
-        this.logger.verbose(`Parsed JSON field '${fieldName}' resulted in null. Will result in DB NULL.`);
+        this.logger.verbose(
+          `Parsed JSON field '${fieldName}' resulted in null. Will result in DB NULL.`,
+        );
         return undefined; // Treat JSON null as DB NULL for optional Json? fields
         // To store actual JSON null: return Prisma.JsonNull; (requires schema field to be non-nullable Json)
       }
@@ -61,8 +78,13 @@ export class InspectionsService {
       return parsed as Prisma.InputJsonValue;
     } catch (error) {
       // Log the parsing error and throw a user-friendly exception
-      this.logger.error(`Failed to parse JSON for field ${fieldName}. Input: "${jsonString}"`, error.stack);
-      throw new BadRequestException(`Invalid JSON format provided for field '${fieldName}'.`);
+      this.logger.error(
+        `Failed to parse JSON for field ${fieldName}. Input: "${jsonString}"`,
+        error.stack,
+      );
+      throw new BadRequestException(
+        `Invalid JSON format provided for field '${fieldName}'.`,
+      );
     }
   }
 
@@ -83,25 +105,51 @@ export class InspectionsService {
     photos?: Express.Multer.File[], // Multer file array (optional)
   ): Promise<Inspection> {
     // Log the raw DTO received for debugging
-    this.logger.debug('Raw DTO received by Service:', JSON.stringify(createInspectionDto, null, 2));
-    this.logger.log(`Attempting to create inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'}`);
+    this.logger.debug(
+      'Raw DTO received by Service:',
+      JSON.stringify(createInspectionDto, null, 2),
+    );
+    this.logger.log(
+      `Attempting to create inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'}`,
+    );
 
     // Extract filenames from uploaded files (or empty array if no files)
-    const photoPaths = photos?.map(file => file.filename) ?? [];
+    const photoPaths = photos?.map((file) => file.filename) ?? [];
     if (photos && photos.length > 0) {
       this.logger.debug(`Photo filenames to store: ${photoPaths.join(', ')}`);
     }
 
     try {
       // Parse all the stringified JSON fields using the helper function
-      const identityData = this.parseJsonField(createInspectionDto.identityDetails, 'identityDetails');
-      const vehicleDataParsed = this.parseJsonField(createInspectionDto.vehicleData, 'vehicleData');
-      const equipmentData = this.parseJsonField(createInspectionDto.equipmentChecklist, 'equipmentChecklist');
-      const summaryData = this.parseJsonField(createInspectionDto.inspectionSummary, 'inspectionSummary');
-      const assessmentData = this.parseJsonField(createInspectionDto.detailedAssessment, 'detailedAssessment');
+      const identityData = this.parseJsonField(
+        createInspectionDto.identityDetails,
+        'identityDetails',
+      );
+      const vehicleDataParsed = this.parseJsonField(
+        createInspectionDto.vehicleData,
+        'vehicleData',
+      );
+      const equipmentData = this.parseJsonField(
+        createInspectionDto.equipmentChecklist,
+        'equipmentChecklist',
+      );
+      const summaryData = this.parseJsonField(
+        createInspectionDto.inspectionSummary,
+        'inspectionSummary',
+      );
+      const assessmentData = this.parseJsonField(
+        createInspectionDto.detailedAssessment,
+        'detailedAssessment',
+      );
 
       // Log the parsed data for debugging
-      this.logger.debug('Parsed JSON Data for DB:', { identityData, vehicleDataParsed, equipmentData, summaryData, assessmentData });
+      this.logger.debug('Parsed JSON Data for DB:', {
+        identityData,
+        vehicleDataParsed,
+        equipmentData,
+        summaryData,
+        assessmentData,
+      });
 
       // Construct the data object for Prisma's `create` method
       // Use the specific Prisma.InspectionCreateInput type for type safety
@@ -114,7 +162,9 @@ export class InspectionsService {
         // Assign basic fields from DTO
         vehiclePlateNumber: createInspectionDto.vehiclePlateNumber,
         // Convert date string to Date object, or undefined if not provided
-        inspectionDate: createInspectionDto.inspectionDate ? new Date(createInspectionDto.inspectionDate) : undefined,
+        inspectionDate: createInspectionDto.inspectionDate
+          ? new Date(createInspectionDto.inspectionDate)
+          : undefined,
         overallRating: createInspectionDto.overallRating,
 
         // Assign parsed JSON objects (or undefined/JsonNull) to the corresponding Json fields
@@ -131,12 +181,19 @@ export class InspectionsService {
       };
 
       // Log the final data object being sent to Prisma for debugging
-      this.logger.debug('Data prepared for Prisma create:', JSON.stringify(dataToCreate, null, 2));
+      this.logger.debug(
+        'Data prepared for Prisma create:',
+        JSON.stringify(dataToCreate, null, 2),
+      );
 
       // Execute the Prisma create query
-      const newInspection = await this.prisma.inspection.create({ data: dataToCreate });
+      const newInspection = await this.prisma.inspection.create({
+        data: dataToCreate,
+      });
 
-      this.logger.log(`Successfully created inspection with ID: ${newInspection.id}`);
+      this.logger.log(
+        `Successfully created inspection with ID: ${newInspection.id}`,
+      );
       // Return the complete Inspection object created by Prisma
       // Note: JSON fields in the returned object will be actual JavaScript objects/arrays
       return newInspection;
@@ -146,9 +203,14 @@ export class InspectionsService {
         throw error;
       }
       // Log other errors and throw a generic server error
-      this.logger.error(`Failed to create inspection in database: ${error.message}`, error.stack);
+      this.logger.error(
+        `Failed to create inspection in database: ${error.message}`,
+        error.stack,
+      );
       // Consider checking for specific Prisma error codes (e.g., unique constraint violation)
-      throw new InternalServerErrorException('Could not save inspection data to the database.');
+      throw new InternalServerErrorException(
+        'Could not save inspection data to the database.',
+      );
     }
   }
 
@@ -173,8 +235,13 @@ export class InspectionsService {
       return inspections; // Return the array of Inspection objects
     } catch (error) {
       // Log error and throw a generic exception
-      this.logger.error(`Failed to retrieve inspections from database: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Could not retrieve inspection data from the database.');
+      this.logger.error(
+        `Failed to retrieve inspections from database: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not retrieve inspection data from the database.',
+      );
     }
   }
 
@@ -201,13 +268,21 @@ export class InspectionsService {
       return inspection; // Prisma already returns JSON fields as objects
     } catch (error) {
       // Check if the error is the specific Prisma error for record not found
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
         this.logger.warn(`Inspection with ID "${id}" not found.`);
         throw new NotFoundException(`Inspection with ID "${id}" not found.`);
       }
       // Handle other potential database errors
-      this.logger.error(`Failed to retrieve inspection with ID ${id}: ${error.message}`, error.stack);
-      throw new InternalServerErrorException(`Could not retrieve inspection with ID ${id}.`);
+      this.logger.error(
+        `Failed to retrieve inspection with ID ${id}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Could not retrieve inspection with ID ${id}.`,
+      );
     }
   }
 }

@@ -19,8 +19,8 @@ import { join } from 'path';
       isGlobal: true, // Make ConfigModule available across applications
       envFilePath: '.env', // Specifies the .env file
     }),
-     // --- Konfigurasi ServeStaticModule ---
-     ServeStaticModule.forRoot({
+    // --- Konfigurasi ServeStaticModule ---
+    ServeStaticModule.forRoot({
       // rootPath: Menentukan folder di filesystem server yang ingin disajikan.
       // join(process.cwd(), 'uploads'): Membuat path absolut ke folder 'uploads'
       // di root proyek Anda (tempat folder 'dist' biasanya berada setelah build).

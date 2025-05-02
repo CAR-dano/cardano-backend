@@ -18,34 +18,14 @@
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
     "paths": {
-      "@cardano-backend/auth": [
-        "libs/auth/src"
-      ],
-      "@cardano-backend/auth/*": [
-        "libs/auth/src/*"
-      ],
-      "@cardano-backend/common": [
-        "libs/common/src"
-      ],
-      "@cardano-backend/common/*": [
-        "libs/common/src/*"
-      ],
-      "@cardano-backend/database": [
-        "libs/database/src"
-      ],
-      "@cardano-backend/database/*": [
-        "libs/database/src/*"
-      ]
+      "@cardano-backend/auth": ["libs/auth/src"],
+      "@cardano-backend/auth/*": ["libs/auth/src/*"],
+      "@cardano-backend/common": ["libs/common/src"],
+      "@cardano-backend/common/*": ["libs/common/src/*"],
+      "@cardano-backend/database": ["libs/database/src"],
+      "@cardano-backend/database/*": ["libs/database/src/*"]
     }
   },
-  "include": [
-    "src/**/*",
-    "prisma/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "prisma/migrations",
-    "prisma/seed.ts"
-  ],
+  "include": ["src/**/*", "prisma/**/*"],
+  "exclude": ["node_modules", "dist", "prisma/migrations", "prisma/seed.ts"]
 }

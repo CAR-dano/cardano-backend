@@ -56,14 +56,18 @@ export class UsersController {
   @Get()
   @Roles(Role.ADMIN) // Specify that only ADMINs can access this endpoint
   @ApiOperation({ summary: 'Retrieve all users (Admin Only)' })
-  @ApiResponse({ status: 200, description: 'List of users retrieved successfully.', type: [UserResponseDto] }) // Use DTO for response type
+  @ApiResponse({
+    status: 200,
+    description: 'List of users retrieved successfully.',
+    type: [UserResponseDto],
+  }) // Use DTO for response type
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden. Requires ADMIN role.' })
   async findAll(): Promise<UserResponseDto[]> {
     this.logger.log('Request received for finding all users');
     const users = await this.usersService.findAll(); // Assuming findAll exists in service
     // Map to DTO to exclude sensitive fields if necessary
-    return users.map(user => new UserResponseDto(user));
+    return users.map((user) => new UserResponseDto(user));
   }
 
   /**
@@ -77,11 +81,17 @@ export class UsersController {
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Retrieve a specific user by ID (Admin Only)' })
   @ApiParam({ name: 'id', description: 'The UUID of the user', type: String })
-  @ApiResponse({ status: 200, description: 'User details retrieved successfully.', type: UserResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'User details retrieved successfully.',
+    type: UserResponseDto,
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden. Requires ADMIN role.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<UserResponseDto> {
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<UserResponseDto> {
     this.logger.log(`Request received for finding user with ID: ${id}`);
     const user = await this.usersService.findById(id);
     if (!user) {
@@ -101,11 +111,18 @@ export class UsersController {
    */
   @Put(':id/role')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Update a user\'s role (Admin Only)' })
+  @ApiOperation({ summary: "Update a user's role (Admin Only)" })
   @ApiParam({ name: 'id', description: 'The UUID of the user', type: String })
   @ApiBody({ type: UpdateUserRoleDto })
-  @ApiResponse({ status: 200, description: 'User role updated successfully.', type: UserResponseDto })
-  @ApiResponse({ status: 400, description: 'Bad Request (e.g., invalid role).' })
+  @ApiResponse({
+    status: 200,
+    description: 'User role updated successfully.',
+    type: UserResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request (e.g., invalid role).',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden. Requires ADMIN role.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
@@ -113,8 +130,13 @@ export class UsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserRoleDto: UpdateUserRoleDto,
   ): Promise<UserResponseDto> {
-    this.logger.log(`Request received to update role for user ID: ${id} to ${updateUserRoleDto.role}`);
-    const updatedUser = await this.usersService.updateRole(id, updateUserRoleDto.role); // Assuming updateRole exists
+    this.logger.log(
+      `Request received to update role for user ID: ${id} to ${updateUserRoleDto.role}`,
+    );
+    const updatedUser = await this.usersService.updateRole(
+      id,
+      updateUserRoleDto.role,
+    ); // Assuming updateRole exists
     return new UserResponseDto(updatedUser);
   }
 
@@ -130,11 +152,17 @@ export class UsersController {
   @HttpCode(HttpStatus.OK) // Often PUT returns 200 OK on success
   @ApiOperation({ summary: 'Disable a user account (Admin Only)' })
   @ApiParam({ name: 'id', description: 'The UUID of the user', type: String })
-  @ApiResponse({ status: 200, description: 'User account disabled successfully.', type: UserResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'User account disabled successfully.',
+    type: UserResponseDto,
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden. Requires ADMIN role.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  async disableUser(@Param('id', ParseUUIDPipe) id: string): Promise<UserResponseDto> {
+  async disableUser(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<UserResponseDto> {
     this.logger.log(`Request received to disable user ID: ${id}`);
     const user = await this.usersService.setStatus(id, false); // Assuming setStatus(id, isActive) exists
     return new UserResponseDto(user);
@@ -152,11 +180,17 @@ export class UsersController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Enable (reactivate) a user account (Admin Only)' })
   @ApiParam({ name: 'id', description: 'The UUID of the user', type: String })
-  @ApiResponse({ status: 200, description: 'User account enabled successfully.', type: UserResponseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'User account enabled successfully.',
+    type: UserResponseDto,
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
   @ApiResponse({ status: 403, description: 'Forbidden. Requires ADMIN role.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  async enableUser(@Param('id', ParseUUIDPipe) id: string): Promise<UserResponseDto> {
+  async enableUser(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<UserResponseDto> {
     this.logger.log(`Request received to enable user ID: ${id}`);
     const user = await this.usersService.setStatus(id, true); // Assuming setStatus exists
     return new UserResponseDto(user);

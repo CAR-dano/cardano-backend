@@ -13,12 +13,18 @@
  * --------------------------------------------------------------------------
  */
 
-import { Injectable, ExecutionContext, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  ExecutionContext,
+  UnauthorizedException,
+  Logger,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Observable } from 'rxjs';
 
 @Injectable()
-export class JwtAuthGuard extends AuthGuard('jwt') { // Use the strategy name 'jwt'
+export class JwtAuthGuard extends AuthGuard('jwt') {
+  // Use the strategy name 'jwt'
   private readonly logger = new Logger(JwtAuthGuard.name);
 
   /*
@@ -33,7 +39,9 @@ export class JwtAuthGuard extends AuthGuard('jwt') { // Use the strategy name 'j
   ): boolean | Promise<boolean> | Observable<boolean> {
     // Add logging before calling super.canActivate()
     const request = context.switchToHttp().getRequest();
-    this.logger.verbose(`JWT Auth Guard activated for request: ${request.method} ${request.url}`);
+    this.logger.verbose(
+      `JWT Auth Guard activated for request: ${request.method} ${request.url}`,
+    );
     // Let the parent AuthGuard handle the core logic using the 'jwt' strategy
     return super.canActivate(context);
   }
@@ -51,10 +59,16 @@ export class JwtAuthGuard extends AuthGuard('jwt') { // Use the strategy name 'j
   handleRequest(err, user, info) {
     // You can override handleRequest for custom error handling or logging
     if (err || !user) {
-      this.logger.warn(`JWT Authentication failed: ${info?.message || err?.message || 'No user object found'}`);
-      throw err || new UnauthorizedException(info?.message || 'Unauthorized access');
+      this.logger.warn(
+        `JWT Authentication failed: ${info?.message || err?.message || 'No user object found'}`,
+      );
+      throw (
+        err || new UnauthorizedException(info?.message || 'Unauthorized access')
+      );
     }
-    this.logger.verbose(`JWT Authentication successful for user ID: ${user.id}`);
+    this.logger.verbose(
+      `JWT Authentication successful for user ID: ${user.id}`,
+    );
     return user; // User will be attached to the request (req.user)
   }
 }

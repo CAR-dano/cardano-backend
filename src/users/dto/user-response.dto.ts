@@ -12,21 +12,31 @@ export class UserResponseDto {
    * The unique identifier (UUID) for the user.
    * @example "a1b2c3d4-e5f6-7890-1234-567890abcdef"
    */
-  @ApiProperty({ example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef', description: 'User unique identifier (UUID)' })
+  @ApiProperty({
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
+    description: 'User unique identifier (UUID)',
+  })
   id: string;
 
   /**
    * The user's unique email address.
    * @example "admin@example.com"
    */
-  @ApiProperty({ example: 'admin@example.com', description: 'User email address' })
+  @ApiProperty({
+    example: 'admin@example.com',
+    description: 'User email address',
+  })
   email: string;
 
   /**
    * The user's display name. Can be null if not provided.
    * @example "Administrator"
    */
-  @ApiProperty({ example: 'Administrator', nullable: true, description: 'User display name (optional)' })
+  @ApiProperty({
+    example: 'Administrator',
+    nullable: true,
+    description: 'User display name (optional)',
+  })
   name: string | null;
 
   /**

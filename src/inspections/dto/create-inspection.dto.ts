@@ -23,7 +23,7 @@ export class CreateInspectionDto {
     type: String, // Explicitly define type for documentation
   })
   @IsOptional() // Allows the property to be missing or undefined
-  @IsString()   // Validates that if provided, it's a string
+  @IsString() // Validates that if provided, it's a string
   vehiclePlateNumber?: string;
 
   /**
@@ -72,7 +72,8 @@ export class CreateInspectionDto {
     format: 'json', // Hint for documentation tools that this string holds JSON
     description: 'Stringified JSON data from Page 1 (Identitas)',
     required: false,
-    example: '{"namaInspektor": "Maulana", "namaCustomer": "Budi S.", "cabangInspeksi": "Jogja Utara"}',
+    example:
+      '{"namaInspektor": "Maulana", "namaCustomer": "Budi S.", "cabangInspeksi": "Jogja Utara"}',
   })
   @IsOptional()
   @IsJSON() // Validates that the provided value *is* a string containing valid JSON syntax
@@ -87,7 +88,8 @@ export class CreateInspectionDto {
     format: 'json',
     description: 'Stringified JSON data from Page 2 (Data Kendaraan)',
     required: false,
-    example: '{"merekKendaraan": "Honda", "tipeKendaraan": "Jazz RS", "tahun": 2022}',
+    example:
+      '{"merekKendaraan": "Honda", "tipeKendaraan": "Jazz RS", "tahun": 2022}',
   })
   @IsOptional()
   @IsJSON()
