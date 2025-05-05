@@ -63,10 +63,12 @@ describe('AuthController (e2e) - UI User Flows', () => {
 
     // Apply global configurations consistent with main.ts
     app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(new ValidationPipe({
-      whitelist: true,
-      transform: true,
-    }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+      }),
+    );
 
     // Get services needed for setup and testing
     prisma = app.get(PrismaService);
@@ -77,7 +79,9 @@ describe('AuthController (e2e) - UI User Flows', () => {
     console.log('[E2E Setup] Cleaning test users...');
     try {
       // Delete potentially existing test users from previous runs
-      await prisma.user.deleteMany({ where: { email: { contains: '.e2e@test.com' } } });
+      await prisma.user.deleteMany({
+        where: { email: { contains: '.e2e@test.com' } },
+      });
       console.log('[E2E Setup] Test users cleaned.');
 
       // Create necessary test users directly in the database
@@ -86,20 +90,31 @@ describe('AuthController (e2e) - UI User Flows', () => {
       const customer = await prisma.user.create({ data: testCustomerUser });
       adminUserId = admin.id;
       customerUserId = customer.id;
-      console.log(`[E2E Setup] Test users created (Admin: ${adminUserId}, Customer: ${customerUserId})`);
+      console.log(
+        `[E2E Setup] Test users created (Admin: ${adminUserId}, Customer: ${customerUserId})`,
+      );
 
       // Generate JWTs for test users using AuthService.login
       console.log('[E2E Setup] Generating JWTs...');
-      adminJwtToken = (await authService.login({
-        id: admin.id, email: admin.email, role: admin.role, name: admin.name ?? undefined
-      })).accessToken;
-      customerJwtToken = (await authService.login({
-        id: customer.id, email: customer.email, role: customer.role, name: customer.name ?? undefined
-      })).accessToken;
+      adminJwtToken = (
+        await authService.login({
+          id: admin.id,
+          email: admin.email,
+          role: admin.role,
+          name: admin.name ?? undefined,
+        })
+      ).accessToken;
+      customerJwtToken = (
+        await authService.login({
+          id: customer.id,
+          email: customer.email,
+          role: customer.role,
+          name: customer.name ?? undefined,
+        })
+      ).accessToken;
       console.log('[E2E Setup] JWTs generated.');
-
     } catch (error) {
-      console.error("[E2E Setup] CRITICAL ERROR during setup:", error);
+      console.error('[E2E Setup] CRITICAL ERROR during setup:', error);
       throw error; // Stop tests if setup fails
     }
 
@@ -114,7 +129,9 @@ describe('AuthController (e2e) - UI User Flows', () => {
    * - Closes the NestJS application instance.
    */
   afterAll(async () => {
-    console.log('[E2E Teardown] Closing application and database connection...');
+    console.log(
+      '[E2E Teardown] Closing application and database connection...',
+    );
     await prisma.$disconnect();
     await app.close();
     console.log('[E2E Teardown] Application closed.');
@@ -258,7 +275,6 @@ describe('AuthController (e2e) - UI User Flows', () => {
     // Example:
     // it(`/api/v1/some/other/admin/route (POST) - should fail with 403 if role is EDITOR`, ...)
     // it(`/api/v1/admin/users/{id}/role (PUT) - should succeed with 200 if role is ADMIN`, ...)
-
   });
 
   /**
@@ -271,5 +287,4 @@ describe('AuthController (e2e) - UI User Flows', () => {
     it.todo('Implement Google OAuth E2E simulation if needed');
     // Example: test('/google/callback (GET) - should generate JWT and redirect after mock validation', ...)
   });
-
 });

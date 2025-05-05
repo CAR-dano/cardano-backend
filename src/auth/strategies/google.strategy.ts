@@ -14,7 +14,11 @@
 
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, VerifyCallback, Profile } from 'passport-google-oauth20';
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service';
 import { User } from '@prisma/client';
@@ -62,7 +66,9 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
     profile: Profile, // Profile type of passport-google-oauth20
     done: VerifyCallback,
   ): Promise<any> {
-    this.logger.verbose(`Validating Google profile for: ${profile.displayName} (${profile.id})`);
+    this.logger.verbose(
+      `Validating Google profile for: ${profile.displayName} (${profile.id})`,
+    );
     try {
       // Delegate user validation/creation to AuthService
       const user: User = await this.authService.validateUserGoogle(profile);
@@ -77,9 +83,11 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       };
 
       done(null, simplifiedUser); // Pass the simplified user object to Passport
-
     } catch (error) {
-      this.logger.error(`Google validation failed for profile ID ${profile.id}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Google validation failed for profile ID ${profile.id}: ${error.message}`,
+        error.stack,
+      );
       done(error, false); // Signal an error to Passport
     }
   }

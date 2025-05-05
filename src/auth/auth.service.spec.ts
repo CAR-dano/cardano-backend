@@ -52,7 +52,7 @@ describe('AuthService', () => {
   // Declare variables to hold instances of the service under test and its mocked dependencies.
   let service: AuthService;
   let usersService: UsersService; // Will hold the mock object
-  let jwtService: JwtService;     // Will hold the mock object
+  let jwtService: JwtService; // Will hold the mock object
   let configService: ConfigService; // Will hold the mock object
 
   /**
@@ -76,7 +76,7 @@ describe('AuthService', () => {
     // Retrieve the instances from the testing module
     service = module.get<AuthService>(AuthService);
     usersService = module.get<UsersService>(UsersService); // Retrieves the mock provided
-    jwtService = module.get<JwtService>(JwtService);     // Retrieves the mock provided
+    jwtService = module.get<JwtService>(JwtService); // Retrieves the mock provided
     configService = module.get<ConfigService>(ConfigService); // Retrieves the mock provided
 
     // Reset mocks before each test to prevent interference between tests
@@ -180,13 +180,19 @@ describe('AuthService', () => {
     it('should throw InternalServerErrorException if usersService throws error', async () => {
       // Arrange: Configure the mock UsersService to reject with an error.
       const errorMessage = 'Database error';
-      mockUsersService.findOrCreateByGoogleProfile.mockRejectedValue(new Error(errorMessage));
+      mockUsersService.findOrCreateByGoogleProfile.mockRejectedValue(
+        new Error(errorMessage),
+      );
 
       // Act & Assert: Verify that calling the method under test results in a rejection
       // that is an instance of InternalServerErrorException with the expected message.
       // The logger within AuthService should also output the original error message.
-      await expect(service.validateUserGoogle(mockGoogleProfile)).rejects.toThrow(
-        new InternalServerErrorException('Failed to validate Google user profile.')
+      await expect(
+        service.validateUserGoogle(mockGoogleProfile),
+      ).rejects.toThrow(
+        new InternalServerErrorException(
+          'Failed to validate Google user profile.',
+        ),
       );
     });
 
@@ -201,14 +207,22 @@ describe('AuthService', () => {
       const profileWithoutEmail: Profile = {
         ...mockGoogleProfile,
         emails: undefined, // Simulate missing email
-        _json: { ...mockGoogleProfile._json, email: undefined, email_verified: false }
+        _json: {
+          ...mockGoogleProfile._json,
+          email: undefined,
+          email_verified: false,
+        },
       };
 
       // Act & Assert: Expect the call to reject with the specific InternalServerErrorException.
       // The UsersService's findOrCreate method is expected to handle the missing email initially,
       // and AuthService catches this failure.
-      await expect(service.validateUserGoogle(profileWithoutEmail)).rejects.toThrow(
-        new InternalServerErrorException('Failed to validate Google user profile.')
+      await expect(
+        service.validateUserGoogle(profileWithoutEmail),
+      ).rejects.toThrow(
+        new InternalServerErrorException(
+          'Failed to validate Google user profile.',
+        ),
       );
     });
   });
@@ -220,7 +234,12 @@ describe('AuthService', () => {
    */
   describe('login', () => {
     // Define mock user data that would be passed to the login method.
-    const mockUserLoginInput: { id: string; email: string; role: Role; name?: string } = {
+    const mockUserLoginInput: {
+      id: string;
+      email: string;
+      role: Role;
+      name?: string;
+    } = {
       id: 'user-uuid-456',
       email: 'login.user@example.com',
       role: Role.ADMIN, // Use Role enum
@@ -249,7 +268,9 @@ describe('AuthService', () => {
 
       // Assert: Verify that getOrThrow was called twice with the correct keys.
       expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_SECRET');
-      expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_EXPIRATION_TIME');
+      expect(configService.getOrThrow).toHaveBeenCalledWith(
+        'JWT_EXPIRATION_TIME',
+      );
       expect(configService.getOrThrow).toHaveBeenCalledTimes(2);
     });
 
@@ -280,10 +301,13 @@ describe('AuthService', () => {
       const expectedSignOptions = {
         secret: mockJwtSecret,
         expiresIn: mockJwtExpiresIn,
-      }
+      };
 
       // Assert: Verify jwtService.sign was called once with the expected payload and options.
-      expect(jwtService.sign).toHaveBeenCalledWith(expectedPayload, expectedSignOptions);
+      expect(jwtService.sign).toHaveBeenCalledWith(
+        expectedPayload,
+        expectedSignOptions,
+      );
       expect(jwtService.sign).toHaveBeenCalledTimes(1);
     });
 
@@ -326,7 +350,7 @@ describe('AuthService', () => {
       // Act & Assert: Verify the call rejects with the expected exception.
       // The logger in AuthService should output the original 'Signing failed' error.
       await expect(service.login(mockUserLoginInput)).rejects.toThrow(
-        new InternalServerErrorException('Failed to generate access token.')
+        new InternalServerErrorException('Failed to generate access token.'),
       );
     });
   });

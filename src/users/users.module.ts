@@ -18,7 +18,7 @@ import { PrismaModule } from '../prisma/prisma.module'; // Import PrismaModule
     // forwardRef(() => AuthModule) // Use forwardRef if circular dependency exists
   ],
   controllers: [UsersController], // Register the controller
-  providers: [UsersService],      // Register the service
-  exports: [UsersService],        // Export service for other modules to use
+  providers: [UsersService], // Register the service
+  exports: [UsersService], // Export service for other modules to use
 })
 export class UsersModule {}

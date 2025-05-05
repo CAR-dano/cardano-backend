@@ -3,7 +3,13 @@
  * including finding, creating, updating, and managing user data through PrismaService.
  */
 
-import { Injectable, NotFoundException, InternalServerErrorException, Logger, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+  Logger,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; // Assuming prisma service is in ../prisma
 import { User, Role } from '@prisma/client';
 import { Prisma } from '@prisma/client'; // Import Prisma for error handling type
@@ -16,7 +22,7 @@ export class UsersService {
    * Injects PrismaService for database interactions.
    * @param {PrismaService} prisma - The Prisma database client service.
    */
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Finds a single user by their unique email address.
@@ -28,9 +34,14 @@ export class UsersService {
     try {
       return await this.prisma.user.findUnique({ where: { email } });
     } catch (error) {
-      this.logger.error(`Error finding user by email ${email}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error finding user by email ${email}: ${error.message}`,
+        error.stack,
+      );
       // Let the specific Prisma error propagate if needed, or throw generic error
-      throw new InternalServerErrorException('Database error while finding user by email.');
+      throw new InternalServerErrorException(
+        'Database error while finding user by email.',
+      );
     }
   }
 
@@ -46,8 +57,13 @@ export class UsersService {
       const user = await this.prisma.user.findUnique({ where: { id } });
       return user;
     } catch (error) {
-      this.logger.error(`Error finding user by ID ${id}: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Database error while finding user by ID.');
+      this.logger.error(
+        `Error finding user by ID ${id}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Database error while finding user by ID.',
+      );
     }
   }
 
@@ -61,11 +77,15 @@ export class UsersService {
     try {
       return await this.prisma.user.findMany();
     } catch (error) {
-      this.logger.error(`Error finding all users: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Database error while retrieving users.');
+      this.logger.error(
+        `Error finding all users: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Database error while retrieving users.',
+      );
     }
   }
-
 
   /**
    * Finds an existing user by email or creates a new one based on Google profile data.
@@ -85,10 +105,14 @@ export class UsersService {
 
     if (!email) {
       this.logger.error('Google profile validation failed: Email missing.');
-      throw new InternalServerErrorException('Google profile is missing email.');
+      throw new InternalServerErrorException(
+        'Google profile is missing email.',
+      );
     }
 
-    this.logger.log(`Attempting to find or create user for Google profile ID: ${googleId}, email: ${email}`);
+    this.logger.log(
+      `Attempting to find or create user for Google profile ID: ${googleId}, email: ${email}`,
+    );
     try {
       const user = await this.prisma.user.upsert({
         where: { email: email },
@@ -100,16 +124,28 @@ export class UsersService {
           role: Role.CUSTOMER, // Default role on creation
         },
       });
-      this.logger.log(`Successfully found/created user ID: ${user.id} for Google profile.`);
+      this.logger.log(
+        `Successfully found/created user ID: ${user.id} for Google profile.`,
+      );
       return user;
     } catch (error) {
-      this.logger.error(`Error during upsert for Google profile ${googleId}: ${error.message}`, error.stack);
+      this.logger.error(
+        `Error during upsert for Google profile ${googleId}: ${error.message}`,
+        error.stack,
+      );
       // Handle potential unique constraint violation on googleId if necessary
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
         // Example: googleId might already be linked to a different email
-        throw new ConflictException('Google ID is already associated with another user.');
+        throw new ConflictException(
+          'Google ID is already associated with another user.',
+        );
       }
-      throw new InternalServerErrorException('Could not process Google user profile due to database error.');
+      throw new InternalServerErrorException(
+        'Could not process Google user profile due to database error.',
+      );
     }
   }
 
@@ -122,12 +158,16 @@ export class UsersService {
    * @throws {InternalServerErrorException} If the database update fails.
    */
   async updateRole(id: string, newRole: Role): Promise<User> {
-    this.logger.log(`Attempting to update role for user ID: ${id} to ${newRole}`);
+    this.logger.log(
+      `Attempting to update role for user ID: ${id} to ${newRole}`,
+    );
     try {
       // First, check if user exists to provide a better error message
       const existingUser = await this.findById(id);
       if (!existingUser) {
-        throw new NotFoundException(`User with ID "${id}" not found for role update.`);
+        throw new NotFoundException(
+          `User with ID "${id}" not found for role update.`,
+        );
       }
 
       const updatedUser = await this.prisma.user.update({
@@ -141,8 +181,13 @@ export class UsersService {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      this.logger.error(`Error updating role for user ID ${id}: ${error.message}`, error.stack);
-      throw new InternalServerErrorException(`Could not update role for user ID ${id}.`);
+      this.logger.error(
+        `Error updating role for user ID ${id}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Could not update role for user ID ${id}.`,
+      );
     }
   }
 
@@ -158,7 +203,9 @@ export class UsersService {
    * @throws {InternalServerErrorException} If the database update fails.
    */
   async setStatus(id: string, isActive: boolean): Promise<User> {
-    this.logger.log(`Attempting to set status for user ID: ${id} to ${isActive}`);
+    this.logger.log(
+      `Attempting to set status for user ID: ${id} to ${isActive}`,
+    );
     // TODO: Add an 'isActive: Boolean @default(true)' field to your User model in schema.prisma
     // TODO: and run 'npx prisma migrate dev --name add_isactive_to_user' and 'npx prisma generate'
     // TODO: If you choose not to add this field, remove or adapt this method and its controller endpoints.
@@ -185,8 +232,9 @@ export class UsersService {
     if (!user) {
       throw new NotFoundException(`User with ID "${id}" not found.`);
     }
-    this.logger.warn(`'isActive' field not implemented in User model. Cannot truly set status for ${id}. Returning current user.`);
+    this.logger.warn(
+      `'isActive' field not implemented in User model. Cannot truly set status for ${id}. Returning current user.`,
+    );
     return user; // Return existing user without modification until field is added
   }
-
 }

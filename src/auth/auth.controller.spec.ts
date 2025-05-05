@@ -68,11 +68,16 @@ const mockResponse = {
 const mockRequest = {} as Request;
 
 // Helper to create a request with a user object
-const createMockRequestWithUser = (user: { id: string; email: string; name?: string; role: Role; }): AuthenticatedRequest => ({
-  ...mockRequest,
-  user,
-} as AuthenticatedRequest);
-
+const createMockRequestWithUser = (user: {
+  id: string;
+  email: string;
+  name?: string;
+  role: Role;
+}): AuthenticatedRequest =>
+  ({
+    ...mockRequest,
+    user,
+  }) as AuthenticatedRequest;
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -144,7 +149,12 @@ describe('AuthController', () => {
    * This endpoint handles the redirect back from Google after successful authentication.
    */
   describe('googleAuthRedirect', () => {
-    const mockUser = { id: 'user-123', email: 'test@example.com', name: 'Test User', role: Role.CUSTOMER };
+    const mockUser = {
+      id: 'user-123',
+      email: 'test@example.com',
+      name: 'Test User',
+      role: Role.CUSTOMER,
+    };
     const mockRequestWithAuthUser = createMockRequestWithUser(mockUser);
     const mockAccessToken = { accessToken: 'mock-jwt-token' };
     const mockClientUrl = 'http://localhost:3001'; // Example frontend URL
@@ -160,12 +170,17 @@ describe('AuthController', () => {
       mockConfigService.getOrThrow.mockReturnValue(mockClientUrl);
 
       // Act
-      await controller.googleAuthRedirect(mockRequestWithAuthUser, mockResponse);
+      await controller.googleAuthRedirect(
+        mockRequestWithAuthUser,
+        mockResponse,
+      );
 
       // Assert
       expect(authService.login).toHaveBeenCalledWith(mockUser);
       expect(configService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
-      expect(mockResponse.redirect).toHaveBeenCalledWith(`${mockClientUrl}/auth/callback?token=${mockAccessToken.accessToken}`);
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        `${mockClientUrl}/auth/callback?token=${mockAccessToken.accessToken}`,
+      );
     });
 
     /**
@@ -184,7 +199,9 @@ describe('AuthController', () => {
       // Assert
       expect(authService.login).not.toHaveBeenCalled(); // Login should not be called
       expect(configService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
-      expect(mockResponse.redirect).toHaveBeenCalledWith(`${mockClientUrl}/login?error=AuthenticationFailed`);
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        `${mockClientUrl}/login?error=AuthenticationFailed`,
+      );
     });
 
     /**
@@ -204,7 +221,9 @@ describe('AuthController', () => {
       // Assert
       expect(authService.login).toHaveBeenCalledWith(mockUser);
       expect(configService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
-      expect(mockResponse.redirect).toHaveBeenCalledWith(`${mockClientUrl}/login?error=LoginProcessingFailed`);
+      expect(mockResponse.redirect).toHaveBeenCalledWith(
+        `${mockClientUrl}/login?error=LoginProcessingFailed`,
+      );
     });
 
     /**
@@ -244,14 +263,18 @@ describe('AuthController', () => {
         expect(mockResponse.redirect).toHaveBeenCalledWith(`${mockClientUrl}/dashboard`);
     });
     */
-
   });
 
   /**
    * Test suite for the POST /auth/logout endpoint.
    */
   describe('logout', () => {
-    const mockUser = { id: 'user-123', email: 'test@example.com', name: 'Test User', role: Role.CUSTOMER };
+    const mockUser = {
+      id: 'user-123',
+      email: 'test@example.com',
+      name: 'Test User',
+      role: Role.CUSTOMER,
+    };
     const mockRequestWithAuthUser = createMockRequestWithUser(mockUser);
     /**
      * Tests the basic logout functionality for stateless JWT.
@@ -266,7 +289,10 @@ describe('AuthController', () => {
 
       // Assert
       expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.OK);
-      expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Logout successful. Please clear your token/session on the client side.' });
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        message:
+          'Logout successful. Please clear your token/session on the client side.',
+      });
     });
 
     /**
@@ -301,7 +327,12 @@ describe('AuthController', () => {
    * Test suite for the GET /auth/profile endpoint.
    */
   describe('getProfile', () => {
-    const mockUser = { id: 'user-123', email: 'test@example.com', name: 'Test User', role: Role.ADMIN };
+    const mockUser = {
+      id: 'user-123',
+      email: 'test@example.com',
+      name: 'Test User',
+      role: Role.ADMIN,
+    };
     const mockRequestWithAuthUser = createMockRequestWithUser(mockUser);
 
     /**

@@ -56,12 +56,15 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
    * @returns {Promise<Omit<User, 'googleId'>>} - The validated user object (excluding sensitive fields).
    * @throws {UnauthorizedException} - If the user associated with the token is not found.
    */
-  async validate(payload: JwtPayload): Promise<Omit<User, 'googleId'>> { // Return User without googleId
+  async validate(payload: JwtPayload): Promise<Omit<User, 'googleId'>> {
+    // Return User without googleId
     this.logger.verbose(`Validating JWT payload for user ID: ${payload.sub}`);
     const user = await this.usersService.findById(payload.sub);
 
     if (!user) {
-      this.logger.warn(`JWT validation failed: User with ID ${payload.sub} not found.`);
+      this.logger.warn(
+        `JWT validation failed: User with ID ${payload.sub} not found.`,
+      );
       throw new UnauthorizedException('Invalid token or user not found');
     }
 

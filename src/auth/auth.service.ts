@@ -11,7 +11,11 @@
  * --------------------------------------------------------------------------
  */
 
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service';
 import { ConfigService } from '@nestjs/config';
@@ -35,7 +39,7 @@ export class AuthService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   /*
    * Validates a user based on the profile received from Google OAuth.
@@ -54,11 +58,18 @@ export class AuthService {
         emails: profile.emails,
         displayName: profile.displayName,
       });
-      this.logger.log(`Google profile validated successfully for user ID: ${user.id}`);
+      this.logger.log(
+        `Google profile validated successfully for user ID: ${user.id}`,
+      );
       return user;
     } catch (error) {
-      this.logger.error(`Failed to validate Google profile ${profile.id}: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Failed to validate Google user profile.');
+      this.logger.error(
+        `Failed to validate Google profile ${profile.id}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Failed to validate Google user profile.',
+      );
     }
   }
 
@@ -70,7 +81,12 @@ export class AuthService {
    * @returns {Promise<{ accessToken: string }>} - An object containing the generated JWT.
    * @throws {InternalServerErrorException} - If JWT signing fails.
    */
-  async login(user: { id: string; email: string; role: Role; name?: string }): Promise<{ accessToken: string }> {
+  async login(user: {
+    id: string;
+    email: string;
+    role: Role;
+    name?: string;
+  }): Promise<{ accessToken: string }> {
     this.logger.log(`Generating JWT for user ID: ${user.id}`);
     const payload: JwtPayload = {
       sub: user.id,
@@ -81,7 +97,9 @@ export class AuthService {
 
     try {
       const secret = this.configService.getOrThrow<string>('JWT_SECRET');
-      const expiresIn = this.configService.getOrThrow<string>('JWT_EXPIRATION_TIME');
+      const expiresIn = this.configService.getOrThrow<string>(
+        'JWT_EXPIRATION_TIME',
+      );
 
       const accessToken = this.jwtService.sign(payload, { secret, expiresIn });
 
@@ -90,8 +108,13 @@ export class AuthService {
         accessToken,
       };
     } catch (error) {
-      this.logger.error(`Failed to sign JWT for user ID ${user.id}: ${error.message}`, error.stack);
-      throw new InternalServerErrorException('Failed to generate access token.');
+      this.logger.error(
+        `Failed to sign JWT for user ID ${user.id}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Failed to generate access token.',
+      );
     }
   }
 

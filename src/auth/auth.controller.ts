@@ -11,12 +11,27 @@
  * --------------------------------------------------------------------------
  */
 
-import { Controller, Get, Req, Res, UseGuards, Post, HttpStatus, Logger } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Req,
+  Res,
+  UseGuards,
+  Post,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import { ConfigService } from '@nestjs/config';
 import { Response, Request } from 'express'; // Import Request & Response
-import { ApiTags, ApiOperation, ApiResponse, ApiExcludeEndpoint, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiExcludeEndpoint,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { User as UserModel, Role } from '@prisma/client'; // Rename import to avoid conflicts
 
@@ -45,7 +60,7 @@ export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   /*
    * Endpoint to initiate the Google OAuth 2.0 authentication flow.
@@ -55,8 +70,15 @@ export class AuthController {
    */
   @Get('google')
   @UseGuards(AuthGuard('google'))
-  @ApiOperation({ summary: 'Initiate Google OAuth login', description: 'Redirects user to Google for authentication. No request body needed.' })
-  @ApiResponse({ status: 302, description: 'Redirecting to Google for authentication.' })
+  @ApiOperation({
+    summary: 'Initiate Google OAuth login',
+    description:
+      'Redirects user to Google for authentication. No request body needed.',
+  })
+  @ApiResponse({
+    status: 302,
+    description: 'Redirecting to Google for authentication.',
+  })
   async googleAuth(@Req() req: Request) {
     this.logger.log('Initiating Google OAuth flow.');
     // Guard handles the redirect. No specific logic needed here.
@@ -75,24 +97,33 @@ export class AuthController {
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
   @ApiExcludeEndpoint() // Hide from API documentation
-  async googleAuthRedirect(@Req() req: AuthenticatedRequest, @Res() res: Response) {
+  async googleAuthRedirect(
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response,
+  ) {
     this.logger.log('Received Google OAuth callback.');
 
     if (!req.user) {
       this.logger.error('Google authentication failed, req.user is missing.');
-      const clientUrl = this.configService.getOrThrow<string>('CLIENT_BASE_URL');
+      const clientUrl =
+        this.configService.getOrThrow<string>('CLIENT_BASE_URL');
       // Redirect to the frontend login page with an error message
       return res.redirect(`${clientUrl}/login?error=AuthenticationFailed`);
     }
 
-    this.logger.log(`User authenticated via Google: ${req.user.email} (ID: ${req.user.id})`);
+    this.logger.log(
+      `User authenticated via Google: ${req.user.email} (ID: ${req.user.id})`,
+    );
 
     try {
       // Create JWT for validated users
       const { accessToken } = await this.authService.login(req.user);
-      const clientUrl = this.configService.getOrThrow<string>('CLIENT_BASE_URL');
+      const clientUrl =
+        this.configService.getOrThrow<string>('CLIENT_BASE_URL');
 
-      this.logger.log(`JWT generated, redirecting user back to frontend: ${clientUrl}`);
+      this.logger.log(
+        `JWT generated, redirecting user back to frontend: ${clientUrl}`,
+      );
 
       // --- Redirect Method with Token in Query Parameter (Simple Example) ---
       // Notes: Consider the security of this method. It is better to set HttpOnly cookie.
@@ -110,10 +141,13 @@ export class AuthController {
       });
       res.redirect(`${clientUrl}/dashboard`); // Mengalihkan ke halaman setelah login berhasil
       */
-
     } catch (error) {
-      this.logger.error(`Failed to process Google callback for user ${req.user.email}: ${error.message}`, error.stack);
-      const clientUrl = this.configService.getOrThrow<string>('CLIENT_BASE_URL');
+      this.logger.error(
+        `Failed to process Google callback for user ${req.user.email}: ${error.message}`,
+        error.stack,
+      );
+      const clientUrl =
+        this.configService.getOrThrow<string>('CLIENT_BASE_URL');
       // Redirect to frontend login page with general error message
       res.redirect(`${clientUrl}/login?error=LoginProcessingFailed`);
     }
@@ -130,15 +164,29 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard) // Only logged-in users can logout
   @ApiBearerAuth('JwtAuthGuard') // Show this needs JWT in docs
-  @ApiOperation({ summary: 'Logout user', description: 'Clears authentication state on the client side. Server does not maintain session for stateless JWT.' })
-  @ApiResponse({ status: 200, description: 'Logout successful (client should clear token).' })
+  @ApiOperation({
+    summary: 'Logout user',
+    description:
+      'Clears authentication state on the client side. Server does not maintain session for stateless JWT.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Logout successful (client should clear token).',
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async logout(@Req() req: AuthenticatedRequest, @Res() res: Response) {
     // For pure stateless JWT, the main logout happens on the client (remove token).
     // If using HttpOnly cookie, remove the cookie here: (uncomment)
     // res.clearCookie('access_token', { httpOnly: true, secure: ..., sameSite: ..., path: '/' });
-    this.logger.log(`User logged out: ${req.user?.email} (ID: ${req.user?.id})`);
-    return res.status(HttpStatus.OK).json({ message: 'Logout successful. Please clear your token/session on the client side.' });
+    this.logger.log(
+      `User logged out: ${req.user?.email} (ID: ${req.user?.id})`,
+    );
+    return res
+      .status(HttpStatus.OK)
+      .json({
+        message:
+          'Logout successful. Please clear your token/session on the client side.',
+      });
   }
 
   /*
@@ -152,11 +200,17 @@ export class AuthController {
   @UseGuards(JwtAuthGuard) // Protect with JWT Guard
   @ApiBearerAuth('JwtAuthGuard') // Indicate this needs JWT in docs
   @ApiOperation({ summary: 'Get logged-in user profile' })
-  @ApiResponse({ status: 200, description: 'Returns the authenticated user\'s profile.' /*, type: UserProfileDto */ }) // Replace with DTO if present
+  @ApiResponse({
+    status: 200,
+    description:
+      "Returns the authenticated user's profile." /*, type: UserProfileDto */,
+  }) // Replace with DTO if present
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   getProfile(@Req() req: AuthenticatedRequest) {
     // req.user already contains data from JwtStrategy.validate
-    this.logger.log(`Profile requested for user: ${req.user?.email} (ID: ${req.user?.id})`);
+    this.logger.log(
+      `Profile requested for user: ${req.user?.email} (ID: ${req.user?.id})`,
+    );
     return req.user; // Return user data
   }
 }

@@ -2,9 +2,9 @@ name: Build & Test # Descriptive name for the workflow
 
 on: # Events that trigger this workflow
   push:
-    branches: [ main ] # Trigger on pushes to the main branch
+    branches: [main] # Trigger on pushes to the main branch
   pull_request:
-    branches: [ main ] # Trigger on pull requests targeting the main branch
+    branches: [main] # Trigger on pull requests targeting the main branch
 
 jobs: # A workflow run is made up of one or more jobs
   build-and-test: # The ID of the job

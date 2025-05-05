@@ -30,7 +30,8 @@ import { RolesGuard } from './guards/roles.guard';
   imports: [
     UsersModule, // Butuh UsersService
     PassportModule.register({ defaultStrategy: 'jwt' }), // Register Passport, default can be jwt
-    JwtModule.registerAsync({ // Configure JWT Module asynchronously
+    JwtModule.registerAsync({
+      // Configure JWT Module asynchronously
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({

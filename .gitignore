@@ -4,6 +4,7 @@
 /build
 /prisma/migrations/
 /generated/
+notes.md
 
 # Logs
 logs
