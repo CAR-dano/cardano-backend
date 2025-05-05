@@ -8,15 +8,11 @@ import { Module } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
 import { InspectionsController } from './inspections.controller';
 import { PrismaModule } from '../prisma/prisma.module';
-// import { MulterModule } from '@nestjs/platform-express'; // Opsional: bisa didaftarkan di sini jika perlu global config
+import { PhotosModule } from '../photos/photos.module';
 
 @Module({
-  imports: [
-    PrismaModule, // Agar InspectionsService bisa inject PrismaService
-    // MulterModule.register({ dest: './uploads' }), // Contoh pendaftaran global jika perlu
-  ],
+  imports: [PrismaModule, PhotosModule],
   controllers: [InspectionsController],
   providers: [InspectionsService],
-  // exports: [InspectionsService] // Export jika service ini akan dipakai modul lain
 })
 export class InspectionsModule {}

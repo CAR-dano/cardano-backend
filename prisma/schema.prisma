@@ -32,30 +32,43 @@ enum Role {
   DEVELOPER // External developer using the public API
 }
 
+// Defines the possible statuses for an inspection record.
+// This tracks the lifecycle of an inspection report.
+enum InspectionStatus {
+  SUBMITTED    // Initial status when an Inspector submits the data.
+  APPROVED     // Status after a Reviewer approves the inspection data.
+  REJECTED     // Status if a Reviewer rejects the inspection data (requires correction).
+  ARCHIVING    // (Suggested) Status indicating the PDF generation and NFT minting process is in progress.
+  ARCHIVED     // Status after the report PDF is stored and NFT/metadata is successfully recorded on the blockchain.
+  FAIL_ARCHIVE // Status if the archiving (PDF gen or NFT mint) process failed. Requires attention.
+  DEACTIVATED  // Status for inspections that are soft-deleted or hidden from public view upon request.
+}
+
+enum PhotoType {
+  FIXED // For photos with fixed labels (Front View, OBD, etc.)
+  DYNAMIC // For Vehicle Photos - dynamic label + needAttention
+  DOCUMENT // For Document Photos - dynamic labels, no needAttention
+}
+
 // Defines the User model, representing users in the system.
 model User {
-  // Primary Key: Automatically generated UUID string.
-  id        String   @id @default(uuid())
-  // User's email: Must be unique across all users. Used for login.
-  email     String   @unique
-  // User's name: Optional, might be provided by Google or set later.
-  name      String?
-  // Google ID: Optional and unique, stores the user's Google profile ID if they log in via Google.
-  googleId  String?  @unique
-  // User's role: Defaults to CUSTOMER upon creation. Uses the Role enum.
-  role      Role     @default(CUSTOMER)
-  // Timestamps: Automatically set when a user is created.
-  createdAt DateTime @default(now())
-  // Timestamps: Automatically updated whenever the user record is modified.
-  updatedAt DateTime @updatedAt
+  id            String    @id @default(uuid()) // Primary Key: Automatically generated UUID string.
+  name          String?   // Name can be from Google, or input during email/user registration
+  email         String?   @unique // Optional: Required for Google/Email login, can be null for Wallet Login? (Needs to be validated in logic)
+  username      String?   @unique // Optional: Required for Username/Password login? Can be null for Google/Wallet.
+  password      String?   // Optional: Only exists (as HASH) if user registers/logins via Username/Email + Password. Null for Google/Wallet.
+  walletAddress String?   @unique // Optional: Only present if user login/link via Wallet. Must be unique if present.
+  googleId      String?   @unique // Optional: Only present if the user logged in/linked via Google. Must be unique if present.
+  role          Role      @default(CUSTOMER)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  // Relation Field: Defines a one-to-many relationship with the Inspection model.
-  // One User can submit many Inspections. 'inspections' is the name of the relation field
-  // on the other side (in the Inspection model).
-  Inspection Inspection[] @relation("inspections")
+  // Relations defined here indicate this User can be linked from the Inspection model
+  // The actual foreign keys are defined in the Inspection model.
+  inspectionsSubmitted Inspection[] @relation("InspectedBy") // Inspections submitted by this user
+  inspectionsReviewed  Inspection[] @relation("ReviewedBy")  // Inspections reviewed by this user
 
-  // Maps the model name 'User' to the database table name 'users'. Recommended for clarity.
-  @@map("users")
+  @@map("users") // Explicit table name
 }
 
 // Defines the Inspection model, representing a single vehicle inspection record.
@@ -63,57 +76,92 @@ model Inspection {
   // Primary Key: Automatically generated UUID string.
   id String @id @default(uuid())
 
-  // --- Foreign Key & Relation Field for User ---
-  // Stores the ID of the User who submitted this inspection. Optional ('?') for now to allow dummy/null values during development.
-  submittedByUserId String?
-  // Defines the relation to the User model. Links 'submittedByUserId' field to the 'id' field in the User model.
-  // The first argument "inspections" must match the relation name defined in the User model.
-  submittedByUser   User?   @relation("inspections", fields: [submittedByUserId], references: [id])
+  // --- Foreign Keys & Relations ---
+  // Foreign Key linking to the User who submitted this inspection (the Inspector). Optional? Depends if submitter is always a registered User.
+  // If required, remove the '?'. Added @map for explicit snake_case column name.
+  inspectorId String?  @map("inspector_id")
+  // Relation field for the submitting Inspector. Uses the 'InspectedBy' relation name defined in User model.
+  inspector   User?    @relation("InspectedBy", fields: [inspectorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+                       // onDelete: SetNull - If the inspector User is deleted, set inspectorId to NULL.
+                       // onUpdate: Cascade - If the inspector User's id changes, update inspectorId here.
+
+  // Foreign Key linking to the User who reviewed/approved this inspection. Optional.
+  reviewerId  String?  @map("reviewer_id")
+  // Relation field for the reviewing User. Uses the 'ReviewedBy' relation name defined in User model.
+  reviewer    User?    @relation("ReviewedBy", fields: [reviewerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   // --- Basic Inspection Data ---
-  // Vehicle's license plate number. Marked as potentially shorter using VarChar(15). Optional.
+  // Vehicle's license plate number. VarChar(15) for potential length limit. Optional.
   vehiclePlateNumber String?   @db.VarChar(15)
   // Date and time of the inspection. Optional.
   inspectionDate     DateTime?
-  // Overall rating string (e.g., "Excellent", "Good", "Fair", "Poor"). Optional.
+  // Overall rating string (e.g., "Excellent", "Good"). Optional.
   overallRating      String?
+  // Current status of the inspection record. Uses the InspectionStatus enum. Defaults to SUBMITTED.
+  status             InspectionStatus @default(SUBMITTED)
 
-  // --- JSON Columns for Form Data ---
-  // These fields store potentially complex, nested data from different form pages as JSON objects.
-  // Using 'Json?' makes the field optional in the database (can be NULL).
-  // Corresponds to Page 1 (Identitas) data.
-  identityDetails     Json?
-  vehicleData         Json?
-  equipmentChecklist  Json?
-  inspectionSummary   Json?
-  detailedAssessment  Json?
+  // --- JSON Columns for Form Details ---
+  // Storing structured but potentially variable data from form pages as JSONB (PostgreSQL's efficient JSON type).
+  // All are optional ('?') allowing them to be NULL in the database.
+  identityDetails     Json? // Contains inspector name, customer name, branch etc.
+  vehicleData         Json? // Contains make, model, year, transmission, odometer etc.
+  equipmentChecklist  Json? // Contains boolean checks for service book, spare tire, tools etc.
+  inspectionSummary   Json? // Contains summary scores, indicators (flood/crash), tire info, repair estimates etc.
+  detailedAssessment  Json? // Contains detailed numerical scores for all categories (test drive, engine, interior etc.).
+  bodyPaintThickness  Json? // Contains detailed thickness measurements for various body parts.
 
-  // --- Photo Information ---
-  // Stores an array of strings, where each string is the filename (or path relative to a base URL)
-  // of an uploaded photo associated with this inspection. Defaults to an empty array.
-  photoPaths String[] @default([])
+  photos Photo[] // Relationships to multiple photos
 
-  // --- Blockchain & Report Metadata (Populated Later) ---
-  // Unique identifier for the corresponding NFT on the Cardano blockchain (Policy ID + Asset Name Hex). Optional and must be unique if set.
-  nftAssetId      String? @unique
-  // Hash of the Cardano transaction that minted the NFT and stored metadata. Optional.
-  transactionHash String?
-  // URL pointing to the generated PDF report stored off-chain (e.g., on VPS or cloud storage). Optional.
-  reportPdfUrl    String?
-  // Cryptographic hash (e.g., SHA-256) of the generated PDF report file. Optional.
-  reportHash      String?
+  // --- Report & Blockchain Metadata (Populated Later) ---
+  // URL of the generated PDF report stored off-chain. Optional. Explicit column name mapping. Max length 255.
+  urlPdf             String?        @map("url_pdf") @db.VarChar(255)
+  // Unique Cardano NFT Asset ID (Policy ID + Asset Name Hex). Optional. Explicit mapping. Indexed for uniqueness. Max length 255.
+  nftAssetId         String?        @unique @map("nft_asset_id") @db.VarChar(255)
+  // Cardano transaction hash for the minting process. Should be unique if present. Explicit mapping. Max length 255.
+  // Consider if this should truly be unique globally? Maybe unique per inspection? Usually tx hashes are unique globally.
+  blockchainTxHash   String?        @unique @map("blockchain_tx_hash") @db.VarChar(255)
+  // Cryptographic hash (e.g., SHA-256) of the generated PDF file. Optional. Explicit mapping. Max length 255.
+  pdfFileHash        String?        @map("pdf_file_hash") @db.VarChar(255)
 
   // --- Timestamps ---
-  // Automatically records the creation time of the inspection record.
+  // Automatically set when the record is created.
   createdAt DateTime @default(now())
-  // Automatically records the last update time of the inspection record.
+  // Automatically updated when the record is modified.
   updatedAt DateTime @updatedAt
+  // Timestamp indicating when the inspection was successfully archived (PDF stored, NFT minted). Optional. Explicit mapping.
+  archivedAt DateTime? @map("archived_at") // Renamed from 'archievedAt' for correct spelling
+  // Timestamp indicating when the inspection was deactivated (soft delete). Optional. Explicit mapping.
+  deactivatedAt DateTime? @map("deactivated_at")
+
 
   // --- Database Indexes ---
-  // Creates an index on the foreign key field for faster lookups based on the submitting user.
-  @@index([submittedByUserId])
-  // Creates an index on the vehicle plate number for faster searching by plate number.
+  // Creates indexes on foreign keys and commonly queried fields for performance.
+  @@index([inspectorId])
+  @@index([reviewerId]) // Added index for reviewerId
   @@index([vehiclePlateNumber])
+  @@index([status]) // Index on status for filtering by lifecycle stage
+
   // Maps the model name 'Inspection' to the database table name 'inspections'.
   @@map("inspections")
+}
+
+model Photo {
+  id String @id @default(uuid())
+  inspectionId String // Foreign Key to Inspection
+  inspection Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade) // Many-to-One relation
+
+  type PhotoType // Photo type (FIXED, DYNAMIC, DOCUMENT)
+  path String // Unique path/filename in storage (disk or cloud)
+  label String // Photo label (can be custom or from originalLabel)
+  originalLabel String? // Special for FIXED types (e.g. “Front View”, “OBD Scanner”)
+  needAttention Boolean? @default(false) // Only relevant for DYNAMIC types, default false
+
+  // --- Timestamps ---
+  // Automatically set when the record is created.
+  createdAt DateTime @default(now())
+  // Automatically updated when the record is modified.
+  updatedAt DateTime @updatedAt
+
+  @@index([inspectionId])
+  @@map("inspection_photos")
 }

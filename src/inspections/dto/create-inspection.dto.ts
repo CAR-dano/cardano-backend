@@ -1,146 +1,74 @@
 /**
- * @fileoverview Data Transfer Object (DTO) for creating a new inspection record.
- * Designed for use with multipart/form-data requests where detailed form data
- * from different pages is sent as stringified JSON alongside potential file uploads.
- * Basic validation decorators (@IsOptional, @IsString, @IsDateString, @IsJSON) are included,
- * but more specific content validation within the JSON strings is handled by the service or later stages.
- * Photo files associated with the inspection are expected to be handled separately by
- * NestJS interceptors (e.g., FileFieldsInterceptor) in the controller, not defined as properties here.
+ * @fileoverview Data Transfer Object (DTO) used for creating a new inspection record.
+ * This DTO defines the expected structure of the data sent in the request body
+ * when using the `POST /inspections` endpoint (expecting `application/json`).
+ * It includes basic data fields and properties intended to hold structured data
+ * (parsed from JSON) related to different sections of the inspection form.
+ * Minimal validation is applied at this stage. File uploads are handled separately.
  */
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsDateString, IsJSON } from 'class-validator'; // Import necessary validators
+import { IsString, IsDateString, IsObject } from 'class-validator'; // Keep minimal validators
 
 export class CreateInspectionDto {
   /**
    * The license plate number of the inspected vehicle.
-   * Optional during creation as validation is currently minimal.
-   * @example "BK 9876 ZZ"
+   * @example "AB 1231 RI"
    */
-  @ApiProperty({
-    description: 'Vehicle license plate number',
-    required: false, // Marked as optional for Swagger/Scalar documentation
-    example: 'BK 9876 ZZ',
-    type: String, // Explicitly define type for documentation
-  })
-  @IsOptional() // Allows the property to be missing or undefined
-  @IsString() // Validates that if provided, it's a string
+  @IsString() // Decorator validating the field is a string if provided
   vehiclePlateNumber?: string;
 
   /**
    * The date and time when the inspection was performed.
-   * Expected in ISO 8601 format string. Will be converted to Date object in the service.
-   * Optional during creation.
-   * @example "2025-06-15T09:00:00Z"
+   * Expected as an ISO 8601 format string in the request body.
+   * @example "2025-05-01T14:30:00Z"
    */
-  @ApiProperty({
-    description: 'Date of inspection (ISO 8601 format)',
-    required: false,
-    example: '2025-06-15T09:00:00Z',
-    type: String,
-    format: 'date-time', // Hint for date-time format in documentation
-  })
-  @IsOptional()
-  @IsDateString() // Validates that if provided, it's a valid ISO 8601 date string
+  @IsDateString() // Validates that the string conforms to the ISO 8601 date format if provided
   inspectionDate?: string;
 
   /**
    * The overall rating assigned to the vehicle based on the inspection.
-   * Optional during creation.
-   * @example "Fair"
+   * @example "B+"
    */
-  @ApiProperty({
-    description: 'Overall inspection rating',
-    required: false,
-    example: 'Fair',
-    type: String,
-  })
-  @IsOptional()
   @IsString()
   overallRating?: string;
 
-  // --- JSON Fields (Received as Strings, Parsed in Service) ---
-  // These fields are expected to contain valid JSON strings when sent via multipart/form-data.
-  // The service layer will be responsible for parsing these strings into actual JSON objects.
+  /**
+   * Object containing details from the "Identitas" section of the inspection form.
+   * Expected to be a valid JavaScript object after potential parsing from a JSON string by NestJS pipes.
+   * @example { "namaInspektor": "Maulana", "namaCustomer": "Budi S." }
+   */
+  @IsObject() // Validates that the value is an object if provided
+  identityDetails?: Record<string, any>; // Property type is an object/record
 
   /**
-   * Stringified JSON data containing details from Page 1 (Identitas) of the inspection form.
-   * Optional. Must be a valid JSON string if provided.
-   * @example '{"namaInspektor": "Maulana", "namaCustomer": "Budi S."}'
+   * Object containing details from the "Data Kendaraan" section of the inspection form.
    */
-  @ApiProperty({
-    type: 'string',
-    format: 'json', // Hint for documentation tools that this string holds JSON
-    description: 'Stringified JSON data from Page 1 (Identitas)',
-    required: false,
-    example:
-      '{"namaInspektor": "Maulana", "namaCustomer": "Budi S.", "cabangInspeksi": "Jogja Utara"}',
-  })
-  @IsOptional()
-  @IsJSON() // Validates that the provided value *is* a string containing valid JSON syntax
-  identityDetails?: string; // Property type is string
+  @IsObject()
+  vehicleData?: Record<string, any>;
 
   /**
-   * Stringified JSON data containing details from Page 2 (Data Kendaraan) of the inspection form.
-   * Optional. Must be a valid JSON string if provided.
+   * Object containing details from the "Kelengkapan" section(s) of the inspection form.
    */
-  @ApiProperty({
-    type: 'string',
-    format: 'json',
-    description: 'Stringified JSON data from Page 2 (Data Kendaraan)',
-    required: false,
-    example:
-      '{"merekKendaraan": "Honda", "tipeKendaraan": "Jazz RS", "tahun": 2022}',
-  })
-  @IsOptional()
-  @IsJSON()
-  vehicleData?: string;
+  @IsObject()
+  equipmentChecklist?: Record<string, any>;
 
   /**
-   * Stringified JSON data containing details from Page 3 & 6 (Kelengkapan) of the inspection form.
-   * Optional. Must be a valid JSON string if provided.
+   * Object containing details from the "Hasil Inspeksi" summary section of the form.
    */
-  @ApiProperty({
-    type: 'string',
-    format: 'json',
-    description: 'Stringified JSON data from Page 3 & 6 (Kelengkapan)',
-    required: false,
-    example: '{"bukuService": true, "kunciSerep": false}',
-  })
-  @IsOptional()
-  @IsJSON()
-  equipmentChecklist?: string;
+  @IsObject()
+  inspectionSummary?: Record<string, any>;
 
   /**
-   * Stringified JSON data containing details from Page 4 (Hasil Inspeksi) of the inspection form.
-   * Optional. Must be a valid JSON string if provided.
+   * Object containing details from the "Penilaian" section(s) of the inspection form.
    */
-  @ApiProperty({
-    type: 'string',
-    format: 'json',
-    description: 'Stringified JSON data from Page 4 (Hasil Inspeksi)',
-    required: false,
-    example: '{"interiorScore": 9, "estimasiPerbaikan": []}',
-  })
-  @IsOptional()
-  @IsJSON()
-  inspectionSummary?: string;
+  @IsObject()
+  detailedAssessment?: Record<string, any>;
 
   /**
-   * Stringified JSON data containing details from Page 5 (Penilaian) of the inspection form.
-   * Optional. Must be a valid JSON string if provided.
+   * Object containing details from the "Body Paint Thickness" test section of the form.
    */
-  @ApiProperty({
-    type: 'string',
-    format: 'json',
-    description: 'Stringified JSON data from Page 5 (Penilaian)',
-    required: false,
-    example: '{"testDrive": {"bunyiGetaran": 10}}',
-  })
-  @IsOptional()
-  @IsJSON()
-  detailedAssessment?: string;
+  @IsObject()
+  bodyPaintThickness?: Record<string, any>;
 
-  // Note: File upload fields (like 'photos') are handled by interceptors in the controller
-  // and are therefore not defined as properties within this DTO.
-  // The @ApiBody decorator in the controller should describe the expected file fields.
+  // Note: Files (like 'photos') are not included in this DTO as they are handled
+  // by file upload interceptors (e.g., FilesInterceptor) in the controller method.
 }

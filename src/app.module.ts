@@ -12,6 +12,7 @@ import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
+import { PhotosModule } from './photos/photos.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { join } from 'path';
     ScalarDocsModule,
     UsersModule,
     PrismaModule,
+    PhotosModule,
   ],
   controllers: [],
   providers: [],
