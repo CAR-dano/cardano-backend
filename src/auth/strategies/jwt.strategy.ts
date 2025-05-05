@@ -1,76 +1,78 @@
-/*
- * --------------------------------------------------------------------------
- * File: jwt.strategy.ts
- * Project: car-dano-backend
- * Copyright © 2025 PT. Inspeksi Mobil Jogja
- * --------------------------------------------------------------------------
- * Description: Implements the Passport.js strategy for validating JSON Web Tokens (JWT).
- * This strategy extracts the JWT from the Authorization header, verifies its signature
- * and expiration using the secret key, and then uses the payload (specifically the user ID)
- * to fetch the user from the database, ensuring the user still exists and is valid.
- * The validated user object is attached to the `request.user`.
- * --------------------------------------------------------------------------
+/**
+ * @fileoverview Implements the Passport.js JWT strategy for validating access tokens.
+ * Extracts the JWT from the Authorization header, verifies its signature and expiration,
+ * then uses the payload (user ID) to fetch the corresponding user from the database via UsersService.
+ * Attaches the validated user object (without sensitive fields) to `request.user`.
  */
 
-import { ExtractJwt, Strategy } from 'passport-jwt';
+import { ExtractJwt, Strategy } from 'passport-jwt'; // Import JWT Strategy components
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { UsersService } from '../../users/users.service';
-import { JwtPayload } from '../interfaces/jwt-payload.interface';
-import { User } from '@prisma/client';
+import { ConfigService } from '@nestjs/config'; // Needed for JWT secret
+import { UsersService } from '../../users/users.service'; // Needed to find user by ID
+import { JwtPayload } from '../interfaces/jwt-payload.interface'; // Type definition for the decoded payload
+import { User } from '@prisma/client'; // Prisma User type
 
 @Injectable()
+// Define the strategy, extending PassportStrategy with the base JWT Strategy.
+// The default name 'jwt' is implicitly used by JwtAuthGuard unless specified otherwise.
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   private readonly logger = new Logger(JwtStrategy.name);
 
-  /*
-   * Constructor for JwtStrategy.
-   * Injects ConfigService to access JWT secret and UsersService to find users.
-   * Configures the strategy to extract the JWT from the Bearer token header
-   * and use the JWT_SECRET from environment variables.
+  /**
+   * Injects ConfigService to retrieve the JWT secret and UsersService to find the user.
+   * Configures the underlying passport-jwt Strategy:
+   * - `jwtFromRequest`: Specifies how to extract the JWT (Bearer token from Authorization header).
+   * - `ignoreExpiration: false`: Ensures expired tokens are rejected.
+   * - `secretOrKey`: Provides the secret key used to sign and verify the JWT signature.
    *
-   * @param {ConfigService} configService - Service to access configuration variables.
-   * @param {UsersService} usersService - Service to interact with user data.
+   * @param {ConfigService} configService - Service for accessing configuration (JWT_SECRET).
+   * @param {UsersService} usersService - Service for user database operations.
    */
   constructor(
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      ignoreExpiration: false,
-      secretOrKey: configService.getOrThrow<string>('JWT_SECRET'),
+      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(), // Standard extraction method
+      ignoreExpiration: false, // Validate token expiration
+      secretOrKey: configService.getOrThrow<string>('JWT_SECRET'), // Get secret from config
     });
     this.logger.log('JWT Strategy Initialized');
   }
 
-  /*
-   * Validate method called by Passport after successful token verification.
+  /**
+   * Validate method automatically called by Passport after successfully verifying
+   * the JWT's signature and expiration.
    * It receives the decoded JWT payload.
-   * This method should fetch the user associated with the payload's subject (ID)
-   * and return the user object (or relevant parts) to be attached to `req.user`.
-   * Throws UnauthorizedException if the user is not found or invalid.
+   * This method must look up the user based on the payload information (usually the user ID in 'sub')
+   * and return the user object if valid, or throw an error if not.
    *
-   * @param {JwtPayload} payload - The decoded payload from the validated JWT.
-   * @returns {Promise<Omit<User, 'googleId'>>} - The validated user object (excluding sensitive fields).
-   * @throws {UnauthorizedException} - If the user associated with the token is not found.
+   * @param {JwtPayload} payload - The decoded payload extracted from the validated JWT.
+   * @returns {Promise<Omit<User, 'password' | 'googleId'>>} The validated user object (excluding sensitive fields). Passport attaches this to `request.user`.
+   * @throws {UnauthorizedException} If the user referenced in the payload (`payload.sub`) is not found in the database.
    */
-  async validate(payload: JwtPayload): Promise<Omit<User, 'googleId'>> {
-    // Return User without googleId
-    this.logger.verbose(`Validating JWT payload for user ID: ${payload.sub}`);
+  async validate(
+    payload: JwtPayload,
+  ): Promise<Omit<User, 'password' | 'googleId'>> {
+    this.logger.verbose(
+      `JWT Strategy validating payload for user ID (sub): ${payload.sub}`,
+    );
+    // Find the user in the database based on the 'sub' (subject) claim from the JWT payload
     const user = await this.usersService.findById(payload.sub);
 
+    // If no user is found with that ID, the token is invalid (user might have been deleted)
     if (!user) {
       this.logger.warn(
-        `JWT validation failed: User with ID ${payload.sub} not found.`,
+        `JWT validation failed: User with ID ${payload.sub} from token not found.`,
       );
-      throw new UnauthorizedException('Invalid token or user not found');
+      throw new UnauthorizedException('User associated with token not found.');
     }
 
-    // Return relevant user data (without sensitive data like password hashes if any)
+    // If user is found, return the relevant user data (excluding sensitive info)
+    this.logger.verbose(`JWT validation successful for user ID: ${user.id}`);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { googleId, ...result } = user; // Exclude googleId
-    return result; // This will be req.user
+    const { password, googleId, ...result } = user; // Exclude password hash and googleId
+    return result; // This becomes req.user
   }
 }

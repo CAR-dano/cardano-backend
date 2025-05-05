@@ -21,54 +21,75 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Observable } from 'rxjs';
+import { JsonWebTokenError, TokenExpiredError } from '@nestjs/jwt';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
   // Use the strategy name 'jwt'
   private readonly logger = new Logger(JwtAuthGuard.name);
 
-  /*
-   * Overrides the default canActivate to add logging.
-   * Determines if the current request is allowed to proceed based on the 'jwt' strategy.
-   *
-   * @param {ExecutionContext} context - The execution context providing request details.
-   * @returns {boolean | Promise<boolean> | Observable<boolean>} - Result indicating if activation is allowed.
+  /**
+   * Overrides canActivate to provide more detailed logging before strategy execution.
+   * @param {ExecutionContext} context - The request execution context.
+   * @returns {boolean | Promise<boolean> | Observable<boolean>} Whether access is granted.
    */
   canActivate(
     context: ExecutionContext,
   ): boolean | Promise<boolean> | Observable<boolean> {
-    // Add logging before calling super.canActivate()
     const request = context.switchToHttp().getRequest();
     this.logger.verbose(
-      `JWT Auth Guard activated for request: ${request.method} ${request.url}`,
+      `JWT Auth Guard activated for: ${request.method} ${request.url}`,
     );
-    // Let the parent AuthGuard handle the core logic using the 'jwt' strategy
+    // Delegate the actual JWT validation to the Passport 'jwt' strategy via super.canActivate()
     return super.canActivate(context);
   }
 
-  /*
-   * Overrides the default handleRequest to customize error handling and logging.
-   * This method is called after the 'jwt' strategy's validate method runs.
-   *
-   * @param {any} err - Any error thrown during strategy execution.
-   * @param {any} user - The user object returned by the strategy's validate method (if successful).
-   * @param {any} info - Additional information (e.g., error messages like 'No auth token').
-   * @returns {any} - The validated user object if authentication is successful.
-   * @throws {UnauthorizedException} - If authentication fails (err or no user).
+  /**
+   * Overrides handleRequest to customize error handling and logging after strategy validation.
+   * @param {any} err - Error thrown by the Passport strategy or during validation.
+   * @param {any} user - The user object returned by JwtStrategy.validate() on success.
+   * @param {any} info - Additional info, often contains specific error details (e.g., TokenExpiredError).
+   * @returns {any} The validated user object.
+   * @throws {UnauthorizedException} If authentication fails.
    */
-  handleRequest(err, user, info) {
-    // You can override handleRequest for custom error handling or logging
-    if (err || !user) {
-      this.logger.warn(
-        `JWT Authentication failed: ${info?.message || err?.message || 'No user object found'}`,
-      );
-      throw (
-        err || new UnauthorizedException(info?.message || 'Unauthorized access')
-      );
+  handleRequest(
+    err,
+    user,
+    info: Error,
+    context: ExecutionContext,
+    status?: any,
+  ) {
+    const request = context.switchToHttp().getRequest();
+    const logCtx = `${request.method} ${request.originalUrl}`; // Context for logs
+
+    // Log detailed errors if available
+    if (info instanceof TokenExpiredError) {
+      this.logger.warn(`[${logCtx}] JWT Token Expired: ${info.message}`);
+      throw new UnauthorizedException('Token has expired');
     }
+    if (info instanceof JsonWebTokenError) {
+      this.logger.warn(`[${logCtx}] Invalid JWT Token: ${info.message}`);
+      throw new UnauthorizedException('Invalid token');
+    }
+    if (err) {
+      this.logger.error(
+        `[${logCtx}] Unknown error during JWT validation: ${err.message}`,
+        err.stack,
+      );
+      throw err || new UnauthorizedException('Authentication error');
+    }
+    if (!user) {
+      // This case might happen if validate returns null/false or other strategy issues
+      this.logger.warn(
+        `[${logCtx}] JWT validation failed: No user object returned from strategy. Info: ${info?.message}`,
+      );
+      throw new UnauthorizedException('Unauthorized access');
+    }
+
+    // If everything is fine, log success and return the user
     this.logger.verbose(
-      `JWT Authentication successful for user ID: ${user.id}`,
+      `[${logCtx}] JWT Authentication successful for user ID: ${user.id}`,
     );
-    return user; // User will be attached to the request (req.user)
+    return user; // Attach user to request.user
   }
 }

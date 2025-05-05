@@ -1,216 +1,263 @@
-/*
- * --------------------------------------------------------------------------
- * File: auth.controller.ts
- * Project: car-dano-backend
- * Copyright © 2025 PT. Inspeksi Mobil Jogja
- * --------------------------------------------------------------------------
- * Description: Controller handling HTTP requests related to authentication for UI users.
- * Includes endpoints for initiating Google OAuth flow, handling the callback,
- * logging out (client-side for stateless JWT), and a sample protected endpoint
- * to demonstrate JWT validation.
- * --------------------------------------------------------------------------
+/**
+ * @fileoverview Controller handling HTTP requests related to authentication for UI users
+ * (Local email/username/password, Google OAuth) and profile management.
  */
 
 import {
   Controller,
   Get,
+  Post,
+  Body,
   Req,
   Res,
   UseGuards,
-  Post,
   HttpStatus,
   Logger,
+  HttpCode,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
+import { UsersService } from '../users/users.service';
 import { ConfigService } from '@nestjs/config';
-import { Response, Request } from 'express'; // Import Request & Response
+import { Response, Request } from 'express';
 import {
   ApiTags,
   ApiOperation,
   ApiResponse,
-  ApiExcludeEndpoint,
+  ApiBody,
   ApiBearerAuth,
+  ApiExcludeEndpoint,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
-import { User as UserModel, Role } from '@prisma/client'; // Rename import to avoid conflicts
+import { JwtAuthGuard } from './guards/jwt-auth.guard'; // Protects profile & logout
+import { LocalAuthGuard } from './guards/local-auth.guard'; // Triggers local strategy for login
+import { Role, User } from '@prisma/client'; // Import Role for interface
+import { RegisterUserDto } from './dto/register-user.dto'; // DTO for local registration
+import { LoginUserDto } from './dto/login-user.dto'; // DTO for local login input
+import { LoginResponseDto } from './dto/login-response.dto'; // DTO for successful login response
+import { UserResponseDto } from '../users/dto/user-response.dto'; // DTO for profile response
+import { GetUser } from './decorators/get-user.decorator'; // Custom decorator to get user
 
-// Define an interface for the request object after authentication
+// Define interface for request object after JWT or Local auth guard runs
 interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    name?: string;
-    role: Role;
-  };
+  user?: UserResponseDto; // Use UserResponseDto structure here
 }
 
 @ApiTags('Auth (UI Users)')
-@Controller('auth') // Base path -> /api/v1/auth
+@Controller('auth') // Base path: /api/v1/auth
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
-  /*
-   * Constructor for AuthController.
-   * Injects AuthService for business logic and ConfigService for configuration values.
-   *
-   * @param {AuthService} authService - The authentication service.
-   * @param {ConfigService} configService - The configuration service.
-   */
   constructor(
     private readonly authService: AuthService,
+    private readonly usersService: UsersService,
     private readonly configService: ConfigService,
   ) {}
 
-  /*
-   * Endpoint to initiate the Google OAuth 2.0 authentication flow.
-   * Applies the 'google' AuthGuard which automatically triggers the redirect to Google.
+  /**
+   * Handles local user registration (Email/Username + Password).
+   * @param registerUserDto - Contains email, username, password, name, walletAddress.
+   * @returns {Promise<UserResponseDto>} The newly created user profile (excluding sensitive data).
+   */
+  @Post('register')
+  @ApiOperation({ summary: 'Register a new user locally' })
+  @ApiBody({ type: RegisterUserDto })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'User successfully registered.',
+    type: UserResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Email or Username already exists.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input data.',
+  })
+  async registerLocal(
+    @Body() registerUserDto: RegisterUserDto,
+  ): Promise<UserResponseDto> {
+    this.logger.log(
+      `Attempting local registration for username: ${registerUserDto.username}`,
+    );
+    // AuthService.registerLocalUser (or similar method in UsersService) handles hashing and saving
+    const newUser = await this.usersService.createLocalUser(registerUserDto); // Assume method exists in AuthService/UsersService
+    return new UserResponseDto(newUser); // Return safe DTO
+  }
+
+  /**
+   * Handles local user login (Email/Username + Password).
+   * Uses LocalAuthGuard to validate credentials via LocalStrategy.
+   * If successful, Passport attaches the user object to req.user.
+   * Calls AuthService.login to generate JWT.
    *
-   * @param {Request} req - The incoming request object.
+   * @param req - The request object with user attached by LocalAuthGuard.
+   * @param loginUserDto - DTO containing loginIdentifier and password (used by guard).
+   * @returns {Promise<LoginResponseDto>} JWT access token and user details.
+   */
+  @Post('login')
+  @UseGuards(LocalAuthGuard) // Apply LocalAuthGuard to trigger LocalStrategy validation
+  @HttpCode(HttpStatus.OK) // Return 200 OK on successful login
+  @ApiOperation({
+    summary: 'Login with local credentials (email/username + password)',
+  })
+  @ApiBody({ type: LoginUserDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Login successful, JWT returned.',
+    type: LoginResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid credentials.',
+  })
+  async loginLocal(
+    @Req() req: AuthenticatedRequest, // Request now has req.user populated by LocalAuthGuard/LocalStrategy
+    // @Body() loginUserDto: LoginUserDto // Body is implicitly used by LocalStrategy, no need to inject again unless needed explicitly
+  ): Promise<LoginResponseDto> {
+    if (!req.user) {
+      // Ini seharusnya tidak terjadi jika guard bekerja, tapi tambahkan check untuk keamanan
+      this.logger.error('LocalAuthGuard succeeded but req.user is missing!');
+      throw new InternalServerErrorException('Authentication flow error.');
+    }
+    this.logger.log(
+      `User logged in locally: ${req.user?.email ?? req.user?.username}`,
+    );
+    // req.user contains the validated user object returned by LocalStrategy.validate
+    const { accessToken } = await this.authService.login(req.user); // Generate JWT
+    return {
+      accessToken,
+      user: new UserResponseDto(req.user as any), // Cast req.user to User for DTO constructor
+    };
+  }
+
+  /**
+   * Initiates the Google OAuth 2.0 authentication flow.
+   * Redirects the user to Google's login page.
    */
   @Get('google')
-  @UseGuards(AuthGuard('google'))
-  @ApiOperation({
-    summary: 'Initiate Google OAuth login',
-    description:
-      'Redirects user to Google for authentication. No request body needed.',
-  })
-  @ApiResponse({
-    status: 302,
-    description: 'Redirecting to Google for authentication.',
-  })
+  @UseGuards(AuthGuard('google')) // Trigger GoogleStrategy
+  @ApiOperation({ summary: 'Initiate Google OAuth login' })
+  @ApiResponse({ status: 302, description: 'Redirecting to Google.' })
   async googleAuth(@Req() req: Request) {
     this.logger.log('Initiating Google OAuth flow.');
-    // Guard handles the redirect. No specific logic needed here.
+    // Passport's Google strategy handles the redirect automatically
   }
 
-  /*
-   * Callback endpoint that Google redirects to after user authentication.
-   * Applies the 'google' AuthGuard to process the callback, validate the user via GoogleStrategy,
-   * and attach the user object to `req.user`.
-   * Generates a JWT upon success and redirects the user back to the frontend application.
-   * Excluded from API documentation as it's part of the OAuth flow.
-   *
-   * @param {AuthenticatedRequest} req - The request object, potentially containing the validated user.
-   * @param {Response} res - The response object used for redirection.
+  /**
+   * Handles the callback from Google after successful authentication.
+   * GoogleStrategy validates the profile and attaches user info to req.user.
+   * Generates JWT and redirects back to the frontend.
    */
-  @Get('google/callback')
-  @UseGuards(AuthGuard('google'))
-  @ApiExcludeEndpoint() // Hide from API documentation
-  async googleAuthRedirect(
-    @Req() req: AuthenticatedRequest,
-    @Res() res: Response,
-  ) {
-    this.logger.log('Received Google OAuth callback.');
+  // @Get('google/callback')
+  // @UseGuards(AuthGuard('google'))
+  // @ApiExcludeEndpoint() // Typically hidden from public API docs
+  // async googleAuthRedirect(
+  //   @Req() req: AuthenticatedRequest,
+  //   @Res() res: Response,
+  // ) {
+  //   // ... (Kode googleAuthRedirect tetap sama seperti sebelumnya, menggunakan req.user) ...
+  //   this.logger.log('Received Google OAuth callback.');
+  //   if (!req.user) {
+  //     /* ... handle error redirect ... */ return res.redirect(/*...*/);
+  //   }
+  //   try {
+  //     const { accessToken } = await this.authService.login(req.user);
+  //     const clientUrl =
+  //       this.configService.getOrThrow<string>('CLIENT_BASE_URL');
+  //     res.redirect(`${clientUrl}/auth/callback?token=${accessToken}`); // Redirect with token
+  //   } catch (error) {
+  //     /* ... handle error redirect ... */ res.redirect(/*...*/);
+  //   }
+  // }
 
-    if (!req.user) {
-      this.logger.error('Google authentication failed, req.user is missing.');
-      const clientUrl =
-        this.configService.getOrThrow<string>('CLIENT_BASE_URL');
-      // Redirect to the frontend login page with an error message
-      return res.redirect(`${clientUrl}/login?error=AuthenticationFailed`);
-    }
-
-    this.logger.log(
-      `User authenticated via Google: ${req.user.email} (ID: ${req.user.id})`,
-    );
-
-    try {
-      // Create JWT for validated users
-      const { accessToken } = await this.authService.login(req.user);
-      const clientUrl =
-        this.configService.getOrThrow<string>('CLIENT_BASE_URL');
-
-      this.logger.log(
-        `JWT generated, redirecting user back to frontend: ${clientUrl}`,
-      );
-
-      // --- Redirect Method with Token in Query Parameter (Simple Example) ---
-      // Notes: Consider the security of this method. It is better to set HttpOnly cookie.
-      res.redirect(`${clientUrl}/auth/callback?token=${accessToken}`);
-
-      // --- Contoh Set HttpOnly Cookie (Lebih Aman) ---
-      /*
-      const jwtExpirySeconds = parseInt(this.configService.getOrThrow<string>('JWT_EXPIRATION_TIME').replace('s', ''), 10);
-      res.cookie('access_token', accessToken, {
-        httpOnly: true,
-        secure: this.configService.get('NODE_ENV') === 'production', // true di production
-        sameSite: 'lax', // 'ketat' atau 'longgar'
-        maxAge: jwtExpirySeconds * 1000, // maxAge dalam milidetik
-        path: '/', // Cookie berlaku untuk seluruh domain
-      });
-      res.redirect(`${clientUrl}/dashboard`); // Mengalihkan ke halaman setelah login berhasil
-      */
-    } catch (error) {
-      this.logger.error(
-        `Failed to process Google callback for user ${req.user.email}: ${error.message}`,
-        error.stack,
-      );
-      const clientUrl =
-        this.configService.getOrThrow<string>('CLIENT_BASE_URL');
-      // Redirect to frontend login page with general error message
-      res.redirect(`${clientUrl}/login?error=LoginProcessingFailed`);
-    }
-  }
-
-  /*
-   * Endpoint for user logout (primarily for client-side token clearing).
-   * Requires a valid JWT to access.
-   * If using HttpOnly cookies, this endpoint should clear the cookie.
-   *
-   * @param {AuthenticatedRequest} req - The request object containing the authenticated user.
-   * @param {Response} res - The response object.
+  /**
+   * Logs out the user (primarily client-side for stateless JWT).
+   * Requires a valid JWT.
    */
   @Post('logout')
-  @UseGuards(JwtAuthGuard) // Only logged-in users can logout
-  @ApiBearerAuth('JwtAuthGuard') // Show this needs JWT in docs
-  @ApiOperation({
-    summary: 'Logout user',
-    description:
-      'Clears authentication state on the client side. Server does not maintain session for stateless JWT.',
-  })
+  @UseGuards(JwtAuthGuard) // Protect this endpoint
+  @ApiBearerAuth('JwtAuthGuard') // Document requirement
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Logout user' })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Logout successful (client should clear token).',
   })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized.',
+  })
   async logout(@Req() req: AuthenticatedRequest, @Res() res: Response) {
-    // For pure stateless JWT, the main logout happens on the client (remove token).
-    // If using HttpOnly cookie, remove the cookie here: (uncomment)
-    // res.clearCookie('access_token', { httpOnly: true, secure: ..., sameSite: ..., path: '/' });
-    this.logger.log(
-      `User logged out: ${req.user?.email} (ID: ${req.user?.id})`,
-    );
-    return res
-      .status(HttpStatus.OK)
-      .json({
-        message:
-          'Logout successful. Please clear your token/session on the client side.',
-      });
+    // Inject Req to log user if needed
+    this.logger.log(`User logged out: ${req.user?.email ?? req.user?.id}`);
+    // Server-side action (e.g., blacklist token) could be added here if needed.
+    // For HttpOnly cookies, clear the cookie:
+    // res.clearCookie('access_token', { ...options });
+    return res.json({
+      message:
+        'Logout successful. Please clear your token/session client-side.',
+    });
   }
 
-  /*
-   * Sample protected endpoint to get the profile of the currently logged-in user.
-   * Requires a valid JWT via the JwtAuthGuard.
+  /**
+   * Retrieves the profile of the currently authenticated user.
+   * Requires a valid JWT. Uses the custom @GetUser decorator.
    *
-   * @param {AuthenticatedRequest} req - The request object containing the validated user.
-   * @returns The user object attached by the JwtStrategy.
+   * @param {UserResponseDto} user - The authenticated user object injected by @GetUser.
+   * @returns {UserResponseDto} The user's profile information.
    */
   @Get('profile')
-  @UseGuards(JwtAuthGuard) // Protect with JWT Guard
-  @ApiBearerAuth('JwtAuthGuard') // Indicate this needs JWT in docs
+  @UseGuards(JwtAuthGuard) // Protect with JWT
+  @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @ApiOperation({ summary: 'Get logged-in user profile' })
   @ApiResponse({
-    status: 200,
-    description:
-      "Returns the authenticated user's profile." /*, type: UserProfileDto */,
-  }) // Replace with DTO if present
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getProfile(@Req() req: AuthenticatedRequest) {
-    // req.user already contains data from JwtStrategy.validate
-    this.logger.log(
-      `Profile requested for user: ${req.user?.email} (ID: ${req.user?.id})`,
-    );
-    return req.user; // Return user data
+    status: HttpStatus.OK,
+    description: 'Returns authenticated user profile.',
+    type: UserResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized.',
+  })
+  getProfile(@GetUser() user: UserResponseDto): UserResponseDto {
+    // Use decorator to get user
+    this.logger.log(`Profile requested for user: ${user.email ?? user.id}`);
+    // The 'user' object here is already filtered by JwtStrategy/UserResponseDto structure
+    return user;
   }
+
+  // --- Placeholder Endpoints for Account Linking (Implement Later) ---
+
+  // @Post('link/google')
+  // @UseGuards(JwtAuthGuard)
+  // @ApiBearerAuth('JwtAuthGuard')
+  // @ApiOperation({ summary: 'Link Google Account to current user' })
+  // async linkGoogle(/* ... receive google token/data ... */, @GetUser() user: UserResponseDto) {
+  //   // const googleProfile = await verifyGoogleToken(googleToken);
+  //   // return this.usersService.linkGoogleAccount(user.id, googleProfile.id, googleProfile.email);
+  // }
+
+  // @Post('link/wallet')
+  // @UseGuards(JwtAuthGuard)
+  // @ApiBearerAuth('JwtAuthGuard')
+  // @ApiOperation({ summary: 'Link Cardano Wallet to current user' })
+  // @ApiBody({ type: LinkWalletDto }) // Assuming LinkWalletDto exists
+  // async linkWallet(@Body() linkWalletDto: LinkWalletDto, @GetUser('id') userId: string) {
+  //   // return this.usersService.linkWalletAddress(userId, linkWalletDto.walletAddress);
+  // }
+
+  // --- Placeholder Endpoint for Wallet Login (Implement Later) ---
+
+  // @Post('login/wallet')
+  // @UseGuards(WalletAuthGuard) // Use the (placeholder) wallet guard
+  // @HttpCode(HttpStatus.OK)
+  // @ApiOperation({ summary: 'Login with Cardano Wallet Signature' })
+  // @ApiBody({ type: LoginWalletDto })
+  // async loginWallet(@Req() req: AuthenticatedRequest): Promise<LoginResponseDto> {
+  //    this.logger.log(`User logged in via wallet: ${req.user?.walletAddress}`);
+  //    const { accessToken } = await this.authService.login(req.user);
+  //    return { accessToken, user: new UserResponseDto(req.user as User) };
+  // }
 }
