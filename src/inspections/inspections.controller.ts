@@ -166,7 +166,7 @@ export class InspectionsController {
     @Body() createInspectionDto: CreateInspectionDto,
     // @GetUser('id') userId: string, // Get authenticated user ID later
   ): Promise<InspectionResponseDto> {
-    const dummySubmitterId = '00000000-0000-0000-0000-000000000000'; // Temporary placeholder
+    const dummySubmitterId = '23ec1675-c4f0-4ac2-9dbf-8072af0c977b'; // Temporary placeholder
     this.logger.warn(
       `Using DUMMY submitter ID: ${dummySubmitterId} for POST /inspections`,
     );
@@ -194,7 +194,7 @@ export class InspectionsController {
   // @ApiBody({ type: UpdateInspectionDto })
   // @ApiResponse({ status: 200, type: InspectionResponseDto })
   async update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Body() updateInspectionDto: UpdateInspectionDto,
     // @GetUser('id') userId: string, // Get authenticated user ID later
     // @GetUser('role') userRole: Role // Get role later
@@ -236,7 +236,7 @@ export class InspectionsController {
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   // @ApiOperation(...) @ApiConsumes(...) @ApiParam(...) @ApiBody(...) @ApiResponse(...)
   async addMultipleFixedPhotos(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Body() addBatchDto: AddBatchFixedPhotosDto,
     @UploadedFiles() files: Array<Express.Multer.File>,
     // @GetUser('id') userId: string, // Get user ID later
@@ -277,7 +277,7 @@ export class InspectionsController {
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   // @ApiOperation(...) @ApiConsumes(...) @ApiParam(...) @ApiBody(...) @ApiResponse(...)
   async addMultipleDynamicPhotos(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Body() addBatchDto: AddBatchDynamicPhotosDto,
     @UploadedFiles() files: Array<Express.Multer.File>,
     // @GetUser('id') userId: string,
@@ -318,7 +318,7 @@ export class InspectionsController {
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   // @ApiOperation(...) @ApiConsumes(...) @ApiParam(...) @ApiBody(...) @ApiResponse(...)
   async addMultipleDocumentPhotos(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Body() addBatchDto: AddBatchDocumentPhotosDto,
     @UploadedFiles() files: Array<Express.Multer.File>,
     // @GetUser('id') userId: string,
@@ -348,7 +348,7 @@ export class InspectionsController {
   // @UseGuards(JwtAuthGuard) // Consider if this needs auth
   // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
   async getPhotosForInspection(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
   ): Promise<PhotoResponseDto[]> {
     this.logger.log(`[GET /inspections/${id}/photos] Request received`);
     const photos = await this.photosService.findForInspection(id);
@@ -372,7 +372,7 @@ export class InspectionsController {
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR) // Define who can update
   // @ApiOperation(...) @ApiConsumes(...) @ApiParam(...) @ApiBody(...) @ApiResponse(...)
   async updatePhoto(
-    @Param('id', ParseUUIDPipe) inspectionId: string,
+    @Param('id') inspectionId: string,
     @Param('photoId', ParseUUIDPipe) photoId: string,
     @Body() updatePhotoDto: UpdatePhotoDto, // Contains optional label/needAttention
     @UploadedFile() newFile?: Express.Multer.File, // Optional new file
@@ -444,7 +444,7 @@ export class InspectionsController {
   // @UseGuards(JwtAuthGuard) // Add later if needed
   // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
   async findOne(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @Query('role') userRole?: Role, // Temporary filter logic
     // @GetUser('role') realUserRole: Role // Get role later
   ): Promise<InspectionResponseDto> {
@@ -468,7 +468,7 @@ export class InspectionsController {
   // @Roles(Role.ADMIN, Role.REVIEWER)
   // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
   async approveInspection(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     // @GetUser('id') reviewerId: string,
   ): Promise<InspectionResponseDto> {
     const dummyReviewerId = '11111111-1111-1111-1111-111111111111'; // Temporary
@@ -492,7 +492,7 @@ export class InspectionsController {
   // @Roles(Role.ADMIN, Role.REVIEWER)
   // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
   async rejectInspection(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     // @GetUser('id') reviewerId: string,
   ): Promise<InspectionResponseDto> {
     const dummyReviewerId = '11111111-1111-1111-1111-111111111111'; // Temporary
@@ -523,7 +523,7 @@ export class InspectionsController {
   // @Roles(Role.ADMIN, Role.REVIEWER)
   // @ApiOperation(...) @ApiConsumes(...) @ApiParam(...) @ApiBody(...) @ApiResponse(...)
   async processToArchive(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     @UploadedFile() pdfFile: Express.Multer.File,
     // @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
@@ -551,7 +551,7 @@ export class InspectionsController {
   // @Roles(Role.ADMIN)
   // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
   async deactivateArchive(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     // @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
     const dummyUserId = 'DEACTIVATOR_USER_ID'; // Temporary
@@ -575,7 +575,7 @@ export class InspectionsController {
   // @Roles(Role.ADMIN)
   // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
   async activateArchive(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
     // @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
     const dummyUserId = 'ACTIVATOR_USER_ID'; // Temporary
