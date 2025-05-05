@@ -1,36 +1,33 @@
-/*
- * --------------------------------------------------------------------------
- * File: google.strategy.ts
- * Project: car-dano-backend
- * Copyright © 2025 PT. Inspeksi Mobil Jogja
- * --------------------------------------------------------------------------
- * Description: Implements the Passport.js strategy for Google OAuth 2.0 authentication.
- * This strategy handles the OAuth flow: redirecting to Google, receiving the callback
- * with the user's profile after successful Google authentication, and then validating
- * or creating the user in the local database via AuthService.
- * The validated user object (simplified) is passed to the `done` callback.
- * --------------------------------------------------------------------------
+/**
+ * @fileoverview Implements the Passport.js strategy for Google OAuth 2.0 authentication.
+ * Handles the OAuth flow, receives the user profile from Google after successful authentication,
+ * and validates/creates the user in the local database via AuthService.
+ * Passes the simplified, validated user object to the Passport `done` callback.
  */
 
 import { PassportStrategy } from '@nestjs/passport';
-import { Strategy, VerifyCallback, Profile } from 'passport-google-oauth20';
+import { Strategy, VerifyCallback, Profile } from 'passport-google-oauth20'; // Google strategy components
 import {
   Injectable,
   Logger,
   InternalServerErrorException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { AuthService } from '../auth.service';
-import { User } from '@prisma/client';
+import { ConfigService } from '@nestjs/config'; // For Google credentials
+import { AuthService } from '../auth.service'; // For user validation/creation logic
+import { User, Role } from '@prisma/client'; // Import Role for type safety
 
 @Injectable()
+// Define the strategy, extending PassportStrategy with the base Google Strategy
+// and naming it 'google'. This name is used in AuthGuard('google').
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   private readonly logger = new Logger(GoogleStrategy.name);
 
-  /*
-   * Constructor for GoogleStrategy.
-   * Injects ConfigService for Google credentials and AuthService for user validation/creation.
-   * Configures the Google OAuth 2.0 client ID, secret, callback URL, and requested scopes.
+  /**
+   * Injects ConfigService for Google API credentials and AuthService for user processing.
+   * Configures the Google OAuth 2.0 client:
+   * - `clientID`, `clientSecret`: Credentials obtained from Google Cloud Console.
+   * - `callbackURL`: The URL in this backend application that Google redirects back to after authentication.
+   * - `scope`: The user information requested from Google (email and profile).
    *
    * @param {ConfigService} configService - Service to access configuration variables.
    * @param {AuthService} authService - Service containing logic to validate/create Google users.
@@ -43,52 +40,60 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       clientID: configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
       clientSecret: configService.getOrThrow<string>('GOOGLE_CLIENT_SECRET'),
       callbackURL: configService.getOrThrow<string>('GOOGLE_CALLBACK_URL'),
-      scope: ['email', 'profile'],
+      scope: ['email', 'profile'], // Request email and basic profile info
     });
     this.logger.log('Google Strategy Initialized');
   }
 
-  /*
-   * Validate method called by Passport after successful Google authentication and callback.
-   * Receives the Google access token, refresh token (optional), and user profile.
-   * Delegates the user validation/creation logic to AuthService.validateUserGoogle.
-   * Calls the `done` callback with either an error or the simplified user object.
+  /**
+   * Validate method automatically called by Passport after successful authentication with Google.
+   * Receives the Google access token, refresh token (optional), and the user's Google profile.
+   * It delegates the actual user lookup/creation to `authService.validateUserGoogle`.
+   * Finally, it calls the `done` callback provided by Passport.
    *
-   * @param {string} accessToken - Google access token (usually not needed directly here).
-   * @param {string | undefined} refreshToken - Google refresh token (availability depends on Google settings).
-   * @param {Profile} profile - User profile information provided by Google.
-   * @param {VerifyCallback} done - Passport callback function to signal completion (err, user, info).
-   * @returns {Promise<any>} - Resolves when done is called.
+   * @param {string} accessToken - Google access token (can be used to call Google APIs, often not needed here).
+   * @param {string | undefined} refreshToken - Google refresh token (if configured and granted).
+   * @param {Profile} profile - User profile information provided by Google (ID, name, emails, etc.).
+   * @param {VerifyCallback} done - Passport callback function `(error: any, user?: Express.User | false, info?: object) => void`.
+   *        - Call `done(null, user)` on success, passing the validated user object.
+   *        - Call `done(error, false)` on failure.
+   * @returns {Promise<any>} - The promise resolves when the `done` callback is invoked.
    */
   async validate(
     accessToken: string,
-    refreshToken: string | undefined, // refreshToken may not always be present
-    profile: Profile, // Profile type of passport-google-oauth20
-    done: VerifyCallback,
+    refreshToken: string | undefined,
+    profile: Profile, // Google profile data
+    done: VerifyCallback, // Passport's callback function
   ): Promise<any> {
     this.logger.verbose(
-      `Validating Google profile for: ${profile.displayName} (${profile.id})`,
+      `GoogleStrategy validating profile for: ${profile.displayName} (ID: ${profile.id})`,
     );
     try {
-      // Delegate user validation/creation to AuthService
+      // Delegate the core logic of finding or creating the user based on the Google profile
+      // to the AuthService. This keeps the strategy focused on the OAuth flow itself.
       const user: User = await this.authService.validateUserGoogle(profile);
 
-      // Prepare user data to be sent to done() -> becomes req.user
-      // Only send relevant data
+      // If user validation/creation is successful, prepare the user object
+      // to be passed to the 'done' callback. This object will become `req.user`
+      // in the subsequent request handler (e.g., the googleAuthRedirect controller method).
+      // Only include necessary fields for the next step (usually login/JWT generation).
       const simplifiedUser = {
         id: user.id,
-        email: user.email,
+        email: user.email, // Email is crucial, ensure it's present
         name: user.name,
-        role: user.role,
+        role: user.role, // Role is important for authorization
       };
 
-      done(null, simplifiedUser); // Pass the simplified user object to Passport
+      // Call the 'done' callback with null error and the simplified user object.
+      done(null, simplifiedUser);
     } catch (error) {
+      // If any error occurs during user validation/creation in AuthService
       this.logger.error(
-        `Google validation failed for profile ID ${profile.id}: ${error.message}`,
+        `GoogleStrategy validation failed for profile ID ${profile.id}: ${error.message}`,
         error.stack,
       );
-      done(error, false); // Signal an error to Passport
+      // Call the 'done' callback with the error object and 'false' to indicate failure.
+      done(error, false);
     }
   }
 }
