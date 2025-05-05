@@ -52,7 +52,7 @@ enum PhotoType {
 
 // Defines the User model, representing users in the system.
 model User {
-  id            String    @id @default(uuid()) // Primary Key: Automatically generated UUID string.
+  id            String    @id // Primary Key: Automatically generated.
   name          String?   // Name can be from Google, or input during email/user registration
   email         String?   @unique // Optional: Required for Google/Email login, can be null for Wallet Login? (Needs to be validated in logic)
   username      String?   @unique // Optional: Required for Username/Password login? Can be null for Google/Wallet.

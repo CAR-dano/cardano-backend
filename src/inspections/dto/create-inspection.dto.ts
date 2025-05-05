@@ -22,7 +22,7 @@ export class CreateInspectionDto {
    * @example "2025-05-01T14:30:00Z"
    */
   @IsDateString() // Validates that the string conforms to the ISO 8601 date format if provided
-  inspectionDate?: string;
+  inspectionDate: string;
 
   /**
    * The overall rating assigned to the vehicle based on the inspection.
@@ -37,7 +37,7 @@ export class CreateInspectionDto {
    * @example { "namaInspektor": "Maulana", "namaCustomer": "Budi S." }
    */
   @IsObject() // Validates that the value is an object if provided
-  identityDetails?: Record<string, any>; // Property type is an object/record
+  identityDetails: Record<string, any>; // Property type is an object/record
 
   /**
    * Object containing details from the "Data Kendaraan" section of the inspection form.

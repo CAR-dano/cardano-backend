@@ -155,13 +155,19 @@ export class InspectionsController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  async create(@Body() createInspectionDto: CreateInspectionDto) {
-    this.logger.log(
-      `[POST /inspections] Received request to create base inspection`,
+  // @UseGuards(JwtAuthGuard, RolesGuard) // Apply guards later
+  // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR) // Define allowed roles later
+  // @ApiOperation(...) // Add Swagger details later
+  // @ApiBody({ type: CreateInspectionDto })
+  // @ApiResponse({ status: 201, type: InspectionResponseDto })
+  async create(
+    @Body() createInspectionDto: CreateInspectionDto,
+    // @GetUser('id') userId: string, // Get authenticated user ID later
+  ): Promise<InspectionResponseDto> {
+    const dummySubmitterId = '23ec1675-c4f0-4ac2-9dbf-8072af0c977b'; // Temporary placeholder
+    this.logger.warn(
+      `Using DUMMY submitter ID: ${dummySubmitterId} for POST /inspections`,
     );
-    const dummySubmitterId = '0000001-0001-0001-0001-000000000001';
-    this.logger.warn(`Using DUMMY submitter ID: ${dummySubmitterId}`);
-    // ---------------------------------
     const newInspection = await this.inspectionsService.create(
       createInspectionDto,
       dummySubmitterId,
@@ -209,9 +215,10 @@ export class InspectionsController {
   // @UseGuards(JwtAuthGuard, RolesGuard) // Tambahkan ini nanti
   // @Roles(Role.ADMIN, Role.REVIEWER)    // Tentukan role yang boleh update
   async update(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() updateInspectionDto: UpdateInspectionDto, // Gunakan DTO Update
-    // @Req() req: AuthenticatedRequest // Untuk mendapatkan user ID & role nanti
+    @Param('id') id: string,
+    @Body() updateInspectionDto: UpdateInspectionDto,
+    // @GetUser('id') userId: string, // Get authenticated user ID later
+    // @GetUser('role') userRole: Role // Get role later
   ): Promise<InspectionResponseDto> {
     this.logger.log(`[PATCH /inspections/${id}] Request received`);
     this.logger.debug('Update DTO:', JSON.stringify(updateInspectionDto));
@@ -281,9 +288,10 @@ export class InspectionsController {
   @ApiResponse({ status: 400 })
   @ApiResponse({ status: 404 })
   async addMultipleFixedPhotos(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() addBatchDto: AddBatchFixedPhotosDto, // <-- DTO untuk metadata
-    @UploadedFiles() files: Array<Express.Multer.File>, // <-- Array file
+    @Param('id') id: string,
+    @Body() addBatchDto: AddBatchFixedPhotosDto,
+    @UploadedFiles() files: Array<Express.Multer.File>,
+    // @GetUser('id') userId: string, // Get user ID later
   ): Promise<PhotoResponseDto[]> {
     this.logger.log(
       `[POST /inspections/${id}/photos/fixed-batch] Received ${files?.length} files.`,
@@ -357,9 +365,10 @@ export class InspectionsController {
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
   async addMultipleDynamicPhotos(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() addBatchDto: AddBatchDynamicPhotosDto, // DTO for metadata field
-    @UploadedFiles() files: Array<Express.Multer.File>, // Array of files
+    @Param('id') id: string,
+    @Body() addBatchDto: AddBatchDynamicPhotosDto,
+    @UploadedFiles() files: Array<Express.Multer.File>,
+    // @GetUser('id') userId: string,
   ): Promise<PhotoResponseDto[]> {
     // Returns array of DTOs
     this.logger.log(
@@ -429,8 +438,8 @@ export class InspectionsController {
   @ApiResponse({ status: 400 })
   @ApiResponse({ status: 404 })
   async addMultipleDocumentPhotos(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Body() addBatchDto: AddBatchDocumentPhotosDto, // <-- DTO untuk document batch
+    @Param('id') id: string,
+    @Body() addBatchDto: AddBatchDocumentPhotosDto,
     @UploadedFiles() files: Array<Express.Multer.File>,
   ): Promise<PhotoResponseDto[]> {
     this.logger.log(
@@ -462,7 +471,7 @@ export class InspectionsController {
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
   async getPhotosForInspection(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id') id: string,
   ): Promise<PhotoResponseDto[]> {
     this.logger.log(`[GET /inspections/${id}/photos] Request received`);
     const photos = await this.photosService.findForInspection(id);
@@ -563,7 +572,7 @@ export class InspectionsController {
   })
   @ApiResponse({ status: 404, description: 'Inspection or Photo not found' })
   async updatePhoto(
-    @Param('id', ParseUUIDPipe) inspectionId: string,
+    @Param('id') inspectionId: string,
     @Param('photoId', ParseUUIDPipe) photoId: string,
     @Body() updatePhotoDto: UpdatePhotoDto, // DTO untuk metadata opsional
     @UploadedFile() newFile?: Express.Multer.File, // File baru opsional
@@ -607,18 +616,19 @@ export class InspectionsController {
    */
   @Get(':id')
   async findOne(
-    @Param('id', ParseUUIDPipe) id: string,
-    @Query('role') userRole?: Role, // Terima role dari query param (sementara)
-  ) {
-    this.logger.log(
-      `[GET /inspections/${id}] Request received. Filtering by role: ${userRole || 'ADMIN/Reviewer default'}`,
+    @Param('id') id: string,
+    @Query('role') userRole?: Role, // Temporary filter logic
+    // @GetUser('role') realUserRole: Role // Get role later
+  ): Promise<InspectionResponseDto> {
+    const roleToFilter = userRole || Role.ADMIN; // Temporary filter logic
+    this.logger.warn(
+      `[GET /inspections/${id}] Applying filter for DUMMY role: ${roleToFilter}`,
     );
-    // --- Dummy Role (jika tidak ada query param) ---
-    const roleToFilter = userRole || Role.ADMIN;
-    this.logger.warn(`Applying filter for DUMMY role: ${roleToFilter}`);
-    // ---------------------------------------------
-    return this.inspectionsService.findOne(id, roleToFilter);
+    const inspection = await this.inspectionsService.findOne(id, roleToFilter);
+    return new InspectionResponseDto(inspection);
   }
+
+  // --- Status Management Endpoints ---
 
   /**
    * Approves a submitted inspection.
@@ -626,14 +636,22 @@ export class InspectionsController {
    */
   @Patch(':id/approve') // Gunakan PATCH untuk update status
   @HttpCode(HttpStatus.OK)
-  async approveInspection(@Param('id', ParseUUIDPipe) id: string) {
-    this.logger.log(`[PATCH /inspections/${id}/approve] Request received`);
-    // --- Dummy Reviewer ID ---
-    // Nanti didapat dari req.user.id
-    const dummyReviewerId = '11111111-1111-1111-1111-111111111111'; // Ganti dengan ID user REVIEWER dummy jika ada
-    this.logger.warn(`Using DUMMY reviewer ID: ${dummyReviewerId}`);
-    // -------------------------
-    return this.inspectionsService.approveInspection(id, dummyReviewerId);
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(Role.ADMIN, Role.REVIEWER)
+  // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
+  async approveInspection(
+    @Param('id') id: string,
+    // @GetUser('id') reviewerId: string,
+  ): Promise<InspectionResponseDto> {
+    const dummyReviewerId = '11111111-1111-1111-1111-111111111111'; // Temporary
+    this.logger.warn(
+      `Using DUMMY reviewer ID: ${dummyReviewerId} for PATCH /approve`,
+    );
+    const inspection = await this.inspectionsService.approveInspection(
+      id,
+      dummyReviewerId,
+    );
+    return new InspectionResponseDto(inspection);
   }
 
   /**
@@ -642,13 +660,22 @@ export class InspectionsController {
    */
   @Patch(':id/reject')
   @HttpCode(HttpStatus.OK)
-  async rejectInspection(@Param('id', ParseUUIDPipe) id: string) {
-    this.logger.log(`[PATCH /inspections/${id}/reject] Request received`);
-    // --- Dummy Reviewer ID ---
-    const dummyReviewerId = '11111111-1111-1111-1111-111111111111';
-    this.logger.warn(`Using DUMMY reviewer ID: ${dummyReviewerId}`);
-    // -------------------------
-    return this.inspectionsService.rejectInspection(id, dummyReviewerId);
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(Role.ADMIN, Role.REVIEWER)
+  // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
+  async rejectInspection(
+    @Param('id') id: string,
+    // @GetUser('id') reviewerId: string,
+  ): Promise<InspectionResponseDto> {
+    const dummyReviewerId = '11111111-1111-1111-1111-111111111111'; // Temporary
+    this.logger.warn(
+      `Using DUMMY reviewer ID: ${dummyReviewerId} for PATCH /reject`,
+    );
+    const inspection = await this.inspectionsService.rejectInspection(
+      id,
+      dummyReviewerId,
+    );
+    return new InspectionResponseDto(inspection);
   }
 
   /**
@@ -666,9 +693,10 @@ export class InspectionsController {
     ),
   )
   async processToArchive(
-    @Param('id', ParseUUIDPipe) id: string,
-    @UploadedFile() pdfFile: Express.Multer.File, // Ambil single file
-  ) {
+    @Param('id') id: string,
+    @UploadedFile() pdfFile: Express.Multer.File,
+    // @GetUser('id') userId: string,
+  ): Promise<InspectionResponseDto> {
     this.logger.log(
       `[PUT /inspections/${id}/archive] Received request with PDF: ${pdfFile?.originalname}`,
     );
@@ -691,10 +719,14 @@ export class InspectionsController {
    */
   @Patch(':id/deactivate')
   @HttpCode(HttpStatus.OK)
-  async deactivateArchive(@Param('id', ParseUUIDPipe) id: string) {
-    this.logger.log(`[PATCH /inspections/${id}/deactivate] Request received`);
-    // --- Dummy User ID ---
-    const dummyUserId = 'ACTION_USER_ID_PLACEHOLDER_DEACTIVATE';
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(Role.ADMIN)
+  // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
+  async deactivateArchive(
+    @Param('id') id: string,
+    // @GetUser('id') userId: string,
+  ): Promise<InspectionResponseDto> {
+    const dummyUserId = 'DEACTIVATOR_USER_ID'; // Temporary
     this.logger.warn(
       `Using DUMMY user ID for deactivate action: ${dummyUserId}`,
     );
@@ -708,10 +740,14 @@ export class InspectionsController {
    */
   @Patch(':id/activate')
   @HttpCode(HttpStatus.OK)
-  async activateArchive(@Param('id', ParseUUIDPipe) id: string) {
-    this.logger.log(`[PATCH /inspections/${id}/activate] Request received`);
-    // --- Dummy User ID ---
-    const dummyUserId = 'ACTION_USER_ID_PLACEHOLDER_ACTIVATE';
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(Role.ADMIN)
+  // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
+  async activateArchive(
+    @Param('id') id: string,
+    // @GetUser('id') userId: string,
+  ): Promise<InspectionResponseDto> {
+    const dummyUserId = 'ACTIVATOR_USER_ID'; // Temporary
     this.logger.warn(`Using DUMMY user ID for activate action: ${dummyUserId}`);
     // --------------------
     return this.inspectionsService.activateArchive(id, dummyUserId);

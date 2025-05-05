@@ -12,6 +12,7 @@ import {
   BadRequestException,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; // Service for Prisma client interaction
 import { CreateInspectionDto } from './dto/create-inspection.dto'; // DTO for incoming creation data
@@ -26,6 +27,7 @@ import {
 import * as fs from 'fs/promises'; // Use promise-based fs for async file operations
 import * as path from 'path'; // For constructing file paths
 import * as crypto from 'crypto'; // For generating PDF hash
+import { format } from 'date-fns'; // for date formating
 
 // Define path for archived PDFs (ensure this exists or is created by deployment script/manually)
 const PDF_ARCHIVE_PATH = './pdfarchived';
@@ -72,6 +74,64 @@ export class InspectionsService {
   }
 
   /**
+   * Generates the next custom inspection ID based on branch code and date.
+   * Format: BRANCHCODE-DDMMYYYY-SEQ (e.g., YOG-01052025-001)
+   * WARNING: Needs proper transaction/locking in high concurrency scenarios to be truly safe.
+   *
+   * @param branchCode - 'YOG', 'SLO', 'SEM', etc. (Should come from DTO/User context)
+   * @param inspectionDate - The date of the inspection.
+   * @param tx - Optional Prisma transaction client for atomicity.
+   * @returns The next sequential ID string.
+   */
+  private async generateNextInspectionId(
+    branchCode: string, // e.g., 'YOG', 'SLO', 'SEM'
+    inspectionDate: Date,
+    tx: Prisma.TransactionClient, // Wajibkan transaksi untuk keamanan
+  ): Promise<string> {
+    const datePrefix = format(inspectionDate, 'ddMMyyyy'); // Format: 01052025
+    const idPrefix = `${branchCode.toUpperCase()}-${datePrefix}-`; // e.g., YOG-01052025-
+
+    // Cari ID terakhir dengan prefix yang sama DALAM TRANSAKSI
+    const lastInspection = await tx.inspection.findFirst({
+      where: {
+        id: {
+          startsWith: idPrefix,
+        },
+      },
+      orderBy: {
+        id: 'desc', // Urutkan descending untuk mendapatkan yang terakhir
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    let nextSequence = 1;
+    if (lastInspection) {
+      try {
+        const lastSequenceStr = lastInspection.id.substring(idPrefix.length);
+        const lastSequence = parseInt(lastSequenceStr, 10);
+        if (!isNaN(lastSequence)) {
+          nextSequence = lastSequence + 1;
+        } else {
+          this.logger.warn(
+            `Could not parse sequence number from last ID: ${lastInspection.id}. Defaulting to 1.`,
+          );
+        }
+      } catch (e) {
+        this.logger.warn(
+          `Error parsing sequence number from last ID: ${lastInspection.id}. Defaulting to 1. Error: ${e}`,
+        );
+      }
+    }
+
+    // Format nomor urut dengan padding nol (misal: 001, 010, 123)
+    const nextSequenceStr = nextSequence.toString().padStart(3, '0');
+
+    return `${idPrefix}${nextSequenceStr}`; // e.g., YOG-01052025-001
+  }
+
+  /**
    * Creates a new inspection record with initial data (excluding photos).
    * Status defaults to SUBMITTED. Requires the ID of the submitting user (inspector).
    *
@@ -86,57 +146,104 @@ export class InspectionsService {
     this.logger.log(
       `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'} by user ${submitterId}`,
     );
-
+    let branchCode = 'XXX'; // Placeholder - WAJIB DIGANTI
     try {
-      const dataToCreate: Prisma.InspectionCreateInput = {
-        inspector: { connect: { id: submitterId } }, // Connect to the submitting user (inspector)
-        vehiclePlateNumber: createInspectionDto.vehiclePlateNumber,
-        inspectionDate: createInspectionDto.inspectionDate
-          ? new Date(createInspectionDto.inspectionDate)
-          : undefined,
-        overallRating: createInspectionDto.overallRating,
-        identityDetails: createInspectionDto.identityDetails,
-        vehicleData: createInspectionDto.vehicleData,
-        equipmentChecklist: createInspectionDto.equipmentChecklist,
-        inspectionSummary: createInspectionDto.inspectionSummary,
-        detailedAssessment: createInspectionDto.detailedAssessment,
-        bodyPaintThickness: createInspectionDto.bodyPaintThickness,
-        // status defaults to SUBMITTED in schema
-        // photoPaths defaults to [] in schema
-      };
-
-      // Log the final data object being sent to Prisma for debugging
-      this.logger.debug(
-        'Data prepared for Prisma create:',
-        JSON.stringify(dataToCreate, null, 2),
-      );
-
-      // Execute the Prisma create query
-      const newInspection = await this.prisma.inspection.create({
-        data: dataToCreate,
-      });
-
-      this.logger.log(
-        `Successfully created inspection ID: ${newInspection.id} by user ${submitterId}`,
-      );
-      // Return the complete Inspection object created by Prisma
-      // Note: JSON fields in the returned object will be actual JavaScript objects/arrays
-      return newInspection;
-    } catch (error) {
-      // Re-throw BadRequestException if it came from parseJsonField
-      if (error instanceof BadRequestException) {
-        throw error;
+      const identity = createInspectionDto.identityDetails;
+      if (
+        identity &&
+        typeof identity === 'object' &&
+        'cabangInspeksi' in identity &&
+        typeof identity.cabangInspeksi === 'string'
+      ) {
+        // Ambil 3 huruf pertama dan uppercase
+        branchCode = identity.cabangInspeksi.substring(0, 3).toUpperCase();
+        // Validasi sederhana
+        if (!['YOG', 'SLO', 'SEM'].includes(branchCode)) {
+          throw new BadRequestException(
+            `Invalid branch code inferred from identityDetails: ${branchCode}`,
+          );
+        }
+      } else {
+        throw new BadRequestException(
+          'Cannot determine branch code from identityDetails.',
+        );
       }
-      // Log other errors and throw a generic server error
-      this.logger.error(
-        `Failed to create inspection in database: ${error.message}`,
-        error.stack,
-      );
-      // Consider checking for specific Prisma error codes (e.g., unique constraint violation)
-      throw new InternalServerErrorException(
-        'Could not save inspection data to the database.',
+    } catch (e) {
+      if (e instanceof BadRequestException) throw e;
+      throw new BadRequestException(
+        'Failed to determine branch code from identityDetails JSON.',
       );
     }
+
+    const inspectionDateObj = createInspectionDto.inspectionDate
+      ? new Date(createInspectionDto.inspectionDate)
+      : new Date(); // Default ke now() jika tidak ada?
+    if (isNaN(inspectionDateObj.getTime())) {
+      throw new BadRequestException('Invalid inspectionDate format provided.');
+    }
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        // Generate ID Kustom di dalam transaksi
+        const customId = await this.generateNextInspectionId(
+          branchCode,
+          inspectionDateObj,
+          tx,
+        );
+        this.logger.log(`Generated custom inspection ID: ${customId}`);
+
+        const dataToCreate: Prisma.InspectionCreateInput = {
+          id: customId, // <-- Gunakan ID kustom
+          inspector: { connect: { id: submitterId } },
+          vehiclePlateNumber: createInspectionDto.vehiclePlateNumber,
+          inspectionDate: inspectionDateObj, // Gunakan objek Date
+          overallRating: createInspectionDto.overallRating,
+          identityDetails: createInspectionDto.identityDetails, // Hasil parse
+          vehicleData: createInspectionDto.vehicleData,
+          equipmentChecklist: createInspectionDto.equipmentChecklist,
+          inspectionSummary: createInspectionDto.inspectionSummary,
+          detailedAssessment: createInspectionDto.detailedAssessment,
+          bodyPaintThickness: createInspectionDto.bodyPaintThickness,
+          // photoPaths default [], status default SUBMITTED
+        };
+
+        try {
+          const newInspection = await tx.inspection.create({
+            data: dataToCreate,
+          });
+          this.logger.log(
+            `Successfully created inspection with custom ID: ${newInspection.id}`,
+          );
+          return newInspection;
+        } catch (error) {
+          // Tangani jika ID kustom ternyata tidak unik (race condition)
+          if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+          ) {
+            this.logger.error(
+              `Race condition or duplicate custom ID generated: ${customId}`,
+            );
+            throw new ConflictException(
+              `Failed to generate unique inspection ID for ${customId}. Please try again.`,
+            );
+          }
+          this.logger.error(
+            `Failed to create inspection with custom ID ${customId}: ${error.message}`,
+            error.stack,
+          );
+          throw new InternalServerErrorException(
+            'Could not save inspection data.',
+          );
+        }
+      },
+      {
+        // Opsi transaksi: tingkat isolasi tinggi untuk mencegah race condition ID
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        maxWait: 5000, // milliseconds
+        timeout: 10000, // milliseconds
+      },
+    );
   }
 
   /**
