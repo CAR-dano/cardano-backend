@@ -1,7 +1,6 @@
 /**
- * @fileoverview Controller responsible for handling user management operations,
- * typically performed by administrators. All endpoints within this controller
- * are protected and require ADMIN role authorization.
+ * @fileoverview Controller for admin-level user management operations.
+ * All endpoints require authentication (JWT) and ADMIN role authorization.
  */
 
 import {
@@ -16,12 +15,13 @@ import {
   HttpStatus,
   NotFoundException,
   Logger,
+  Delete, // Add Delete
 } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../auth/guards/roles.guard';
-import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from '@prisma/client'; // Assuming Role enum is from Prisma
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // JWT authentication
+import { RolesGuard } from '../auth/guards/roles.guard'; // Role-based authorization
+import { Roles } from '../auth/decorators/roles.decorator'; // Decorator to specify allowed roles
+import { Role } from '@prisma/client'; // Role enum
 import {
   ApiTags,
   ApiBearerAuth,
@@ -30,169 +30,181 @@ import {
   ApiParam,
   ApiBody,
 } from '@nestjs/swagger';
-import { UserResponseDto } from './dto/user-response.dto'; // Example DTO for user response
+import { UserResponseDto } from './dto/user-response.dto'; // DTO for API responses
 import { UpdateUserRoleDto } from './dto/update-user-role.dto'; // DTO for updating role
 
-@ApiTags('User Management') // Group endpoints under 'User Management' in API docs
-@ApiBearerAuth('JwtAuthGuard') // Indicate all routes need JWT Bearer token
-@UseGuards(JwtAuthGuard, RolesGuard) // Apply JWT and Role guards to all routes in this controller
-@Controller('admin/users') // Base path for this controller: /api/v1/admin/users
+@ApiTags('User Management (Admin)') // Tag for documentation
+@ApiBearerAuth('JwtAuthGuard') // Indicate JWT is needed for all endpoints here
+@UseGuards(JwtAuthGuard, RolesGuard) // Apply both guards at the controller level
+@Controller('admin/users') // Base path: /api/v1/admin/users
 export class UsersController {
   private readonly logger = new Logger(UsersController.name);
 
-  /**
-   * Injects the UsersService to interact with user data.
-   * @param {UsersService} usersService - The service for user operations.
-   */
   constructor(private readonly usersService: UsersService) {
-    this.logger.log('UsersController initialized');
+    this.logger.log('UsersController initialized (Admin)');
   }
 
   /**
-   * Retrieves a list of all users.
-   * Requires ADMIN role.
-   * @returns {Promise<UserResponseDto[]>} A list of users (potentially paginated in a real app).
+   * Retrieves a list of all users. Requires ADMIN role.
    */
   @Get()
-  @Roles(Role.ADMIN) // Specify that only ADMINs can access this endpoint
+  @Roles(Role.ADMIN) // Only ADMINs can access this
   @ApiOperation({ summary: 'Retrieve all users (Admin Only)' })
   @ApiResponse({
     status: 200,
-    description: 'List of users retrieved successfully.',
+    description: 'List of users.',
     type: [UserResponseDto],
-  }) // Use DTO for response type
+  })
   @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 403, description: 'Forbidden. Requires ADMIN role.' })
+  @ApiResponse({ status: 403, description: 'Forbidden (Requires ADMIN role).' })
   async findAll(): Promise<UserResponseDto[]> {
-    this.logger.log('Request received for finding all users');
-    const users = await this.usersService.findAll(); // Assuming findAll exists in service
-    // Map to DTO to exclude sensitive fields if necessary
-    return users.map((user) => new UserResponseDto(user));
+    this.logger.log(`Admin request: findAll users`);
+    const users = await this.usersService.findAll();
+    return users.map((user) => new UserResponseDto(user)); // Map to safe DTO
   }
 
   /**
-   * Retrieves details for a specific user by their ID.
-   * Requires ADMIN role.
-   * @param {string} id - The UUID of the user to retrieve.
-   * @returns {Promise<UserResponseDto>} The user details.
-   * @throws {NotFoundException} If the user with the specified ID is not found.
+   * Retrieves details for a specific user by ID. Requires ADMIN role.
    */
   @Get(':id')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Retrieve a specific user by ID (Admin Only)' })
-  @ApiParam({ name: 'id', description: 'The UUID of the user', type: String })
+  @ApiOperation({ summary: 'Retrieve user by ID (Admin Only)' })
+  @ApiParam({
+    name: 'id',
+    description: 'User UUID',
+    type: String,
+    format: 'uuid',
+  })
   @ApiResponse({
     status: 200,
-    description: 'User details retrieved successfully.',
+    description: 'User details.',
     type: UserResponseDto,
   })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 403, description: 'Forbidden. Requires ADMIN role.' })
-  @ApiResponse({ status: 404, description: 'User not found.' })
+  @ApiResponse({ status: 401 })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({ status: 404 })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<UserResponseDto> {
-    this.logger.log(`Request received for finding user with ID: ${id}`);
+    this.logger.log(`Admin request: findOne user by ID: ${id}`);
+    // Service's findById returns null if not found, controller should handle 404
     const user = await this.usersService.findById(id);
     if (!user) {
       throw new NotFoundException(`User with ID "${id}" not found`);
     }
-    // Map to DTO
     return new UserResponseDto(user);
   }
 
   /**
-   * Updates the role of a specific user.
-   * Requires ADMIN role.
-   * @param {string} id - The UUID of the user whose role is to be updated.
-   * @param {UpdateUserRoleDto} updateUserRoleDto - DTO containing the new role.
-   * @returns {Promise<UserResponseDto>} The updated user details.
-   * @throws {NotFoundException} If the user with the specified ID is not found.
+   * Updates the role of a specific user. Requires ADMIN role.
    */
-  @Put(':id/role')
+  @Put(':id/role') // Using PUT as role is a specific resource attribute being replaced
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: "Update a user's role (Admin Only)" })
-  @ApiParam({ name: 'id', description: 'The UUID of the user', type: String })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update user role (Admin Only)' })
+  @ApiParam({
+    name: 'id',
+    description: 'User UUID',
+    type: String,
+    format: 'uuid',
+  })
   @ApiBody({ type: UpdateUserRoleDto })
   @ApiResponse({
     status: 200,
-    description: 'User role updated successfully.',
+    description: 'User role updated.',
     type: UserResponseDto,
   })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request (e.g., invalid role).',
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 403, description: 'Forbidden. Requires ADMIN role.' })
-  @ApiResponse({ status: 404, description: 'User not found.' })
+  @ApiResponse({ status: 400, description: 'Invalid role provided.' })
+  @ApiResponse({ status: 401 })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({ status: 404 })
   async updateUserRole(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserRoleDto: UpdateUserRoleDto,
   ): Promise<UserResponseDto> {
     this.logger.log(
-      `Request received to update role for user ID: ${id} to ${updateUserRoleDto.role}`,
+      `Admin request: update role for user ${id} to ${updateUserRoleDto.role}`,
     );
+    // Service handles NotFoundException if user doesn't exist
     const updatedUser = await this.usersService.updateRole(
       id,
       updateUserRoleDto.role,
-    ); // Assuming updateRole exists
+    );
     return new UserResponseDto(updatedUser);
   }
 
   /**
-   * Disables a specific user account.
-   * Requires ADMIN role.
-   * @param {string} id - The UUID of the user to disable.
-   * @returns {Promise<UserResponseDto>} The user details with updated status (if status field exists).
-   * @throws {NotFoundException} If the user is not found.
+   * Disables a user account. Requires ADMIN role.
+   * (Assumes 'setStatus' method and 'isActive' field exist).
    */
-  @Put(':id/disable')
+  @Put(':id/disable') // Using PUT to set a specific state
   @Roles(Role.ADMIN)
-  @HttpCode(HttpStatus.OK) // Often PUT returns 200 OK on success
-  @ApiOperation({ summary: 'Disable a user account (Admin Only)' })
-  @ApiParam({ name: 'id', description: 'The UUID of the user', type: String })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Disable user account (Admin Only)' })
+  @ApiParam({
+    name: 'id',
+    description: 'User UUID',
+    type: String,
+    format: 'uuid',
+  })
   @ApiResponse({
     status: 200,
-    description: 'User account disabled successfully.',
+    description: 'User disabled.',
     type: UserResponseDto,
   })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 403, description: 'Forbidden. Requires ADMIN role.' })
-  @ApiResponse({ status: 404, description: 'User not found.' })
+  @ApiResponse({ status: 401 })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({ status: 404 })
   async disableUser(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<UserResponseDto> {
-    this.logger.log(`Request received to disable user ID: ${id}`);
-    const user = await this.usersService.setStatus(id, false); // Assuming setStatus(id, isActive) exists
+    this.logger.log(`Admin request: disable user ${id}`);
+    const user = await this.usersService.setStatus(id, false); // Pass false to disable
     return new UserResponseDto(user);
   }
 
   /**
-   * Enables (reactivates) a specific user account.
-   * Requires ADMIN role.
-   * @param {string} id - The UUID of the user to enable.
-   * @returns {Promise<UserResponseDto>} The user details with updated status.
-   * @throws {NotFoundException} If the user is not found.
+   * Enables a user account. Requires ADMIN role.
+   * (Assumes 'setStatus' method and 'isActive' field exist).
    */
-  @Put(':id/enable')
+  @Put(':id/enable') // Using PUT to set a specific state
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Enable (reactivate) a user account (Admin Only)' })
-  @ApiParam({ name: 'id', description: 'The UUID of the user', type: String })
+  @ApiOperation({ summary: 'Enable user account (Admin Only)' })
+  @ApiParam({
+    name: 'id',
+    description: 'User UUID',
+    type: String,
+    format: 'uuid',
+  })
   @ApiResponse({
     status: 200,
-    description: 'User account enabled successfully.',
+    description: 'User enabled.',
     type: UserResponseDto,
   })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 403, description: 'Forbidden. Requires ADMIN role.' })
-  @ApiResponse({ status: 404, description: 'User not found.' })
+  @ApiResponse({ status: 401 })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({ status: 404 })
   async enableUser(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<UserResponseDto> {
-    this.logger.log(`Request received to enable user ID: ${id}`);
-    const user = await this.usersService.setStatus(id, true); // Assuming setStatus exists
+    this.logger.log(`Admin request: enable user ${id}`);
+    const user = await this.usersService.setStatus(id, true); // Pass true to enable
     return new UserResponseDto(user);
   }
+
+  // Optional: Add DELETE endpoint if needed
+  /*
+   @Delete(':id')
+   @Roles(Role.ADMIN)
+   @HttpCode(HttpStatus.NO_CONTENT) // 204 No Content for successful DELETE
+   @ApiOperation({ summary: 'Delete a user (Admin Only) - Use with caution!'})
+   @ApiParam({ name: 'id', type: String, format: 'uuid' })
+   @ApiResponse({ status: 204, description: 'User deleted.'})
+   @ApiResponse({ status: 401 }) @ApiResponse({ status: 403 }) @ApiResponse({ status: 404 })
+   async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+       this.logger.warn(`Admin request: DELETE user ${id}`);
+       await this.usersService.deleteUser(id); // Assumes deleteUser method exists in service
+   }
+   */
 }

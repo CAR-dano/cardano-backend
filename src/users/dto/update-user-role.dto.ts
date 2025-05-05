@@ -1,24 +1,25 @@
 /**
- * @fileoverview Data Transfer Object for updating a user's role.
- * Contains validation rules using class-validator and API documentation
- * properties using @nestjs/swagger.
+ * @fileoverview Data Transfer Object (DTO) for updating a user's role by an administrator.
  */
-
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty } from 'class-validator';
-import { Role } from '@prisma/client'; // Assuming Role enum is from Prisma
+import { IsEnum, IsNotEmpty } from 'class-validator'; // Import validators
+import { Role } from '@prisma/client'; // Import Role enum from Prisma
 
 export class UpdateUserRoleDto {
   /**
    * The new role to assign to the user. Must be a valid value from the Role enum.
+   * This field is required for the update operation.
    * @example Role.ADMIN
    */
   @ApiProperty({
-    enum: Role, // Tells Swagger/Scalar this is an enum
+    enum: Role, // Helps Swagger UI generate dropdown
     description: 'The new role to assign to the user',
-    example: Role.ADMIN, // Provides an example value in the documentation
+    example: Role.ADMIN, // Provide a valid example
+    required: true, // Indicate it's required in documentation
   })
-  @IsEnum(Role) // Validates that the value is one of the allowed enum values
-  @IsNotEmpty() // Ensures the role is provided
+  @IsEnum(Role, {
+    message: 'Role must be a valid role value (ADMIN, REVIEWER, etc.)',
+  }) // Validate against enum values
+  @IsNotEmpty({ message: 'Role cannot be empty' }) // Ensure a value is provided
   role: Role;
 }
