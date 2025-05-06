@@ -157,7 +157,7 @@ export class BlockchainService {
       const assetNameForMetadata = Buffer.from(tokenNameHex, 'hex').toString(
         'utf8',
       );
-      const simpleAssetName = `Insp_${metadata.inspectionId.substring(0, 8)}`;
+      const simpleAssetName = `Inspection_${metadata.inspectionId}`;
       const simpleAssetNameHex = stringToHex(simpleAssetName);
       // Construct the full asset ID
       const assetId = policyId + simpleAssetNameHex;

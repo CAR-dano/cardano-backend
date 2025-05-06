@@ -43,6 +43,7 @@ import {
   ApiOperation,
   ApiParam,
   ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
 import { AddBatchDynamicPhotosDto } from 'src/photos/dto/add-batch-dynamic-photos.dto';
 import { AddBatchFixedPhotosDto } from 'src/photos/dto/add-batch-fixed-photos.dto';
@@ -75,19 +76,7 @@ const photoStorageConfig = diskStorage({
     callback(null, `${safeOriginalName}-${uniqueSuffix}${extension}`);
   },
 });
-/**
- * Multer disk storage configuration for uploaded PDF reports during archiving.
- * Saves files to PDF_ARCHIVE_PATH with temporary names initially.
- * The service might rename them later using the inspection ID.
- */
-const pdfStorageConfig = diskStorage({
-  destination: PDF_ARCHIVE_PATH,
-  filename: (req, file, callback) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const extension = extname(file.originalname);
-    callback(null, `temp-pdf-${uniqueSuffix}${extension}`); // Temporary name
-  },
-});
+
 /**
  * Multer file filter to allow only common image file types.
  */
