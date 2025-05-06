@@ -165,3 +165,11 @@ model Photo {
   @@index([inspectionId])
   @@map("inspection_photos")
 }
+
+model InspectionBranchCity {
+  id       String @id @default(uuid())
+  namaKota String @unique
+  kodeKota String @unique @db.VarChar(3)
+
+  @@map("inspection_branch_city")
+}
