@@ -17,7 +17,7 @@ export class UpdateInspectionDto extends PartialType(CreateInspectionDto) {
   // or override properties from CreateInspectionDto if needed (e.g., different validation).
   // Example: If you wanted to allow updating status directly (though we have specific methods)
   /*
-  @ApiPropertyOptional({ enum: InspectionStatus, description: 'Update inspection status (use dedicated endpoints for approval/rejection normally)' })
+  @ApiPropertyOptional({ enum: InspectionStatus, description: 'Update inspection status (use dedicated endpoints for approval/rejection normally). Possible values: NEED_REVIEW, APPROVED, ARCHIVING, ARCHIVED, FAIL_ARCHIVE, DEACTIVATED' })
   @IsOptional()
   @IsEnum(InspectionStatus)
   status?: InspectionStatus;

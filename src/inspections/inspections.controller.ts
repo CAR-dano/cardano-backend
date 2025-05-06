@@ -136,7 +136,7 @@ export class InspectionsController {
     @Body() createInspectionDto: CreateInspectionDto,
     // @GetUser('id') userId: string, // Get authenticated user ID later
   ): Promise<InspectionResponseDto> {
-    const dummySubmitterId = 'c0091af4-bba0-463f-9af7-5bb72ee87306'; // Temporary placeholder
+    const dummySubmitterId = 'e27d582b-a61c-432b-a76f-28844b5706e8'; // Temporary placeholder
     this.logger.warn(
       `Using DUMMY submitter ID: ${dummySubmitterId} for POST /inspections`,
     );
@@ -449,35 +449,11 @@ export class InspectionsController {
     @Param('id') id: string,
     // @GetUser('id') reviewerId: string,
   ): Promise<InspectionResponseDto> {
-    const dummyReviewerId = 'c0091af4-bba0-463f-9af7-5bb72ee87306'; // Temporary
+    const dummyReviewerId = 'e27d582b-a61c-432b-a76f-28844b5706e8'; // Temporary
     this.logger.warn(
       `Using DUMMY reviewer ID: ${dummyReviewerId} for PATCH /approve`,
     );
     const inspection = await this.inspectionsService.approveInspection(
-      id,
-      dummyReviewerId,
-    );
-    return new InspectionResponseDto(inspection);
-  }
-
-  /**
-   * [PATCH /inspections/:id/reject]
-   * Rejects a submitted inspection. Requires Reviewer/Admin role.
-   */
-  @Patch(':id/reject')
-  @HttpCode(HttpStatus.OK)
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.ADMIN, Role.REVIEWER)
-  // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
-  async rejectInspection(
-    @Param('id') id: string,
-    // @GetUser('id') reviewerId: string,
-  ): Promise<InspectionResponseDto> {
-    const dummyReviewerId = 'c0091af4-bba0-463f-9af7-5bb72ee87306'; // Temporary
-    this.logger.warn(
-      `Using DUMMY reviewer ID: ${dummyReviewerId} for PATCH /reject`,
-    );
-    const inspection = await this.inspectionsService.rejectInspection(
       id,
       dummyReviewerId,
     );
@@ -522,7 +498,7 @@ export class InspectionsController {
     // @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
     // --- Dummy User ID (yg melakukan aksi) ---
-    const dummyUserId = 'c0091af4-bba0-463f-9af7-5bb72ee87306';
+    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8';
     this.logger.warn(`Using DUMMY user ID for archive action: ${dummyUserId}`);
     // --------------------------------------
     // Service will handle fetching URL, converting to PDF, saving PDF, hash, blockchain sim, update status

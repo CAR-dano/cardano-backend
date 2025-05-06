@@ -123,7 +123,7 @@ export class InspectionsService {
 
   /**
    * Creates a new inspection record with initial data (excluding photos).
-   * Status defaults to SUBMITTED. Requires the ID of the submitting user (inspector).
+   * Status defaults to NEED_REVIEW. Requires the ID of the submitting user (inspector).
    *
    * @param {CreateInspectionDto} createInspectionDto - DTO containing initial data.
    * @param {string} submitterId - The UUID of the user (INSPECTOR) submitting the inspection.
@@ -194,7 +194,7 @@ export class InspectionsService {
           inspectionSummary: createInspectionDto.inspectionSummary,
           detailedAssessment: createInspectionDto.detailedAssessment,
           bodyPaintThickness: createInspectionDto.bodyPaintThickness,
-          // photoPaths default [], status default SUBMITTED
+          // photoPaths default [], status default NEED_REVIEW
         };
 
         try {
@@ -395,7 +395,7 @@ export class InspectionsService {
       };
       this.logger.log('Applying filter: status = ARCHIVED');
     }
-    // TODO: Consider if INSPECTOR should see their own SUBMITTED/REJECTED inspections?
+    // TODO: Consider if INSPECTOR should see their own NEED_REVIEW inspections?
 
     try {
       const inspections = await this.prisma.inspection.findMany({
@@ -484,14 +484,14 @@ export class InspectionsService {
   }
 
   /**
-   * Approves an inspection, changing its status from SUBMITTED or FAIL_ARCHIVE to APPROVED.
+   * Approves an inspection, changing its status from NEED_REVIEW or FAIL_ARCHIVE to APPROVED.
    * Records the reviewer ID.
    *
    * @param {string} inspectionId - The UUID of the inspection to approve.
    * @param {string} reviewerId - The UUID of the user (REVIEWER/ADMIN) approving.
    * @returns {Promise<Inspection>} The updated inspection record.
    * @throws {NotFoundException} If inspection not found.
-   * @throws {BadRequestException} If inspection is not in SUBMITTED or FAIL_ARCHIVE state.
+   * @throws {BadRequestException} If inspection is not in NEED_REVIEW or FAIL_ARCHIVE state.
    */
   async approveInspection(
     inspectionId: string,
@@ -502,13 +502,13 @@ export class InspectionsService {
     );
     try {
       // --- PERBAIKAN WHERE CLAUSE ---
-      // Update only if the current status is SUBMITTED OR FAIL_ARCHIVE
+      // Update only if the current status is NEED_REVIEW OR FAIL_ARCHIVE
       const result = await this.prisma.inspection.updateMany({
         where: {
           id: inspectionId,
           // Use the 'in' operator with an array of allowed statuses
           status: {
-            in: [InspectionStatus.SUBMITTED, InspectionStatus.FAIL_ARCHIVE],
+            in: [InspectionStatus.NEED_REVIEW, InspectionStatus.FAIL_ARCHIVE],
           },
         },
         data: {
@@ -540,9 +540,9 @@ export class InspectionsService {
             `Inspection ${inspectionId} is already approved.`,
           );
         } else {
-          // If it exists but wasn't SUBMITTED or FAIL_ARCHIVE
+          // If it exists but wasn't NEED_REVIEW or FAIL_ARCHIVE
           throw new BadRequestException(
-            `Inspection ${inspectionId} cannot be approved. Current status is '${exists.status}'. Required: '${InspectionStatus.SUBMITTED}' or '${InspectionStatus.FAIL_ARCHIVE}'.`,
+            `Inspection ${inspectionId} cannot be approved. Current status is '${exists.status}'. Required: '${InspectionStatus.NEED_REVIEW}' or '${InspectionStatus.FAIL_ARCHIVE}'.`,
           );
         }
       }
@@ -568,72 +568,6 @@ export class InspectionsService {
       );
       throw new InternalServerErrorException(
         `Could not approve inspection ${inspectionId}.`,
-      );
-    }
-  }
-
-  /**
-   * Rejects an inspection, changing its status from SUBMITTED to REJECTED.
-   *
-   * @param {string} inspectionId - The UUID of the inspection to reject.
-   * @param {string} reviewerId - The UUID of the user (REVIEWER) rejecting the inspection.
-   * @returns {Promise<Inspection>} The updated inspection record.
-   * @throws {NotFoundException|BadRequestException} If inspection not found or not in SUBMITTED state.
-   */
-  async rejectInspection(
-    inspectionId: string,
-    reviewerId: string,
-  ): Promise<Inspection> {
-    this.logger.log(
-      `Reviewer ${reviewerId} attempting to reject inspection ${inspectionId}`,
-    );
-    try {
-      // Update only if the current status is SUBMITTED
-      const result = await this.prisma.inspection.updateMany({
-        where: {
-          id: inspectionId,
-          status: InspectionStatus.SUBMITTED,
-        },
-        data: {
-          status: InspectionStatus.REJECTED,
-          reviewerId: reviewerId,
-        },
-      });
-
-      if (result.count === 0) {
-        const exists = await this.prisma.inspection.findUnique({
-          where: { id: inspectionId },
-          select: { status: true },
-        });
-        if (!exists) {
-          throw new NotFoundException(
-            `Inspection with ID "${inspectionId}" not found.`,
-          );
-        } else {
-          throw new BadRequestException(
-            `Inspection ${inspectionId} cannot be rejected because its current status is '${exists.status}', not '${InspectionStatus.SUBMITTED}'.`,
-          );
-        }
-      }
-      this.logger.log(
-        `Inspection ${inspectionId} rejected by reviewer ${reviewerId}`,
-      );
-      return this.prisma.inspection.findUniqueOrThrow({
-        where: { id: inspectionId },
-      });
-    } catch (error: any) {
-      // Explicitly type error as any for now
-      if (
-        error instanceof NotFoundException ||
-        error instanceof BadRequestException
-      )
-        throw error;
-      this.logger.error(
-        `Failed to reject inspection ${inspectionId}: ${error.message}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        `Could not reject inspection ${inspectionId}.`,
       );
     }
   }

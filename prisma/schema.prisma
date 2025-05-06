@@ -35,10 +35,9 @@ enum Role {
 // Defines the possible statuses for an inspection record.
 // This tracks the lifecycle of an inspection report.
 enum InspectionStatus {
-  SUBMITTED    // Initial status when an Inspector submits the data.
+  NEED_REVIEW  // Initial status when an Inspector submits the data, requiring review.
   APPROVED     // Status after a Reviewer approves the inspection data.
-  REJECTED     // Status if a Reviewer rejects the inspection data (requires correction).
-  ARCHIVING    // (Suggested) Status indicating the PDF generation and NFT minting process is in progress.
+  ARCHIVING    // Status indicating the PDF generation and NFT minting process is in progress.
   ARCHIVED     // Status after the report PDF is stored and NFT/metadata is successfully recorded on the blockchain.
   FAIL_ARCHIVE // Status if the archiving (PDF gen or NFT mint) process failed. Requires attention.
   DEACTIVATED  // Status for inspections that are soft-deleted or hidden from public view upon request.
@@ -97,8 +96,8 @@ model Inspection {
   inspectionDate     DateTime?
   // Overall rating string (e.g., "Excellent", "Good"). Optional.
   overallRating      String?
-  // Current status of the inspection record. Uses the InspectionStatus enum. Defaults to SUBMITTED.
-  status             InspectionStatus @default(SUBMITTED)
+  // Current status of the inspection record. Uses the InspectionStatus enum. Defaults to NEED_REVIEW.
+  status             InspectionStatus @default(NEED_REVIEW)
 
   // --- JSON Columns for Form Details ---
   // Storing structured but potentially variable data from form pages as JSONB (PostgreSQL's efficient JSON type).
