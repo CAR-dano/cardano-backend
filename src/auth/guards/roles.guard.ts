@@ -1,9 +1,9 @@
+// src/auth/guards/roles.guard.ts
 /**
- * @fileoverview Guard that implements role-based access control (RBAC).
- * It retrieves the roles allowed for a specific route (set via the @Roles decorator)
- * and compares them against the role(s) attached to the authenticated user object (`request.user`).
- * It should be used *after* an authentication guard (like JwtAuthGuard) that attaches
- * the user object to the request.
+ * @fileoverview Authorization guard implementing role-based access control (RBAC).
+ * Retrieves allowed roles from metadata set by the @Roles decorator and checks
+ * against the role attached to the authenticated user (req.user).
+ * Must be used AFTER an authentication guard like JwtAuthGuard.
  */
 
 import {
@@ -13,76 +13,72 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
-import { Role } from '@prisma/client'; // Import your Role enum
-import { ROLES_KEY } from '../decorators/roles.decorator'; // Import the metadata key
+import { Reflector } from '@nestjs/core'; // Helper to read metadata
+import { Role } from '@prisma/client'; // User Role enum
+import { ROLES_KEY } from '../decorators/roles.decorator'; // Key to access metadata
 
 @Injectable()
 export class RolesGuard implements CanActivate {
   private readonly logger = new Logger(RolesGuard.name);
 
-  /**
-   * Injects the Reflector helper class to read metadata set by decorators.
-   * @param {Reflector} reflector - NestJS Reflector instance.
-   */
+  // Inject Reflector to access decorator metadata
   constructor(private reflector: Reflector) {}
 
   /**
-   * Determines if the current user has the required role(s) to access the route.
-   * Retrieves allowed roles from metadata and checks if the user's role matches.
+   * Determines if the current authenticated user has one of the roles required
+   * by the @Roles decorator applied to the route handler or controller.
    *
-   * @param {ExecutionContext} context - The execution context providing access to request details.
-   * @returns {boolean} True if the user has an allowed role, otherwise throws ForbiddenException.
-   * @throws {ForbiddenException} If the user does not have the required role.
+   * @param {ExecutionContext} context - Provides access to the request and handler/class metadata.
+   * @returns {boolean} True if the user has permission, otherwise throws ForbiddenException.
+   * @throws {ForbiddenException} If the user object or role is missing, or if the user's role is not allowed.
    */
   canActivate(context: ExecutionContext): boolean {
-    // 1. Get the required roles metadata from the @Roles() decorator
-    // reflector.getAllAndOverride combines metadata from handler and controller level
+    // Get the roles defined by the @Roles(...) decorator on the handler/controller
     const requiredRoles = this.reflector.getAllAndOverride<Role[]>(ROLES_KEY, [
-      context.getHandler(), // Method level decorator
-      context.getClass(), // Controller level decorator
+      context.getHandler(), // Check method decorator first
+      context.getClass(), // Then check controller decorator
     ]);
 
-    // 2. If no @Roles() decorator is applied, allow access (guard passes)
-    //    Alternatively, you might want to deny access by default if no roles are specified.
+    // If no @Roles decorator is present, access is granted by default.
+    // Adjust this logic if you prefer default denial.
     if (!requiredRoles || requiredRoles.length === 0) {
-      this.logger.verbose(
-        'No specific roles required for this route. Allowing access.',
-      );
+      this.logger.verbose('No specific roles required, access granted.');
       return true;
     }
 
-    // 3. Get the user object from the request (attached by the preceding AuthGuard)
+    // Get the user object attached by the preceding authentication guard (e.g., JwtAuthGuard)
     const { user } = context.switchToHttp().getRequest();
 
-    // 4. Check if user object exists and has a role property
+    // If no user object or role is found, deny access (problem with auth guard setup)
     if (!user || !user.role) {
       this.logger.warn(
-        'RolesGuard activated but user or user.role is missing from request. Denying access.',
+        'RolesGuard: User or user.role not found on request. Denying access.',
       );
-      // This usually indicates an issue with the preceding AuthGuard not attaching the user correctly.
-      throw new ForbiddenException('User role information is missing.');
+      throw new ForbiddenException(
+        'User role information is missing or authentication failed.',
+      );
     }
 
     this.logger.verbose(
-      `Required roles: ${requiredRoles.join(', ')}. User role: ${user.role}`,
+      `Required roles: ${requiredRoles.join(', ')} | User role: ${user.role}`,
     );
 
-    // 5. Check if the user's role is included in the required roles array
+    // Check if the user's role is included in the list of required roles
     const hasPermission = requiredRoles.some((role) => user.role === role);
 
     if (!hasPermission) {
       this.logger.warn(
-        `User role '${user.role}' does not have permission for roles: ${requiredRoles.join(', ')}`,
+        `Access denied for user ${user.id} (Role: ${user.role}). Required: ${requiredRoles.join(', ')}`,
       );
       throw new ForbiddenException(
         'You do not have permission to access this resource.',
       );
     }
 
+    // If the user's role matches one of the required roles, grant access
     this.logger.verbose(
-      `User role '${user.role}' has permission. Allowing access.`,
+      `Access granted for user ${user.id} (Role: ${user.role}).`,
     );
-    return true; // User has one of the required roles
+    return true;
   }
 }

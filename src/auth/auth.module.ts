@@ -23,8 +23,12 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GoogleStrategy } from './strategies/google.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { WalletStrategy } from './strategies/wallet.strategy';
+import { LocalStrategy } from './strategies/local.strategy';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
+import { LocalAuthGuard } from './guards/local-auth.guard';
+import { WalletAuthGuard } from './guards/wallet-auth.guard';
 
 @Module({
   imports: [
@@ -48,8 +52,12 @@ import { RolesGuard } from './guards/roles.guard';
     AuthService,
     GoogleStrategy, // Register Google Strategy
     JwtStrategy, // Register JWT Strategy
+    WalletStrategy, // Register Wallet Strategy
+    LocalStrategy, // Register Local Strategy
     JwtAuthGuard, // Register JWT Guard as a provider so that it can be injected if necessary
     RolesGuard, // Register Roles Guard as a provider
+    LocalAuthGuard, // Register Local Auth (username, email, password) Guard as a provider
+    WalletAuthGuard, // Register Wallet Auth Guard as a provider
   ],
   exports: [AuthService, JwtAuthGuard, RolesGuard, PassportModule, JwtModule], // Export service & guard if necessary in another module
 })
