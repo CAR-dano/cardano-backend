@@ -17,6 +17,8 @@ import { User, Role, Prisma } from '@prisma/client';
 import { RegisterUserDto } from '../auth/dto/register-user.dto'; // Import DTO for local registration
 import * as bcrypt from 'bcrypt'; // Import bcrypt for hashing
 import { v4 as uuidv4 } from 'uuid'; // Import uuid for generating unique IDs
+import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
+import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 
 @Injectable()
 export class UsersService {
@@ -41,7 +43,7 @@ export class UsersService {
       return await this.prisma.user.findUnique({
         where: { email: email.toLowerCase() }, // Store and search emails in lowercase
       });
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
           `Error finding user by email ${email}: ${error.message}`,
@@ -49,7 +51,7 @@ export class UsersService {
         );
       } else {
         this.logger.error(
-          `Unknown error finding user by email ${email}: ${error}`,
+          `Unknown error finding user by email ${email}: ${String(error)}`,
         );
       }
       throw new InternalServerErrorException(
@@ -76,7 +78,7 @@ export class UsersService {
         //     where: { username: { equals: username, mode: 'insensitive' } }
         // });
       });
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
           `Error finding user by username ${username}: ${error.message}`,
@@ -84,7 +86,7 @@ export class UsersService {
         );
       } else {
         this.logger.error(
-          `Unknown error finding user by username ${username}: ${error}`,
+          `Unknown error finding user by username ${username}: ${String(error)}`,
         );
       }
       throw new InternalServerErrorException(
@@ -105,7 +107,7 @@ export class UsersService {
       return await this.prisma.user.findUnique({
         where: { walletAddress },
       });
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
           `Error finding user by wallet address ${walletAddress}: ${error.message}`,
@@ -113,7 +115,7 @@ export class UsersService {
         );
       } else {
         this.logger.error(
-          `Unknown error finding user by wallet address ${walletAddress}: ${error}`,
+          `Unknown error finding user by wallet address ${walletAddress}: ${String(error)}`,
         );
       }
       throw new InternalServerErrorException(
@@ -132,14 +134,16 @@ export class UsersService {
     this.logger.verbose(`Finding user by ID: ${id}`);
     try {
       return await this.prisma.user.findUnique({ where: { id } });
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
           `Error finding user by ID ${id}: ${error.message}`,
           error.stack,
         );
       } else {
-        this.logger.error(`Unknown error finding user by ID ${id}: ${error}`);
+        this.logger.error(
+          `Unknown error finding user by ID ${id}: ${String(error)}`,
+        );
       }
       throw new InternalServerErrorException(
         'Database error while finding user by ID.',
@@ -155,14 +159,14 @@ export class UsersService {
     this.logger.log('Finding all users');
     try {
       return await this.prisma.user.findMany();
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
           `Error finding all users: ${error.message}`,
           error.stack,
         );
       } else {
-        this.logger.error(`Unknown error finding all users: ${error}`);
+        this.logger.error(`Unknown error finding all users: ${String(error)}`);
       }
       throw new InternalServerErrorException(
         'Database error while retrieving users.',
@@ -208,7 +212,7 @@ export class UsersService {
       this.logger.verbose(
         `Password hashed successfully for username: ${registerDto.username}`,
       );
-    } catch (hashError: unknown) {
+    } catch (hashError) {
       if (hashError instanceof Error) {
         this.logger.error(
           `Password hashing failed for username ${registerDto.username}: ${hashError.message}`,
@@ -216,7 +220,7 @@ export class UsersService {
         );
       } else {
         this.logger.error(
-          `Unknown password hashing error for username ${registerDto.username}: ${hashError}`,
+          `Unknown password hashing error for username ${registerDto.username}: ${String(hashError)}`,
         );
       }
       throw new InternalServerErrorException('Failed to secure password.');
@@ -240,14 +244,14 @@ export class UsersService {
         `Successfully created local user: ${newUser.id} (${newUser.username})`,
       );
       return newUser;
-    } catch (error: unknown) {
+    } catch (error) {
       // Catch potential race condition for unique constraints if check above somehow missed
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
         this.logger.warn(
-          `Unique constraint violation during user creation (email/username/wallet): ${error.meta?.target}`,
+          `Unique constraint violation during user creation (email/username/wallet): ${String(error.meta?.target)}`,
         );
         // Determine which field caused the conflict based on error.meta.target
         if (
@@ -277,7 +281,7 @@ export class UsersService {
         );
       } else {
         this.logger.error(
-          `Unknown database error during local user creation for ${registerDto.username}: ${error}`,
+          `Unknown database error during local user creation for ${registerDto.username}: ${String(error)}`,
         );
       }
       throw new InternalServerErrorException('Could not register user.');
@@ -331,7 +335,7 @@ export class UsersService {
         `Successfully found/created user ID: ${user.id} for Google profile.`,
       );
       return user;
-    } catch (error: unknown) {
+    } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
           `Error during upsert for Google profile ${googleId}: ${error.message}`,
@@ -339,7 +343,7 @@ export class UsersService {
         );
       } else {
         this.logger.error(
-          `Unknown error during upsert for Google profile ${googleId}: ${error}`,
+          `Unknown error during upsert for Google profile ${googleId}: ${String(error)}`,
         );
       }
       // Handle potential unique constraint violation if googleId already exists for *another* email
@@ -348,7 +352,7 @@ export class UsersService {
         error.code === 'P2002'
       ) {
         this.logger.warn(
-          `Unique constraint violation during Google upsert: ${error.meta?.target}`,
+          `Unique constraint violation during Google upsert: ${String(error.meta?.target)}`,
         );
         // This likely means the googleId is already linked to a DIFFERENT email
         // Or the email provided by google is somehow linked to a different googleId
@@ -380,7 +384,7 @@ export class UsersService {
       });
       this.logger.log(`Successfully updated role for user ID: ${id}`);
       return updatedUser;
-    } catch (error: unknown) {
+    } catch (error) {
       // Check if the error is because the record to update wasn't found
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -398,7 +402,7 @@ export class UsersService {
         );
       } else {
         this.logger.error(
-          `Unknown error updating role for user ID ${id}: ${error}`,
+          `Unknown error updating role for user ID ${id}: ${String(error)}`,
         );
       }
       throw new InternalServerErrorException(
@@ -525,30 +529,34 @@ export class UsersService {
         `Successfully linked Google ID ${googleId} to user ${userId}.`,
       );
       return updatedUser;
-    } catch (error: unknown) {
+    } catch (error) {
       // Catch potential race condition where googleId became unique just now
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
         this.logger.warn(
-          `Unique constraint violation for googleId ${googleId} during linking attempt for user ${userId}.`,
+          `Unique constraint violation during Google upsert: ${String(error.meta?.target)}`,
         );
+        // This likely means the googleId is already linked to a DIFFERENT email
+        // Or the email provided by google is somehow linked to a different googleId
         throw new ConflictException(
-          'This Google account is already linked to another user.',
+          'This Google account or email is already linked to another user.',
         );
       }
       if (error instanceof Error) {
         this.logger.error(
-          `Database error linking Google ID ${googleId} to user ${userId}: ${error.message}`,
+          `Database error during upsert for Google profile ${googleId}: ${error.message}`,
           error.stack,
         );
       } else {
         this.logger.error(
-          `Unknown database error linking Google ID ${googleId} to user ${userId}: ${error}`,
+          `Unknown error during upsert for Google profile ${googleId}: ${String(error)}`,
         );
       }
-      throw new InternalServerErrorException('Could not link Google account.');
+      throw new InternalServerErrorException(
+        'Could not process Google user profile due to database error.',
+      );
     }
   }
 
@@ -606,7 +614,7 @@ export class UsersService {
         `Successfully linked Wallet Address ${walletAddress} to user ${userId}.`,
       );
       return updatedUser;
-    } catch (error: unknown) {
+    } catch (error) {
       // Catch potential race condition for unique walletAddress
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -626,10 +634,259 @@ export class UsersService {
         );
       } else {
         this.logger.error(
-          `Unknown database error linking Wallet Address ${walletAddress} to user ${userId}: ${error}`,
+          `Unknown database error linking Wallet Address ${walletAddress} to user ${userId}: ${String(error)}`,
         );
       }
       throw new InternalServerErrorException('Could not link wallet address.');
+    }
+  }
+
+  /**
+   * Creates a new user with the 'INSPECTOR' role.
+   * Checks for existing email/username/walletAddress to prevent duplicates.
+   *
+   * @param {CreateInspectorDto} createInspectorDto - DTO containing inspector data.
+   * @returns {Promise<User>} The newly created inspector user object.
+   * @throws {ConflictException} If email, username, or walletAddress already exists.
+   * @throws {InternalServerErrorException} For database errors.
+   */
+  async createInspector(createInspectorDto: CreateInspectorDto): Promise<User> {
+    this.logger.log(
+      `Attempting to create inspector user with email: ${createInspectorDto.email} and username: ${createInspectorDto.username}`,
+    );
+
+    // 1. Check for existing email, username, or walletAddress
+    const existingByEmail = await this.findByEmail(createInspectorDto.email);
+    if (existingByEmail) {
+      this.logger.warn(
+        `Inspector creation failed: Email ${createInspectorDto.email} already exists.`,
+      );
+      throw new ConflictException('Email address is already registered.');
+    }
+    const existingByUsername = await this.findByUsername(
+      createInspectorDto.username,
+    );
+    if (existingByUsername) {
+      this.logger.warn(
+        `Inspector creation failed: Username ${createInspectorDto.username} already exists.`,
+      );
+      throw new ConflictException('Username is already taken.');
+    }
+    if (createInspectorDto.walletAddress) {
+      const existingByWalletAddress = await this.findByWalletAddress(
+        createInspectorDto.walletAddress,
+      );
+      if (existingByWalletAddress) {
+        this.logger.warn(
+          `Inspector creation failed: Wallet address ${createInspectorDto.walletAddress} already exists.`,
+        );
+        throw new ConflictException('Wallet address is already registered.');
+      }
+    }
+
+    // 2. Create the user in the database with the INSPECTOR role
+    try {
+      const newUser = await this.prisma.user.create({
+        data: {
+          id: uuidv4(), // Generate a UUID for the new user
+          email: createInspectorDto.email.toLowerCase(), // Store email in lowercase
+          username: createInspectorDto.username,
+          name: createInspectorDto.name,
+          walletAddress: createInspectorDto.walletAddress,
+          role: Role.INSPECTOR, // Set the role to INSPECTOR
+          // password: hashedPassword, // Include if password hashing is added
+          // googleId will be null by default
+        },
+      });
+      this.logger.log(
+        `Successfully created inspector user: ${newUser.id} (${newUser.username})`,
+      );
+      return newUser;
+    } catch (error) {
+      // Catch potential race condition for unique constraints
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        this.logger.warn(
+          `Unique constraint violation during inspector creation (email/username/wallet): ${String(error.meta?.target)}`,
+        );
+        if (
+          Array.isArray(error.meta?.target) &&
+          error.meta?.target.includes('email')
+        ) {
+          throw new ConflictException('Email address is already registered.');
+        }
+        if (
+          Array.isArray(error.meta?.target) &&
+          error.meta?.target.includes('username')
+        ) {
+          throw new ConflictException('Username is already taken.');
+        }
+        if (
+          Array.isArray(error.meta?.target) &&
+          error.meta?.target.includes('walletAddress')
+        ) {
+          throw new ConflictException('Wallet address is already registered.');
+        }
+        throw new ConflictException('A unique identifier is already in use.'); // Generic fallback
+      }
+      if (error instanceof Error) {
+        this.logger.error(
+          `Database error during inspector user creation for ${createInspectorDto.username}: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown database error during inspector user creation for ${createInspectorDto.username}: ${String(error)}`,
+        );
+      }
+      throw new InternalServerErrorException(
+        'Could not create inspector user.',
+      );
+    }
+  }
+
+  /**
+   * Finds all users with the 'INSPECTOR' role. Primarily for admin use.
+   * @returns {Promise<User[]>} Array of inspector users.
+   */
+  async findAllInspectors(): Promise<User[]> {
+    this.logger.log('Finding all inspector users');
+    try {
+      return await this.prisma.user.findMany({
+        where: { role: Role.INSPECTOR },
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        this.logger.error(
+          `Error finding all inspector users: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown error finding all inspector users: ${String(error)}`,
+        );
+      }
+      throw new InternalServerErrorException(
+        'Database error while retrieving inspector users.',
+      );
+    }
+  }
+
+  /**
+   * Updates details for a specific user. Requires ADMIN privileges (checked in Controller).
+   * Allows updating email, username, name, and walletAddress.
+   *
+   * @param {string} id - The UUID of the user.
+   * @param {UpdateUserDto} updateUserDto - DTO containing update data.
+   * @returns {Promise<User>} The updated user.
+   * @throws {NotFoundException} If the user is not found.
+   * @throws {ConflictException} If updated email, username, or walletAddress already exists.
+   * @throws {InternalServerErrorException} For database errors.
+   */
+  async updateUser(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+    this.logger.log(`Attempting to update user ID: ${id}`);
+    try {
+      const updatedUser = await this.prisma.user.update({
+        where: { id: id },
+        data: {
+          email: updateUserDto.email?.toLowerCase(), // Store email in lowercase
+          username: updateUserDto.username,
+          name: updateUserDto.name,
+          walletAddress: updateUserDto.walletAddress,
+          // Role update is handled by updateRole method
+        },
+      });
+      this.logger.log(`Successfully updated user ID: ${id}`);
+      return updatedUser;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        this.logger.warn(`User with ID "${id}" not found for update.`);
+        throw new NotFoundException(
+          `User with ID "${id}" not found for update.`,
+        );
+      }
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        this.logger.warn(
+          `Unique constraint violation during user update for ID ${id}: ${String(error.meta?.target)}`,
+        );
+        if (
+          Array.isArray(error.meta?.target) &&
+          error.meta?.target.includes('email')
+        ) {
+          throw new ConflictException('Email address is already registered.');
+        }
+        if (
+          Array.isArray(error.meta?.target) &&
+          error.meta?.target.includes('username')
+        ) {
+          throw new ConflictException('Username is already taken.');
+        }
+        if (
+          Array.isArray(error.meta?.target) &&
+          error.meta?.target.includes('walletAddress')
+        ) {
+          throw new ConflictException('Wallet address is already registered.');
+        }
+        throw new ConflictException('A unique identifier is already in use.'); // Generic fallback
+      }
+      if (error instanceof Error) {
+        this.logger.error(
+          `Error updating user ID ${id}: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown error updating user ID ${id}: ${String(error)}`,
+        );
+      }
+      throw new InternalServerErrorException(`Could not update user ID ${id}.`);
+    }
+  }
+
+  /**
+   * Deletes a user by their unique ID (UUID). Requires ADMIN privileges (checked in Controller).
+   *
+   * @param {string} id - The UUID of the user to delete.
+   * @returns {Promise<void>}
+   * @throws {NotFoundException} If the user is not found.
+   * @throws {InternalServerErrorException} For database errors.
+   */
+  async deleteUser(id: string): Promise<void> {
+    this.logger.log(`Attempting to delete user ID: ${id}`);
+    try {
+      await this.prisma.user.delete({
+        where: { id: id },
+      });
+      this.logger.log(`Successfully deleted user ID: ${id}`);
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        this.logger.warn(`User with ID "${id}" not found for deletion.`);
+        throw new NotFoundException(
+          `User with ID "${id}" not found for deletion.`,
+        );
+      }
+      if (error instanceof Error) {
+        this.logger.error(
+          `Error deleting user ID ${id}: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown error deleting user ID ${id}: ${String(error)}`,
+        );
+      }
+      throw new InternalServerErrorException(`Could not delete user ID ${id}.`);
     }
   }
 }
