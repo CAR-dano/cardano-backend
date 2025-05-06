@@ -29,33 +29,26 @@ import {
 import { InspectionsService } from './inspections.service';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
 import { UpdateInspectionDto } from './dto/update-inspection.dto';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express'; // NestJS interceptor for handling multiple file fields
+import { diskStorage } from 'multer'; // Storage engine for Multer (file uploads)
+import { extname } from 'path'; // Node.js utility for handling file extensions
+import { Role } from '@prisma/client';
 import { InspectionResponseDto } from './dto/inspection-response.dto';
-import {
-  FileFieldsInterceptor,
-  FileInterceptor,
-  FilesInterceptor,
-} from '@nestjs/platform-express'; // Import all relevant interceptors
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiConsumes,
-  ApiBody,
-  ApiParam,
-} from '@nestjs/swagger'; // Keep for future use
-import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { Inspection, Role } from '@prisma/client'; // Import Role if used in @Roles later
-import { PhotosService } from '../photos/photos.service'; // Import PhotosService
-import { AddFixedPhotoDto } from '../photos/dto/add-fixed-photo.dto';
-import { AddDynamicPhotoDto } from '../photos/dto/add-dynamic-photo.dto';
-import { AddDocumentPhotoDto } from '../photos/dto/add-document-photo.dto';
-import { UpdatePhotoDto } from '../photos/dto/update-photo.dto';
 import { PhotoResponseDto } from '../photos/dto/photo-response.dto';
-import { AddBatchDynamicPhotosDto } from '../photos/dto/add-batch-dynamic-photos.dto'; // Import Batch DTOs
-import { AddBatchFixedPhotosDto } from '../photos/dto/add-batch-fixed-photos.dto';
-import { AddBatchDocumentPhotosDto } from '../photos/dto/add-batch-document-photos.dto';
-// --- Import Guards and Decorators for future use ---
+import { UpdatePhotoDto } from '../photos/dto/update-photo.dto';
+import { PhotosService } from '../photos/photos.service';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+} from '@nestjs/swagger';
+import { AddBatchDynamicPhotosDto } from 'src/photos/dto/add-batch-dynamic-photos.dto';
+import { AddBatchFixedPhotosDto } from 'src/photos/dto/add-batch-fixed-photos.dto';
+import { AddBatchDocumentPhotosDto } from 'src/photos/dto/add-batch-document-photos.dto';
+import { Request } from 'express';
+// Import Guards if/when needed for authentication and authorization
 // import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 // import { RolesGuard } from '../auth/guards/roles.guard';
 // import { Roles } from '../auth/decorators/roles.decorator';
@@ -65,7 +58,6 @@ import { AddBatchDocumentPhotosDto } from '../photos/dto/add-batch-document-phot
 // --- Multer Configuration ---
 const MAX_PHOTOS_PER_REQUEST = 10; // Max files per batch upload request
 const UPLOAD_PATH = './uploads/inspection-photos';
-const PDF_ARCHIVE_PATH = './pdfarchived';
 
 /**
  * Multer disk storage configuration for uploaded inspection photos.
@@ -83,7 +75,6 @@ const photoStorageConfig = diskStorage({
     callback(null, `${safeOriginalName}-${uniqueSuffix}${extension}`);
   },
 });
-
 /**
  * Multer disk storage configuration for uploaded PDF reports during archiving.
  * Saves files to PDF_ARCHIVE_PATH with temporary names initially.
@@ -97,11 +88,15 @@ const pdfStorageConfig = diskStorage({
     callback(null, `temp-pdf-${uniqueSuffix}${extension}`); // Temporary name
   },
 });
-
 /**
  * Multer file filter to allow only common image file types.
  */
-const imageFileFilter = (req, file, callback) => {
+const imageFileFilter = (
+  req: Request,
+  file: Express.Multer.File,
+  callback: (error: Error | null, acceptFile: boolean) => void,
+) => {
+  // Check the file's mimetype against allowed image types
   if (!file.mimetype.match(/^image\/(jpg|jpeg|png|gif)$/)) {
     return callback(
       new BadRequestException(
@@ -112,20 +107,6 @@ const imageFileFilter = (req, file, callback) => {
   }
   callback(null, true);
 };
-
-/**
- * Multer file filter to allow only PDF files.
- */
-const pdfFileFilter = (req, file, callback) => {
-  if (file.mimetype !== 'application/pdf') {
-    return callback(
-      new BadRequestException('Only PDF files are allowed!'),
-      false,
-    );
-  }
-  callback(null, true);
-};
-// ---------------------------------
 
 /**
  * Controller managing all HTTP requests related to vehicle inspections.
@@ -382,12 +363,20 @@ export class InspectionsController {
     this.logger.log(
       `[PUT /inspections/${inspectionId}/photos/${photoId}] Request received by user ${dummyUserId}`,
     );
+    this.logger.debug('Update DTO:', updatePhotoDto);
+    this.logger.debug('New file:', newFile?.filename);
+
+    // Add a check to ensure newFile is a valid file object before passing to service
+    // This helps mitigate potential ESLint "unsafe assignment" warnings related to Multer errors
+    const fileToPass = newFile && 'filename' in newFile ? newFile : undefined;
+
+    // Panggil service update
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const updatedPhoto = await this.photosService.updatePhoto(
       inspectionId,
       photoId,
       updatePhotoDto,
-      newFile,
-      dummyUserId,
+      fileToPass /*, userId*/,
     );
     return new PhotoResponseDto(updatedPhoto);
   }
@@ -471,7 +460,7 @@ export class InspectionsController {
     @Param('id') id: string,
     // @GetUser('id') reviewerId: string,
   ): Promise<InspectionResponseDto> {
-    const dummyReviewerId = '11111111-1111-1111-1111-111111111111'; // Temporary
+    const dummyReviewerId = '23ec1675-c4f0-4ac2-9dbf-8072af0c977b'; // Temporary
     this.logger.warn(
       `Using DUMMY reviewer ID: ${dummyReviewerId} for PATCH /approve`,
     );
@@ -495,7 +484,7 @@ export class InspectionsController {
     @Param('id') id: string,
     // @GetUser('id') reviewerId: string,
   ): Promise<InspectionResponseDto> {
-    const dummyReviewerId = '11111111-1111-1111-1111-111111111111'; // Temporary
+    const dummyReviewerId = '23ec1675-c4f0-4ac2-9dbf-8072af0c977b'; // Temporary
     this.logger.warn(
       `Using DUMMY reviewer ID: ${dummyReviewerId} for PATCH /reject`,
     );
@@ -507,38 +496,52 @@ export class InspectionsController {
   }
 
   /**
-   * [PUT /inspections/:id/archive]
-   * Processes an inspection for archiving (upload PDF, simulate blockchain).
-   * Requires Reviewer/Admin role. Expects multipart/form-data with 'pdfFile'.
+   * Initiates the archiving process for an approved inspection.
+   * Initiates the archiving process for an approved inspection by fetching a URL and converting it to PDF.
+   * Expects a JSON body with a 'url' field.
+   * Uses PUT as it replaces/sets the archive-related data.
    */
   @Put(':id/archive')
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(
-    FileInterceptor('pdfFile', {
-      storage: pdfStorageConfig,
-      fileFilter: pdfFileFilter,
-    }),
-  )
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.ADMIN, Role.REVIEWER)
-  // @ApiOperation(...) @ApiConsumes(...) @ApiParam(...) @ApiBody(...) @ApiResponse(...)
+  @ApiOperation({
+    summary:
+      'Archive an approved inspection by providing a URL to convert to PDF',
+    description:
+      'Fetches the content from the provided URL, converts it to PDF, and proceeds with the archiving process (saving, hashing, minting).',
+  })
+  @ApiConsumes('application/json') // Expects JSON body
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'Inspection ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Inspection archived successfully.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request (e.g., invalid URL, inspection not approved).',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  // @UseGuards(JwtAuthGuard, RolesGuard) // Add guards later
+  // @Roles(Role.ADMIN, Role.REVIEWER)    // Define allowed roles later
   async processToArchive(
     @Param('id') id: string,
-    @UploadedFile() pdfFile: Express.Multer.File,
     // @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
-    this.logger.log(
-      `[PUT /inspections/${id}/archive] Received PDF: ${pdfFile?.originalname}`,
-    );
-    if (!pdfFile) throw new BadRequestException('PDF file is required.');
-    const dummyUserId = 'ARCHIVER_USER_ID'; // Temporary
+    // --- Dummy User ID (yg melakukan aksi) ---
+    const dummyUserId = '23ec1675-c4f0-4ac2-9dbf-8072af0c977b';
     this.logger.warn(`Using DUMMY user ID for archive action: ${dummyUserId}`);
-    const finalInspection = await this.inspectionsService.processToArchive(
+    // --------------------------------------
+    // Service will handle fetching URL, converting to PDF, saving PDF, hash, blockchain sim, update status
+    const inspection = await this.inspectionsService.processToArchive(
       id,
-      pdfFile,
       dummyUserId,
     );
-    return new InspectionResponseDto(finalInspection);
+    return new InspectionResponseDto(inspection);
   }
 
   /**
@@ -558,6 +561,7 @@ export class InspectionsController {
     this.logger.warn(
       `Using DUMMY user ID for deactivate action: ${dummyUserId}`,
     );
+    // --------------------
     const inspection = await this.inspectionsService.deactivateArchive(
       id,
       dummyUserId,
@@ -580,6 +584,7 @@ export class InspectionsController {
   ): Promise<InspectionResponseDto> {
     const dummyUserId = 'ACTIVATOR_USER_ID'; // Temporary
     this.logger.warn(`Using DUMMY user ID for activate action: ${dummyUserId}`);
+    // --------------------
     const inspection = await this.inspectionsService.activateArchive(
       id,
       dummyUserId,

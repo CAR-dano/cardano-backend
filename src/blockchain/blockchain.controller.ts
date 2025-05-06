@@ -1,0 +1,111 @@
+/**
+ * @fileoverview Controller for handling blockchain-related operations like
+ * triggering NFT minting and retrieving transaction or asset data.
+ */
+
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  Logger,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import { BlockchainService } from './blockchain.service';
+import { MintRequestDto } from './dto/mint-request.dto';
+import { MintResponseDto } from './dto/mint-response.dto';
+import { TransactionMetadataResponseDto } from './dto/transaction-metadata-response.dto';
+import { NftDataResponseDto } from './dto/nft-data-response.dto';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiBody,
+} from '@nestjs/swagger';
+// Import Guards jika perlu proteksi
+// import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+// import { RolesGuard } from '../auth/guards/roles.guard';
+// import { Roles } from '../auth/decorators/roles.decorator';
+// import { Role } from '@prisma/client';
+
+@ApiTags('Blockchain Operations')
+@Controller('blockchain') // Base path: /api/v1/blockchain
+export class BlockchainController {
+  private readonly logger = new Logger(BlockchainController.name);
+
+  constructor(private readonly blockchainService: BlockchainService) {}
+
+  /**
+   * Endpoint to retrieve transaction metadata by its hash.
+   * Access might be restricted depending on requirements.
+   */
+  @Get('metadata/tx/:txHash')
+  // @UseGuards(JwtAuthGuard) // Example protection
+  @ApiOperation({
+    summary: 'Get Transaction Metadata by Hash',
+    description:
+      'Retrieves metadata associated with a specific Cardano transaction hash from Blockfrost.',
+  })
+  @ApiParam({
+    name: 'txHash',
+    description: 'Cardano transaction hash',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Metadata retrieved successfully.',
+    type: [TransactionMetadataResponseDto],
+  }) // Returns array
+  @ApiResponse({ status: 400, description: 'Bad Request (Missing txHash).' })
+  @ApiResponse({
+    status: 404,
+    description: 'Transaction or metadata not found.',
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Failed to fetch metadata from Blockfrost.',
+  })
+  async getTransactionMetadata(
+    @Param('txHash') txHash: string,
+  ): Promise<TransactionMetadataResponseDto[]> {
+    this.logger.log(`Request received to get metadata for TxHash: ${txHash}`);
+    return this.blockchainService.getTransactionMetadata(txHash);
+  }
+
+  /**
+   * Endpoint to retrieve asset data (including metadata) by its Asset ID.
+   * Access might be restricted.
+   */
+  @Get('nft/:assetId')
+  // @UseGuards(JwtAuthGuard) // Example protection
+  @ApiOperation({
+    summary: 'Get NFT Data by Asset ID',
+    description:
+      'Retrieves details and on-chain metadata for a specific Cardano asset (NFT) from Blockfrost.',
+  })
+  @ApiParam({
+    name: 'assetId',
+    description: 'Full Cardano Asset ID (PolicyID + HexAssetName)',
+    type: String,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Asset data retrieved successfully.',
+    type: NftDataResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Bad Request (Missing assetId).' })
+  @ApiResponse({ status: 404, description: 'Asset not found.' })
+  @ApiResponse({
+    status: 500,
+    description: 'Failed to fetch asset data from Blockfrost.',
+  })
+  async getNftData(
+    @Param('assetId') assetId: string,
+  ): Promise<NftDataResponseDto> {
+    this.logger.log(`Request received to get data for Asset ID: ${assetId}`);
+    return this.blockchainService.getNftData(assetId);
+  }
+}

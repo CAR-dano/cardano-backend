@@ -19,8 +19,12 @@ export class UserResponseDto {
    * The user's email address. Can be null if user registered via methods
    * not requiring an email (like wallet login without linking).
    */
-  @ApiProperty({ description: 'User email address', nullable: true })
-  email: string | null; // Based on updated schema 'String?'
+  @ApiProperty({
+    example: 'admin@example.com',
+    description: 'User email address',
+    nullable: true
+  })
+  email: string | null;
 
   /**
    * The user's username. Can be null if user registered via methods
