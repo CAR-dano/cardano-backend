@@ -45,7 +45,7 @@ export class InspectionResponseDto {
 
   /**
    * The current status of the inspection in its lifecycle.
-   * Uses the InspectionStatus enum values (e.g., "SUBMITTED", "APPROVED", "ARCHIVED").
+   * Uses the InspectionStatus enum values (e.g., "NEED_REVIEW", "APPROVED", "ARCHIVED").
    */
   status: string; // Exposing enum as string in response is common
 
