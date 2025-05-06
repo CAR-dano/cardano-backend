@@ -26,7 +26,7 @@ export class UserResponseDto {
     example: 'admin@example.com',
     description: 'User email address',
   })
-  email: string;
+  email: string | null;
 
   /**
    * The user's display name. Can be null if not provided.

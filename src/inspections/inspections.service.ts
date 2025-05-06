@@ -17,41 +17,28 @@ import {
 import { PrismaService } from '../prisma/prisma.service'; // Service for Prisma client interaction
 import { CreateInspectionDto } from './dto/create-inspection.dto'; // DTO for incoming creation data
 import { UpdateInspectionDto } from './dto/update-inspection.dto';
-import {
-  Inspection,
-  InspectionStatus,
-  Prisma,
-  Role,
-  User,
-} from '@prisma/client'; // Prisma generated types (Inspection model, Prisma namespace)
+import { Inspection, InspectionStatus, Prisma, Role } from '@prisma/client'; // Prisma generated types (Inspection model, Prisma namespace)
 import * as fs from 'fs/promises'; // Use promise-based fs for async file operations
 import * as path from 'path'; // For constructing file paths
 import * as crypto from 'crypto'; // For generating PDF hash
 import { format } from 'date-fns'; // for date formating
+import { BlockchainService } from '../blockchain/blockchain.service';
+import puppeteer, { Browser } from 'puppeteer'; // Import puppeteer and Browser type
 
 // Define path for archived PDFs (ensure this exists or is created by deployment script/manually)
 const PDF_ARCHIVE_PATH = './pdfarchived';
 // Define public base URL for accessing archived PDFs (should come from config in real app)
-const PDF_PUBLIC_BASE_URL =
-  process.env.PDF_PUBLIC_BASE_URL || '/publicly-served-pdfs'; // Example: /pdfarchived if served by Nginx
-
-interface ParsedPhotoMetadata {
-  label: string;
-  needAttention?: boolean;
-}
-interface PhotoDbEntry {
-  label: string;
-  path: string;
-  needAttention: boolean; // Buat non-optional di DB, default false
-}
+const PDF_PUBLIC_BASE_URL = process.env.PDF_PUBLIC_BASE_URL || '/pdfarchived'; // Example: /pdfarchived if served by Nginx
 
 @Injectable()
 export class InspectionsService {
   // Initialize a logger for this service context
   private readonly logger = new Logger(InspectionsService.name);
-
   // Inject PrismaService dependency via constructor
-  constructor(private prisma: PrismaService) {
+  constructor(
+    private prisma: PrismaService,
+    private blockchainService: BlockchainService,
+  ) {
     // Ensure the PDF archive directory exists on startup
     this.ensureDirectoryExists(PDF_ARCHIVE_PATH);
   }
@@ -61,7 +48,8 @@ export class InspectionsService {
     try {
       await fs.mkdir(directoryPath, { recursive: true });
       this.logger.log(`Directory ensured: ${directoryPath}`);
-    } catch (error) {
+    } catch (error: any) {
+      // Explicitly type error as any for now
       if (error.code !== 'EEXIST') {
         // Ignore error if directory already exists
         this.logger.error(
@@ -78,13 +66,13 @@ export class InspectionsService {
    * Format: BRANCHCODE-DDMMYYYY-SEQ (e.g., YOG-01052025-001)
    * WARNING: Needs proper transaction/locking in high concurrency scenarios to be truly safe.
    *
-   * @param branchCode - 'YOG', 'SLO', 'SEM', etc. (Should come from DTO/User context)
+   * @param branchCode - 'YOG', 'SOL', 'SEM', etc. (Should come from DTO/User context)
    * @param inspectionDate - The date of the inspection.
    * @param tx - Optional Prisma transaction client for atomicity.
    * @returns The next sequential ID string.
    */
   private async generateNextInspectionId(
-    branchCode: string, // e.g., 'YOG', 'SLO', 'SEM'
+    branchCode: string, // e.g., 'YOG', 'SOL', 'SEM'
     inspectionDate: Date,
     tx: Prisma.TransactionClient, // Wajibkan transaksi untuk keamanan
   ): Promise<string> {
@@ -158,7 +146,7 @@ export class InspectionsService {
         // Ambil 3 huruf pertama dan uppercase
         branchCode = identity.cabangInspeksi.substring(0, 3).toUpperCase();
         // Validasi sederhana
-        if (!['YOG', 'SLO', 'SEM'].includes(branchCode)) {
+        if (!['YOG', 'SOL', 'SEM'].includes(branchCode)) {
           throw new BadRequestException(
             `Invalid branch code inferred from identityDetails: ${branchCode}`,
           );
@@ -215,7 +203,8 @@ export class InspectionsService {
             `Successfully created inspection with custom ID: ${newInspection.id}`,
           );
           return newInspection;
-        } catch (error) {
+        } catch (error: any) {
+          // Explicitly type error as any for now
           // Tangani jika ID kustom ternyata tidak unik (race condition)
           if (
             error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -279,7 +268,8 @@ export class InspectionsService {
     try {
       // Fetch first to ensure it exists before attempting update
       await this.prisma.inspection.findUniqueOrThrow({ where: { id } });
-    } catch (error) {
+    } catch (error: any) {
+      // Explicitly type error as any for now
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2025'
@@ -356,7 +346,8 @@ export class InspectionsService {
       });
       this.logger.log(`Successfully updated inspection ID: ${id}`);
       return updatedInspection;
-    } catch (error) {
+    } catch (error: any) {
+      // Explicitly type error as any for now
       if (error instanceof BadRequestException) throw error; // Re-throw parsing errors
       // P2025 (Record not found) should have been caught earlier, but check again just in case
       if (
@@ -416,7 +407,8 @@ export class InspectionsService {
         `Retrieved ${inspections.length} inspections for role ${userRole}.`,
       );
       return inspections;
-    } catch (error) {
+    } catch (error: any) {
+      // Explicitly type error as any for now
       this.logger.error(
         `Failed to retrieve inspections for role ${userRole}: ${error.message}`,
         error.stack,
@@ -467,12 +459,12 @@ export class InspectionsService {
           `You do not have permission to view this inspection in its current status (${inspection.status}).`,
         );
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Explicitly type error as any for now
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2025'
       ) {
-        this.logger.warn(`Inspection with ID "${id}" not found.`);
         throw new NotFoundException(`Inspection with ID "${id}" not found.`);
       }
       if (error instanceof ForbiddenException) {
@@ -490,12 +482,14 @@ export class InspectionsService {
   }
 
   /**
-   * Approves an inspection, changing its status from SUBMITTED to APPROVED.
+   * Approves an inspection, changing its status from SUBMITTED or FAIL_ARCHIVE to APPROVED.
+   * Records the reviewer ID.
    *
    * @param {string} inspectionId - The UUID of the inspection to approve.
-   * @param {string} reviewerId - The UUID of the user (REVIEWER) approving the inspection.
+   * @param {string} reviewerId - The UUID of the user (REVIEWER/ADMIN) approving.
    * @returns {Promise<Inspection>} The updated inspection record.
-   * @throws {NotFoundException|BadRequestException} If inspection not found or not in SUBMITTED state.
+   * @throws {NotFoundException} If inspection not found.
+   * @throws {BadRequestException} If inspection is not in SUBMITTED or FAIL_ARCHIVE state.
    */
   async approveInspection(
     inspectionId: string,
@@ -505,33 +499,48 @@ export class InspectionsService {
       `Reviewer ${reviewerId} attempting to approve inspection ${inspectionId}`,
     );
     try {
-      // Update only if the current status is SUBMITTED
+      // --- PERBAIKAN WHERE CLAUSE ---
+      // Update only if the current status is SUBMITTED OR FAIL_ARCHIVE
       const result = await this.prisma.inspection.updateMany({
         where: {
           id: inspectionId,
-          status: InspectionStatus.SUBMITTED,
+          // Use the 'in' operator with an array of allowed statuses
+          status: {
+            in: [InspectionStatus.SUBMITTED, InspectionStatus.FAIL_ARCHIVE],
+          },
         },
         data: {
           status: InspectionStatus.APPROVED,
           reviewerId: reviewerId, // Record the reviewer
-          // updatedAt is handled automatically by Prisma @updatedAt
+          // Clear potential failure-related fields when approving after FAIL_ARCHIVE
+          // nftAssetId: null, // Optional: Decide if you want to clear these on re-approval
+          // blockchainTxHash: null, // Optional
+          // archivedAt: null, // Optional
         },
       });
+      // -----------------------------
 
       // Check if any record was actually updated
       if (result.count === 0) {
         // Check if it exists at all to give a better error
         const exists = await this.prisma.inspection.findUnique({
           where: { id: inspectionId },
-          select: { status: true },
+          select: { status: true }, // Select only status needed for check
         });
         if (!exists) {
           throw new NotFoundException(
-            `Inspection with ID "${inspectionId}" not found.`,
+            `Inspection with ID "${inspectionId}" not found for approval.`,
+          );
+        }
+        // Check if it was already approved or in another non-approvable state
+        else if (exists.status === InspectionStatus.APPROVED) {
+          throw new BadRequestException(
+            `Inspection ${inspectionId} is already approved.`,
           );
         } else {
+          // If it exists but wasn't SUBMITTED or FAIL_ARCHIVE
           throw new BadRequestException(
-            `Inspection ${inspectionId} cannot be approved because its current status is '${exists.status}', not '${InspectionStatus.SUBMITTED}'.`,
+            `Inspection ${inspectionId} cannot be approved. Current status is '${exists.status}'. Required: '${InspectionStatus.SUBMITTED}' or '${InspectionStatus.FAIL_ARCHIVE}'.`,
           );
         }
       }
@@ -539,16 +548,18 @@ export class InspectionsService {
       this.logger.log(
         `Inspection ${inspectionId} approved by reviewer ${reviewerId}`,
       );
-      // Fetch and return the updated record
+      // Fetch and return the updated record to show the new status
       return this.prisma.inspection.findUniqueOrThrow({
         where: { id: inspectionId },
       });
-    } catch (error) {
+    } catch (error: any) {
+      // Re-throw known exceptions, handle others
       if (
         error instanceof NotFoundException ||
         error instanceof BadRequestException
-      )
+      ) {
         throw error;
+      }
       this.logger.error(
         `Failed to approve inspection ${inspectionId}: ${error.message}`,
         error.stack,
@@ -608,7 +619,8 @@ export class InspectionsService {
       return this.prisma.inspection.findUniqueOrThrow({
         where: { id: inspectionId },
       });
-    } catch (error) {
+    } catch (error: any) {
+      // Explicitly type error as any for now
       if (
         error instanceof NotFoundException ||
         error instanceof BadRequestException
@@ -625,18 +637,65 @@ export class InspectionsService {
   }
 
   /**
+   * Generates PDF from a frontend URL using Puppeteer.
+   * @param url The URL of the frontend page to render.
+   * @returns A Buffer containing the generated PDF data.
+   */
+  private async generatePdfFromUrl(url: string): Promise<Buffer> {
+    let browser: Browser | null = null;
+    this.logger.log(`Generating PDF from URL: ${url}`);
+    try {
+      browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          // Tambahkan argumen lain jika perlu (misal proxy, ignore https errors)
+          '--disable-dev-shm-usage', // Penting di beberapa environment Docker/terbatas
+          '--disable-gpu', // Kadang membantu di server tanpa GPU
+        ],
+        // Tentukan executablePath jika puppeteer tidak bisa menemukannya otomatis di server
+        // executablePath: '/usr/bin/google-chrome-stable',
+      });
+      const page = await browser.newPage();
+      await page.goto(url, {
+        waitUntil: 'networkidle0', // Tunggu network tenang
+        timeout: 60000, // Tambahkan timeout (misal 60 detik)
+      });
+
+      // Opsional: Tunggu selector spesifik jika networkidle0 tidak cukup
+      // await page.waitForSelector('#report-ready-indicator', { timeout: 30000 });
+
+      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+      this.logger.log(`PDF buffer generated successfully from ${url}`);
+      return Buffer.from(pdfBuffer);
+    } catch (error) {
+      this.logger.error(
+        `Failed to generate PDF from URL ${url}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Could not generate PDF report from URL: ${error.message}`,
+      );
+    } finally {
+      if (browser) {
+        await browser.close(); // Pastikan browser SELALU ditutup
+        this.logger.log(`Puppeteer browser closed for URL: ${url}`);
+      }
+    }
+  }
+
+  /**
    * Processes an approved inspection for archiving.
-   * Saves the provided PDF, calculates its hash, simulates blockchain interaction,
-   * and updates the inspection status to ARCHIVED or FAIL_ARCHIVE.
+   * Fetches the content from the provided URL, converts it to PDF, calculates its hash,
+   * simulates blockchain interaction, and updates the inspection status to ARCHIVED or FAIL_ARCHIVE.
    *
    * @param {string} inspectionId - The UUID of the inspection to archive.
-   * @param {Express.Multer.File} pdfFile - The generated PDF file uploaded from frontend.
    * @param {string} userId - The ID of the user initiating the archive (ADMIN/REVIEWER).
    * @returns {Promise<Inspection>} The final updated inspection record.
    */
   async processToArchive(
     inspectionId: string,
-    pdfFile: Express.Multer.File,
     userId: string,
   ): Promise<Inspection> {
     this.logger.log(
@@ -664,75 +723,86 @@ export class InspectionsService {
         data: { status: InspectionStatus.ARCHIVING },
       });
       this.logger.log(`Inspection ${inspectionId} status set to ARCHIVING.`);
-    } catch (updateError) {
+    } catch (updateError: any) {
+      // Explicitly type error as any for now
       this.logger.error(
         `Failed to set status to ARCHIVING for ${inspectionId}`,
         updateError.stack,
       );
       // Decide if this is critical enough to stop the process
     }
-
-    // 3. Save PDF locally (Replace with Object Storage logic later)
-    const pdfFileName = `${inspectionId}-${Date.now()}.pdf`; // Create a unique name
+    // const frontendReportUrl = `${this.configService.getOrThrow<string>('CLIENT_BASE_URL')}/inspections/report/${inspectionId}`;
+    const frontendReportUrl = `https://ugm.ac.id/id/`;
+    let pdfBuffer: Buffer;
+    let pdfHashString: string;
+    const pdfFileName = `${inspectionId}-${Date.now()}.pdf`; // Nama file unik
     const pdfFilePath = path.join(PDF_ARCHIVE_PATH, pdfFileName);
-    const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${pdfFileName}`; // URL for frontend access
+    const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${pdfFileName}`; // URL publik
 
     try {
-      await fs.writeFile(pdfFilePath, pdfFile.buffer);
-      this.logger.log(
-        `PDF saved locally for inspection ${inspectionId} at ${pdfFilePath}`,
-      );
+      // 3. Generate PDF from url
+      pdfBuffer = await this.generatePdfFromUrl(frontendReportUrl);
+      // 4. Save PDF to Disc
+      await fs.writeFile(pdfFilePath, pdfBuffer);
+      this.logger.log(`PDF report saved to: ${pdfFilePath}`);
 
-      // 4. Calculate PDF Hash
+      // 5. Calculate PDF Hash
       const hash = crypto.createHash('sha256');
-      hash.update(pdfFile.buffer);
-      const pdfHashString = hash.digest('hex');
+      hash.update(pdfBuffer);
+      pdfHashString = hash.digest('hex');
+      this.logger.log(`PDF hash calculated: ${pdfHashString}`);
       this.logger.log(
         `PDF hash calculated for inspection ${inspectionId}: ${pdfHashString}`,
       );
 
-      // TODO: Minting
-      // 5. --- Simulate Blockchain Interaction ---
-      this.logger.log(
-        `Simulating blockchain minting for inspection ${inspectionId}...`,
-      );
-      // Replace this block with actual call to BlockchainService later
-      let nftAssetId: string | null = null;
-      let blockchainTxHash: string | null = null;
+      // 6. Minting
+      let blockchainResult: { txHash: string; assetId: string } | null = null;
       let blockchainSuccess = false;
-      try {
-        // --- Replace with actual blockchain call ---
-        // const blockchainResult = await this.blockchainService.mintInspectionNft(inspection, pdfHashString, pdfPublicUrl);
-        // nftAssetId = blockchainResult.assetId;
-        // blockchainTxHash = blockchainResult.txHash;
-        // blockchainSuccess = true;
-        // ------------------------------------------
 
-        // --- Simulation ---
-        await new Promise((resolve) => setTimeout(resolve, 500)); // Simulate delay
-        // Simulate success/failure randomly or based on some condition for testing
-        if (Math.random() > 0.1) {
-          // Simulate 90% success rate
-          nftAssetId = `simulatedPolicyId.${Buffer.from(inspectionId.substring(0, 10)).toString('hex')}`;
-          blockchainTxHash = `simulatedTxHash_${crypto.randomBytes(16).toString('hex')}`;
-          blockchainSuccess = true;
-          this.logger.log(
-            `Blockchain simulation SUCCESS for inspection ${inspectionId}: ${nftAssetId}`,
-          );
-        } else {
-          throw new Error('Simulated blockchain minting failure');
-        }
-        // --- End Simulation ---
-      } catch (blockchainError) {
+      try {
+        // Siapkan metadata untuk NFT
+        // Explicitly type vehicleData as JsonObject for safe access
+        const vehicleData = inspection.vehicleData as Prisma.JsonObject | null;
+
+        const metadataForNft: any = {
+          inspectionId: inspectionId,
+          inspectionDate: inspection.inspectionDate?.toISOString(), // Kirim ISO string
+          vehicleNumber: inspection.vehiclePlateNumber,
+          vehicleBrand: vehicleData?.merekKendaraan ?? null, // Safe access
+          vehicleModel: vehicleData?.tipeKendaraan ?? null, // Safe access
+          vehicleYear: vehicleData?.tahun ?? null, // Safe access
+          vehicleColor: vehicleData?.warnaKendaraan ?? null, // Safe access
+          overallRating: inspection.overallRating,
+          pdfUrl: pdfPublicUrl, // URL ke PDF
+          pdfHash: pdfHashString, // Hash PDF
+          inspectorId: inspection.inspectorId,
+        };
+        // Hapus field null/undefined dari metadata jika perlu
+        Object.keys(metadataForNft).forEach((key) =>
+          metadataForNft[key] === undefined || metadataForNft[key] === null
+            ? delete metadataForNft[key]
+            : {},
+        );
+
+        this.logger.log(
+          `Calling blockchainService.mintInspectionNft for inspection ${inspectionId}`,
+        );
+        blockchainResult =
+          await this.blockchainService.mintInspectionNft(metadataForNft); // Panggil service minting
+        blockchainSuccess = true;
+        this.logger.log(
+          `Blockchain interaction SUCCESS for inspection ${inspectionId}`,
+        );
+      } catch (blockchainError: any) {
+        // Explicitly type error as any for now
         this.logger.error(
           `Blockchain interaction FAILED for inspection ${inspectionId}`,
           blockchainError.stack,
         );
         blockchainSuccess = false;
-        // Proceed to update status to FAIL_ARCHIVE
       }
 
-      // 6. Update Inspection Record in DB (Final Status)
+      // 7. Update Inspection Record in DB (Final Status)
       const finalStatus = blockchainSuccess
         ? InspectionStatus.ARCHIVED
         : InspectionStatus.FAIL_ARCHIVE;
@@ -740,39 +810,43 @@ export class InspectionsService {
         status: finalStatus,
         urlPdf: pdfPublicUrl,
         pdfFileHash: pdfHashString,
-        nftAssetId: nftAssetId,
-        blockchainTxHash: blockchainTxHash,
-        archivedAt: blockchainSuccess ? new Date() : null, // Set archive time only on success
+        nftAssetId: blockchainResult?.assetId || null,
+        blockchainTxHash: blockchainResult?.txHash || null,
+        archivedAt: blockchainSuccess ? new Date() : null,
       };
-
       const finalInspection = await this.prisma.inspection.update({
         where: { id: inspectionId },
         data: updateData,
       });
-
       this.logger.log(
         `Inspection ${inspectionId} final status set to ${finalStatus}.`,
       );
       return finalInspection;
-    } catch (error) {
-      // Catch errors from file saving, hashing, or the final DB update
+    } catch (error: any) {
+      // Explicitly type error as any for now
+      // Catch errors from URL fetch, PDF conversion, file saving, hashing, or the final DB update
+      this.logger.error(
+        `Archiving process failed during PDF generation or subsequent steps for inspection ${inspectionId}: ${error.message}`,
+        error.stack,
+      );
+
       // Attempt to revert status if stuck in ARCHIVING (best effort)
       try {
         await this.prisma.inspection.updateMany({
           where: { id: inspectionId, status: InspectionStatus.ARCHIVING },
           data: { status: InspectionStatus.FAIL_ARCHIVE },
         });
-      } catch (revertError) {
+        this.logger.log(
+          `Inspection ${inspectionId} status reverted to FAIL_ARCHIVE due to error.`,
+        );
+      } catch (revertError: any) {
+        // Explicitly type error as any for now
         this.logger.error(
           `Failed to revert status from ARCHIVING for inspection ${inspectionId} after error`,
           revertError.stack,
         );
       }
 
-      this.logger.error(
-        `Archiving process failed critically for inspection ${inspectionId}: ${error.message}`,
-        error.stack,
-      );
       // Re-throw appropriate error
       if (
         error instanceof BadRequestException ||
@@ -834,7 +908,8 @@ export class InspectionsService {
       return this.prisma.inspection.findUniqueOrThrow({
         where: { id: inspectionId },
       });
-    } catch (error) {
+    } catch (error: any) {
+      // Explicitly type error as any for now
       if (
         error instanceof NotFoundException ||
         error instanceof BadRequestException
@@ -899,7 +974,8 @@ export class InspectionsService {
       return this.prisma.inspection.findUniqueOrThrow({
         where: { id: inspectionId },
       });
-    } catch (error) {
+    } catch (error: any) {
+      // Explicitly type error as any for now
       if (
         error instanceof NotFoundException ||
         error instanceof BadRequestException

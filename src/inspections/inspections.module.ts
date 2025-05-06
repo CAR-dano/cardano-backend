@@ -9,9 +9,10 @@ import { InspectionsService } from './inspections.service';
 import { InspectionsController } from './inspections.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PhotosModule } from '../photos/photos.module';
+import { BlockchainModule } from '../blockchain/blockchain.module';
 
 @Module({
-  imports: [PrismaModule, PhotosModule],
+  imports: [PrismaModule, PhotosModule, BlockchainModule],
   controllers: [InspectionsController],
   providers: [InspectionsService],
 })
