@@ -13,6 +13,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { PhotosModule } from './photos/photos.module';
+import { InspectionBranchesModule } from './inspection-branches/inspection-branches.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { PhotosModule } from './photos/photos.module';
     UsersModule,
     PrismaModule,
     PhotosModule,
+    InspectionBranchesModule,
   ],
   controllers: [],
   providers: [],

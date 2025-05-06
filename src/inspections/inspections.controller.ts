@@ -136,7 +136,7 @@ export class InspectionsController {
     @Body() createInspectionDto: CreateInspectionDto,
     // @GetUser('id') userId: string, // Get authenticated user ID later
   ): Promise<InspectionResponseDto> {
-    const dummySubmitterId = '23ec1675-c4f0-4ac2-9dbf-8072af0c977b'; // Temporary placeholder
+    const dummySubmitterId = 'c0091af4-bba0-463f-9af7-5bb72ee87306'; // Temporary placeholder
     this.logger.warn(
       `Using DUMMY submitter ID: ${dummySubmitterId} for POST /inspections`,
     );
@@ -449,7 +449,7 @@ export class InspectionsController {
     @Param('id') id: string,
     // @GetUser('id') reviewerId: string,
   ): Promise<InspectionResponseDto> {
-    const dummyReviewerId = '23ec1675-c4f0-4ac2-9dbf-8072af0c977b'; // Temporary
+    const dummyReviewerId = 'c0091af4-bba0-463f-9af7-5bb72ee87306'; // Temporary
     this.logger.warn(
       `Using DUMMY reviewer ID: ${dummyReviewerId} for PATCH /approve`,
     );
@@ -473,7 +473,7 @@ export class InspectionsController {
     @Param('id') id: string,
     // @GetUser('id') reviewerId: string,
   ): Promise<InspectionResponseDto> {
-    const dummyReviewerId = '23ec1675-c4f0-4ac2-9dbf-8072af0c977b'; // Temporary
+    const dummyReviewerId = 'c0091af4-bba0-463f-9af7-5bb72ee87306'; // Temporary
     this.logger.warn(
       `Using DUMMY reviewer ID: ${dummyReviewerId} for PATCH /reject`,
     );
@@ -522,7 +522,7 @@ export class InspectionsController {
     // @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
     // --- Dummy User ID (yg melakukan aksi) ---
-    const dummyUserId = '23ec1675-c4f0-4ac2-9dbf-8072af0c977b';
+    const dummyUserId = 'c0091af4-bba0-463f-9af7-5bb72ee87306';
     this.logger.warn(`Using DUMMY user ID for archive action: ${dummyUserId}`);
     // --------------------------------------
     // Service will handle fetching URL, converting to PDF, saving PDF, hash, blockchain sim, update status

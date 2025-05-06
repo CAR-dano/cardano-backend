@@ -16,6 +16,7 @@ import {
   NotFoundException,
   Logger,
   Delete, // Add Delete
+  Post, // Import Post
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // JWT authentication
@@ -32,6 +33,8 @@ import {
 } from '@nestjs/swagger';
 import { UserResponseDto } from './dto/user-response.dto'; // DTO for API responses
 import { UpdateUserRoleDto } from './dto/update-user-role.dto'; // DTO for updating role
+import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
+import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 
 @ApiTags('User Management (Admin)') // Tag for documentation
 @ApiBearerAuth('JwtAuthGuard') // Indicate JWT is needed for all endpoints here
@@ -60,6 +63,25 @@ export class UsersController {
   async findAll(): Promise<UserResponseDto[]> {
     this.logger.log(`Admin request: findAll users`);
     const users = await this.usersService.findAll();
+    return users.map((user) => new UserResponseDto(user)); // Map to safe DTO
+  }
+
+  /**
+   * Retrieves a list of all inspector users. Requires ADMIN role.
+   */
+  @Get('inspectors') // Specific endpoint for finding all inspectors
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Retrieve all inspector users (Admin Only)' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of inspector users.',
+    type: [UserResponseDto],
+  })
+  @ApiResponse({ status: 401 })
+  @ApiResponse({ status: 403 })
+  async findAllInspectors(): Promise<UserResponseDto[]> {
+    this.logger.log(`Admin request: findAllInspectors users`);
+    const users = await this.usersService.findAllInspectors();
     return users.map((user) => new UserResponseDto(user)); // Map to safe DTO
   }
 
@@ -207,4 +229,89 @@ export class UsersController {
        await this.usersService.deleteUser(id); // Assumes deleteUser method exists in service
    }
    */
+
+  /**
+   * Creates a new inspector user. Requires ADMIN role.
+   */
+  @Post('inspector') // Specific endpoint for creating inspectors
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Create a new inspector user (Admin Only)' })
+  @ApiBody({ type: CreateInspectorDto })
+  @ApiResponse({
+    status: 201,
+    description: 'The inspector user has been successfully created.',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid input data.' })
+  @ApiResponse({ status: 401 })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({
+    status: 409,
+    description: 'Email, username, or wallet address already exists.',
+  })
+  async createInspector(
+    @Body() createInspectorDto: CreateInspectorDto,
+  ): Promise<UserResponseDto> {
+    this.logger.log(`Admin request: createInspector user`);
+    const newUser = await this.usersService.createInspector(createInspectorDto);
+    return new UserResponseDto(newUser);
+  }
+
+  /**
+   * Updates details for a specific user (including inspectors). Requires ADMIN role.
+   */
+  @Put(':id') // General PUT endpoint for user updates
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update user details (Admin Only)' })
+  @ApiParam({
+    name: 'id',
+    description: 'User UUID',
+    type: String,
+    format: 'uuid',
+  })
+  @ApiBody({ type: UpdateUserDto })
+  @ApiResponse({
+    status: 200,
+    description: 'User details updated.',
+    type: UserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid input data.' })
+  @ApiResponse({ status: 401 })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({ status: 404 })
+  @ApiResponse({
+    status: 409,
+    description: 'Email, username, or wallet address already exists.',
+  })
+  async updateUser(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateUserDto: UpdateUserDto,
+  ): Promise<UserResponseDto> {
+    this.logger.log(`Admin request: updateUser ID: ${id}`);
+    const updatedUser = await this.usersService.updateUser(id, updateUserDto);
+    return new UserResponseDto(updatedUser);
+  }
+
+  /**
+   * Deletes a user by ID. Requires ADMIN role.
+   */
+  @Delete(':id') // DELETE endpoint for deleting users
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.NO_CONTENT) // 204 No Content for successful DELETE
+  @ApiOperation({ summary: 'Delete a user (Admin Only) - Use with caution!' })
+  @ApiParam({
+    name: 'id',
+    description: 'User UUID',
+    type: String,
+    format: 'uuid',
+  })
+  @ApiResponse({ status: 204, description: 'User deleted.' })
+  @ApiResponse({ status: 401 })
+  @ApiResponse({ status: 403 })
+  @ApiResponse({ status: 404 })
+  async deleteUser(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
+    this.logger.warn(`Admin request: DELETE user ${id}`);
+    await this.usersService.deleteUser(id);
+  }
 }

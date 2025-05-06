@@ -24,6 +24,7 @@ import * as crypto from 'crypto'; // For generating PDF hash
 import { format } from 'date-fns'; // for date formating
 import { BlockchainService } from '../blockchain/blockchain.service';
 import puppeteer, { Browser } from 'puppeteer'; // Import puppeteer and Browser type
+import { ConfigService } from '@nestjs/config';
 
 // Define path for archived PDFs (ensure this exists or is created by deployment script/manually)
 const PDF_ARCHIVE_PATH = './pdfarchived';
@@ -38,6 +39,7 @@ export class InspectionsService {
   constructor(
     private prisma: PrismaService,
     private blockchainService: BlockchainService,
+    private config: ConfigService,
   ) {
     // Ensure the PDF archive directory exists on startup
     this.ensureDirectoryExists(PDF_ARCHIVE_PATH);
@@ -731,8 +733,7 @@ export class InspectionsService {
       );
       // Decide if this is critical enough to stop the process
     }
-    // const frontendReportUrl = `${this.configService.getOrThrow<string>('CLIENT_BASE_URL')}/inspections/report/${inspectionId}`;
-    const frontendReportUrl = `https://ugm.ac.id/id/`;
+    const frontendReportUrl = `${this.config.getOrThrow<string>('CLIENT_BASE_URL')}/data/${inspectionId}`;
     let pdfBuffer: Buffer;
     let pdfHashString: string;
     const pdfFileName = `${inspectionId}-${Date.now()}.pdf`; // Nama file unik
