@@ -14,6 +14,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { PhotosModule } from './photos/photos.module';
 import { InspectionBranchesModule } from './inspection-branches/inspection-branches.module';
+import { InspectionChangeLogModule } from './inspection-change-log/inspection-change-log.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { InspectionBranchesModule } from './inspection-branches/inspection-branc
     DatabaseModule,
     ExternalAuthModule,
     InspectionsModule,
+    InspectionChangeLogModule,
     PublicApiModule,
     ReportsModule,
     ScalarDocsModule,

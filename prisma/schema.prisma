@@ -67,6 +67,8 @@ model User {
   inspectionsSubmitted Inspection[] @relation("InspectedBy") // Inspections submitted by this user
   inspectionsReviewed  Inspection[] @relation("ReviewedBy")  // Inspections reviewed by this user
 
+  inspectionChangeLogs InspectionChangeLog[] // Relation to InspectionChangeLog records created by this user
+
   @@map("users") // Explicit table name
 }
 
@@ -110,6 +112,8 @@ model Inspection {
   bodyPaintThickness  Json? // Contains detailed thickness measurements for various body parts.
 
   photos Photo[] // Relationships to multiple photos
+
+  changeLogs InspectionChangeLog[] // Relation to InspectionChangeLog records
 
   // --- Report & Blockchain Metadata (Populated Later) ---
   // URL of the generated PDF report stored off-chain. Optional. Explicit column name mapping. Max length 255.
@@ -171,4 +175,21 @@ model InspectionBranchCity {
   kodeKota String @unique @db.VarChar(3)
 
   @@map("inspection_branch_city")
+}
+
+// Defines the InspectionChangeLog model to track changes made by reviewers
+model InspectionChangeLog {
+  id              String    @id @default(uuid())
+  inspectionId    String
+  inspection      Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  changedByUserId String
+  changedByUser   User      @relation(fields: [changedByUserId], references: [id], onDelete: Cascade)
+  fieldName       String
+  oldValue        Json?
+  newValue        Json?
+  changedAt       DateTime  @default(now())
+
+  @@index([inspectionId])
+  @@index([changedByUserId])
+  @@map("inspection_change_logs")
 }

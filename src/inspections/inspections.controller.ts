@@ -155,7 +155,7 @@ export class InspectionsController {
    * @param {UpdateInspectionDto} updateInspectionDto - DTO containing the fields to update.
    * @returns {Promise<InspectionResponseDto>} The updated inspection record summary.
    */
-  @Patch(':id')
+  @Put(':id')
   @HttpCode(HttpStatus.OK)
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR) // Adjust roles as needed
@@ -169,7 +169,7 @@ export class InspectionsController {
     // @GetUser('id') userId: string, // Get authenticated user ID later
     // @GetUser('role') userRole: Role // Get role later
   ): Promise<InspectionResponseDto> {
-    const dummyUserId = 'DUMMY_UPDATER_ID'; // Temporary
+    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8'; // Temporary
     const dummyUserRole = Role.ADMIN; // Temporary
     this.logger.warn(
       `Using DUMMY user context for PATCH /inspections/${id}: User=${dummyUserId}, Role=${dummyUserRole}`,
@@ -216,7 +216,7 @@ export class InspectionsController {
     );
     if (!files || files.length === 0)
       throw new BadRequestException('No photo files provided.');
-    const dummyUserId = 'DUMMY_PHOTO_UPLOADER';
+    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8';
     const newPhotos = await this.photosService.addMultipleFixedPhotos(
       id,
       files,
@@ -257,7 +257,7 @@ export class InspectionsController {
     );
     if (!files || files.length === 0)
       throw new BadRequestException('No photo files provided.');
-    const dummyUserId = 'DUMMY_PHOTO_UPLOADER';
+    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8';
     const newPhotos = await this.photosService.addMultipleDynamicPhotos(
       id,
       files,
@@ -298,7 +298,7 @@ export class InspectionsController {
     );
     if (!files || files.length === 0)
       throw new BadRequestException('No photo files provided.');
-    const dummyUserId = 'DUMMY_PHOTO_UPLOADER';
+    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8';
     const newPhotos = await this.photosService.addMultipleDocumentPhotos(
       id,
       files,
@@ -348,7 +348,7 @@ export class InspectionsController {
     @UploadedFile() newFile?: Express.Multer.File, // Optional new file
     // @GetUser('id') userId: string,
   ): Promise<PhotoResponseDto> {
-    const dummyUserId = 'DUMMY_PHOTO_UPDATER';
+    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8';
     this.logger.log(
       `[PUT /inspections/${inspectionId}/photos/${photoId}] Request received by user ${dummyUserId}`,
     );
@@ -384,7 +384,7 @@ export class InspectionsController {
     @Param('photoId', ParseUUIDPipe) photoId: string,
     // @GetUser('id') userId: string,
   ): Promise<void> {
-    const dummyUserId = 'DUMMY_PHOTO_DELETER';
+    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8';
     this.logger.log(
       `[DELETE /inspections/${inspectionId}/photos/${photoId}] Request received by user ${dummyUserId}`,
     );
@@ -522,7 +522,7 @@ export class InspectionsController {
     @Param('id') id: string,
     // @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
-    const dummyUserId = 'DEACTIVATOR_USER_ID'; // Temporary
+    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8'; // Temporary
     this.logger.warn(
       `Using DUMMY user ID for deactivate action: ${dummyUserId}`,
     );
@@ -547,7 +547,7 @@ export class InspectionsController {
     @Param('id') id: string,
     // @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
-    const dummyUserId = 'ACTIVATOR_USER_ID'; // Temporary
+    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8'; // Temporary
     this.logger.warn(`Using DUMMY user ID for activate action: ${dummyUserId}`);
     // --------------------
     const inspection = await this.inspectionsService.activateArchive(
