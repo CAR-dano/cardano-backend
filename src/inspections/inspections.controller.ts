@@ -59,6 +59,7 @@ import { Request } from 'express';
 // --- Multer Configuration ---
 const MAX_PHOTOS_PER_REQUEST = 10; // Max files per batch upload request
 const UPLOAD_PATH = './uploads/inspection-photos';
+const DUMMY_USER_ID = 'e27d582b-a61c-432b-a76f-28844b5706e8'; // Temporary placeholder for user ID
 
 /**
  * Multer disk storage configuration for uploaded inspection photos.
@@ -136,7 +137,7 @@ export class InspectionsController {
     @Body() createInspectionDto: CreateInspectionDto,
     // @GetUser('id') userId: string, // Get authenticated user ID later
   ): Promise<InspectionResponseDto> {
-    const dummySubmitterId = 'e27d582b-a61c-432b-a76f-28844b5706e8'; // Temporary placeholder
+    const dummySubmitterId = DUMMY_USER_ID; // Temporary placeholder
     this.logger.warn(
       `Using DUMMY submitter ID: ${dummySubmitterId} for POST /inspections`,
     );
@@ -169,7 +170,7 @@ export class InspectionsController {
     // @GetUser('id') userId: string, // Get authenticated user ID later
     // @GetUser('role') userRole: Role // Get role later
   ): Promise<InspectionResponseDto> {
-    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8'; // Temporary
+    const dummyUserId = DUMMY_USER_ID; // Temporary
     const dummyUserRole = Role.ADMIN; // Temporary
     this.logger.warn(
       `Using DUMMY user context for PATCH /inspections/${id}: User=${dummyUserId}, Role=${dummyUserRole}`,
@@ -216,7 +217,7 @@ export class InspectionsController {
     );
     if (!files || files.length === 0)
       throw new BadRequestException('No photo files provided.');
-    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8';
+    const dummyUserId = DUMMY_USER_ID;
     const newPhotos = await this.photosService.addMultipleFixedPhotos(
       id,
       files,
@@ -257,7 +258,7 @@ export class InspectionsController {
     );
     if (!files || files.length === 0)
       throw new BadRequestException('No photo files provided.');
-    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8';
+    const dummyUserId = DUMMY_USER_ID;
     const newPhotos = await this.photosService.addMultipleDynamicPhotos(
       id,
       files,
@@ -298,7 +299,7 @@ export class InspectionsController {
     );
     if (!files || files.length === 0)
       throw new BadRequestException('No photo files provided.');
-    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8';
+    const dummyUserId = DUMMY_USER_ID;
     const newPhotos = await this.photosService.addMultipleDocumentPhotos(
       id,
       files,
@@ -348,7 +349,7 @@ export class InspectionsController {
     @UploadedFile() newFile?: Express.Multer.File, // Optional new file
     // @GetUser('id') userId: string,
   ): Promise<PhotoResponseDto> {
-    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8';
+    const dummyUserId = DUMMY_USER_ID;
     this.logger.log(
       `[PUT /inspections/${inspectionId}/photos/${photoId}] Request received by user ${dummyUserId}`,
     );
@@ -384,7 +385,7 @@ export class InspectionsController {
     @Param('photoId', ParseUUIDPipe) photoId: string,
     // @GetUser('id') userId: string,
   ): Promise<void> {
-    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8';
+    const dummyUserId = DUMMY_USER_ID;
     this.logger.log(
       `[DELETE /inspections/${inspectionId}/photos/${photoId}] Request received by user ${dummyUserId}`,
     );
@@ -449,7 +450,7 @@ export class InspectionsController {
     @Param('id') id: string,
     // @GetUser('id') reviewerId: string,
   ): Promise<InspectionResponseDto> {
-    const dummyReviewerId = 'e27d582b-a61c-432b-a76f-28844b5706e8'; // Temporary
+    const dummyReviewerId = DUMMY_USER_ID; // Temporary
     this.logger.warn(
       `Using DUMMY reviewer ID: ${dummyReviewerId} for PATCH /approve`,
     );
@@ -498,7 +499,7 @@ export class InspectionsController {
     // @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
     // --- Dummy User ID (yg melakukan aksi) ---
-    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8';
+    const dummyUserId = DUMMY_USER_ID;
     this.logger.warn(`Using DUMMY user ID for archive action: ${dummyUserId}`);
     // --------------------------------------
     // Service will handle fetching URL, converting to PDF, saving PDF, hash, blockchain sim, update status
@@ -522,7 +523,7 @@ export class InspectionsController {
     @Param('id') id: string,
     // @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
-    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8'; // Temporary
+    const dummyUserId = DUMMY_USER_ID; // Temporary
     this.logger.warn(
       `Using DUMMY user ID for deactivate action: ${dummyUserId}`,
     );
@@ -547,7 +548,7 @@ export class InspectionsController {
     @Param('id') id: string,
     // @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
-    const dummyUserId = 'e27d582b-a61c-432b-a76f-28844b5706e8'; // Temporary
+    const dummyUserId = DUMMY_USER_ID; // Temporary
     this.logger.warn(`Using DUMMY user ID for activate action: ${dummyUserId}`);
     // --------------------
     const inspection = await this.inspectionsService.activateArchive(

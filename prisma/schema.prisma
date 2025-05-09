@@ -77,6 +77,9 @@ model Inspection {
   // Primary Key: Automatically generated UUID string.
   id String @id @default(uuid())
 
+  // Field for the human-readable, system-generated ID used for URLs.
+  pretty_id String @unique @map("pretty_id")
+
   // --- Foreign Keys & Relations ---
   // Foreign Key linking to the User who submitted this inspection (the Inspector). Optional? Depends if submitter is always a registered User.
   // If required, remove the '?'. Added @map for explicit snake_case column name.

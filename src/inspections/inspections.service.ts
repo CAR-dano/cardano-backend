@@ -184,7 +184,8 @@ export class InspectionsService {
         this.logger.log(`Generated custom inspection ID: ${customId}`);
 
         const dataToCreate: Prisma.InspectionCreateInput = {
-          id: customId, // <-- Gunakan ID kustom
+          // Let Prisma generate the UUID for 'id'
+          pretty_id: customId, // <-- Gunakan ID kustom untuk pretty_id
           inspector: { connect: { id: submitterId } },
           vehiclePlateNumber: createInspectionDto.vehiclePlateNumber,
           inspectionDate: inspectionDateObj, // Gunakan objek Date
@@ -606,11 +607,7 @@ export class InspectionsService {
         data: {
           ...updatedInspectionData, // Apply all fields from the modified object
           status: InspectionStatus.APPROVED,
-          reviewerId: reviewerId, // Record the reviewer
-          // Clear potential failure-related fields when approving after FAIL_ARCHIVE
-          // nftAssetId: null, // Optional: Decide if you want to clear these on re-approval
-          // blockchainTxHash: null, // Optional
-          // archivedAt: null, // Optional
+          reviewerId: reviewerId,
         },
       });
 
@@ -728,7 +725,7 @@ export class InspectionsService {
       );
       // Decide if this is critical enough to stop the process
     }
-    const frontendReportUrl = `${this.config.getOrThrow<string>('CLIENT_BASE_URL')}/data/${inspectionId}`;
+    const frontendReportUrl = `${this.config.getOrThrow<string>('CLIENT_BASE_URL')}/data/${inspection.pretty_id}`;
     let pdfBuffer: Buffer;
     let pdfHashString: string;
     const pdfFileName = `${inspectionId}-${Date.now()}.pdf`; // Nama file unik
