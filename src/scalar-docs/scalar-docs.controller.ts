@@ -4,39 +4,62 @@ import {
   Res,
   Logger,
   NotFoundException,
+  InternalServerErrorException, // Import InternalServerErrorException
 } from '@nestjs/common';
 import { Response } from 'express';
 import * as path from 'path';
-import { openApiDocument } from './openapi-spec';
+import * as fs from 'fs';
+import { getOpenApiDocument } from '../main'; // Import the function to get the generated document
 
-@Controller('api-docs')
+@Controller()
 export class ScalarDocsController {
-  // Inject Logger for potential future use or minimal error logging
   private readonly logger = new Logger(ScalarDocsController.name);
 
   @Get('openapi.json')
   getOpenApiSpec() {
-    // Removed console.log
+    const openApiDocument = getOpenApiDocument();
+    if (!openApiDocument) {
+      this.logger.error('OpenAPI document is not generated yet.');
+      throw new InternalServerErrorException(
+        'API documentation is not available yet.',
+      );
+    }
     return openApiDocument;
   }
 
-  @Get()
+  @Get('docs')
   getScalarDocs(@Res() res: Response) {
-    // Removed console.log and try...catch
-    const filePath = path.join(process.cwd(), 'public', 'scalar-docs.html');
-
-    res.sendFile(filePath, (err) => {
-      if (err) {
-        // Log the error but don't crash the server, let Nest handle response
-        this.logger.error(
-          `Failed to send Scalar docs file from ${filePath}`,
-          err.stack,
-        );
-        // Optionally throw a standard Nest exception if the file MUST exist
-        if (!res.headersSent) {
-          throw new NotFoundException(`Scalar documentation file not found.`);
-        }
+    try {
+      const htmlFilePath = path.join(
+        process.cwd(),
+        'public',
+        'scalar-docs.html',
+      );
+      if (!fs.existsSync(htmlFilePath)) {
+        this.logger.error(`Scalar HTML file not found at: ${htmlFilePath}`);
+        throw new Error('Scalar documentation page not found.');
       }
-    });
+      res.sendFile(htmlFilePath, (err) => {
+        if (err) {
+          // Log the error but don't crash the server, let Nest handle response
+          this.logger.error(
+            `Failed to send Scalar docs file from ${htmlFilePath}`,
+            err.stack,
+          );
+          // Optionally throw a standard Nest exception if the file MUST exist
+          if (!res.headersSent) {
+            throw new NotFoundException(`Scalar documentation file not found.`);
+          }
+        }
+      });
+    } catch (error) {
+      this.logger.error(
+        'Failed to serve Scalar documentation page:',
+        error.stack,
+      );
+      if (!res.headersSent) {
+        res.status(500).send('Could not load API documentation.');
+      }
+    }
   }
 }
