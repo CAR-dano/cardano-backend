@@ -2,11 +2,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
-import { DatabaseModule } from './database/database.module';
 import { ExternalAuthModule } from './external-auth/external-auth.module';
 import { InspectionsModule } from './inspections/inspections.module';
 import { PublicApiModule } from './public-api/public-api.module';
-import { ReportsModule } from './reports/reports.module';
 import { ScalarDocsModule } from './scalar-docs/scalar-docs.module';
 import { UsersModule } from './users/users.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -14,6 +12,7 @@ import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { PhotosModule } from './photos/photos.module';
 import { InspectionBranchesModule } from './inspection-branches/inspection-branches.module';
+import { InspectionChangeLogModule } from './inspection-change-log/inspection-change-log.module';
 
 @Module({
   imports: [
@@ -48,11 +47,10 @@ import { InspectionBranchesModule } from './inspection-branches/inspection-branc
     }),
     AuthModule,
     BlockchainModule,
-    DatabaseModule,
     ExternalAuthModule,
     InspectionsModule,
+    InspectionChangeLogModule,
     PublicApiModule,
-    ReportsModule,
     ScalarDocsModule,
     UsersModule,
     PrismaModule,

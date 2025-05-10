@@ -52,14 +52,24 @@ export class UsersController {
    */
   @Get()
   @Roles(Role.ADMIN) // Only ADMINs can access this
-  @ApiOperation({ summary: 'Retrieve all users (Admin Only)' })
+  @ApiOperation({
+    summary: 'Retrieve all users (Admin Only)',
+    description:
+      'Fetches a list of all user accounts in the system. This endpoint is restricted to users with the ADMIN role.',
+  })
   @ApiResponse({
     status: 200,
     description: 'List of users.',
     type: [UserResponseDto],
   })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 403, description: 'Forbidden (Requires ADMIN role).' })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized. Authentication token is missing or invalid.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the necessary ADMIN role.',
+  })
   async findAll(): Promise<UserResponseDto[]> {
     this.logger.log(`Admin request: findAll users`);
     const users = await this.usersService.findAll();
@@ -71,14 +81,24 @@ export class UsersController {
    */
   @Get('inspectors') // Specific endpoint for finding all inspectors
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Retrieve all inspector users (Admin Only)' })
+  @ApiOperation({
+    summary: 'Retrieve all inspector users (Admin Only)',
+    description:
+      'Fetches a list of all user accounts specifically designated as inspectors. This endpoint is restricted to users with the ADMIN role.',
+  })
   @ApiResponse({
     status: 200,
     description: 'List of inspector users.',
     type: [UserResponseDto],
   })
-  @ApiResponse({ status: 401 })
-  @ApiResponse({ status: 403 })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized. Authentication token is missing or invalid.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the necessary ADMIN role.',
+  })
   async findAllInspectors(): Promise<UserResponseDto[]> {
     this.logger.log(`Admin request: findAllInspectors users`);
     const users = await this.usersService.findAllInspectors();
@@ -90,21 +110,35 @@ export class UsersController {
    */
   @Get(':id')
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Retrieve user by ID (Admin Only)' })
+  @ApiOperation({
+    summary: 'Retrieve user by ID (Admin Only)',
+    description:
+      'Fetches the details of a specific user account using their unique UUID. This endpoint is restricted to users with the ADMIN role.',
+  })
   @ApiParam({
     name: 'id',
     description: 'User UUID',
     type: String,
     format: 'uuid',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @ApiResponse({
     status: 200,
     description: 'User details.',
     type: UserResponseDto,
   })
-  @ApiResponse({ status: 401 })
-  @ApiResponse({ status: 403 })
-  @ApiResponse({ status: 404 })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized. Authentication token is missing or invalid.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the necessary ADMIN role.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User with the specified ID not found.',
+  })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<UserResponseDto> {
@@ -123,23 +157,43 @@ export class UsersController {
   @Put(':id/role') // Using PUT as role is a specific resource attribute being replaced
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update user role (Admin Only)' })
+  @ApiOperation({
+    summary: 'Update user role (Admin Only)',
+    description:
+      'Updates the role of a specific user account using their unique UUID. This endpoint is restricted to users with the ADMIN role.',
+  })
   @ApiParam({
     name: 'id',
     description: 'User UUID',
     type: String,
     format: 'uuid',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
-  @ApiBody({ type: UpdateUserRoleDto })
+  @ApiBody({
+    type: UpdateUserRoleDto,
+    description: 'The new role to assign to the user.',
+  })
   @ApiResponse({
     status: 200,
     description: 'User role updated.',
     type: UserResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Invalid role provided.' })
-  @ApiResponse({ status: 401 })
-  @ApiResponse({ status: 403 })
-  @ApiResponse({ status: 404 })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid role provided in the request body.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized. Authentication token is missing or invalid.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the necessary ADMIN role.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User with the specified ID not found.',
+  })
   async updateUserRole(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserRoleDto: UpdateUserRoleDto,
@@ -162,21 +216,35 @@ export class UsersController {
   @Put(':id/disable') // Using PUT to set a specific state
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Disable user account (Admin Only)' })
+  @ApiOperation({
+    summary: 'Disable user account (Admin Only)',
+    description:
+      'Disables a user account, preventing the user from logging in. This endpoint is restricted to users with the ADMIN role.',
+  })
   @ApiParam({
     name: 'id',
     description: 'User UUID',
     type: String,
     format: 'uuid',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @ApiResponse({
     status: 200,
     description: 'User disabled.',
     type: UserResponseDto,
   })
-  @ApiResponse({ status: 401 })
-  @ApiResponse({ status: 403 })
-  @ApiResponse({ status: 404 })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized. Authentication token is missing or invalid.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the necessary ADMIN role.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User with the specified ID not found.',
+  })
   async disableUser(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<UserResponseDto> {
@@ -192,21 +260,35 @@ export class UsersController {
   @Put(':id/enable') // Using PUT to set a specific state
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Enable user account (Admin Only)' })
+  @ApiOperation({
+    summary: 'Enable user account (Admin Only)',
+    description:
+      'Enables a disabled user account, allowing the user to log in again. This endpoint is restricted to users with the ADMIN role.',
+  })
   @ApiParam({
     name: 'id',
     description: 'User UUID',
     type: String,
     format: 'uuid',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @ApiResponse({
     status: 200,
     description: 'User enabled.',
     type: UserResponseDto,
   })
-  @ApiResponse({ status: 401 })
-  @ApiResponse({ status: 403 })
-  @ApiResponse({ status: 404 })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized. Authentication token is missing or invalid.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the necessary ADMIN role.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User with the specified ID not found.',
+  })
   async enableUser(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<UserResponseDto> {
@@ -235,19 +317,36 @@ export class UsersController {
    */
   @Post('inspector') // Specific endpoint for creating inspectors
   @Roles(Role.ADMIN)
-  @ApiOperation({ summary: 'Create a new inspector user (Admin Only)' })
-  @ApiBody({ type: CreateInspectorDto })
+  @ApiOperation({
+    summary: 'Create a new inspector user (Admin Only)',
+    description:
+      'Creates a new user account with the INSPECTOR role. This endpoint is restricted to users with the ADMIN role.',
+  })
+  @ApiBody({
+    type: CreateInspectorDto,
+    description: 'Details for the new inspector user.',
+  })
   @ApiResponse({
     status: 201,
     description: 'The inspector user has been successfully created.',
     type: UserResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Invalid input data.' })
-  @ApiResponse({ status: 401 })
-  @ApiResponse({ status: 403 })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input data provided for the new inspector.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized. Authentication token is missing or invalid.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the necessary ADMIN role.',
+  })
   @ApiResponse({
     status: 409,
-    description: 'Email, username, or wallet address already exists.',
+    description:
+      'A user with the provided email, username, or wallet address already exists.',
   })
   async createInspector(
     @Body() createInspectorDto: CreateInspectorDto,
@@ -263,26 +362,44 @@ export class UsersController {
   @Put(':id') // General PUT endpoint for user updates
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update user details (Admin Only)' })
+  @ApiOperation({
+    summary: 'Update user details (Admin Only)',
+    description:
+      'Updates the details of an existing user account using their unique UUID. This endpoint is restricted to users with the ADMIN role.',
+  })
   @ApiParam({
     name: 'id',
     description: 'User UUID',
     type: String,
     format: 'uuid',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
-  @ApiBody({ type: UpdateUserDto })
+  @ApiBody({ type: UpdateUserDto, description: 'The updated user details.' })
   @ApiResponse({
     status: 200,
     description: 'User details updated.',
     type: UserResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Invalid input data.' })
-  @ApiResponse({ status: 401 })
-  @ApiResponse({ status: 403 })
-  @ApiResponse({ status: 404 })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input data provided for the user update.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized. Authentication token is missing or invalid.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the necessary ADMIN role.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User with the specified ID not found.',
+  })
   @ApiResponse({
     status: 409,
-    description: 'Email, username, or wallet address already exists.',
+    description:
+      'A user with the provided email, username, or wallet address already exists.',
   })
   async updateUser(
     @Param('id', ParseUUIDPipe) id: string,
@@ -299,17 +416,31 @@ export class UsersController {
   @Delete(':id') // DELETE endpoint for deleting users
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT) // 204 No Content for successful DELETE
-  @ApiOperation({ summary: 'Delete a user (Admin Only) - Use with caution!' })
+  @ApiOperation({
+    summary: 'Delete a user (Admin Only) - Use with caution!',
+    description:
+      'Deletes a user account using their unique UUID. This action is irreversible and restricted to users with the ADMIN role.',
+  })
   @ApiParam({
     name: 'id',
     description: 'User UUID',
     type: String,
     format: 'uuid',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @ApiResponse({ status: 204, description: 'User deleted.' })
-  @ApiResponse({ status: 401 })
-  @ApiResponse({ status: 403 })
-  @ApiResponse({ status: 404 })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized. Authentication token is missing or invalid.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the necessary ADMIN role.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'User with the specified ID not found.',
+  })
   async deleteUser(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     this.logger.warn(`Admin request: DELETE user ${id}`);
     await this.usersService.deleteUser(id);

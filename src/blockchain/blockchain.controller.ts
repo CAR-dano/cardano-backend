@@ -3,28 +3,11 @@
  * triggering NFT minting and retrieving transaction or asset data.
  */
 
-import {
-  Controller,
-  Post,
-  Body,
-  Get,
-  Param,
-  Logger,
-  HttpCode,
-  HttpStatus,
-} from '@nestjs/common';
+import { Controller, Get, Param, Logger, HttpStatus } from '@nestjs/common';
 import { BlockchainService } from './blockchain.service';
-import { MintRequestDto } from './dto/mint-request.dto';
-import { MintResponseDto } from './dto/mint-response.dto';
 import { TransactionMetadataResponseDto } from './dto/transaction-metadata-response.dto';
 import { NftDataResponseDto } from './dto/nft-data-response.dto';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiBody,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
 // Import Guards jika perlu proteksi
 // import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 // import { RolesGuard } from '../auth/guards/roles.guard';
@@ -55,17 +38,20 @@ export class BlockchainController {
     type: String,
   })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Metadata retrieved successfully.',
     type: [TransactionMetadataResponseDto],
   }) // Returns array
-  @ApiResponse({ status: 400, description: 'Bad Request (Missing txHash).' })
   @ApiResponse({
-    status: 404,
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Bad Request (Missing txHash).',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
     description: 'Transaction or metadata not found.',
   })
   @ApiResponse({
-    status: 500,
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
     description: 'Failed to fetch metadata from Blockfrost.',
   })
   async getTransactionMetadata(
@@ -92,14 +78,20 @@ export class BlockchainController {
     type: String,
   })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Asset data retrieved successfully.',
     type: NftDataResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Bad Request (Missing assetId).' })
-  @ApiResponse({ status: 404, description: 'Asset not found.' })
   @ApiResponse({
-    status: 500,
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Bad Request (Missing assetId).',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Asset not found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
     description: 'Failed to fetch asset data from Blockfrost.',
   })
   async getNftData(
