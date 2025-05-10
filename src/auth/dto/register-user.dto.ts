@@ -71,11 +71,11 @@ export class RegisterUserDto {
 
   /**
    * The user's display name. Optional during registration.
-   * @example "Budi Santoso"
+   * @example "John Doe"
    */
   @ApiProperty({
     description: "User's display name (optional)",
-    example: 'Budi Santoso',
+    example: 'John Doe',
     required: false,
   })
   @IsOptional() // Decorator indicating the field can be omitted

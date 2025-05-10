@@ -173,9 +173,11 @@ model Photo {
 }
 
 model InspectionBranchCity {
-  id       String @id @default(uuid())
-  namaKota String @unique
-  kodeKota String @unique @db.VarChar(3)
+  id        String   @id @default(uuid())
+  city      String   @unique
+  code      String   @unique @db.VarChar(3)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("inspection_branch_city")
 }

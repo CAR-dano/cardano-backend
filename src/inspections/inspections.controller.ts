@@ -21,7 +21,6 @@ import {
   UploadedFile,
   Logger,
   BadRequestException,
-  NotFoundException,
   HttpCode,
   HttpStatus,
   Query,
@@ -42,6 +41,7 @@ import {
   ApiConsumes,
   ApiOperation,
   ApiParam,
+  ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
@@ -130,9 +130,22 @@ export class InspectionsController {
   @HttpCode(HttpStatus.CREATED)
   // @UseGuards(JwtAuthGuard, RolesGuard) // Apply guards later
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR) // Define allowed roles later
-  // @ApiOperation(...) // Add Swagger details later
-  // @ApiBody({ type: CreateInspectionDto })
-  // @ApiResponse({ status: 201, type: InspectionResponseDto })
+  @ApiOperation({
+    summary: 'Create a new inspection record',
+    description:
+      'Creates the initial inspection record containing text and JSON data. This is the first step before uploading photos or archiving.',
+  })
+  @ApiBody({ type: CreateInspectionDto })
+  @ApiResponse({
+    status: 201,
+    description: 'The newly created inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request (e.g., invalid input data).',
+  })
+  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async create(
     @Body() createInspectionDto: CreateInspectionDto,
     // @GetUser('id') userId: string, // Get authenticated user ID later
@@ -160,10 +173,29 @@ export class InspectionsController {
   @HttpCode(HttpStatus.OK)
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR) // Adjust roles as needed
-  // @ApiOperation(...)
-  // @ApiParam({ name: 'id', type: String, format: 'uuid' })
-  // @ApiBody({ type: UpdateInspectionDto })
-  // @ApiResponse({ status: 200, type: InspectionResponseDto })
+  @ApiOperation({
+    summary: 'Update an existing inspection record',
+    description:
+      'Partially updates the text/JSON data fields of an existing inspection. Does not handle photo updates.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'The UUID of the inspection to update.',
+  })
+  @ApiBody({ type: UpdateInspectionDto })
+  @ApiResponse({
+    status: 200,
+    description: 'The updated inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request (e.g., invalid input data, invalid ID format).',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async update(
     @Param('id') id: string,
     @Body() updateInspectionDto: UpdateInspectionDto,
@@ -205,7 +237,53 @@ export class InspectionsController {
   )
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
-  // @ApiOperation(...) @ApiConsumes(...) @ApiParam(...) @ApiBody(...) @ApiResponse(...)
+  @ApiOperation({
+    summary: 'Upload a batch of fixed photos for an inspection',
+    description:
+      'Uploads a batch of FIXED type photos (with predefined labels) for an inspection. Expects multipart/form-data with "metadata" (JSON string array) and "photos" (files).',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'Inspection ID',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        metadata: {
+          type: 'string',
+          description:
+            'JSON string array of metadata for each photo (e.g., [{"label": "front"}, {"label": "back"}]). Must match the order of uploaded files.',
+        },
+        photos: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description:
+            'Array of image files (jpg, jpeg, png, gif). Max 10 files per request.',
+        },
+      },
+      required: ['metadata', 'photos'],
+    },
+    description: 'Metadata and photo files for the batch upload.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Array of created photo record summaries.',
+    type: [PhotoResponseDto],
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad Request (e.g., invalid input, no files provided, invalid file type).',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async addMultipleFixedPhotos(
     @Param('id') id: string,
     @Body() addBatchDto: AddBatchFixedPhotosDto,
@@ -246,7 +324,53 @@ export class InspectionsController {
   )
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
-  // @ApiOperation(...) @ApiConsumes(...) @ApiParam(...) @ApiBody(...) @ApiResponse(...)
+  @ApiOperation({
+    summary: 'Upload a batch of dynamic photos for an inspection',
+    description:
+      'Uploads a batch of DYNAMIC type photos (custom labels, attention flag) for an inspection. Expects multipart/form-data with "metadata" (JSON string array) and "photos" (files).',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'Inspection ID',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        metadata: {
+          type: 'string',
+          description:
+            'JSON string array of metadata for each photo (e.g., [{"label": "damage", "needAttention": true}]). Must match the order of uploaded files.',
+        },
+        photos: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description:
+            'Array of image files (jpg, jpeg, png, gif). Max 10 files per request.',
+        },
+      },
+      required: ['metadata', 'photos'],
+    },
+    description: 'Metadata and photo files for the batch upload.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Array of created photo record summaries.',
+    type: [PhotoResponseDto],
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad Request (e.g., invalid input, no files provided, invalid file type).',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async addMultipleDynamicPhotos(
     @Param('id') id: string,
     @Body() addBatchDto: AddBatchDynamicPhotosDto,
@@ -287,7 +411,53 @@ export class InspectionsController {
   )
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
-  // @ApiOperation(...) @ApiConsumes(...) @ApiParam(...) @ApiBody(...) @ApiResponse(...)
+  @ApiOperation({
+    summary: 'Upload a batch of document photos for an inspection',
+    description:
+      'Uploads a batch of DOCUMENT type photos (custom labels) for an inspection. Expects multipart/form-data with "metadata" (JSON string array) and "photos" (files).',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'Inspection ID',
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        metadata: {
+          type: 'string',
+          description:
+            'JSON string array of metadata for each photo (e.g., [{"label": "registration"}, {"label": "insurance"}]). Must match the order of uploaded files.',
+        },
+        photos: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+          description:
+            'Array of image files (jpg, jpeg, png, gif). Max 10 files per request.',
+        },
+      },
+      required: ['metadata', 'photos'],
+    },
+    description: 'Metadata and photo files for the batch upload.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Array of created photo record summaries.',
+    type: [PhotoResponseDto],
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad Request (e.g., invalid input, no files provided, invalid file type).',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async addMultipleDocumentPhotos(
     @Param('id') id: string,
     @Body() addBatchDto: AddBatchDocumentPhotosDto,
@@ -316,8 +486,25 @@ export class InspectionsController {
    * Retrieves all photo records associated with a specific inspection.
    */
   @Get(':id/photos')
-  // @UseGuards(JwtAuthGuard) // Consider if this needs auth
-  // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
+  // @UseGuards(JwtAuthGuard) // Add later if needed
+  @ApiOperation({
+    summary: 'Retrieve all photos for an inspection',
+    description:
+      'Retrieves all photo records associated with a specific inspection.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'Inspection ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Array of photo record summaries.',
+    type: [PhotoResponseDto],
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async getPhotosForInspection(
     @Param('id') id: string,
   ): Promise<PhotoResponseDto[]> {
@@ -341,7 +528,40 @@ export class InspectionsController {
   ) // Handle single optional file
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR) // Define who can update
-  // @ApiOperation(...) @ApiConsumes(...) @ApiParam(...) @ApiBody(...) @ApiResponse(...)
+  @ApiOperation({
+    summary: 'Update a specific photo',
+    description:
+      "Updates a specific photo's metadata (label, needAttention) and/or replaces its file. Expects multipart/form-data. File and metadata fields are optional.",
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'Inspection ID',
+  })
+  @ApiParam({
+    name: 'photoId',
+    type: String,
+    format: 'uuid',
+    description: 'Photo ID',
+  })
+  @ApiBody({
+    type: UpdatePhotoDto,
+    description:
+      'Optional metadata updates (label, needAttention) and/or a new photo file.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'The updated photo record summary.',
+    type: PhotoResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Bad Request (e.g., invalid input, invalid file type).',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection or Photo not found.' })
+  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async updatePhoto(
     @Param('id') inspectionId: string,
     @Param('photoId', ParseUUIDPipe) photoId: string,
@@ -379,7 +599,29 @@ export class InspectionsController {
   @HttpCode(HttpStatus.NO_CONTENT) // Standard for successful DELETE with no body
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR) // Define who can delete
-  // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
+  @ApiOperation({
+    summary: 'Delete a specific photo',
+    description:
+      'Deletes a specific photo record and its associated file (if stored locally).',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'Inspection ID (for path consistency)',
+  })
+  @ApiParam({
+    name: 'photoId',
+    type: String,
+    format: 'uuid',
+    description: 'Photo ID',
+  })
+  @ApiResponse({
+    status: 204,
+    description: 'Photo deleted successfully (No Content).',
+  })
+  @ApiResponse({ status: 404, description: 'Photo not found.' })
+  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async deletePhoto(
     @Param('id', ParseUUIDPipe) inspectionId: string, // Included for path consistency, might not be needed by service
     @Param('photoId', ParseUUIDPipe) photoId: string,
@@ -401,7 +643,23 @@ export class InspectionsController {
    */
   @Get()
   // @UseGuards(JwtAuthGuard) // Add later if needed
-  // @ApiOperation(...) @ApiResponse(...)
+  @ApiOperation({
+    summary: 'Retrieve all inspection records',
+    description:
+      'Retrieves all inspection records, potentially filtered by role (passed via query parameter).',
+  })
+  @ApiQuery({
+    name: 'role',
+    required: false,
+    enum: Role,
+    description: 'Filter inspections by user role.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Array of inspection record summaries.',
+    type: [InspectionResponseDto],
+  })
+  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findAll(
     @Query('role') userRole?: Role /*, @GetUser('role') realUserRole: Role */,
   ): Promise<InspectionResponseDto[]> {
@@ -421,7 +679,30 @@ export class InspectionsController {
    */
   @Get(':id')
   // @UseGuards(JwtAuthGuard) // Add later if needed
-  // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
+  @ApiOperation({
+    summary: 'Retrieve a specific inspection by ID',
+    description:
+      'Retrieves a specific inspection by ID, applying role-based visibility rules.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'The UUID of the inspection to retrieve.',
+  })
+  @ApiQuery({
+    name: 'role',
+    required: false,
+    enum: Role,
+    description: 'Filter inspection visibility by user role.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'The inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findOne(
     @Param('id') id: string,
     @Query('role') userRole?: Role, // Temporary filter logic
@@ -445,7 +726,29 @@ export class InspectionsController {
   @HttpCode(HttpStatus.OK)
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.ADMIN, Role.REVIEWER)
-  // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
+  @ApiOperation({
+    summary: 'Approve a submitted inspection',
+    description:
+      'Approves a submitted inspection. Requires Reviewer/Admin role (to be enforced later).',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'Inspection ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'The approved inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad Request (e.g., inspection not in a state to be approved).',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async approveInspection(
     @Param('id') id: string,
     // @GetUser('id') reviewerId: string,
@@ -518,7 +821,28 @@ export class InspectionsController {
   @HttpCode(HttpStatus.OK)
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.ADMIN)
-  // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
+  @ApiOperation({
+    summary: 'Deactivate an archived inspection',
+    description: 'Deactivates an archived inspection. Requires Admin role.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'Inspection ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'The deactivated inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad Request (e.g., inspection not in a state to be deactivated).',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async deactivateArchive(
     @Param('id') id: string,
     // @GetUser('id') userId: string,
@@ -543,7 +867,28 @@ export class InspectionsController {
   @HttpCode(HttpStatus.OK)
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.ADMIN)
-  // @ApiOperation(...) @ApiParam(...) @ApiResponse(...)
+  @ApiOperation({
+    summary: 'Activate a deactivated inspection',
+    description: 'Reactivates a deactivated inspection. Requires Admin role.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'Inspection ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'The activated inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad Request (e.g., inspection not in a state to be activated).',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async activateArchive(
     @Param('id') id: string,
     // @GetUser('id') userId: string,

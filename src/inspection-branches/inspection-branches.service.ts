@@ -9,15 +9,15 @@ export class InspectionBranchesService {
   constructor(private prisma: PrismaService) {}
 
   async create(
-    CreateInspectionBranchCityDto: CreateInspectionBranchCityDto,
+    createInspectionBranchCityDto: CreateInspectionBranchCityDto,
   ): Promise<InspectionBranchCity> {
-    const kodeKota = CreateInspectionBranchCityDto.namaKota
+    const code = createInspectionBranchCityDto.city
       .substring(0, 3)
       .toUpperCase();
     return await this.prisma.inspectionBranchCity.create({
       data: {
-        namaKota: CreateInspectionBranchCityDto.namaKota,
-        kodeKota: kodeKota,
+        city: createInspectionBranchCityDto.city,
+        code: code,
       },
     });
   }
@@ -27,36 +27,28 @@ export class InspectionBranchesService {
   }
 
   async findOne(id: string): Promise<InspectionBranchCity> {
-    const InspectionBranchCity =
+    const inspectionBranchCity =
       await this.prisma.inspectionBranchCity.findUnique({
         where: { id },
       });
-    if (!InspectionBranchCity) {
+    if (!inspectionBranchCity) {
       throw new NotFoundException(
         `Inspection Branch City with ID "${id}" not found`,
       );
     }
-    return InspectionBranchCity;
+    return inspectionBranchCity;
   }
 
   async update(
     id: string,
-    UpdateInspectionBranchCityDto: UpdateInspectionBranchCityDto,
+    updateInspectionBranchCityDto: UpdateInspectionBranchCityDto,
   ): Promise<InspectionBranchCity> {
-    const existingInspectionBranchCity = await this.findOne(id); // Check if exists
-
-    let kodeKota = existingInspectionBranchCity.kodeKota;
-    if (UpdateInspectionBranchCityDto.namaKota) {
-      kodeKota = UpdateInspectionBranchCityDto.namaKota
-        .substring(0, 3)
-        .toUpperCase();
-    }
+    await this.findOne(id); // Check if exists
 
     return this.prisma.inspectionBranchCity.update({
       where: { id },
       data: {
-        namaKota: UpdateInspectionBranchCityDto.namaKota,
-        kodeKota: kodeKota,
+        city: updateInspectionBranchCityDto.city,
       },
     });
   }

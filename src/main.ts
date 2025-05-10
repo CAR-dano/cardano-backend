@@ -1,7 +1,14 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { SwaggerModule, DocumentBuilder, OpenAPIObject } from '@nestjs/swagger';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+
+let openApiDocument: OpenAPIObject | null = null;
+
+export function getOpenApiDocument(): OpenAPIObject | null {
+  return openApiDocument;
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -40,11 +47,50 @@ async function bootstrap() {
     app.enableCors();
   }
 
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('CAR-dano API') // Judul API Anda
+    .setDescription('API documentation for the CAR-dano backend system.') // Deskripsi
+    .setVersion('1.0.0') // Versi API
+    // Tambahkan tag untuk mengelompokkan endpoint di dokumentasi
+    .addTag('Auth (UI Users)', 'Authentication for Internal Users')
+    .addTag('User Management (Admin)', 'User management operations for Admins')
+    .addTag('Inspection Data', 'Core inspection data operations')
+    .addTag('Photos', 'Inspection photo management')
+    .addTag('Blockchain Operations', 'Cardano NFT minting and data retrieval')
+    .addTag('Inspection Branches', 'Operations related to inspection branches')
+    .addTag('Inspection Change Log', 'Tracking changes to inspections')
+    .addTag('Public API', 'Endpoints for public access')
+    .addTag('Scalar Docs', 'Endpoints for Scalar documentation')
+    .addTag('Users', 'User management operations')
+    // Tambahkan definisi skema keamanan jika API Anda terproteksi
+    .addBearerAuth(
+      // Untuk JWT
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Enter JWT token',
+        in: 'header',
+      },
+      'JwtAuthGuard', // Nama skema keamanan (gunakan ini di @ApiBearerAuth())
+    )
+    .build();
+
+  // Generate dokumen OpenAPI TANPA men-setup UI Swagger bawaan
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
+
+  // Simpan dokumen ke variabel global (opsional)
+  openApiDocument = document;
+
   const port = configService.get<number>('PORT') || 3000; // Retrieve port from .env
   await app.listen(port);
   logger.log(`🚀 API Gateway running on: http://localhost:${port}/api/v1`);
   logger.log(
-    `📚 API Documentation available at: http://localhost:${port}/api/v1/api-docs`,
+    `📚 API Documentation available at: http://localhost:${port}/api/v1/docs`,
+  );
+  logger.log(
+    `📄 OpenAPI JSON specification available at: http://localhost:${port}/api/v1/openapi.json`,
   );
 }
 bootstrap();
