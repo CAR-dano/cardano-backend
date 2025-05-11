@@ -447,6 +447,7 @@ export class InspectionsService {
         orderBy: {
           createdAt: 'desc', // Order by newest first
         },
+        include: { photos: true }, // Include related photos
         // include: { inspector: { select: {id: true, name: true}}, reviewer: { select: {id: true, name: true}} } // Example include
       });
       this.logger.log(
@@ -482,6 +483,7 @@ export class InspectionsService {
     try {
       const inspection = await this.prisma.inspection.findUniqueOrThrow({
         where: { id: id },
+        include: { photos: true }, // Include related photos
         // include: { inspector: true, reviewer: true } // Include related users if needed
       });
 
