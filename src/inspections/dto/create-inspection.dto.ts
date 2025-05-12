@@ -6,10 +6,21 @@
  * (parsed from JSON) related to different sections of the inspection form.
  * Minimal validation is applied at this stage. File uploads are handled separately.
  */
-import { IsString, IsDateString, IsObject } from 'class-validator'; // Keep minimal validators
+import { IsString, IsDateString, IsObject, IsUUID } from 'class-validator'; // Keep minimal validators
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateInspectionDto {
+  /**
+   * The ID of the inspector performing the inspection.
+   * @example "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+   */
+  @ApiProperty({
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
+    description: 'The ID of the inspector performing the inspection.',
+  })
+  @IsUUID()
+  inspectorId: string;
+
   /**
    * The license plate number of the inspected vehicle.
    * @example "AB 1231 RI"

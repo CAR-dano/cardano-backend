@@ -58,7 +58,7 @@ import { Request } from 'express';
 // --- Multer Configuration ---
 const MAX_PHOTOS_PER_REQUEST = 10; // Max files per batch upload request
 const UPLOAD_PATH = './uploads/inspection-photos';
-const DUMMY_USER_ID = 'e27d582b-a61c-432b-a76f-28844b5706e8'; // Temporary placeholder for user ID
+const DUMMY_USER_ID = 'e45219ca-3986-4744-bc0c-e9d4d598498d'; // Temporary placeholder for user ID
 
 /**
  * Multer disk storage configuration for uploaded inspection photos.
@@ -149,14 +149,8 @@ export class InspectionsController {
     @Body() createInspectionDto: CreateInspectionDto,
     // @GetUser('id') userId: string, // Get authenticated user ID later
   ): Promise<InspectionResponseDto> {
-    const dummySubmitterId = DUMMY_USER_ID; // Temporary placeholder
-    this.logger.warn(
-      `Using DUMMY submitter ID: ${dummySubmitterId} for POST /inspections`,
-    );
-    const newInspection = await this.inspectionsService.create(
-      createInspectionDto,
-      dummySubmitterId,
-    );
+    const newInspection =
+      await this.inspectionsService.create(createInspectionDto);
     return new InspectionResponseDto(newInspection);
   }
 
