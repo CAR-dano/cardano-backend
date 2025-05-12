@@ -80,6 +80,7 @@ export class UsersController {
    * Retrieves a list of all inspector users.
    */
   @Get('inspectors') // Specific endpoint for finding all inspectors
+  @Roles(Role.ADMIN) // Only ADMINs can access this
   @ApiOperation({
     summary: 'Retrieve all inspector users',
     description:
