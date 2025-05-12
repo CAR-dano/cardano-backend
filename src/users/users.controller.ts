@@ -77,14 +77,13 @@ export class UsersController {
   }
 
   /**
-   * Retrieves a list of all inspector users. Requires ADMIN role.
+   * Retrieves a list of all inspector users.
    */
   @Get('inspectors') // Specific endpoint for finding all inspectors
-  @Roles(Role.ADMIN)
   @ApiOperation({
-    summary: 'Retrieve all inspector users (Admin Only)',
+    summary: 'Retrieve all inspector users',
     description:
-      'Fetches a list of all user accounts specifically designated as inspectors. This endpoint is restricted to users with the ADMIN role.',
+      'Fetches a list of all user accounts specifically designated as inspectors.',
   })
   @ApiResponse({
     status: 200,
@@ -95,12 +94,8 @@ export class UsersController {
     status: 401,
     description: 'Unauthorized. Authentication token is missing or invalid.',
   })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. User does not have the necessary ADMIN role.',
-  })
   async findAllInspectors(): Promise<UserResponseDto[]> {
-    this.logger.log(`Admin request: findAllInspectors users`);
+    this.logger.log(`findAllInspectors users`);
     const users = await this.usersService.findAllInspectors();
     return users.map((user) => new UserResponseDto(user)); // Map to safe DTO
   }
