@@ -81,42 +81,34 @@ export class InspectionsService {
     const datePrefix = format(inspectionDate, 'ddMMyyyy'); // Format: 01052025
     const idPrefix = `${branchCode.toUpperCase()}-${datePrefix}-`; // e.g., YOG-01052025-
 
-    // Cari ID terakhir dengan prefix yang sama DALAM TRANSAKSI
-    const lastInspection = await tx.inspection.findFirst({
+    // Atomically get and increment the sequence number for this branch and date within the transaction
+    const sequenceRecord = await tx.inspectionSequence.upsert({
       where: {
-        id: {
-          startsWith: idPrefix,
+        branchCode_datePrefix: {
+          branchCode: branchCode.toUpperCase(),
+          datePrefix: datePrefix,
         },
       },
-      orderBy: {
-        id: 'desc', // Urutkan descending untuk mendapatkan yang terakhir
+      update: {
+        nextSequence: {
+          increment: 1,
+        },
+      },
+      create: {
+        branchCode: branchCode.toUpperCase(),
+        datePrefix: datePrefix,
+        nextSequence: 1, // Start at 1 for a new sequence
       },
       select: {
-        id: true,
+        nextSequence: true,
       },
     });
 
-    let nextSequence = 1;
-    if (lastInspection) {
-      try {
-        const lastSequenceStr = lastInspection.id.substring(idPrefix.length);
-        const lastSequence = parseInt(lastSequenceStr, 10);
-        if (!isNaN(lastSequence)) {
-          nextSequence = lastSequence + 1;
-        } else {
-          this.logger.warn(
-            `Could not parse sequence number from last ID: ${lastInspection.id}. Defaulting to 1.`,
-          );
-        }
-      } catch (e) {
-        this.logger.warn(
-          `Error parsing sequence number from last ID: ${lastInspection.id}. Defaulting to 1. Error: ${e}`,
-        );
-      }
-    }
+    // Use the sequence number obtained *before* the increment for the current ID
+    const currentSequence = sequenceRecord.nextSequence;
 
     // Format nomor urut dengan padding nol (misal: 001, 010, 123)
-    const nextSequenceStr = nextSequence.toString().padStart(3, '0');
+    const nextSequenceStr = currentSequence.toString().padStart(3, '0');
 
     return `${idPrefix}${nextSequenceStr}`; // e.g., YOG-01052025-001
   }
@@ -129,12 +121,9 @@ export class InspectionsService {
    * @param {string} submitterId - The UUID of the user (INSPECTOR) submitting the inspection.
    * @returns {Promise<Inspection>} The created inspection record.
    */
-  async create(
-    createInspectionDto: CreateInspectionDto,
-    submitterId: string,
-  ): Promise<Inspection> {
+  async create(createInspectionDto: CreateInspectionDto): Promise<Inspection> {
     this.logger.log(
-      `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'} by user ${submitterId}`,
+      `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'} by inspector ${createInspectionDto.inspectorId}`,
     );
     let branchCode = 'XXX'; // Placeholder - WAJIB DIGANTI
     try {
@@ -186,7 +175,7 @@ export class InspectionsService {
         const dataToCreate: Prisma.InspectionCreateInput = {
           // Let Prisma generate the UUID for 'id'
           pretty_id: customId, // <-- Gunakan ID kustom untuk pretty_id
-          inspector: { connect: { id: submitterId } },
+          inspector: { connect: { id: createInspectionDto.inspectorId } },
           vehiclePlateNumber: createInspectionDto.vehiclePlateNumber,
           inspectionDate: inspectionDateObj, // Gunakan objek Date
           overallRating: createInspectionDto.overallRating,
@@ -447,6 +436,7 @@ export class InspectionsService {
         orderBy: {
           createdAt: 'desc', // Order by newest first
         },
+        include: { photos: true }, // Include related photos
         // include: { inspector: { select: {id: true, name: true}}, reviewer: { select: {id: true, name: true}} } // Example include
       });
       this.logger.log(
@@ -482,6 +472,7 @@ export class InspectionsService {
     try {
       const inspection = await this.prisma.inspection.findUniqueOrThrow({
         where: { id: id },
+        include: { photos: true }, // Include related photos
         // include: { inspector: true, reviewer: true } // Include related users if needed
       });
 

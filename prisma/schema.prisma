@@ -43,12 +43,6 @@ enum InspectionStatus {
   DEACTIVATED  // Status for inspections that are soft-deleted or hidden from public view upon request.
 }
 
-enum PhotoType {
-  FIXED // For photos with fixed labels (Front View, OBD, etc.)
-  DYNAMIC // For Vehicle Photos - dynamic label + needAttention
-  DOCUMENT // For Document Photos - dynamic labels, no needAttention
-}
-
 // Defines the User model, representing users in the system.
 model User {
   id            String    @id // Primary Key: Automatically generated.
@@ -156,7 +150,6 @@ model Photo {
   inspectionId String // Foreign Key to Inspection
   inspection Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade) // Many-to-One relation
 
-  type PhotoType // Photo type (FIXED, DYNAMIC, DOCUMENT)
   path String // Unique path/filename in storage (disk or cloud)
   label String // Photo label (can be custom or from originalLabel)
   originalLabel String? // Special for FIXED types (e.g. “Front View”, “OBD Scanner”)
@@ -165,7 +158,6 @@ model Photo {
   // --- Timestamps ---
   // Automatically set when the record is created.
   createdAt DateTime @default(now())
-  // Automatically updated when the record is modified.
   updatedAt DateTime @updatedAt
 
   @@index([inspectionId])
@@ -197,4 +189,14 @@ model InspectionChangeLog {
   @@index([inspectionId])
   @@index([changedByUserId])
   @@map("inspection_change_logs")
+}
+
+// Defines a model to store the next sequence number for inspection pretty_ids per branch and date.
+model InspectionSequence {
+  branchCode  String    @db.VarChar(3) // e.g., 'YOG', 'SOL', 'SEM'
+  datePrefix  String    @db.VarChar(8) // e.g., 'DDMMYYYY'
+  nextSequence Int      @default(1)
+
+  @@id([branchCode, datePrefix]) // Compound primary key
+  @@map("inspection_sequences")
 }

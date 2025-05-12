@@ -45,9 +45,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { AddBatchDynamicPhotosDto } from 'src/photos/dto/add-batch-dynamic-photos.dto';
-import { AddBatchFixedPhotosDto } from 'src/photos/dto/add-batch-fixed-photos.dto';
-import { AddBatchDocumentPhotosDto } from 'src/photos/dto/add-batch-document-photos.dto';
+import { AddMultiplePhotosDto } from 'src/photos/dto/add-multiple-photos.dto';
+import { AddSinglePhotoDto } from 'src/inspections/dto/add-single-photo.dto';
 import { Request } from 'express';
 // Import Guards if/when needed for authentication and authorization
 // import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -59,7 +58,7 @@ import { Request } from 'express';
 // --- Multer Configuration ---
 const MAX_PHOTOS_PER_REQUEST = 10; // Max files per batch upload request
 const UPLOAD_PATH = './uploads/inspection-photos';
-const DUMMY_USER_ID = 'e27d582b-a61c-432b-a76f-28844b5706e8'; // Temporary placeholder for user ID
+const DUMMY_USER_ID = 'e45219ca-3986-4744-bc0c-e9d4d598498d'; // Temporary placeholder for user ID
 
 /**
  * Multer disk storage configuration for uploaded inspection photos.
@@ -150,14 +149,8 @@ export class InspectionsController {
     @Body() createInspectionDto: CreateInspectionDto,
     // @GetUser('id') userId: string, // Get authenticated user ID later
   ): Promise<InspectionResponseDto> {
-    const dummySubmitterId = DUMMY_USER_ID; // Temporary placeholder
-    this.logger.warn(
-      `Using DUMMY submitter ID: ${dummySubmitterId} for POST /inspections`,
-    );
-    const newInspection = await this.inspectionsService.create(
-      createInspectionDto,
-      dummySubmitterId,
-    );
+    const newInspection =
+      await this.inspectionsService.create(createInspectionDto);
     return new InspectionResponseDto(newInspection);
   }
 
@@ -227,7 +220,7 @@ export class InspectionsController {
    * @param {Express.Multer.File[]} files - Array of uploaded image files from the 'photos' field.
    * @returns {Promise<PhotoResponseDto[]>} Array of created photo record summaries.
    */
-  @Post(':id/photos/fixed')
+  @Post(':id/photos/multiple') // Renamed endpoint
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
     FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST, {
@@ -238,96 +231,9 @@ export class InspectionsController {
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   @ApiOperation({
-    summary: 'Upload a batch of fixed photos for an inspection',
+    summary: 'Upload a batch of photos for an inspection', // Updated summary
     description:
-      'Uploads a batch of FIXED type photos (with predefined labels) for an inspection. Expects multipart/form-data with "metadata" (JSON string array) and "photos" (files).',
-  })
-  @ApiConsumes('multipart/form-data')
-  @ApiParam({
-    name: 'id',
-    type: String,
-    format: 'uuid',
-    description: 'Inspection ID',
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        metadata: {
-          type: 'string',
-          description:
-            'JSON string array of metadata for each photo (e.g., [{"label": "front"}, {"label": "back"}]). Must match the order of uploaded files.',
-        },
-        photos: {
-          type: 'array',
-          items: {
-            type: 'string',
-            format: 'binary',
-          },
-          description:
-            'Array of image files (jpg, jpeg, png, gif). Max 10 files per request.',
-        },
-      },
-      required: ['metadata', 'photos'],
-    },
-    description: 'Metadata and photo files for the batch upload.',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Array of created photo record summaries.',
-    type: [PhotoResponseDto],
-  })
-  @ApiResponse({
-    status: 400,
-    description:
-      'Bad Request (e.g., invalid input, no files provided, invalid file type).',
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
-  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
-  async addMultipleFixedPhotos(
-    @Param('id') id: string,
-    @Body() addBatchDto: AddBatchFixedPhotosDto,
-    @UploadedFiles() files: Array<Express.Multer.File>,
-    // @GetUser('id') userId: string, // Get user ID later
-  ): Promise<PhotoResponseDto[]> {
-    this.logger.log(
-      `[POST /inspections/${id}/photos/fixed-batch] Received ${files?.length} files.`,
-    );
-    if (!files || files.length === 0)
-      throw new BadRequestException('No photo files provided.');
-    const dummyUserId = DUMMY_USER_ID;
-    const newPhotos = await this.photosService.addMultipleFixedPhotos(
-      id,
-      files,
-      addBatchDto.metadata,
-      dummyUserId,
-    );
-    return newPhotos.map((p) => new PhotoResponseDto(p));
-  }
-
-  /**
-   * [POST /inspections/:id/photos/dynamic-batch]
-   * Uploads a batch of DYNAMIC type photos (custom labels, attention flag) for an inspection.
-   * Expects 'multipart/form-data' with 'metadata' (JSON string array) and 'photos' (files).
-   * @param {string} id - Inspection UUID.
-   * @param {AddBatchDynamicPhotosDto} addBatchDto - DTO containing the 'metadata' JSON string.
-   * @param {Express.Multer.File[]} files - Array of uploaded image files from the 'photos' field.
-   * @returns {Promise<PhotoResponseDto[]>} Array of created photo record summaries.
-   */
-  @Post(':id/photos/dynamic')
-  @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(
-    FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST, {
-      storage: photoStorageConfig,
-      fileFilter: imageFileFilter,
-    }),
-  )
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
-  @ApiOperation({
-    summary: 'Upload a batch of dynamic photos for an inspection',
-    description:
-      'Uploads a batch of DYNAMIC type photos (custom labels, attention flag) for an inspection. Expects multipart/form-data with "metadata" (JSON string array) and "photos" (files).',
+      'Uploads a batch of photos for an inspection. Expects multipart/form-data with "metadata" (JSON string array) and "photos" (files).', // Updated description
   })
   @ApiConsumes('multipart/form-data')
   @ApiParam({
@@ -371,19 +277,21 @@ export class InspectionsController {
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
-  async addMultipleDynamicPhotos(
+  async addMultiplePhotos(
+    // Renamed method
     @Param('id') id: string,
-    @Body() addBatchDto: AddBatchDynamicPhotosDto,
+    @Body() addBatchDto: AddMultiplePhotosDto, // Updated DTO
     @UploadedFiles() files: Array<Express.Multer.File>,
     // @GetUser('id') userId: string,
   ): Promise<PhotoResponseDto[]> {
     this.logger.log(
-      `[POST /inspections/${id}/photos/dynamic-batch] Received ${files?.length} files.`,
+      `[POST /inspections/${id}/photos/multiple] Received ${files?.length} files.`, // Updated log
     );
     if (!files || files.length === 0)
       throw new BadRequestException('No photo files provided.');
     const dummyUserId = DUMMY_USER_ID;
-    const newPhotos = await this.photosService.addMultipleDynamicPhotos(
+    const newPhotos = await this.photosService.addMultiplePhotos(
+      // Updated service method
       id,
       files,
       addBatchDto.metadata,
@@ -393,28 +301,28 @@ export class InspectionsController {
   }
 
   /**
-   * [POST /inspections/:id/photos/document-batch]
-   * Uploads a batch of DOCUMENT type photos (custom labels) for an inspection.
-   * Expects 'multipart/form-data' with 'metadata' (JSON string array) and 'photos' (files).
+   * [POST /inspections/:id/photos/single]
+   * Uploads a single photo for an inspection.
+   * Expects 'multipart/form-data' with 'label' (string) and optionally 'needAttention' (string "true" or "false") and 'photo' (file).
    * @param {string} id - Inspection UUID.
-   * @param {AddBatchDocumentPhotosDto} addBatchDto - DTO containing the 'metadata' JSON string.
-   * @param {Express.Multer.File[]} files - Array of uploaded image files from the 'photos' field.
-   * @returns {Promise<PhotoResponseDto[]>} Array of created photo record summaries.
+   * @param {AddSinglePhotoDto} addSingleDto - DTO containing the label and optional needAttention flag.
+   * @param {Express.Multer.File} file - The uploaded image file from the 'photo' field.
+   * @returns {Promise<PhotoResponseDto>} The created photo record summary.
    */
-  @Post(':id/photos/document')
+  @Post(':id/photos/single')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
-    FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST, {
+    FileInterceptor('photo', {
       storage: photoStorageConfig,
       fileFilter: imageFileFilter,
     }),
-  )
+  ) // Handle single file upload
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   @ApiOperation({
-    summary: 'Upload a batch of document photos for an inspection',
+    summary: 'Upload a single photo for an inspection',
     description:
-      'Uploads a batch of DOCUMENT type photos (custom labels) for an inspection. Expects multipart/form-data with "metadata" (JSON string array) and "photos" (files).',
+      'Uploads a single photo for an inspection. Expects multipart/form-data with "label" (string) and optionally "needAttention" (string "true" or "false") and "photo" (file).',
   })
   @ApiConsumes('multipart/form-data')
   @ApiParam({
@@ -424,59 +332,58 @@ export class InspectionsController {
     description: 'Inspection ID',
   })
   @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        metadata: {
-          type: 'string',
-          description:
-            'JSON string array of metadata for each photo (e.g., [{"label": "registration"}, {"label": "insurance"}]). Must match the order of uploaded files.',
-        },
-        photos: {
-          type: 'array',
-          items: {
-            type: 'string',
-            format: 'binary',
-          },
-          description:
-            'Array of image files (jpg, jpeg, png, gif). Max 10 files per request.',
-        },
-      },
-      required: ['metadata', 'photos'],
-    },
-    description: 'Metadata and photo files for the batch upload.',
+    type: AddSinglePhotoDto,
+    description:
+      'Metadata (label, needAttention) and photo file for the upload.',
   })
   @ApiResponse({
     status: 201,
-    description: 'Array of created photo record summaries.',
-    type: [PhotoResponseDto],
+    description: 'The created photo record summary.',
+    type: PhotoResponseDto,
   })
   @ApiResponse({
     status: 400,
     description:
-      'Bad Request (e.g., invalid input, no files provided, invalid file type).',
+      'Bad Request (e.g., invalid input, no file provided, invalid file type).',
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
-  async addMultipleDocumentPhotos(
+  async addSinglePhoto(
     @Param('id') id: string,
-    @Body() addBatchDto: AddBatchDocumentPhotosDto,
-    @UploadedFiles() files: Array<Express.Multer.File>,
+    @Body() addSingleDto: AddSinglePhotoDto,
+    @UploadedFile() file: Express.Multer.File,
     // @GetUser('id') userId: string,
-  ): Promise<PhotoResponseDto[]> {
+  ): Promise<PhotoResponseDto> {
     this.logger.log(
-      `[POST /inspections/${id}/photos/document-batch] Received ${files?.length} files.`,
+      `[POST /inspections/${id}/photos/single] Received file: ${file?.filename}`,
     );
-    if (!files || files.length === 0)
-      throw new BadRequestException('No photo files provided.');
+    if (!file) throw new BadRequestException('No photo file provided.');
+
+    let parsedMetadata;
+    try {
+      parsedMetadata = JSON.parse(addSingleDto.metadata);
+      if (
+        !parsedMetadata ||
+        typeof parsedMetadata.label !== 'string' ||
+        (parsedMetadata.needAttention !== undefined &&
+          typeof parsedMetadata.needAttention !== 'boolean')
+      ) {
+        throw new BadRequestException('Invalid metadata format.');
+      }
+    } catch (error: any) {
+      throw new BadRequestException(
+        `Invalid metadata format: ${error.message}`,
+      );
+    }
+
     const dummyUserId = DUMMY_USER_ID;
-    const newPhotos = await this.photosService.addMultipleDocumentPhotos(
+    const newPhoto = await this.photosService.addPhoto(
       id,
-      files,
-      addBatchDto.metadata,
+      file,
+      parsedMetadata, // Pass parsed metadata
       dummyUserId,
     );
-    return newPhotos.map((p) => new PhotoResponseDto(p));
+    return new PhotoResponseDto(newPhoto);
   }
 
   // --- Photo Management Endpoints ---
