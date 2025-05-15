@@ -115,24 +115,6 @@ export class BlockchainService {
     this.logger.log(
       `Attempting to mint NFT for vehicle: ${metadata.vehicleNumber}`,
     );
-    // Basic validation of required metadata fields for minting
-    if (
-      !metadata.inspectionId ||
-      !metadata.inspectionDate ||
-      !metadata.vehicleNumber ||
-      !metadata.vehicleBrand ||
-      !metadata.vehicleModel ||
-      !metadata.vehicleYear ||
-      !metadata.vehicleColor ||
-      !metadata.overallRating ||
-      !metadata.pdfUrl ||
-      !metadata.pdfHash ||
-      !metadata.inspectorId
-    ) {
-      throw new BadRequestException(
-        'Missing required fields in metadata for NFT minting (inspectionId, inspectionDate, vehicleNumber, vehicleBrand, vehicleModel, overallRating, inspectorId, pdfUrl, pdfHash).',
-      );
-    }
 
     try {
       const utxos = await this.wallet.getUtxos();
@@ -151,13 +133,13 @@ export class BlockchainService {
       const policyId = resolveScriptHash(forgingScript); // Calculate the policy ID
 
       // Generate a unique token name based on key inspection data + perhaps a random element or timestamp for uniqueness assurance
-      const uniqueDataString = `${metadata.inspectionId}-${metadata.inspectionDate}-${metadata.vehicleNumber}`;
+      const uniqueDataString = `${metadata.vehicleNumber}`;
       const tokenName = this.generateTokenName(uniqueDataString);
       const tokenNameHex = stringToHex(tokenName); // Convert to hex for the blockchain
       const assetNameForMetadata = Buffer.from(tokenNameHex, 'hex').toString(
         'utf8',
       );
-      const simpleAssetName = `Inspection_${metadata.inspectionId}`;
+      const simpleAssetName = `Inspection_${metadata.vehicleNumber}`;
       const simpleAssetNameHex = stringToHex(simpleAssetName);
       // Construct the full asset ID
       const assetId = policyId + simpleAssetNameHex;
