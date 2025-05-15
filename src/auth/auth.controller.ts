@@ -228,6 +228,31 @@ export class AuthController {
     return user;
   }
 
+  /**
+   * Checks if the provided JWT token is valid and not expired.
+   * Requires a valid JWT in the Authorization header.
+   *
+   * @returns {object} A success message if the token is valid.
+   */
+  @Get('check-token')
+  @UseGuards(JwtAuthGuard) // Protect with JWT
+  @ApiBearerAuth('JwtAuthGuard') // Document requirement
+  @ApiOperation({ summary: 'Check if JWT token is valid' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Token is valid.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized (token is invalid or expired).',
+  })
+  checkTokenValidity(): { message: string } {
+    // If the JwtAuthGuard passes, the token is valid.
+    // The method body is only executed if the token is valid.
+    this.logger.log('Token validity check successful.');
+    return { message: 'Token is valid.' };
+  }
+
   // --- Placeholder Endpoints for Account Linking (Implement Later) ---
 
   // @Post('link/google')
