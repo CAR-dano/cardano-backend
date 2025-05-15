@@ -274,98 +274,168 @@ export class InspectionsService {
     // 2. Compare data and log changes
     const changesToLog: Prisma.InspectionChangeLogCreateManyInput[] = [];
 
-    // Helper function to compare values and add to changesToLog
-    const addChangeIfDifferent = (
+    // Helper function for deep comparison of JSON objects and logging granular changes
+    const logJsonChanges = (
       fieldName: string,
-      oldValue: any, // Consider more specific types if possible
-      newValue: any, // Consider more specific types if possible
+      oldValue: any,
+      newValue: any,
+      changes: Prisma.InspectionChangeLogCreateManyInput[],
+      currentPath: string = '', // Track the nested path
     ) => {
-      // Simple comparison for primitive types and JSON (comparing JSON objects directly might not work as expected,
-      // comparing stringified versions or using a deep comparison library is better for production)
-      // For simplicity here, we'll do a basic check. A robust solution needs deep comparison for JSON.
-      const oldValueJson =
-        oldValue !== undefined ? JSON.stringify(oldValue) : undefined;
-      const newValueJson =
-        newValue !== undefined ? JSON.stringify(newValue) : undefined;
+      // If both are objects, recurse
+      if (
+        typeof oldValue === 'object' &&
+        oldValue !== null &&
+        typeof newValue === 'object' &&
+        newValue !== null
+      ) {
+        const oldObj = oldValue as any;
+        const newObj = newValue as any;
+        const allKeys = new Set([
+          ...Object.keys(oldObj),
+          ...Object.keys(newObj),
+        ]);
 
-      if (newValueJson !== undefined && oldValueJson !== newValueJson) {
+        for (const key of allKeys) {
+          const nestedOldValue = oldObj[key];
+          const nestedNewValue = newObj[key];
+          const nestedPath = currentPath ? `${currentPath}.${key}` : key;
+          logJsonChanges(
+            fieldName,
+            nestedOldValue,
+            nestedNewValue,
+            changes,
+            nestedPath,
+          );
+        }
+      } else if (oldValue !== newValue) {
+        // If values are different (and not both objects), log the change
+        // Handle undefined vs null consistently for comparison and logging
+        const oldValToLog = oldValue === undefined ? null : oldValue;
+        const newValToLog = newValue === undefined ? null : newValue;
+
+        // Only log if there's an actual change in value (considering undefined/null)
+        if (JSON.stringify(oldValToLog) !== JSON.stringify(newValToLog)) {
+          changes.push({
+            inspectionId: id,
+            changedByUserId: userId,
+            fieldName: fieldName,
+            subFieldName: currentPath || null, // Use null if no sub-field path
+            oldValue: oldValToLog === null ? Prisma.JsonNull : oldValToLog,
+            newValue: newValToLog === null ? Prisma.JsonNull : newValToLog,
+          });
+        }
+      }
+      // If values are the same, do nothing
+    };
+
+    // Compare fields from DTO with existing data and log changes
+    if (updateInspectionDto.vehiclePlateNumber !== undefined) {
+      if (
+        existingInspection.vehiclePlateNumber !==
+        updateInspectionDto.vehiclePlateNumber
+      ) {
         changesToLog.push({
           inspectionId: id,
           changedByUserId: userId,
-          fieldName: fieldName,
-          oldValue: oldValue, // Store original types or stringified
-          newValue: newValue, // Store original types or stringified
+          fieldName: 'vehiclePlateNumber',
+          subFieldName: null, // Top-level field
+          oldValue:
+            existingInspection.vehiclePlateNumber === null
+              ? Prisma.JsonNull
+              : existingInspection.vehiclePlateNumber,
+          newValue:
+            updateInspectionDto.vehiclePlateNumber === null
+              ? Prisma.JsonNull
+              : updateInspectionDto.vehiclePlateNumber,
         });
       }
-    };
-
-    // Compare fields from DTO with existing data
-    if (updateInspectionDto.vehiclePlateNumber !== undefined) {
-      addChangeIfDifferent(
-        'vehiclePlateNumber',
-        existingInspection.vehiclePlateNumber,
-        updateInspectionDto.vehiclePlateNumber,
-      );
     }
     if (updateInspectionDto.inspectionDate !== undefined) {
-      // Compare dates as ISO strings or timestamps
       const existingDate =
         existingInspection.inspectionDate?.toISOString() ?? null;
       const newDate = updateInspectionDto.inspectionDate
         ? new Date(updateInspectionDto.inspectionDate).toISOString()
         : null;
-      addChangeIfDifferent('inspectionDate', existingDate, newDate);
+      if (existingDate !== newDate) {
+        changesToLog.push({
+          inspectionId: id,
+          changedByUserId: userId,
+          fieldName: 'inspectionDate',
+          subFieldName: null, // Top-level field
+          oldValue: existingDate === null ? Prisma.JsonNull : existingDate,
+          newValue: newDate === null ? Prisma.JsonNull : newDate,
+        });
+      }
     }
     if (updateInspectionDto.overallRating !== undefined) {
-      addChangeIfDifferent(
-        'overallRating',
-        existingInspection.overallRating,
-        updateInspectionDto.overallRating,
-      );
+      if (
+        existingInspection.overallRating !== updateInspectionDto.overallRating
+      ) {
+        changesToLog.push({
+          inspectionId: id,
+          changedByUserId: userId,
+          fieldName: 'overallRating',
+          subFieldName: null, // Top-level field
+          oldValue:
+            existingInspection.overallRating === null
+              ? Prisma.JsonNull
+              : existingInspection.overallRating,
+          newValue:
+            updateInspectionDto.overallRating === null
+              ? Prisma.JsonNull
+              : updateInspectionDto.overallRating,
+        });
+      }
     }
-    // Compare JSON fields (requires careful handling for nested changes)
-    // A simple approach is to log the entire JSON object if it changes.
-    // A more granular approach would involve deep comparison of JSON structures.
+
+    // Compare and log changes for JSON fields using the helper function
     if (updateInspectionDto.identityDetails !== undefined) {
-      addChangeIfDifferent(
+      logJsonChanges(
         'identityDetails',
         existingInspection.identityDetails,
         updateInspectionDto.identityDetails,
+        changesToLog,
       );
     }
     if (updateInspectionDto.vehicleData !== undefined) {
-      addChangeIfDifferent(
+      logJsonChanges(
         'vehicleData',
         existingInspection.vehicleData,
         updateInspectionDto.vehicleData,
+        changesToLog,
       );
     }
     if (updateInspectionDto.equipmentChecklist !== undefined) {
-      addChangeIfDifferent(
+      logJsonChanges(
         'equipmentChecklist',
         existingInspection.equipmentChecklist,
         updateInspectionDto.equipmentChecklist,
+        changesToLog,
       );
     }
     if (updateInspectionDto.inspectionSummary !== undefined) {
-      addChangeIfDifferent(
+      logJsonChanges(
         'inspectionSummary',
         existingInspection.inspectionSummary,
         updateInspectionDto.inspectionSummary,
+        changesToLog,
       );
     }
     if (updateInspectionDto.detailedAssessment !== undefined) {
-      addChangeIfDifferent(
+      logJsonChanges(
         'detailedAssessment',
         existingInspection.detailedAssessment,
         updateInspectionDto.detailedAssessment,
+        changesToLog,
       );
     }
     if (updateInspectionDto.bodyPaintThickness !== undefined) {
-      addChangeIfDifferent(
+      logJsonChanges(
         'bodyPaintThickness',
         existingInspection.bodyPaintThickness,
         updateInspectionDto.bodyPaintThickness,
+        changesToLog,
       );
     }
 
@@ -569,27 +639,28 @@ export class InspectionsService {
       const updatedInspectionData: any = { ...inspection }; // Create a mutable copy
 
       for (const log of changeLogs) {
-        // Simple approach: apply changes directly.
-        // For nested JSON, a more sophisticated approach is needed.
-        // This simple approach assumes fieldName is a top-level key or uses dot notation
-        // which would require parsing fieldName and traversing the object.
-        // For this implementation, we'll assume top-level or simple dot notation that can be handled.
-        // A robust solution for deep JSON updates would involve a helper function.
+        // Handle top-level fields
+        if (!log.subFieldName) {
+          (updatedInspectionData as any)[log.fieldName] = log.newValue;
+        } else {
+          // Handle nested JSON fields
+          const fieldPath = log.subFieldName.split('.');
+          let currentLevel: any = (updatedInspectionData as any)[log.fieldName];
 
-        // Basic handling for top-level or simple dot notation (e.g., "vehicleData.merekKendaraan")
-        const fieldPath = log.fieldName.split('.');
-        let currentLevel: any = updatedInspectionData;
-        for (let i = 0; i < fieldPath.length - 1; i++) {
-          if (
-            currentLevel[fieldPath[i]] === undefined ||
-            currentLevel[fieldPath[i]] === null
-          ) {
-            currentLevel[fieldPath[i]] = {}; // Initialize if undefined/null for nested paths
+          // Ensure the path exists, creating nested objects if necessary
+          for (let i = 0; i < fieldPath.length - 1; i++) {
+            if (
+              currentLevel[fieldPath[i]] === undefined ||
+              currentLevel[fieldPath[i]] === null
+            ) {
+              currentLevel[fieldPath[i]] = {};
+            }
+            currentLevel = currentLevel[fieldPath[i]];
           }
-          currentLevel = currentLevel[fieldPath[i]];
+
+          // Apply the new value at the final nested level
+          currentLevel[fieldPath[fieldPath.length - 1]] = log.newValue;
         }
-        // Apply the new value at the final level
-        currentLevel[fieldPath[fieldPath.length - 1]] = log.newValue;
       }
 
       // 4. Update the Inspection record in the database with applied changes and status
@@ -677,6 +748,9 @@ export class InspectionsService {
    * @param {string} inspectionId - The UUID of the inspection to archive.
    * @param {string} userId - The ID of the user initiating the archive (ADMIN/REVIEWER).
    * @returns {Promise<Inspection>} The final updated inspection record.
+   * @throws {NotFoundException} If inspection not found.
+   * @throws {BadRequestException} If inspection is not in NEED_REVIEW or FAIL_ARCHIVE state.
+   * @throws {InternalServerErrorException} For database errors.
    */
   async processToArchive(
     inspectionId: string,
@@ -890,7 +964,7 @@ export class InspectionsService {
         }
       }
       this.logger.log(
-        `Inspection ${inspectionId} deactivated by user ${userId}`,
+        `Inspection ${inspectionId} reactivated by user ${userId}`,
       );
       return this.prisma.inspection.findUniqueOrThrow({
         where: { id: inspectionId },
@@ -904,11 +978,11 @@ export class InspectionsService {
       )
         throw error;
       this.logger.error(
-        `Failed to deactivate inspection ${inspectionId}: ${error.message}`,
+        `Failed to reactivate inspection ${inspectionId}: ${error.message}`,
         error.stack,
       );
       throw new InternalServerErrorException(
-        `Could not deactivate inspection ${inspectionId}.`,
+        `Could not reactivate inspection ${inspectionId}.`,
       );
     }
   }
