@@ -818,22 +818,9 @@ export class InspectionsService {
       let blockchainSuccess = false;
 
       try {
-        // Siapkan metadata untuk NFT
-        // Explicitly type vehicleData as JsonObject for safe access
-        const vehicleData = inspection.vehicleData as Prisma.JsonObject | null;
-
         const metadataForNft: any = {
-          inspectionId: inspectionId,
-          inspectionDate: inspection.inspectionDate?.toISOString(), // Kirim ISO string
           vehicleNumber: inspection.vehiclePlateNumber,
-          vehicleBrand: vehicleData?.merekKendaraan ?? null, // Safe access
-          vehicleModel: vehicleData?.tipeKendaraan ?? null, // Safe access
-          vehicleYear: vehicleData?.tahun ?? null, // Safe access
-          vehicleColor: vehicleData?.warnaKendaraan ?? null, // Safe access
-          overallRating: inspection.overallRating,
-          pdfUrl: pdfPublicUrl, // URL ke PDF
-          pdfHash: pdfHashString, // Hash PDF
-          inspectorId: inspection.inspectorId,
+          pdfHash: pdfHashString,
         };
         // Hapus field null/undefined dari metadata jika perlu
         Object.keys(metadataForNft).forEach((key) =>

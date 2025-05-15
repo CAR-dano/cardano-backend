@@ -7,7 +7,6 @@
 /uploads/
 notes.md
 .env.prod
-
 # Logs
 logs
 *.log
