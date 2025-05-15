@@ -5,13 +5,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsJSON } from 'class-validator';
 
-// Definisikan struktur objek metadata tunggal (sama seperti sebelumnya)
-interface PhotoMetadataDynamic {
-  label: string;
-  needAttention?: boolean;
-}
-
-export class AddBatchDynamicPhotosDto {
+export class AddMultiplePhotosDto {
   /**
    * REQUIRED: A JSON string representing an array of metadata objects.
    * Each object MUST correspond to a file uploaded in the 'photos' field,

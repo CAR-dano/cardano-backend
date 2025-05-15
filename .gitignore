@@ -2,13 +2,11 @@
 /dist
 /node_modules
 /build
-/prisma/migrations/
 /generated/
 /pdfarchived/
 /uploads/
 notes.md
 .env.prod
-
 # Logs
 logs
 *.log

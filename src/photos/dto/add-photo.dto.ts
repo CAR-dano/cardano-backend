@@ -10,7 +10,7 @@ import {
   IsBooleanString,
 } from 'class-validator';
 
-export class AddDynamicPhotoDto {
+export class AddPhotoDto {
   /**
    * Custom label provided by the inspector for this photo.
    * Sent as a text field.
