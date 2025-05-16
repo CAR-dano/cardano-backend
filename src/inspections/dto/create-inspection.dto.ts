@@ -1,12 +1,16 @@
-/**
- * @fileoverview Data Transfer Object (DTO) used for creating a new inspection record.
- * This DTO defines the expected structure of the data sent in the request body
- * when using the `POST /inspections` endpoint (expecting `application/json`).
- * It includes basic data fields and properties intended to hold structured data
- * (parsed from JSON) related to different sections of the inspection form.
- * Minimal validation is applied at this stage. File uploads are handled separately.
+/*
+ * --------------------------------------------------------------------------
+ * File: create-inspection.dto.ts
+ * Project: cardano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) used for creating a new inspection record.
+ * Defines the expected structure of the data sent in the request body for the
+ * POST /inspections endpoint. Includes basic data fields and properties for
+ * structured data from the inspection form. File uploads are handled separately.
+ * --------------------------------------------------------------------------
  */
-import { IsString, IsDateString, IsObject, IsUUID } from 'class-validator'; // Keep minimal validators
+import { IsString, IsDateString, IsObject, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateInspectionDto {
@@ -29,7 +33,7 @@ export class CreateInspectionDto {
     example: 'AB 1231 RI',
     description: 'The license plate number of the inspected vehicle.',
   })
-  @IsString() // Decorator validating the field is a string if provided
+  @IsString()
   vehiclePlateNumber?: string;
 
   /**
@@ -42,7 +46,7 @@ export class CreateInspectionDto {
     description:
       'The date and time when the inspection was performed. Expected as an ISO 8601 format string.',
   })
-  @IsDateString() // Validates that the string conforms to the ISO 8601 date format if provided
+  @IsDateString()
   inspectionDate: string;
 
   /**
@@ -67,8 +71,8 @@ export class CreateInspectionDto {
     description:
       'Object containing details from the "Identitas" section of the inspection form.',
   })
-  @IsObject() // Validates that the value is an object if provided
-  identityDetails: Record<string, any>; // Property type is an object/record
+  @IsObject()
+  identityDetails: Record<string, any>;
 
   /**
    * Object containing details from the "Data Kendaraan" section of the inspection form.

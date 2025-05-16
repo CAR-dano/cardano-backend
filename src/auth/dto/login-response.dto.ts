@@ -1,3 +1,15 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: login-response.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object for login responses.
+ * Defines the structure of the payload returned to the client after a successful login,
+ * including the access token and authenticated user details.
+ * --------------------------------------------------------------------------
+ */
+
 import { ApiProperty } from '@nestjs/swagger';
 import { UserResponseDto } from '../../users/dto/user-response.dto'; // Import User DTO
 

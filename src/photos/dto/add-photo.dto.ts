@@ -1,3 +1,14 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: add-photo.dto.ts
+ * Project: cardano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) for adding a single photo.
+ * Used to define the expected structure for the request body when uploading
+ * a single photo file along with its metadata.
+ * --------------------------------------------------------------------------
+ */
 /**
  * @fileoverview DTO for adding a general vehicle photo with a custom label and attention flag.
  * Used with multipart/form-data for the 'photo' file.

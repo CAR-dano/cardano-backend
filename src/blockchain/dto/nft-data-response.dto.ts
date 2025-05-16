@@ -1,9 +1,17 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-/**
- * @fileoverview DTO representing the detailed response structure for an asset (NFT)
- * from the Blockfrost `/assets/{asset}` endpoint.
+/*
+ * --------------------------------------------------------------------------
+ * File: nft-data-response.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) representing the detailed response
+ * structure for an asset (NFT) as returned by the Blockfrost `/assets/{asset}`
+ * endpoint. Includes standard on-chain metadata fields and CAR-dano specific
+ * metadata fields.
+ * --------------------------------------------------------------------------
  */
+
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
  * Represents the structure commonly found within the `onchain_metadata` field
@@ -11,54 +19,93 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
  * All properties are optional as per the standard.
  */
 class NftOnchainMetadataDto {
+  /**
+   * Required display name for the NFT (CIP-25).
+   */
   @ApiPropertyOptional({
     description: 'Required display name for the NFT (CIP-25).',
   })
   name?: string;
 
+  /**
+   * URL (often IPFS) or array of URLs pointing to the NFT's primary media.
+   */
   @ApiPropertyOptional({
     description:
       "URL (often IPFS) or array of URLs pointing to the NFT's primary media.",
   })
   image?: string | string[];
 
+  /**
+   * MIME type of the asset specified in "image".
+   */
   @ApiPropertyOptional({
     description: 'MIME type of the asset specified in "image".',
   })
   mediaType?: string;
 
+  /**
+   * Description of the NFT.
+   */
   @ApiPropertyOptional({ description: 'Description of the NFT.' })
   description?: string | string[];
 
-  // --- CAR-dano Specific Metadata (Contoh) ---
-  // Tambahkan properti spesifik yang ANDA masukkan ke metadata saat minting
+  // --- CAR-dano Specific Metadata ---
+  /**
+   * Original Inspection Record ID.
+   * This ID links the NFT back to the backend's database record.
+   */
   @ApiPropertyOptional({
     description: 'Original Inspection Record ID',
     format: 'uuid',
   })
   inspectionId?: string;
 
+  /**
+   * Vehicle Plate Number.
+   */
   @ApiPropertyOptional({ description: 'Vehicle Plate Number' })
   vehicleNumber?: string;
 
+  /**
+   * Date of Inspection in ISO String format.
+   */
   @ApiPropertyOptional({ description: 'Date of Inspection (ISO String)' })
   inspectionDate?: string;
 
+  /**
+   * Brand of the Vehicle.
+   */
   @ApiPropertyOptional({ description: 'Brand of the Vehicle' })
   vehicleBrand?: string;
 
+  /**
+   * Model of the Vehicle.
+   */
   @ApiPropertyOptional({ description: 'Model of the Vehicle' })
   vehicleModel?: string;
 
+  /**
+   * Overall Rating given during the inspection.
+   */
   @ApiPropertyOptional({ description: 'Overall Rating given' })
   overallRating?: string;
 
+  /**
+   * URL to the off-chain PDF report.
+   */
   @ApiPropertyOptional({ description: 'URL to the off-chain PDF report' })
   pdfUrl?: string;
 
+  /**
+   * SHA-256 Hash of the PDF report.
+   */
   @ApiPropertyOptional({ description: 'SHA-256 Hash of the PDF report' })
   pdfHash?: string;
 
+  /**
+   * ID of the inspector user.
+   */
   @ApiPropertyOptional({
     description: 'ID of the inspector user',
     format: 'uuid',

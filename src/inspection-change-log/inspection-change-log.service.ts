@@ -1,3 +1,14 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: inspection-change-log.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Service responsible for managing inspection change logs.
+ * Provides methods to retrieve change logs for specific inspections.
+ * --------------------------------------------------------------------------
+ */
+
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { InspectionChangeLog } from '@prisma/client';

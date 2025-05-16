@@ -1,7 +1,15 @@
-/**
- * @fileoverview Module definition for inspection-related features.
- * Imports PrismaModule for database access, declares InspectionsController,
- * provides InspectionsService, and potentially MulterModule if needed globally (optional).
+/*
+ * --------------------------------------------------------------------------
+ * File: inspections.module.ts
+ * Project: cardano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: NestJS module responsible for managing inspection-related features.
+ * Imports necessary modules like PrismaModule (for database access),
+ * PhotosModule (for photo handling), and BlockchainModule (for blockchain interactions).
+ * Declares the InspectionsController to handle routes.
+ * Provides the InspectionsService for business logic.
+ * --------------------------------------------------------------------------
  */
 
 import { Module } from '@nestjs/common';

@@ -1,8 +1,20 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: transaction-metadata-response.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) representing a single metadata entry
+ * returned by the Blockfrost `/txs/{hash}/metadata` endpoint.
+ * Contains the metadata label and its associated JSON content.
+ * --------------------------------------------------------------------------
+ */
+
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
- * @fileoverview DTO representing a single metadata entry returned by the
- * Blockfrost `/txs/{hash}/metadata` endpoint.
+ * DTO representing a single metadata entry returned by the Blockfrost
+ * `/txs/{hash}/metadata` endpoint.
  */
 export class TransactionMetadataResponseDto {
   /**

@@ -22,8 +22,10 @@ export class BlockchainController {
   constructor(private readonly blockchainService: BlockchainService) {}
 
   /**
-   * Endpoint to retrieve transaction metadata by its hash.
-   * Access might be restricted depending on requirements.
+   * Retrieves transaction metadata for a given transaction hash.
+   *
+   * @param txHash The transaction hash.
+   * @returns A promise that resolves to an array of TransactionMetadataResponseDto.
    */
   @Get('metadata/tx/:txHash')
   // @UseGuards(JwtAuthGuard) // Example protection
@@ -62,8 +64,10 @@ export class BlockchainController {
   }
 
   /**
-   * Endpoint to retrieve asset data (including metadata) by its Asset ID.
-   * Access might be restricted.
+   * Retrieves NFT data for a given asset ID.
+   *
+   * @param assetId The asset ID.
+   * @returns A promise that resolves to an NftDataResponseDto.
    */
   @Get('nft/:assetId')
   // @UseGuards(JwtAuthGuard) // Example protection
