@@ -1,3 +1,13 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: update-photo.dto.ts
+ * Project: cardano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) for updating photo metadata.
+ * Defines the optional fields that can be sent to update an existing photo record.
+ * --------------------------------------------------------------------------
+ */
 /**
  * @fileoverview DTO for updating photo metadata. All fields are optional.
  * Used with the PUT /inspections/:id/photos/:photoId endpoint (multipart/form-data).

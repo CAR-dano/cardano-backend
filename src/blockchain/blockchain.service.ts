@@ -1,7 +1,15 @@
-/**
- * @fileoverview Service responsible for interacting with the Cardano blockchain.
+/*
+ * --------------------------------------------------------------------------
+ * File: blockchain.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Service responsible for interacting with the Cardano blockchain.
  * Handles NFT minting with metadata and retrieving transaction/asset data
  * using Mesh SDK and BlockfrostProvider.
+ * Imports necessary modules and libraries for blockchain interaction,
+ * configuration, and data handling.
+ * --------------------------------------------------------------------------
  */
 import {
   Injectable,
@@ -46,6 +54,13 @@ export class BlockchainService {
   private readonly wallet: MeshWallet; // Use AppWallet type for better type safety
   private readonly apiKey: string;
 
+  /**
+   * Constructs the BlockchainService.
+   * Initializes the BlockfrostProvider and MeshWallet using configuration from ConfigService.
+   *
+   * @param configService The configuration service.
+   * @throws Error if WALLET_SECRET_KEY environment variable is not set.
+   */
   constructor(private configService: ConfigService) {
     // Initialize Blockfrost Provider
     this.apiKey = this.configService.getOrThrow<string>('BLOCKFROST_API_KEY');
@@ -73,7 +88,8 @@ export class BlockchainService {
 
   /**
    * Creates a new MeshTxBuilder instance configured with the service's provider.
-   * @returns {MeshTxBuilder} A new instance of MeshTxBuilder.
+   *
+   * @returns A new instance of MeshTxBuilder.
    */
   private getTxBuilder(): MeshTxBuilder {
     return new MeshTxBuilder({
@@ -84,10 +100,10 @@ export class BlockchainService {
   }
 
   /**
-   * Generates a unique token name based on inspection data.
-   * Uses SHA256 hash and truncates.
-   * @param dataToHash - A string uniquely identifying the inspection (e.g., plate+date+inspector).
-   * @returns {string} A hexadecimal string representing the token name (max 32 bytes / 64 hex chars).
+   * Generates a unique token name based on input data using SHA256 hash.
+   *
+   * @param dataToHash A string uniquely identifying the data to hash.
+   * @returns A hexadecimal string representing the token name (32 bytes / 64 hex chars).
    */
   private generateTokenName(dataToHash: string): string {
     const hash = createHash('sha256');
@@ -95,19 +111,17 @@ export class BlockchainService {
     const digest = hash.digest('hex');
     this.logger.debug(
       `Generated SHA256 digest (Token Name Hex): ${digest} (Length: ${digest.length})`,
-    ); // Harusnya 64
-    // Tidak perlu substring jika sudah 64 char hex (32 byte)
+    );
     return digest;
   }
 
   /**
-   * Mints a new NFT on Cardano with inspection metadata.
-   * Uses the wallet configured in the service.
+   * Mints a new NFT on Cardano with provided inspection metadata.
+   * Uses the wallet configured in the service to build, sign, and submit the transaction.
    *
-   * @param {InspectionNftMetadata} metadata - The metadata object to embed in the NFT.
-   * @returns {Promise<{ txHash: string; assetId: string }>} Transaction hash and the full asset ID (policyId + hexName).
-   * @throws {InternalServerErrorException} If minting fails.
-   * @throws {BadRequestException} If required metadata fields are missing.
+   * @param metadata The metadata object to embed in the NFT.
+   * @returns A promise that resolves to an object containing the transaction hash and the full asset ID (policyId + hexName).
+   * @throws InternalServerErrorException If minting fails, wallet has no UTXOs, or transaction submission fails.
    */
   async mintInspectionNft(
     metadata: InspectionNftMetadata,
@@ -134,11 +148,7 @@ export class BlockchainService {
 
       // Generate a unique token name based on key inspection data + perhaps a random element or timestamp for uniqueness assurance
       const uniqueDataString = `${metadata.vehicleNumber}`;
-      const tokenName = this.generateTokenName(uniqueDataString);
-      const tokenNameHex = stringToHex(tokenName); // Convert to hex for the blockchain
-      const assetNameForMetadata = Buffer.from(tokenNameHex, 'hex').toString(
-        'utf8',
-      );
+      this.generateTokenName(uniqueDataString); // Call to ensure uniqueness logic is applied, but the return value isn't directly used for asset name
       const simpleAssetName = `Inspection_${metadata.vehicleNumber}`;
       const simpleAssetNameHex = stringToHex(simpleAssetName);
       // Construct the full asset ID
@@ -197,10 +207,11 @@ export class BlockchainService {
   /**
    * Retrieves transaction metadata from Blockfrost using the transaction hash.
    *
-   * @param {string} txHash - The hash of the Cardano transaction.
-   * @returns {Promise<TransactionMetadataResponseDto[]>} The metadata associated with the transaction.
-   * @throws {NotFoundException} If the transaction or metadata is not found.
-   * @throws {InternalServerErrorException} For Blockfrost API or other errors.
+   * @param txHash The hash of the Cardano transaction.
+   * @returns A promise that resolves to an array of TransactionMetadataResponseDto containing the metadata associated with the transaction.
+   * @throws BadRequestException if the transaction hash is not provided.
+   * @throws NotFoundException if the transaction or metadata is not found on Blockfrost.
+   * @throws InternalServerErrorException for Blockfrost API errors or other unexpected issues.
    */
   async getTransactionMetadata(
     txHash: string,
@@ -285,10 +296,11 @@ export class BlockchainService {
   /**
    * Retrieves asset details (including on-chain metadata if available) from Blockfrost using the asset ID.
    *
-   * @param {string} assetId - The full asset ID (PolicyID + HexAssetName).
-   * @returns {Promise<NftDataResponseDto>} The asset details including metadata.
-   * @throws {NotFoundException} If the asset is not found.
-   * @throws {InternalServerErrorException} For Blockfrost API or other errors.
+   * @param assetId The full asset ID (PolicyID + HexAssetName).
+   * @returns A promise that resolves to an NftDataResponseDto containing the asset details and metadata.
+   * @throws BadRequestException if the asset ID is not provided.
+   * @throws NotFoundException if the asset is not found on Blockfrost.
+   * @throws InternalServerErrorException for Blockfrost API errors or other unexpected issues.
    */
   async getNftData(assetId: string): Promise<NftDataResponseDto> {
     this.logger.log(`Retrieving data for Asset ID: ${assetId}`);

@@ -1,3 +1,13 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: photo-response.dto.ts
+ * Project: cardano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) for the response structure of a Photo record.
+ * Defines the fields returned by the API when retrieving photo information.
+ * --------------------------------------------------------------------------
+ */
 /**
  * @fileoverview DTO representing the structure of a Photo record returned by the API.
  */
@@ -31,6 +41,11 @@ export class PhotoResponseDto {
   @ApiProperty({ description: 'Timestamp when the photo record was created' })
   createdAt: Date;
 
+  /**
+   * Constructs a PhotoResponseDto instance from a Prisma Photo model.
+   *
+   * @param photo The Prisma Photo model instance.
+   */
   constructor(photo: Photo) {
     this.id = photo.id;
     // this.inspectionId = photo.inspectionId;

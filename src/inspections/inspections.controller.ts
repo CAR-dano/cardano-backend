@@ -1,9 +1,15 @@
-/**
- * @fileoverview Controller responsible for handling HTTP requests related to inspections.
+/*
+ * --------------------------------------------------------------------------
+ * File: inspections.controller.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Controller responsible for handling HTTP requests related to inspections.
  * Provides endpoints for creating inspection data, adding photos (single or batch per type),
  * retrieving all/single inspections, updating photos, deleting photos,
  * and managing inspection status lifecycle (approve, reject, archive, deactivate, activate).
  * Authentication/Authorization guards are commented out for initial development/testing.
+ * --------------------------------------------------------------------------
  */
 
 import {
@@ -108,9 +114,10 @@ export class InspectionsController {
   private readonly logger = new Logger(InspectionsController.name);
 
   /**
+   * Constructs the InspectionsController.
    * Injects required services via NestJS Dependency Injection.
-   * @param {InspectionsService} inspectionsService - Service for core inspection logic.
-   * @param {PhotosService} photosService - Service specifically for handling photo operations.
+   * @param inspectionsService Service for core inspection logic.
+   * @param photosService Service specifically for handling photo operations.
    */
   constructor(
     private readonly inspectionsService: InspectionsService,
@@ -118,12 +125,13 @@ export class InspectionsController {
   ) {}
 
   /**
+   * Handles the creation of a new inspection record.
    * [POST /inspections]
    * Creates the initial inspection record containing text and JSON data.
    * This is the first step before uploading photos or archiving.
    * Expects 'application/json' content type.
-   * @param {CreateInspectionDto} createInspectionDto - DTO containing the initial inspection data.
-   * @returns {Promise<InspectionResponseDto>} The newly created inspection record summary.
+   * @param createInspectionDto DTO containing the initial inspection data.
+   * @returns A promise that resolves to the newly created inspection record summary.
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -155,12 +163,13 @@ export class InspectionsController {
   }
 
   /**
-   * [PATCH /inspections/:id]
+   * Handles the update of an existing inspection record.
+   * [PUT /inspections/:id]
    * Partially updates the text/JSON data fields of an existing inspection.
    * Does not handle photo updates. Expects 'application/json'.
-   * @param {string} id - The UUID of the inspection to update.
-   * @param {UpdateInspectionDto} updateInspectionDto - DTO containing the fields to update.
-   * @returns {Promise<InspectionResponseDto>} The updated inspection record summary.
+   * @param id The UUID of the inspection to update.
+   * @param updateInspectionDto DTO containing the fields to update.
+   * @returns A promise that resolves to the updated inspection record summary.
    */
   @Put(':id')
   @HttpCode(HttpStatus.OK)
@@ -212,13 +221,14 @@ export class InspectionsController {
   // --- Photo Batch Upload Endpoints ---
 
   /**
-   * [POST /inspections/:id/photos/fixed-batch]
-   * Uploads a batch of FIXED type photos (with predefined labels) for an inspection.
+   * Handles the upload of multiple photos for an inspection.
+   * [POST /inspections/:id/photos/multiple]
+   * Uploads a batch of photos for an inspection.
    * Expects 'multipart/form-data' with 'metadata' (JSON string array) and 'photos' (files).
-   * @param {string} id - Inspection UUID.
-   * @param {AddBatchFixedPhotosDto} addBatchDto - DTO containing the 'metadata' JSON string.
-   * @param {Express.Multer.File[]} files - Array of uploaded image files from the 'photos' field.
-   * @returns {Promise<PhotoResponseDto[]>} Array of created photo record summaries.
+   * @param id Inspection UUID.
+   * @param addBatchDto DTO containing the 'metadata' JSON string.
+   * @param files Array of uploaded image files from the 'photos' field.
+   * @returns A promise that resolves to an array of created photo record summaries.
    */
   @Post(':id/photos/multiple') // Renamed endpoint
   @HttpCode(HttpStatus.CREATED)
@@ -278,20 +288,18 @@ export class InspectionsController {
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async addMultiplePhotos(
-    // Renamed method
     @Param('id') id: string,
-    @Body() addBatchDto: AddMultiplePhotosDto, // Updated DTO
+    @Body() addBatchDto: AddMultiplePhotosDto,
     @UploadedFiles() files: Array<Express.Multer.File>,
     // @GetUser('id') userId: string,
   ): Promise<PhotoResponseDto[]> {
     this.logger.log(
-      `[POST /inspections/${id}/photos/multiple] Received ${files?.length} files.`, // Updated log
+      `[POST /inspections/${id}/photos/multiple] Received ${files?.length} files.`,
     );
     if (!files || files.length === 0)
       throw new BadRequestException('No photo files provided.');
     const dummyUserId = DUMMY_USER_ID;
     const newPhotos = await this.photosService.addMultiplePhotos(
-      // Updated service method
       id,
       files,
       addBatchDto.metadata,
@@ -301,13 +309,21 @@ export class InspectionsController {
   }
 
   /**
+   * Interface for the parsed metadata of a single photo.
+   */
+  interface SinglePhotoMetadata {
+    label: string;
+    needAttention?: boolean;
+  }
+
+  /**
+   * Handles the upload of a single photo for an inspection.
    * [POST /inspections/:id/photos/single]
-   * Uploads a single photo for an inspection.
    * Expects 'multipart/form-data' with 'label' (string) and optionally 'needAttention' (string "true" or "false") and 'photo' (file).
-   * @param {string} id - Inspection UUID.
-   * @param {AddSinglePhotoDto} addSingleDto - DTO containing the label and optional needAttention flag.
-   * @param {Express.Multer.File} file - The uploaded image file from the 'photo' field.
-   * @returns {Promise<PhotoResponseDto>} The created photo record summary.
+   * @param id Inspection UUID.
+   * @param addSingleDto DTO containing the label and optional needAttention flag.
+   * @param file The uploaded image file from the 'photo' field.
+   * @returns A promise that resolves to the created photo record summary.
    */
   @Post(':id/photos/single')
   @HttpCode(HttpStatus.CREATED)
@@ -359,9 +375,9 @@ export class InspectionsController {
     );
     if (!file) throw new BadRequestException('No photo file provided.');
 
-    let parsedMetadata;
+    let parsedMetadata: SinglePhotoMetadata;
     try {
-      parsedMetadata = JSON.parse(addSingleDto.metadata);
+      parsedMetadata = JSON.parse(addSingleDto.metadata) as SinglePhotoMetadata;
       if (
         !parsedMetadata ||
         typeof parsedMetadata.label !== 'string' ||
@@ -389,8 +405,11 @@ export class InspectionsController {
   // --- Photo Management Endpoints ---
 
   /**
+   * Handles the retrieval of all photo records for a specific inspection.
    * [GET /inspections/:id/photos]
    * Retrieves all photo records associated with a specific inspection.
+   * @param id Inspection ID.
+   * @returns A promise that resolves to an array of photo record summaries.
    */
   @Get(':id/photos')
   // @UseGuards(JwtAuthGuard) // Add later if needed
@@ -421,9 +440,15 @@ export class InspectionsController {
   }
 
   /**
+   * Handles the update of a specific photo's metadata and/or file.
    * [PUT /inspections/:id/photos/:photoId]
    * Updates a specific photo's metadata and/or replaces its file.
    * Expects 'multipart/form-data'. File and metadata fields are optional.
+   * @param inspectionId Inspection ID.
+   * @param photoId Photo ID.
+   * @param updatePhotoDto Optional metadata updates (label, needAttention).
+   * @param newFile Optional new photo file.
+   * @returns A promise that resolves to the updated photo record summary.
    */
   @Put(':id/photos/:photoId')
   @HttpCode(HttpStatus.OK)
@@ -487,8 +512,6 @@ export class InspectionsController {
     // This helps mitigate potential ESLint "unsafe assignment" warnings related to Multer errors
     const fileToPass = newFile && 'filename' in newFile ? newFile : undefined;
 
-    // Panggil service update
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const updatedPhoto = await this.photosService.updatePhoto(
       inspectionId,
       photoId,
@@ -499,8 +522,12 @@ export class InspectionsController {
   }
 
   /**
+   * Handles the deletion of a specific photo record and its associated file.
    * [DELETE /inspections/:id/photos/:photoId]
    * Deletes a specific photo record and its associated file (if stored locally).
+   * @param inspectionId Inspection ID (for path consistency).
+   * @param photoId Photo ID.
+   * @returns A promise that resolves when the photo is deleted.
    */
   @Delete(':id/photos/:photoId')
   @HttpCode(HttpStatus.NO_CONTENT) // Standard for successful DELETE with no body
@@ -545,8 +572,11 @@ export class InspectionsController {
   // --- Inspection Retrieval Endpoints ---
 
   /**
+   * Handles the retrieval of all inspection records.
    * [GET /inspections]
    * Retrieves all inspection records, potentially filtered by role (passed via query).
+   * @param userRole Optional role to filter inspections by.
+   * @returns A promise that resolves to an array of inspection record summaries.
    */
   @Get()
   // @UseGuards(JwtAuthGuard) // Add later if needed
@@ -581,8 +611,12 @@ export class InspectionsController {
   }
 
   /**
+   * Handles the retrieval of a specific inspection by ID.
    * [GET /inspections/:id]
    * Retrieves a specific inspection by ID, applying role-based visibility rules.
+   * @param id The UUID of the inspection to retrieve.
+   * @param userRole Optional role to filter inspection visibility by.
+   * @returns A promise that resolves to the inspection record summary.
    */
   @Get(':id')
   // @UseGuards(JwtAuthGuard) // Add later if needed
@@ -626,8 +660,11 @@ export class InspectionsController {
   // --- Status Management Endpoints ---
 
   /**
+   * Handles the approval of a submitted inspection.
    * [PATCH /inspections/:id/approve]
    * Approves a submitted inspection. Requires Reviewer/Admin role (to be enforced later).
+   * @param id Inspection ID.
+   * @returns A promise that resolves to the approved inspection record summary.
    */
   @Patch(':id/approve')
   @HttpCode(HttpStatus.OK)
@@ -673,9 +710,12 @@ export class InspectionsController {
 
   /**
    * Initiates the archiving process for an approved inspection.
+   * [PUT /inspections/:id/archive]
    * Initiates the archiving process for an approved inspection by fetching a URL and converting it to PDF.
    * Expects a JSON body with a 'url' field.
    * Uses PUT as it replaces/sets the archive-related data.
+   * @param id Inspection ID.
+   * @returns A promise that resolves to the archived inspection record summary.
    */
   @Put(':id/archive')
   @HttpCode(HttpStatus.OK)
@@ -708,10 +748,8 @@ export class InspectionsController {
     @Param('id') id: string,
     // @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
-    // --- Dummy User ID (yg melakukan aksi) ---
     const dummyUserId = DUMMY_USER_ID;
     this.logger.warn(`Using DUMMY user ID for archive action: ${dummyUserId}`);
-    // --------------------------------------
     // Service will handle fetching URL, converting to PDF, saving PDF, hash, blockchain sim, update status
     const inspection = await this.inspectionsService.processToArchive(
       id,
@@ -721,8 +759,11 @@ export class InspectionsController {
   }
 
   /**
+   * Handles the deactivation of an archived inspection.
    * [PATCH /inspections/:id/deactivate]
    * Deactivates an archived inspection. Requires Admin role.
+   * @param id Inspection ID.
+   * @returns A promise that resolves to the deactivated inspection record summary.
    */
   @Patch(':id/deactivate')
   @HttpCode(HttpStatus.OK)
@@ -758,7 +799,6 @@ export class InspectionsController {
     this.logger.warn(
       `Using DUMMY user ID for deactivate action: ${dummyUserId}`,
     );
-    // --------------------
     const inspection = await this.inspectionsService.deactivateArchive(
       id,
       dummyUserId,
@@ -767,8 +807,11 @@ export class InspectionsController {
   }
 
   /**
+   * Handles the reactivation of a deactivated inspection.
    * [PATCH /inspections/:id/activate]
    * Reactivates a deactivated inspection. Requires Admin role.
+   * @param id Inspection ID.
+   * @returns A promise that resolves to the activated inspection record summary.
    */
   @Patch(':id/activate')
   @HttpCode(HttpStatus.OK)
@@ -802,7 +845,6 @@ export class InspectionsController {
   ): Promise<InspectionResponseDto> {
     const dummyUserId = DUMMY_USER_ID; // Temporary
     this.logger.warn(`Using DUMMY user ID for activate action: ${dummyUserId}`);
-    // --------------------
     const inspection = await this.inspectionsService.activateArchive(
       id,
       dummyUserId,

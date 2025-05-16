@@ -1,4 +1,14 @@
-// src/inspections/dto/add-photos.dto.ts (File Baru)
+/*
+ * --------------------------------------------------------------------------
+ * File: add-single-photo.dto.ts
+ * Project: cardano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) for adding a single photo with metadata
+ * to an inspection record. Defines the expected structure of the data sent in the
+ * request body when uploading a single photo.
+ * --------------------------------------------------------------------------
+ */
 import { ApiProperty } from '@nestjs/swagger';
 import { IsJSON, IsNotEmpty } from 'class-validator';
 
@@ -16,9 +26,9 @@ export class AddSinglePhotoDto {
     example:
       '[{"label":"Rear Left Fender","needAttention":true}, {"label":"Front Right Fender"}]',
   })
-  @IsJSON() // Validasi bahwa ini string JSON valid
-  @IsNotEmpty() // Wajib ada
-  metadata: string; // Terima sebagai string JSON
+  @IsJSON() // Validates that this is a valid JSON string
+  @IsNotEmpty() // Required field
+  metadata: string; // Receive as JSON string
 
-  // File 'photos' tidak didefinisikan di sini, ditangani oleh interceptor
+  // The 'photos' file is not defined here; it is handled by the interceptor.
 }

@@ -1,5 +1,17 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: login-user.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object for user login requests.
+ * Defines the structure for the payload used when a user attempts to log in
+ * with their email/username and password.
+ * --------------------------------------------------------------------------
+ */
+
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, MinLength } from 'class-validator';
+import { IsString, IsNotEmpty } from 'class-validator';
 
 export class LoginUserDto {
   /**

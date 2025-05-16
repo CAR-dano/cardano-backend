@@ -1,10 +1,15 @@
-/**
- * @fileoverview Data Transfer Object (DTO) representing the structure of a complete
- * Inspection record when returned by API endpoints (e.g., GET /inspections, GET /inspections/:id).
- * It defines the shape of the data sent back to the client, potentially excluding
- * sensitive or internal fields from the original Prisma model.
+/*
+ * --------------------------------------------------------------------------
+ * File: inspection-response.dto.ts
+ * Project: cardano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) representing the structure of a complete
+ * Inspection record when returned by API endpoints. Defines the shape of the data
+ * sent back to the client, potentially excluding sensitive or internal fields.
+ * --------------------------------------------------------------------------
  */
-import { Inspection, Prisma } from '@prisma/client'; // Import necessary Prisma types
+import { Inspection, Prisma } from '@prisma/client';
 import { ApiProperty } from '@nestjs/swagger';
 
 // Optional: Import UserResponseDto if you plan to embed user details later

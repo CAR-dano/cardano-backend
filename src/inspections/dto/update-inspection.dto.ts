@@ -1,17 +1,25 @@
-/**
- * @fileoverview DTO for partially updating an existing inspection record.
- * All fields are optional. Inherits properties from CreateInspectionDto using PartialType.
+/*
+ * --------------------------------------------------------------------------
+ * File: update-inspection.dto.ts
+ * Project: cardano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) for partially updating an existing inspection record.
+ * Inherits properties from CreateInspectionDto using PartialType, making all fields optional.
  * Does not include file handling properties.
+ * --------------------------------------------------------------------------
  */
-import { PartialType } from '@nestjs/mapped-types'; // Utility for optional fields
+import { PartialType } from '@nestjs/mapped-types';
 import { CreateInspectionDto } from './create-inspection.dto';
 // Import additional validators if needed for specific update logic
 // import { IsEnum, IsOptional } from 'class-validator';
 // import { InspectionStatus } from '@prisma/client';
 // import { ApiPropertyOptional } from '@nestjs/swagger'; // Alternative for optional properties
 
-// CreateUpdateInspectionDto inherits all properties from CreateInspectionDto,
-// but makes them all optional automatically thanks to PartialType.
+/**
+ * DTO for partially updating an existing inspection record.
+ * Inherits all properties from CreateInspectionDto, making them optional.
+ */
 export class UpdateInspectionDto extends PartialType(CreateInspectionDto) {
   // You can add specific fields here that are ONLY updatable but not creatable,
   // or override properties from CreateInspectionDto if needed (e.g., different validation).

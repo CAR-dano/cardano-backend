@@ -1,3 +1,14 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: add-multiple-photos.dto.ts
+ * Project: cardano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) for adding multiple photos in a batch.
+ * Used to define the expected structure for the request body when uploading
+ * multiple photo files along with their metadata.
+ * --------------------------------------------------------------------------
+ */
 /**
  * @fileoverview DTO for adding a BATCH of dynamic photos.
  * Expects a JSON string array in the 'metadata' field corresponding to the 'photos' files.
@@ -23,7 +34,7 @@ export class AddMultiplePhotosDto {
   })
   @IsString()
   @IsNotEmpty()
-  @IsJSON() // Validasi bahwa ini string JSON valid
+  @IsJSON() // Validates that this is a valid JSON string
   metadata: string;
 
   // 'photos' field (files) handled by FilesInterceptor
