@@ -17,7 +17,13 @@ import {
 import { PrismaService } from '../prisma/prisma.service'; // Service for Prisma client interaction
 import { CreateInspectionDto } from './dto/create-inspection.dto'; // DTO for incoming creation data
 import { UpdateInspectionDto } from './dto/update-inspection.dto';
-import { Inspection, InspectionStatus, Prisma, Role } from '@prisma/client'; // Prisma generated types (Inspection model, Prisma namespace)
+import {
+  Inspection,
+  InspectionStatus,
+  Prisma,
+  Role,
+  InspectionChangeLog,
+} from '@prisma/client'; // Prisma generated types (Inspection model, Prisma namespace)
 import * as fs from 'fs/promises'; // Use promise-based fs for async file operations
 import * as path from 'path'; // For constructing file paths
 import * as crypto from 'crypto'; // For generating PDF hash
@@ -274,15 +280,13 @@ export class InspectionsService {
     // 2. Compare data and log changes
     const changesToLog: Prisma.InspectionChangeLogCreateManyInput[] = [];
 
-    // Helper function for deep comparison of JSON objects and logging granular changes
-    const logJsonChanges = (
+    // Helper function for deep comparison of JSON objects up to one level
+    const logJsonChangesOneLevel = (
       fieldName: string,
       oldValue: any,
       newValue: any,
       changes: Prisma.InspectionChangeLogCreateManyInput[],
-      currentPath: string = '', // Track the nested path
     ) => {
-      // If both are objects, recurse
       if (
         typeof oldValue === 'object' &&
         oldValue !== null &&
@@ -291,158 +295,79 @@ export class InspectionsService {
       ) {
         const oldObj = oldValue as any;
         const newObj = newValue as any;
-        const allKeys = new Set([
-          ...Object.keys(oldObj),
-          ...Object.keys(newObj),
-        ]);
 
-        for (const key of allKeys) {
-          const nestedOldValue = oldObj[key];
-          const nestedNewValue = newObj[key];
-          const nestedPath = currentPath ? `${currentPath}.${key}` : key;
-          logJsonChanges(
-            fieldName,
-            nestedOldValue,
-            nestedNewValue,
-            changes,
-            nestedPath,
-          );
+        // Hanya iterasi melalui kunci yang ada di newValue
+        for (const key in newObj) {
+          if (newObj.hasOwnProperty(key)) {
+            const oldVal = oldObj[key];
+            const newVal = newObj[key];
+
+            const oldValToLog = oldVal === undefined ? null : oldVal;
+            const newValToLog = newVal === undefined ? null : newVal;
+
+            if (JSON.stringify(oldValToLog) !== JSON.stringify(newValToLog)) {
+              changes.push({
+                inspectionId: id,
+                changedByUserId: userId,
+                fieldName: fieldName,
+                subFieldName: key,
+                oldValue: oldValToLog === null ? Prisma.JsonNull : oldValToLog,
+                newValue: newValToLog === null ? Prisma.JsonNull : newValToLog,
+              });
+            }
+          }
         }
       } else if (oldValue !== newValue) {
-        // If values are different (and not both objects), log the change
-        // Handle undefined vs null consistently for comparison and logging
         const oldValToLog = oldValue === undefined ? null : oldValue;
         const newValToLog = newValue === undefined ? null : newValue;
-
-        // Only log if there's an actual change in value (considering undefined/null)
         if (JSON.stringify(oldValToLog) !== JSON.stringify(newValToLog)) {
           changes.push({
             inspectionId: id,
             changedByUserId: userId,
             fieldName: fieldName,
-            subFieldName: currentPath || null, // Use null if no sub-field path
+            subFieldName: null,
             oldValue: oldValToLog === null ? Prisma.JsonNull : oldValToLog,
             newValue: newValToLog === null ? Prisma.JsonNull : newValToLog,
           });
         }
       }
-      // If values are the same, do nothing
     };
 
     // Compare fields from DTO with existing data and log changes
-    if (updateInspectionDto.vehiclePlateNumber !== undefined) {
-      if (
-        existingInspection.vehiclePlateNumber !==
-        updateInspectionDto.vehiclePlateNumber
-      ) {
-        changesToLog.push({
-          inspectionId: id,
-          changedByUserId: userId,
-          fieldName: 'vehiclePlateNumber',
-          subFieldName: null, // Top-level field
-          oldValue:
-            existingInspection.vehiclePlateNumber === null
-              ? Prisma.JsonNull
-              : existingInspection.vehiclePlateNumber,
-          newValue:
-            updateInspectionDto.vehiclePlateNumber === null
-              ? Prisma.JsonNull
-              : updateInspectionDto.vehiclePlateNumber,
-        });
-      }
-    }
-    if (updateInspectionDto.inspectionDate !== undefined) {
-      const existingDate =
-        existingInspection.inspectionDate?.toISOString() ?? null;
-      const newDate = updateInspectionDto.inspectionDate
-        ? new Date(updateInspectionDto.inspectionDate).toISOString()
-        : null;
-      if (existingDate !== newDate) {
-        changesToLog.push({
-          inspectionId: id,
-          changedByUserId: userId,
-          fieldName: 'inspectionDate',
-          subFieldName: null, // Top-level field
-          oldValue: existingDate === null ? Prisma.JsonNull : existingDate,
-          newValue: newDate === null ? Prisma.JsonNull : newDate,
-        });
-      }
-    }
-    if (updateInspectionDto.overallRating !== undefined) {
-      if (
-        existingInspection.overallRating !== updateInspectionDto.overallRating
-      ) {
-        changesToLog.push({
-          inspectionId: id,
-          changedByUserId: userId,
-          fieldName: 'overallRating',
-          subFieldName: null, // Top-level field
-          oldValue:
-            existingInspection.overallRating === null
-              ? Prisma.JsonNull
-              : existingInspection.overallRating,
-          newValue:
-            updateInspectionDto.overallRating === null
-              ? Prisma.JsonNull
-              : updateInspectionDto.overallRating,
-        });
-      }
-    }
+    for (const key in updateInspectionDto) {
+      if (updateInspectionDto.hasOwnProperty(key)) {
+        const newValue = (updateInspectionDto as any)[key];
+        const oldValue = (existingInspection as any)[key];
 
-    // Compare and log changes for JSON fields using the helper function
-    if (updateInspectionDto.identityDetails !== undefined) {
-      logJsonChanges(
-        'identityDetails',
-        existingInspection.identityDetails,
-        updateInspectionDto.identityDetails,
-        changesToLog,
-      );
-    }
-    if (updateInspectionDto.vehicleData !== undefined) {
-      logJsonChanges(
-        'vehicleData',
-        existingInspection.vehicleData,
-        updateInspectionDto.vehicleData,
-        changesToLog,
-      );
-    }
-    if (updateInspectionDto.equipmentChecklist !== undefined) {
-      logJsonChanges(
-        'equipmentChecklist',
-        existingInspection.equipmentChecklist,
-        updateInspectionDto.equipmentChecklist,
-        changesToLog,
-      );
-    }
-    if (updateInspectionDto.inspectionSummary !== undefined) {
-      logJsonChanges(
-        'inspectionSummary',
-        existingInspection.inspectionSummary,
-        updateInspectionDto.inspectionSummary,
-        changesToLog,
-      );
-    }
-    if (updateInspectionDto.detailedAssessment !== undefined) {
-      logJsonChanges(
-        'detailedAssessment',
-        existingInspection.detailedAssessment,
-        updateInspectionDto.detailedAssessment,
-        changesToLog,
-      );
-    }
-    if (updateInspectionDto.bodyPaintThickness !== undefined) {
-      logJsonChanges(
-        'bodyPaintThickness',
-        existingInspection.bodyPaintThickness,
-        updateInspectionDto.bodyPaintThickness,
-        changesToLog,
-      );
+        if (
+          key === 'identityDetails' ||
+          key === 'vehicleData' ||
+          key === 'equipmentChecklist' ||
+          key === 'inspectionSummary' ||
+          key === 'detailedAssessment' ||
+          key === 'bodyPaintThickness'
+        ) {
+          logJsonChangesOneLevel(key, oldValue, newValue, changesToLog);
+        } else if (newValue !== undefined) {
+          const oldValToLog = oldValue === undefined ? null : oldValue;
+          const newValToLog = newValue === undefined ? null : newValue;
+          if (JSON.stringify(oldValToLog) !== JSON.stringify(newValToLog)) {
+            changesToLog.push({
+              inspectionId: id,
+              changedByUserId: userId,
+              fieldName: key,
+              subFieldName: null,
+              oldValue: oldValToLog === null ? Prisma.JsonNull : oldValToLog,
+              newValue: newValToLog === null ? Prisma.JsonNull : newValToLog,
+            });
+          }
+        }
+      }
     }
 
     // 3. Save changes to InspectionChangeLog
     if (changesToLog.length > 0) {
       try {
-        // Use createMany for efficiency if logging multiple changes
         await this.prisma.inspectionChangeLog.createMany({
           data: changesToLog,
         });
@@ -450,27 +375,22 @@ export class InspectionsService {
           `Logged ${changesToLog.length} changes for inspection ID: ${id}`,
         );
       } catch (error: any) {
-        // Reverted to any
-        // Keep any for now, will refine later
         this.logger.error(
           `Failed to log changes for inspection ID ${id}: ${error.message}`,
           error.stack,
         );
-        // Decide how to handle logging failure - throw error or just log?
-        // For now, we'll throw to indicate the save operation failed.
         throw new InternalServerErrorException(
           'Could not save inspection change logs.',
         );
       }
     } else {
-      this.logger.log(`No changes detected for inspection ID: ${id}`);
+      this.logger.log(
+        `No significant changes detected for inspection ID: ${id}`,
+      );
     }
 
-    // 4. Return the existing inspection (update to Inspection table happens on approve)
-    // We might want to return the inspection with the *applied* changes for the frontend to preview,
-    // but the plan is to only apply on approve. So, returning the current state is fine for now.
-    // A more advanced approach would be to apply changes in memory and return that object.
-    return existingInspection; // Return the inspection as it is in the DB
+    // 4. Return the existing inspection
+    return existingInspection;
   }
 
   /**
@@ -589,8 +509,9 @@ export class InspectionsService {
   }
 
   /**
-   * Approves an inspection, applies logged changes, and changes status to APPROVED.
-   * Fetches latest changes from InspectionChangeLog and updates the Inspection record.
+   * Approves an inspection, applies the latest logged change for each field,
+   * generates and stores the PDF, calculates its hash, and changes status to APPROVED.
+   * Fetches the latest changes from InspectionChangeLog and updates the Inspection record.
    * Records the reviewer ID and optionally clears applied change logs.
    *
    * @param {string} inspectionId - The UUID of the inspection to approve.
@@ -598,7 +519,7 @@ export class InspectionsService {
    * @returns {Promise<Inspection>} The updated inspection record.
    * @throws {NotFoundException} If inspection not found.
    * @throws {BadRequestException} If inspection is not in NEED_REVIEW or FAIL_ARCHIVE state.
-   * @throws {InternalServerErrorException} For database errors.
+   * @throws {InternalServerErrorException} For database errors or PDF generation issues.
    */
   async approveInspection(
     inspectionId: string,
@@ -608,86 +529,144 @@ export class InspectionsService {
       `Reviewer ${reviewerId} attempting to approve inspection ${inspectionId}`,
     );
 
+    // 1. Find the inspection and validate status
+    const inspection = await this.prisma.inspection.findUnique({
+      where: { id: inspectionId },
+    });
+
+    if (!inspection) {
+      throw new NotFoundException(
+        `Inspection with ID "${inspectionId}" not found for approval.`,
+      );
+    }
+
+    if (
+      inspection.status !== InspectionStatus.NEED_REVIEW &&
+      inspection.status !== InspectionStatus.FAIL_ARCHIVE
+    ) {
+      throw new BadRequestException(
+        `Inspection ${inspectionId} cannot be approved. Current status is '${inspection.status}'. Required: '${InspectionStatus.NEED_REVIEW}' or '${InspectionStatus.FAIL_ARCHIVE}'.`,
+      );
+    }
+
+    const frontendReportUrl = `${this.config.getOrThrow<string>(
+      'CLIENT_BASE_URL',
+    )}/data/${inspection.pretty_id}`;
+    let pdfBuffer: Buffer;
+    let pdfHashString: string | null = null;
+    const pdfFileName = `${inspection.pretty_id}-${Date.now()}.pdf`; // Nama file unik
+    const pdfFilePath = path.join(PDF_ARCHIVE_PATH, pdfFileName);
+    const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${pdfFileName}`; // URL publik
+
+    try {
+      // Generate PDF from URL
+      pdfBuffer = await this.generatePdfFromUrl(frontendReportUrl);
+
+      // Save PDF to Disc
+      await fs.writeFile(pdfFilePath, pdfBuffer);
+      this.logger.log(`PDF report saved to: ${pdfFilePath}`);
+
+      // Calculate PDF Hash
+      const hash = crypto.createHash('sha256');
+      hash.update(pdfBuffer);
+      pdfHashString = hash.digest('hex');
+      this.logger.log(`PDF hash calculated: ${pdfHashString}`);
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to generate or save PDF for inspection ${inspectionId}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to generate or save PDF report.`,
+      );
+    }
+
     return this.prisma.$transaction(async (tx) => {
-      // 1. Find the inspection and validate status within the transaction
-      const inspection = await tx.inspection.findUnique({
-        where: { id: inspectionId },
-      });
-
-      if (!inspection) {
-        throw new NotFoundException(
-          `Inspection with ID "${inspectionId}" not found for approval.`,
-        );
-      }
-
-      if (
-        inspection.status !== InspectionStatus.NEED_REVIEW &&
-        inspection.status !== InspectionStatus.FAIL_ARCHIVE
-      ) {
-        throw new BadRequestException(
-          `Inspection ${inspectionId} cannot be approved. Current status is '${inspection.status}'. Required: '${InspectionStatus.NEED_REVIEW}' or '${InspectionStatus.FAIL_ARCHIVE}'.`,
-        );
-      }
-
-      // 2. Fetch the latest changes from InspectionChangeLog for this inspection
-      const changeLogs = await tx.inspectionChangeLog.findMany({
+      // 2. Fetch the latest change log for each field
+      const latestChanges = await tx.inspectionChangeLog.findMany({
         where: { inspectionId: inspectionId },
-        orderBy: { changedAt: 'asc' }, // Apply changes in order
+        orderBy: { changedAt: 'asc' },
       });
 
-      // 3. Apply changes to the inspection data in memory
-      const updatedInspectionData: any = { ...inspection }; // Create a mutable copy
+      // Group changes by fieldName and subFieldName
+      const groupedChanges: { [key: string]: InspectionChangeLog[] } = {};
+      for (const log of latestChanges) {
+        const key = log.subFieldName
+          ? `${log.fieldName}.${log.subFieldName}`
+          : log.fieldName;
+        if (!groupedChanges[key]) {
+          groupedChanges[key] = [];
+        }
+        groupedChanges[key].push(log);
+      }
 
-      for (const log of changeLogs) {
-        // Handle top-level fields
-        if (!log.subFieldName) {
-          (updatedInspectionData as any)[log.fieldName] = log.newValue;
-        } else {
-          // Handle nested JSON fields
-          const fieldPath = log.subFieldName.split('.');
-          let currentLevel: any = (updatedInspectionData as any)[log.fieldName];
-
-          // Ensure the path exists, creating nested objects if necessary
-          for (let i = 0; i < fieldPath.length - 1; i++) {
-            if (
-              currentLevel[fieldPath[i]] === undefined ||
-              currentLevel[fieldPath[i]] === null
-            ) {
-              currentLevel[fieldPath[i]] = {};
-            }
-            currentLevel = currentLevel[fieldPath[i]];
+      // Get the latest change for each field
+      const latestValues: { [key: string]: any } = {};
+      for (const key in groupedChanges) {
+        if (groupedChanges.hasOwnProperty(key)) {
+          const logs = groupedChanges[key];
+          // Sort by changedAt descending and take the first one
+          logs.sort((a, b) => b.changedAt.getTime() - a.changedAt.getTime());
+          const latestLog = logs[0];
+          if (latestLog) {
+            latestValues[key] = latestLog.newValue;
           }
-
-          // Apply the new value at the final nested level
-          currentLevel[fieldPath[fieldPath.length - 1]] = log.newValue;
         }
       }
 
-      // 4. Update the Inspection record in the database with applied changes and status
+      // 3. Apply the latest changes to the inspection data
+      const updatedInspectionData: any = { ...inspection };
+
+      for (const key in latestValues) {
+        if (latestValues.hasOwnProperty(key)) {
+          if (key.includes('.')) {
+            // Handle subFieldName (one level deep)
+            const [fieldName, subFieldName] = key.split('.');
+            if (
+              updatedInspectionData[fieldName] &&
+              typeof updatedInspectionData[fieldName] === 'object'
+            ) {
+              updatedInspectionData[fieldName] = {
+                ...updatedInspectionData[fieldName],
+                [subFieldName]: latestValues[key],
+              };
+            } else {
+              updatedInspectionData[fieldName] = {
+                [subFieldName]: latestValues[key],
+              };
+            }
+          } else {
+            // Handle top-level fields (fieldName only)
+            updatedInspectionData[key] = latestValues[key];
+          }
+        }
+      }
+
+      // 4. Update the Inspection record in the database
       const updatedInspection = await tx.inspection.update({
         where: { id: inspectionId },
         data: {
-          ...updatedInspectionData, // Apply all fields from the modified object
+          ...updatedInspectionData,
           status: InspectionStatus.APPROVED,
           reviewerId: reviewerId,
+          urlPdf: pdfPublicUrl,
+          pdfFileHash: pdfHashString,
         },
       });
 
       // 5. Optionally, clear the applied change logs
-      if (changeLogs.length > 0) {
-        await tx.inspectionChangeLog.deleteMany({
-          where: { inspectionId: inspectionId },
-        });
-        this.logger.log(
-          `Cleared ${changeLogs.length} change logs for inspection ID: ${inspectionId}`,
-        );
-      }
+      await tx.inspectionChangeLog.deleteMany({
+        where: { inspectionId: inspectionId },
+      });
+      this.logger.log(
+        `Cleared all change logs for inspection ID: ${inspectionId} after approval.`,
+      );
 
       this.logger.log(
-        `Inspection ${inspectionId} approved and updated with logged changes by reviewer ${reviewerId}`,
+        `Inspection ${inspectionId} approved and updated with latest logged changes by reviewer ${reviewerId}`,
       );
-      return updatedInspection; // Return the final updated record
-    }); // Transaction ends here
+      return updatedInspection;
+    });
   }
 
   /**
@@ -774,53 +753,15 @@ export class InspectionsService {
       );
     }
 
-    // 2. Update status to ARCHIVING
     try {
-      await this.prisma.inspection.update({
-        where: { id: inspectionId },
-        data: { status: InspectionStatus.ARCHIVING },
-      });
-      this.logger.log(`Inspection ${inspectionId} status set to ARCHIVING.`);
-    } catch (updateError: any) {
-      // Reverted to any
-      // Explicitly type error as any for now
-      this.logger.error(
-        `Failed to set status to ARCHIVING for ${inspectionId}`,
-        updateError.stack,
-      );
-      // Decide if this is critical enough to stop the process
-    }
-    const frontendReportUrl = `${this.config.getOrThrow<string>('CLIENT_BASE_URL')}/data/${inspection.pretty_id}`;
-    let pdfBuffer: Buffer;
-    let pdfHashString: string;
-    const pdfFileName = `${inspectionId}-${Date.now()}.pdf`; // Nama file unik
-    const pdfFilePath = path.join(PDF_ARCHIVE_PATH, pdfFileName);
-    const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${pdfFileName}`; // URL publik
-
-    try {
-      // 3. Generate PDF from url
-      pdfBuffer = await this.generatePdfFromUrl(frontendReportUrl);
-      // 4. Save PDF to Disc
-      await fs.writeFile(pdfFilePath, pdfBuffer);
-      this.logger.log(`PDF report saved to: ${pdfFilePath}`);
-
-      // 5. Calculate PDF Hash
-      const hash = crypto.createHash('sha256');
-      hash.update(pdfBuffer);
-      pdfHashString = hash.digest('hex');
-      this.logger.log(`PDF hash calculated: ${pdfHashString}`);
-      this.logger.log(
-        `PDF hash calculated for inspection ${inspectionId}: ${pdfHashString}`,
-      );
-
-      // 6. Minting
+      // 2. Minting
       let blockchainResult: { txHash: string; assetId: string } | null = null;
       let blockchainSuccess = false;
 
       try {
         const metadataForNft: any = {
           vehicleNumber: inspection.vehiclePlateNumber,
-          pdfHash: pdfHashString,
+          pdfHash: inspection.pdfFileHash,
         };
         // Hapus field null/undefined dari metadata jika perlu
         Object.keys(metadataForNft).forEach((key) =>
@@ -848,14 +789,12 @@ export class InspectionsService {
         blockchainSuccess = false;
       }
 
-      // 7. Update Inspection Record in DB (Final Status)
+      // 3. Update Inspection Record in DB (Final Status)
       const finalStatus = blockchainSuccess
         ? InspectionStatus.ARCHIVED
         : InspectionStatus.FAIL_ARCHIVE;
       const updateData: Prisma.InspectionUpdateInput = {
         status: finalStatus,
-        urlPdf: pdfPublicUrl,
-        pdfFileHash: pdfHashString,
         nftAssetId: blockchainResult?.assetId || null,
         blockchainTxHash: blockchainResult?.txHash || null,
         archivedAt: blockchainSuccess ? new Date() : null,
