@@ -31,4 +31,25 @@ export class InspectionChangeLogService {
       orderBy: { changedAt: 'asc' }, // Order by timestamp
     });
   }
+
+  /**
+   * Deletes a specific change log entry by its ID.
+   *
+   * @param id The ID of the change log entry to delete.
+   * @returns A promise that resolves to the deleted InspectionChangeLog object.
+   * @throws NotFoundException if the change log entry with the given ID does not exist.
+   */
+  async delete(id: string): Promise<InspectionChangeLog> {
+    const changeLog = await this.prisma.inspectionChangeLog.findUnique({
+      where: { id },
+    });
+
+    if (!changeLog) {
+      throw new NotFoundException(`Change log with ID "${id}" not found.`);
+    }
+
+    return this.prisma.inspectionChangeLog.delete({
+      where: { id },
+    });
+  }
 }
