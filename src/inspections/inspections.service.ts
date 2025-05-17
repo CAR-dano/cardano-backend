@@ -654,14 +654,6 @@ export class InspectionsService {
         },
       });
 
-      // 5. Optionally, clear the applied change logs
-      await tx.inspectionChangeLog.deleteMany({
-        where: { inspectionId: inspectionId },
-      });
-      this.logger.log(
-        `Cleared all change logs for inspection ID: ${inspectionId} after approval.`,
-      );
-
       this.logger.log(
         `Inspection ${inspectionId} approved and updated with latest logged changes by reviewer ${reviewerId}`,
       );
