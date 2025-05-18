@@ -45,22 +45,78 @@ export class BlockchainService {
   private readonly blockfrostProvider: BlockfrostProvider;
   private readonly wallet: MeshWallet; // Use AppWallet type for better type safety
   private readonly apiKey: string;
+  private readonly blockfrostBaseUrl: string;
 
   constructor(private configService: ConfigService) {
+    // Determine Blockfrost environment and base URL
+    const blockfrostEnv =
+      this.configService.getOrThrow<string>('BLOCKFROST_ENV');
+    switch (blockfrostEnv) {
+      case 'preprod':
+        this.blockfrostBaseUrl = 'https://cardano-preprod.blockfrost.io/api/v0';
+        break;
+      case 'preview':
+        this.blockfrostBaseUrl = 'https://cardano-preview.blockfrost.io/api/v0';
+        break;
+      case 'mainnet':
+        this.blockfrostBaseUrl = 'https://cardano-mainnet.blockfrost.io/api/v0';
+        break;
+      default:
+        throw new Error(`Unsupported BLOCKFROST_ENV: ${blockfrostEnv}`);
+    }
+    this.logger.log(`Using Blockfrost environment: ${blockfrostEnv}`);
+
     // Initialize Blockfrost Provider
-    this.apiKey = this.configService.getOrThrow<string>('BLOCKFROST_API_KEY');
+    switch (blockfrostEnv) {
+      case 'preview':
+        this.apiKey = this.configService.getOrThrow<string>(
+          'BLOCKFROST_API_KEY_PREVIEW',
+        );
+        break;
+      case 'preprod':
+        this.apiKey = this.configService.getOrThrow<string>(
+          'BLOCKFROST_API_KEY_PREPROD',
+        );
+        break;
+      case 'mainnet':
+        this.apiKey = this.configService.getOrThrow<string>(
+          'BLOCKFROST_API_KEY_MAINNET',
+        );
+        break;
+      default:
+        throw new Error(
+          `Unsupported BLOCKFROST_ENV: ${blockfrostEnv as string}`,
+        );
+    }
     this.blockfrostProvider = new BlockfrostProvider(this.apiKey);
     this.logger.log('BlockfrostProvider Initialized.');
 
     // Initialize Wallet - Ensure WALLET_SECRET_KEY is set securely in .env
     // WARNING: Storing secret keys directly like this is NOT recommended for production.
     // Consider using secure key management solutions or backend wallets like Nami/Eternl with connector approach.
-    const secretKey = this.configService.get<string>('WALLET_SECRET_KEY');
-    if (!secretKey) {
-      throw new Error('WALLET_SECRET_KEY environment variable is not set!');
+    let secretKey: string | undefined;
+    switch (blockfrostEnv) {
+      case 'preview':
+      case 'preprod':
+        secretKey = this.configService.get<string>('WALLET_SECRET_KEY_TESTNET');
+        break;
+      case 'mainnet':
+        secretKey = this.configService.get<string>('WALLET_SECRET_KEY_MAINNET');
+        break;
+      default:
+        throw new Error(
+          `Unsupported BLOCKFROST_ENV for wallet: ${blockfrostEnv as string}`,
+        );
     }
+
+    if (!secretKey) {
+      throw new Error(
+        `WALLET_SECRET_KEY for environment ${blockfrostEnv} is not set!`,
+      );
+    }
+
     this.wallet = new MeshWallet({
-      networkId: 0, // 0 for Preprod/Preview, 1 for Mainnet
+      networkId: blockfrostEnv === 'mainnet' ? 1 : 0, // 0 for Preprod/Preview, 1 for Mainnet
       fetcher: this.blockfrostProvider,
       submitter: this.blockfrostProvider,
       key: {
@@ -205,7 +261,7 @@ export class BlockchainService {
     try {
       // Use the underlying BlockfrostProvider fetcher
       const metadataResponse = await fetch(
-        `https://cardano-preview.blockfrost.io/api/v0/txs/${txHash}/metadata`,
+        `${this.blockfrostBaseUrl}/txs/${txHash}/metadata`,
         {
           headers: {
             project_id: this.apiKey,
@@ -291,7 +347,7 @@ export class BlockchainService {
     try {
       // Fetch asset details including on-chain metadata from Blockfrost
       const assetResponse = await fetch(
-        `https://cardano-preview.blockfrost.io/api/v0/assets/${assetId}`,
+        `${this.blockfrostBaseUrl}/assets/${assetId}`,
         {
           headers: {
             project_id: this.apiKey,
