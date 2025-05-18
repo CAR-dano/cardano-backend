@@ -397,14 +397,30 @@ export class InspectionsService {
    * Retrieves all inspection records, ordered by creation date descending.
    * Filters results based on the requesting user's role.
    * Admins/Reviewers see all. Customers/Developers/Inspectors only see ARCHIVED.
-   * (Pagination to be added later).
+   * Includes pagination and metadata.
    *
    * @param {Role} userRole - The role of the user making the request.
-   * @returns {Promise<Inspection[]>} An array of inspection records.
+   * @param {number} page - The page number (1-based).
+   * @param {number} pageSize - The number of items per page.
+   * @returns {Promise<{ data: Inspection[], meta: { total: number, page: number, pageSize: number, totalPages: number } }>} An object containing an array of inspection records and pagination metadata.
    */
-  async findAll(userRole: Role): Promise<Inspection[]> {
-    this.logger.log(`Retrieving inspections for user role: ${userRole}`);
+  async findAll(
+    userRole: Role,
+    page: number = 1,
+    pageSize: number = 10,
+  ): Promise<{
+    data: Inspection[];
+    meta: { total: number; page: number; pageSize: number; totalPages: number };
+  }> {
+    this.logger.log(
+      `Retrieving inspections for user role: ${userRole}, page: ${page}, pageSize: ${pageSize}`,
+    );
     let whereClause: Prisma.InspectionWhereInput = {}; // Default: no filter
+
+    const skip = (page - 1) * pageSize;
+    if (skip < 0) {
+      throw new BadRequestException('Page number must be positive.');
+    }
 
     // Apply filter based on role for non-admin/reviewer roles
     if (
@@ -421,18 +437,30 @@ export class InspectionsService {
     // TODO: Consider if INSPECTOR should see their own NEED_REVIEW inspections?
 
     try {
+      const total = await this.prisma.inspection.count({ where: whereClause });
       const inspections = await this.prisma.inspection.findMany({
         where: whereClause,
         orderBy: {
           createdAt: 'desc', // Order by newest first
         },
+        skip: skip,
+        take: pageSize,
         include: { photos: true }, // Include related photos
         // include: { inspector: { select: {id: true, name: true}}, reviewer: { select: {id: true, name: true}} } // Example include
       });
       this.logger.log(
-        `Retrieved ${inspections.length} inspections for role ${userRole}.`,
+        `Retrieved ${inspections.length} inspections for role ${userRole}. Total: ${total}`,
       );
-      return inspections;
+      const totalPages = Math.ceil(total / pageSize);
+      return {
+        data: inspections,
+        meta: {
+          total,
+          page,
+          pageSize,
+          totalPages,
+        },
+      };
     } catch (error: any) {
       // Reverted to any
       this.logger.error(
@@ -572,6 +600,7 @@ export class InspectionsService {
       pdfHashString = hash.digest('hex');
       this.logger.log(`PDF hash calculated: ${pdfHashString}`);
     } catch (error: any) {
+      // Reverted to any
       this.logger.error(
         `Failed to generate or save PDF for inspection ${inspectionId}: ${error.message}`,
         error.stack,

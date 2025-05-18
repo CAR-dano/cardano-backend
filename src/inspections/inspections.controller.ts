@@ -546,14 +546,15 @@ export class InspectionsController {
 
   /**
    * [GET /inspections]
-   * Retrieves all inspection records, potentially filtered by role (passed via query).
+   * Retrieves all inspection records with pagination and metadata.
+   * Filters results based on the requesting user's role (passed via query).
    */
   @Get()
   // @UseGuards(JwtAuthGuard) // Add later if needed
   @ApiOperation({
-    summary: 'Retrieve all inspection records',
+    summary: 'Retrieve all inspection records with pagination',
     description:
-      'Retrieves all inspection records, potentially filtered by role (passed via query parameter).',
+      'Retrieves all inspection records with pagination and metadata, potentially filtered by role (passed via query parameter).',
   })
   @ApiQuery({
     name: 'role',
@@ -561,23 +562,69 @@ export class InspectionsController {
     enum: Role,
     description: 'Filter inspections by user role.',
   })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (1-based). Defaults to 1.',
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    type: Number,
+    description: 'Number of items per page. Defaults to 10.',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Array of inspection record summaries.',
-    type: [InspectionResponseDto],
+    description: 'Paginated list of inspection record summaries with metadata.',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/InspectionResponseDto' },
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            total: { type: 'number' },
+            page: { type: 'number' },
+            pageSize: { type: 'number' },
+            totalPages: { type: 'number' },
+          },
+        },
+      },
+    },
   })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findAll(
-    @Query('role') userRole?: Role /*, @GetUser('role') realUserRole: Role */,
-  ): Promise<InspectionResponseDto[]> {
+    @Query('role') userRole?: Role,
+    @Query('page') page = 1,
+    @Query('pageSize') pageSize = 10,
+    /* @GetUser('role') realUserRole: Role */
+  ): Promise<{
+    data: InspectionResponseDto[];
+    meta: { total: number; page: number; pageSize: number; totalPages: number };
+  }> {
     const roleToFilter = userRole || Role.ADMIN; // Temporary filter logic
+    const pageNumber =
+      parseInt(page as any, 10) > 0 ? parseInt(page as any, 10) : 1;
+    const pageSizeNumber =
+      parseInt(pageSize as any, 10) > 0 ? parseInt(pageSize as any, 10) : 10;
     this.logger.warn(
-      `[GET /inspections] Applying filter for DUMMY role: ${roleToFilter}`,
+      `[GET /inspections] Applying filter for DUMMY role: ${roleToFilter}, page: ${page}, pageSize: ${pageSize}`,
     );
-    const inspections = await this.inspectionsService.findAll(roleToFilter);
-    return inspections.map(
-      (inspection) => new InspectionResponseDto(inspection),
+    const result = await this.inspectionsService.findAll(
+      roleToFilter,
+      pageNumber,
+      pageSizeNumber,
     );
+    return {
+      data: result.data.map(
+        (inspection) => new InspectionResponseDto(inspection),
+      ),
+      meta: result.meta,
+    };
   }
 
   /**
