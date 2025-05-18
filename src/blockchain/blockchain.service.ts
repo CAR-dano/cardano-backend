@@ -133,14 +133,8 @@ export class BlockchainService {
       const policyId = resolveScriptHash(forgingScript); // Calculate the policy ID
 
       // Generate a unique token name based on key inspection data + perhaps a random element or timestamp for uniqueness assurance
-      const uniqueDataString = `${metadata.vehicleNumber}`;
-      const tokenName = this.generateTokenName(uniqueDataString);
-      const tokenNameHex = stringToHex(tokenName); // Convert to hex for the blockchain
-      const assetNameForMetadata = Buffer.from(tokenNameHex, 'hex').toString(
-        'utf8',
-      );
       const simpleAssetName = `Inspection_${metadata.vehicleNumber}`;
-      const simpleAssetNameHex = stringToHex(simpleAssetName);
+      const simpleAssetNameHex = stringToHex(simpleAssetName); // Convert human-readable name to hex
       // Construct the full asset ID
       const assetId = policyId + simpleAssetNameHex;
       this.logger.log(`Generated Asset ID: ${assetId}`);
@@ -152,14 +146,14 @@ export class BlockchainService {
       // Structure for CIP-0025: { policyId: { assetName: { metadata } } }
       const cip25Metadata = {
         [policyId]: { [simpleAssetName]: finalMetadata },
-      }; // Token name is key, not hex
+      }; // Use the human-readable asset name as the key in metadata
 
       // Initialize the transaction builder
       const txBuilder = this.getTxBuilder();
 
       // Build the transaction
       const unsignedTx = await txBuilder
-        .mint('1', policyId, simpleAssetNameHex) // Mint 1 token with the calculated details
+        .mint('1', policyId, simpleAssetNameHex) // Mint 1 token with the calculated details (using hex asset name)
         .mintingScript(forgingScript) // Provide the script needed to authorize the mint
         .metadataValue('721', cip25Metadata) // Attach metadata under the 721 label
         .changeAddress(walletAddress) // Where to send remaining ADA and change
