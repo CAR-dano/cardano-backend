@@ -1,3 +1,13 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: mint-request.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object for requesting the minting of an NFT for an inspection record.
+ * Contains necessary data fields for the minting process.
+ * --------------------------------------------------------------------------
+ */
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsString,
@@ -14,10 +24,8 @@ export class MintRequestDto {
   })
   @IsString()
   @IsNotEmpty()
-  inspectionId: string; // ID dari tabel inspections kita
+  inspectionId: string;
 
-  // Anda bisa mengirim semua data lagi, atau hanya ID dan service mengambil sisanya.
-  // Mengirim data relevan bisa lebih baik untuk decoupling.
   @ApiProperty({ description: 'Vehicle Plate Number', example: 'B 123 RI' })
   @IsString()
   @IsNotEmpty()
@@ -47,7 +55,7 @@ export class MintRequestDto {
   })
   @IsString()
   @IsNotEmpty()
-  status: string; // Atau gunakan enum jika perlu validasi ketat
+  status: string;
 
   @ApiProperty({ description: 'Public URL of the archived PDF report' })
   @IsUrl()
@@ -59,7 +67,6 @@ export class MintRequestDto {
   @IsNotEmpty()
   pdfHash: string;
 
-  // Optional: Tambahkan field lain jika perlu dimasukkan ke metadata NFT
   @ApiProperty({
     description:
       'Display name for the NFT (optional, will be generated if omitted)',

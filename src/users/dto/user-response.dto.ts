@@ -1,12 +1,21 @@
-/**
- * @fileoverview Data Transfer Object (DTO) representing the public-facing user data.
+/*
+ * --------------------------------------------------------------------------
+ * File: user-response.dto.ts
+ * Project: cardano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) representing the public-facing user data.
  * This is used as the response type for endpoints returning user information,
  * ensuring sensitive fields like passwords or internal IDs (googleId) are excluded.
+ * --------------------------------------------------------------------------
  */
 
 import { ApiProperty } from '@nestjs/swagger';
-import { Role, User } from '@prisma/client'; // Import User type and Role enum from Prisma
+import { Role, User } from '@prisma/client';
 
+/**
+ * DTO representing the public-facing user data.
+ */
 export class UserResponseDto {
   /**
    * The unique identifier (UUID) for the user.
@@ -22,7 +31,7 @@ export class UserResponseDto {
   @ApiProperty({
     example: 'admin@example.com',
     description: 'User email address',
-    nullable: true
+    nullable: true,
   })
   email: string | null;
 
@@ -31,25 +40,25 @@ export class UserResponseDto {
    * not requiring a username (like Google or wallet login without linking).
    */
   @ApiProperty({ description: 'User username', nullable: true })
-  username: string | null; // Based on updated schema 'String?'
+  username: string | null;
 
   /**
    * The user's display name. Can be null if not provided during registration or by OAuth.
    */
   @ApiProperty({ description: 'User display name', nullable: true })
-  name: string | null; // Based on updated schema 'String?'
+  name: string | null;
 
   /**
    * The user's primary Cardano wallet address. Can be null if not linked.
    */
   @ApiProperty({ description: 'User Cardano wallet address', nullable: true })
-  walletAddress: string | null; // Based on updated schema 'String?'
+  walletAddress: string | null;
 
   /**
    * The user's assigned role, determining their permissions.
    */
   @ApiProperty({ enum: Role, description: 'User role' })
-  role: Role; // Role is required
+  role: Role;
 
   /**
    * The timestamp when the user account was created.
@@ -66,7 +75,7 @@ export class UserResponseDto {
   /**
    * Constructor to map from a Prisma User entity to this DTO.
    * Explicitly selects fields to include and excludes sensitive ones.
-   * @param {User} user - The Prisma User entity.
+   * @param user The Prisma User entity.
    */
   constructor(user: User) {
     this.id = user.id;

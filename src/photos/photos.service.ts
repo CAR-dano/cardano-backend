@@ -1,3 +1,14 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: photos.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Service handling business logic for inspection photos.
+ * Interacts with PrismaService to create, retrieve, and delete photo records.
+ * --------------------------------------------------------------------------
+ */
+
 /**
  * @fileoverview Service handling business logic for inspection photos.
  * Interacts with PrismaService to create, retrieve, and delete photo records.
@@ -13,8 +24,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { Photo, Prisma } from '@prisma/client';
 import { AddPhotoDto } from './dto/add-photo.dto';
-import { AddMultiplePhotosDto } from './dto/add-multiple-photos.dto';
-import { UpdatePhotoDto } from './dto/update-photo.dto';
+import { UpdatePhotoDto } from './dto/update-photo.dto'; // Removed AddMultiplePhotosDto
 // Import file system operations if deleting local files
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -27,9 +37,12 @@ export class PhotosService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Checks if an inspection exists. Throws NotFoundException if not.
-   * @param inspectionId The ID to check.
-   * @param tx Optional Prisma transaction client.
+   * Ensures that an inspection with the given ID exists in the database.
+   * Throws a NotFoundException if the inspection is not found.
+   *
+   * @param inspectionId The unique identifier of the inspection to check.
+   * @param tx Optional Prisma transaction client to use for the query.
+   * @throws NotFoundException if the inspection with the specified ID does not exist.
    */
   private async ensureInspectionExists(
     inspectionId: string,
@@ -48,12 +61,16 @@ export class PhotosService {
   }
 
   /**
-   * Creates a Photo record.
-   * @param inspectionId ID of the parent inspection.
-   * @param file Uploaded file object.
-   * @param dto DTO containing the custom label and needAttention flag.
+   * Creates a new photo record associated with a specific inspection.
+   * Uploads the file and saves the photo metadata to the database.
+   *
+   * @param inspectionId The ID of the parent inspection.
+   * @param file The uploaded file object from Multer.
+   * @param dto The DTO containing additional photo information like label and needAttention flag.
    * @param userId Optional ID of the user performing the action.
-   * @returns The created Photo record.
+   * @returns A promise that resolves to the created Photo record.
+   * @throws NotFoundException if the inspection does not exist.
+   * @throws InternalServerErrorException if saving the photo information fails.
    */
   async addPhoto(
     inspectionId: string,
@@ -82,8 +99,8 @@ export class PhotosService {
       });
     } catch (error: any) {
       this.logger.error(
-        `Failed to save photo record for inspection ${inspectionId}: ${error.message}`,
-        error.stack,
+        `Failed to save photo record for inspection ${inspectionId}: ${(error as any).message}`,
+        (error as any).stack,
       );
       throw new InternalServerErrorException(
         'Could not save photo information.',
@@ -92,9 +109,12 @@ export class PhotosService {
   }
 
   /**
-   * Finds all Photo records associated with a specific inspection.
-   * @param inspectionId The UUID of the inspection.
-   * @returns A list of Photo records.
+   * Finds all photo records associated with a specific inspection ID.
+   *
+   * @param inspectionId The unique identifier (UUID) of the inspection.
+   * @returns A promise that resolves to an array of Photo records ordered by creation time.
+   * @throws NotFoundException if the inspection does not exist.
+   * @throws InternalServerErrorException if retrieving the photos fails.
    */
   async findForInspection(inspectionId: string): Promise<Photo[]> {
     this.logger.log(`Retrieving all photos for inspection ID: ${inspectionId}`);
@@ -104,24 +124,28 @@ export class PhotosService {
         where: { inspectionId: inspectionId },
         orderBy: { createdAt: 'asc' }, // Order by creation time
       });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
-        `Failed to retrieve photos for inspection ${inspectionId}: ${error.message}`,
-        error.stack,
+        `Failed to retrieve photos for inspection ${inspectionId}: ${(error as any).message}`,
+        (error as any).stack,
       );
       throw new InternalServerErrorException('Could not retrieve photos.');
     }
   }
 
   /**
-   * Updates an existing photo record, potentially replacing the file and/or metadata.
+   * Updates an existing photo record, potentially replacing the associated file and/or metadata.
+   * Ensures the photo belongs to the specified inspection before updating.
    *
-   * @param {string} inspectionId - The ID of the parent inspection (for verification).
-   * @param {string} photoId - The ID of the photo record to update.
-   * @param {UpdatePhotoDto} updatePhotoDto - DTO containing optional new label and needAttention flag.
-   * @param {Express.Multer.File} [newPhotoFile] - The optional new photo file to replace the old one.
-   * @param {string} [userId] - Optional ID of the user performing the action.
-   * @returns {Promise<Photo>} The updated photo record.
+   * @param inspectionId The ID of the parent inspection (for verification).
+   * @param photoId The ID of the photo record to update.
+   * @param updatePhotoDto DTO containing optional new label and needAttention flag.
+   * @param newPhotoFile Optional new photo file to replace the old one.
+   * @param userId Optional ID of the user performing the action.
+   * @returns A promise that resolves to the updated photo record.
+   * @throws NotFoundException if the photo or inspection is not found.
+   * @throws BadRequestException if no valid fields are provided for update.
+   * @throws InternalServerErrorException if the database update or file deletion fails.
    */
   async updatePhoto(
     inspectionId: string, // Include inspectionId for verification
@@ -206,11 +230,11 @@ export class PhotosService {
         try {
           await fs.unlink(fullOldPath);
           this.logger.log(`Successfully deleted old file: ${fullOldPath}`);
-        } catch (fileError) {
+        } catch (fileError: any) {
           // Log the error, but don't fail the overall operation since DB is updated
           this.logger.error(
             `Failed to delete old photo file ${fullOldPath} after updating record ${photoId}`,
-            fileError.stack,
+            (fileError as any).stack,
           );
           // TODO: Consider adding a mechanism to retry deletion or flag orphaned files
         }
@@ -229,8 +253,8 @@ export class PhotosService {
       }
       if (error instanceof BadRequestException) throw error; // Re-throw validation errors
       this.logger.error(
-        `Failed to update photo ${photoId}: ${error.message}`,
-        error.stack,
+        `Failed to update photo ${photoId}: ${(error as any).message}`,
+        (error as any).stack,
       );
       throw new InternalServerErrorException(
         `Could not update photo ${photoId}.`,
@@ -239,9 +263,13 @@ export class PhotosService {
   }
 
   /**
-   * Deletes a specific Photo record and its corresponding file (if stored locally).
-   * @param photoId The UUID of the photo to delete.
-   * @param userId Optional ID of user performing action (for auth checks later).
+   * Deletes a specific photo record and its corresponding file (if stored locally).
+   *
+   * @param photoId The unique identifier (UUID) of the photo to delete.
+   * @param userId Optional ID of the user performing the action (for authorization checks later).
+   * @returns A promise that resolves when the photo and its file are successfully deleted.
+   * @throws NotFoundException if the photo with the specified ID is not found.
+   * @throws InternalServerErrorException if the database deletion or file deletion fails.
    */
   async deletePhoto(photoId: string, userId?: string): Promise<void> {
     this.logger.log(
@@ -270,7 +298,7 @@ export class PhotosService {
         // Log the error but maybe don't fail the whole operation if DB record deleted?
         this.logger.error(
           `Failed to delete photo file ${filePath} after deleting DB record ${photoId}`,
-          fileError.stack,
+          (fileError as any).stack,
         );
       }
       // --- End File Deletion ---
@@ -285,8 +313,8 @@ export class PhotosService {
         throw new NotFoundException(`Photo with ID "${photoId}" not found.`);
       }
       this.logger.error(
-        `Failed to delete photo ${photoId}: ${error.message}`,
-        error.stack,
+        `Failed to delete photo ${photoId}: ${(error as any).message}`,
+        (error as any).stack,
       );
       throw new InternalServerErrorException(
         `Could not delete photo ${photoId}.`,
@@ -295,15 +323,18 @@ export class PhotosService {
   }
 
   /**
-   * Adds a BATCH of photos and their metadata to an inspection.
+   * Adds a batch of photos and their metadata to an inspection.
    * Parses metadata JSON string, matches with uploaded files by order,
    * and creates multiple Photo records within a transaction.
    *
-   * @param inspectionId ID of the parent inspection.
-   * @param files Array of uploaded file objects.
-   * @param metadataJsonString JSON string array of metadata.
-   * @param userId Optional user ID.
-   * @returns Array of the created Photo records.
+   * @param inspectionId The ID of the parent inspection.
+   * @param files An array of uploaded file objects.
+   * @param metadataJsonString A JSON string representing an array of metadata objects for each photo.
+   * @param userId Optional ID of the user performing the action.
+   * @returns A promise that resolves to an array of the created Photo records.
+   * @throws BadRequestException if no files or metadata are provided, or if metadata format is invalid or counts do not match.
+   * @throws NotFoundException if the inspection does not exist.
+   * @throws InternalServerErrorException if the batch creation of photo records fails.
    */
   async addMultiplePhotos(
     inspectionId: string,
@@ -345,7 +376,7 @@ export class PhotosService {
       });
     } catch (error: any) {
       throw new BadRequestException(
-        `Invalid metadata format: ${error.message}`,
+        `Invalid metadata format: ${(error as any).message}`,
       );
     }
 
@@ -396,8 +427,8 @@ export class PhotosService {
       });
     } catch (error: any) {
       this.logger.error(
-        `Failed to batch create photos for inspection ${inspectionId}: ${error.message}`,
-        error.stack,
+        `Failed to batch create photos for inspection ${inspectionId}: ${(error as any).message}`,
+        (error as any).stack,
       );
       // TODO: Consider cleanup of successfully uploaded files if DB operation fails? Complex.
       throw new InternalServerErrorException(

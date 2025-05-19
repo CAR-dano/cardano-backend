@@ -1,8 +1,14 @@
-/**
- * @fileoverview DTO for updating photo metadata. All fields are optional.
+/*
+ * --------------------------------------------------------------------------
+ * File: update-photo.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object for updating photo metadata. All fields are optional.
  * Used with the PUT /inspections/:id/photos/:photoId endpoint (multipart/form-data).
+ * --------------------------------------------------------------------------
  */
-import { ApiPropertyOptional } from '@nestjs/swagger'; // Use Optional version
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsString,
   IsOptional,
@@ -17,13 +23,12 @@ export class UpdatePhotoDto {
    * Optional field.
    */
   @ApiPropertyOptional({
-    // Decorator for optional properties
     description: 'New custom label for the photo (ignored for FIXED type)',
     example: 'Baret Pintu Kanan (Close Up)',
   })
-  @IsOptional() // Optional for validation pipe
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Label cannot be empty if provided' }) // Prevent empty string if sent
+  @IsNotEmpty({ message: 'Label cannot be empty if provided' })
   label?: string;
 
   /**
@@ -38,8 +43,8 @@ export class UpdatePhotoDto {
     example: 'false',
   })
   @IsOptional()
-  @IsBooleanString() // Validates 'true' or 'false'
-  needAttention?: string; // Receive as string
+  @IsBooleanString()
+  needAttention?: string;
 
   // The 'photo' file itself is handled by the FileInterceptor, not defined here.
 }

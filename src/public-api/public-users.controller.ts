@@ -1,3 +1,15 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: public-users.controller.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Controller for public user-related API endpoints.
+ * Handles requests for publicly accessible user data, such as listing inspectors.
+ * Utilizes the UsersService to interact with user data.
+ * Provides Swagger documentation annotations for API clarity.
+ * --------------------------------------------------------------------------
+ */
 import { Controller, Get, Logger } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -13,7 +25,9 @@ export class PublicUsersController {
   }
 
   /**
-   * Retrieves a list of all inspector users. Accessible publicly.
+   * Retrieves a list of all inspector users.
+   *
+   * @returns A promise that resolves to an array of UserResponseDto objects representing inspector users.
    */
   @Get('inspectors') // Specific endpoint for finding all inspectors
   @ApiOperation({

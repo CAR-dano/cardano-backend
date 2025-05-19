@@ -30,8 +30,8 @@ class NftOnchainMetadataDto {
   @ApiPropertyOptional({ description: 'Description of the NFT.' })
   description?: string | string[];
 
-  // --- CAR-dano Specific Metadata (Contoh) ---
-  // Tambahkan properti spesifik yang ANDA masukkan ke metadata saat minting
+  // --- CAR-dano Specific Metadata (Example) ---
+  // Add specific properties that YOU include in the metadata during minting
   @ApiPropertyOptional({
     description: 'Original Inspection Record ID',
     format: 'uuid',

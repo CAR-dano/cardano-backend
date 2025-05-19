@@ -1,6 +1,12 @@
-/**
- * @fileoverview DTO for adding a general vehicle photo with a custom label and attention flag.
+/*
+ * --------------------------------------------------------------------------
+ * File: add-photo.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object for adding a general vehicle photo with a custom label and attention flag.
  * Used with multipart/form-data for the 'photo' file.
+ * --------------------------------------------------------------------------
  */
 import { ApiProperty } from '@nestjs/swagger';
 import {
@@ -35,6 +41,6 @@ export class AddPhotoDto {
     example: 'true',
   })
   @IsOptional()
-  @IsBooleanString() // Validates 'true' or 'false' string
-  needAttention?: string; // Receive as string
+  @IsBooleanString()
+  needAttention?: string;
 }
