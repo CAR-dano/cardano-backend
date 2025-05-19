@@ -125,9 +125,11 @@ export class InspectionsService {
    *
    * @param {CreateInspectionDto} createInspectionDto - DTO containing initial data.
    * @param {string} submitterId - The UUID of the user (INSPECTOR) submitting the inspection.
-   * @returns {Promise<Inspection>} The created inspection record.
+   * @returns {Promise<{ id: string }>} An object containing the ID of the created inspection.
    */
-  async create(createInspectionDto: CreateInspectionDto): Promise<Inspection> {
+  async create(
+    createInspectionDto: CreateInspectionDto,
+  ): Promise<{ id: string }> {
     this.logger.log(
       `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'} by inspector ${createInspectionDto.inspectorId}`,
     );
@@ -201,7 +203,7 @@ export class InspectionsService {
           this.logger.log(
             `Successfully created inspection with custom ID: ${newInspection.id}`,
           );
-          return newInspection;
+          return { id: newInspection.id };
         } catch (error: any) {
           // Reverted to any
           // Tangani jika ID kustom ternyata tidak unik (race condition)

@@ -148,10 +148,10 @@ export class InspectionsController {
   async create(
     @Body() createInspectionDto: CreateInspectionDto,
     // @GetUser('id') userId: string, // Get authenticated user ID later
-  ): Promise<InspectionResponseDto> {
+  ): Promise<{ id: string }> {
     const newInspection =
       await this.inspectionsService.create(createInspectionDto);
-    return new InspectionResponseDto(newInspection);
+    return newInspection;
   }
 
   /**
@@ -179,13 +179,18 @@ export class InspectionsController {
   })
   @ApiBody({ type: UpdateInspectionDto })
   @ApiResponse({
-    status: 200,
-    description: 'The updated inspection record summary.',
-    type: InspectionResponseDto,
+    status: 201,
+    description: 'The ID of the newly created inspection.',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+      },
+    },
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad Request (e.g., invalid input data, invalid ID format).',
+    description: 'Bad Request (e.g., invalid input data).',
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
