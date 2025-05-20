@@ -26,7 +26,7 @@ export class InspectionResponseDto {
    * Can be null if not linked.
    */
   @ApiProperty({
-    example: 'f9e8d7c6-b5a4-3210-fedc-ba9876543210',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef', // Generic example as not in provided data
     description:
       'The UUID of the user (Inspector) who submitted this inspection.',
     nullable: true,
@@ -38,7 +38,7 @@ export class InspectionResponseDto {
    * Can be null if not yet reviewed.
    */
   @ApiProperty({
-    example: '10293847-5678-90ab-cdef-1234567890ab',
+    example: null,
     description:
       'The UUID of the user (Reviewer) who last reviewed (approved/rejected) this inspection.',
     nullable: true,
@@ -49,7 +49,7 @@ export class InspectionResponseDto {
    * The license plate number of the inspected vehicle.
    */
   @ApiProperty({
-    example: 'AB 1231 RI',
+    example: 'AB 4332 KJ',
     description: 'The license plate number of the inspected vehicle.',
     nullable: true,
   })
@@ -59,7 +59,7 @@ export class InspectionResponseDto {
    * The date and time the inspection occurred.
    */
   @ApiProperty({
-    example: '2025-05-01T14:30:00Z',
+    example: '2025-07-05T14:30:00.000Z',
     description: 'The date and time the inspection occurred.',
     nullable: true,
   })
@@ -69,7 +69,7 @@ export class InspectionResponseDto {
    * The overall rating assigned during the inspection.
    */
   @ApiProperty({
-    example: 'B+',
+    example: '8',
     description: 'The overall rating assigned during the inspection.',
     nullable: true,
   })
@@ -80,7 +80,7 @@ export class InspectionResponseDto {
    * Uses the InspectionStatus enum values (e.g., "NEED_REVIEW", "APPROVED", "ARCHIVED").
    */
   @ApiProperty({
-    example: 'APPROVED',
+    example: 'ARCHIVED',
     description: 'The current status of the inspection in its lifecycle.',
   })
   status: string; // Exposing enum as string in response is common
@@ -90,7 +90,11 @@ export class InspectionResponseDto {
    * Stored as JSON in the database.
    */
   @ApiProperty({
-    example: { namaInspektor: 'Maulana', namaCustomer: 'Budi S.' },
+    example: {
+      namaCustomer: 'Steve Roger',
+      namaInspektor: 'Tony Stark',
+      cabangInspeksi: 'Semarang',
+    },
     description: 'Object containing identity details from the inspection form.',
     nullable: true,
   })
@@ -101,6 +105,19 @@ export class InspectionResponseDto {
    * Stored as JSON in the database.
    */
   @ApiProperty({
+    example: {
+      tahun: 2023,
+      odometer: 15000,
+      platNomor: 'AB 4332 KJ',
+      transmisi: 'Automatic',
+      biayaPajak: 3500000,
+      kepemilikan: 'Tangan Pertama',
+      pajak1Tahun: '2025-10-15',
+      pajak5Tahun: '2028-10-15',
+      tipeKendaraan: 'Ioniq 5',
+      merekKendaraan: 'Hyundai',
+      warnaKendaraan: 'Silver',
+    },
     description: 'Object containing vehicle details from the inspection form.',
     nullable: true,
   })
@@ -111,6 +128,17 @@ export class InspectionResponseDto {
    * Stored as JSON in the database.
    */
   @ApiProperty({
+    example: {
+      bpkb: false,
+      noMesin: true,
+      toolkit: true,
+      banSerep: true,
+      dongkrak: true,
+      noRangka: true,
+      bukuManual: true,
+      kunciSerep: false,
+      bukuService: true,
+    },
     description:
       'Object containing checklist results for equipment from the inspection form.',
     nullable: true,
@@ -122,6 +150,35 @@ export class InspectionResponseDto {
    * Stored as JSON in the database.
    */
   @ApiProperty({
+    example: {
+      merkban: 'Bridgestone',
+      tipeVelg: 'Original',
+      posisiBan: 'Bridgestone',
+      mesinNotes: 'Suara halus',
+      mesinScore: 9,
+      ketebalanBan: '80%',
+      interiorNotes: 'Bersih terawat',
+      interiorScore: 9,
+      kakiKakiNotes: 'Aman',
+      kakiKakiScore: 10,
+      eksteriorNotes: 'Baret halus pintu kanan',
+      eksteriorScore: 8,
+      indikasiBanjir: false,
+      indikasiTabrakan: false,
+      estimasiPerbaikan: [
+        {
+          harga: 700000,
+          namaPart: 'Tie Rod Kanan Kiri',
+        },
+        {
+          harga: 300000,
+          namaPart: 'Spooring',
+        },
+      ],
+      deskripsiKeseluruhan: ['Kondisi sangat baik', 'Ada baret halus'],
+      indikasiOdometerReset: false,
+      penilaianKeseluruhanScore: 9,
+    },
     description: 'Object containing summary results from the inspection form.',
     nullable: true,
   })
@@ -132,6 +189,150 @@ export class InspectionResponseDto {
    * Stored as JSON in the database.
    */
   @ApiProperty({
+    example: {
+      fitur: {
+        airbag: 7,
+        catatan: 'OK',
+        sistemAC: 6,
+        interior1: 5,
+        interior2: 4,
+        interior3: 3,
+        powerWindow: 2,
+        sistemAudio: 1,
+      },
+      testDrive: {
+        rpm: 10,
+        catatan: 'OK',
+        stirBalance: 10,
+        bunyiGetaran: 10,
+        performaStir: 9,
+        performaKopling: 10,
+        performaSuspensi: 9,
+        perpindahanTransmisi: 10,
+      },
+      toolsTest: {
+        catatan: 'OK',
+        testAccu: 10,
+        obdScanner: 10,
+        temperatureAC: 4,
+        tebalCatBodyAtap: 110,
+        tebalCatBodyKiri: 8,
+        tebalCatBodyDepan: 8,
+        tebalCatBodyKanan: 5,
+        tebalCatBodyBelakang: 1,
+      },
+      banDanKakiKaki: {
+        gardan: 10,
+        tieRod: 10,
+        catatan: 'OK',
+        knalpot: 10,
+        banDepan: 9,
+        brakePad: 9,
+        balljoint: 10,
+        discBrake: 10,
+        karetBoot: 10,
+        masterRem: 10,
+        rocksteer: 10,
+        velgDepan: 10,
+        banBelakang: 9,
+        crossmember: 10,
+        shockBreaker: 9,
+        velgBelakang: 10,
+        upperLowerArm: 10,
+        linkStabilizer: 10,
+      },
+      hasilInspeksiMesin: {
+        fan: 10,
+        accu: 9,
+        belt: 9,
+        kabel: 10,
+        oliRem: 10,
+        selang: 10,
+        catatan: 'OK',
+        oliMesin: 9,
+        radiator: 10,
+        coverKlep: 10,
+        karterOli: 10,
+        kondensor: 10,
+        transmisi: 10,
+        waterPump: 10,
+        alternator: 10,
+        suaraMesin: 10,
+        airRadiator: 10,
+        bushingBesar: 10,
+        bushingKecil: 10,
+        cylinderHead: 10,
+        getaranMesin: 10,
+        kompressorAC: 10,
+        oliTransmisi: 10,
+        cylinderBlock: 10,
+        tutupRadiator: 10,
+        coverTimingChain: 10,
+        oliPowerSteering: 10,
+        pompaPowerSteering: 10,
+      },
+      hasilInspeksiInterior: {
+        stir: 10,
+        pedal: 10,
+        plafon: 10,
+        catatan: 'OK',
+        klakson: 10,
+        jokDepan: 9,
+        sunVisor: 10,
+        remTangan: 10,
+        consoleBox: 10,
+        handlePintu: 10,
+        jokBelakang: 9,
+        karpetDasar: 8,
+        lampuHazard: 10,
+        spionTengah: 10,
+        switchLampu: 10,
+        switchWiper: 10,
+        trimInterior: 9,
+        aromaInterior: 10,
+        pembukaBagasi: 10,
+        sabukPengaman: 10,
+        panelDashboard: 9,
+        panelIndikator: 10,
+        tuasPersneling: 10,
+        pembukaKapMesin: 10,
+        tuasTangkiBensin: 10,
+        switchLampuInterior: 10,
+      },
+      hasilInspeksiEksterior: {
+        grill: 10,
+        catatan: 'Baret halus pintu kanan',
+        kapMesin: 10,
+        trunklid: 10,
+        daunWiper: 10,
+        kacaDepan: 10,
+        panelAtap: 10,
+        spionKiri: 10,
+        fenderKiri: 10,
+        kacaBening: 10,
+        lampuUtama: 10,
+        pintuDepan: 10,
+        spionKanan: 10,
+        bumperDepan: 8,
+        fenderKanan: 10,
+        lampuFoglamp: 10,
+        lisplangKiri: 10,
+        lampuBelakang: 10,
+        lisplangKanan: 10,
+        pintuBelakang: 10,
+        sideSkirtKiri: 10,
+        wiperBelakang: 10,
+        bumperBelakang: 9,
+        pintuDepanKiri: 10,
+        sideSkirtKanan: 10,
+        kacaJendelaKiri: 10,
+        kacaJendelaKanan: 10,
+        quarterPanelKiri: 10,
+        pintuBelakangKiri: 10,
+        quarterPanelKanan: 10,
+        pintuBelakangKanan: 10,
+      },
+    },
     description:
       'Object containing detailed assessment scores from the inspection form.',
     nullable: true,
@@ -143,6 +344,25 @@ export class InspectionResponseDto {
    * Stored as JSON in the database.
    */
   @ApiProperty({
+    example: {
+      left: {
+        rearDoor: 10,
+        frontDoor: 10,
+        rearFender: 10,
+        frontFender: 10,
+      },
+      rear: {
+        trunk: 10,
+        bumper: 10,
+      },
+      front: '10',
+      right: {
+        rearDoor: 10,
+        frontDoor: 10,
+        rearFender: 10,
+        frontFender: 10,
+      },
+    },
     description:
       'Object containing body paint thickness measurements from the inspection form.',
     nullable: true,
@@ -161,26 +381,27 @@ export class InspectionResponseDto {
     type: 'array',
     items: { type: 'object' },
   })
-  photoPaths: Prisma.JsonValue[]; // Type Json[] from Prisma
+  photos: Prisma.JsonValue[]; // Type Json[] from Prisma
 
   /**
    * The URL pointing to the generated PDF report file (stored off-chain).
    * Null if the report hasn't been generated/archived.
    */
   @ApiProperty({
-    example: 'https://example.com/reports/report-abc.pdf',
+    example: '/pdfarchived/SOL-05072025-002-1747546170449.pdf',
     description:
       'The URL pointing to the generated PDF report file (stored off-chain).',
     nullable: true,
   })
-  reportPdfUrl: string | null;
+  urlPdf: string | null;
 
   /**
    * The unique Cardano NFT Asset ID representing this inspection on the blockchain.
    * Null if the NFT has not been minted yet.
    */
   @ApiProperty({
-    example: 'asset1abcdef...',
+    example:
+      '030307ee382b62d1c2541b3fc1a706384efce7f405f5c0cbbba2a9b2496e7370656374696f6e5f414220313720554c',
     description:
       'The unique Cardano NFT Asset ID representing this inspection on the blockchain.',
     nullable: true,
@@ -192,7 +413,7 @@ export class InspectionResponseDto {
    * Null if the transaction hasn't occurred or completed.
    */
   @ApiProperty({
-    example: 'tx1abcdef...',
+    example: 'b7ad6576cdfb2a386973f7193b7cd24b32806b31beb5d5bac2d4d77cfd2e5f9f',
     description: 'The Cardano transaction hash for the NFT minting process.',
     nullable: true,
   })
@@ -203,7 +424,7 @@ export class InspectionResponseDto {
    * Null if not yet calculated/stored.
    */
   @ApiProperty({
-    example: 'a1b2c3d4e5f67890...',
+    example: 'ad16c1c1f7a3b9eb41512022ce7b92042795d6aa7a34dce0a44c839fa43b4b5f',
     description:
       'The cryptographic hash (e.g., SHA-256) of the generated PDF report file.',
     nullable: true,
@@ -215,7 +436,7 @@ export class InspectionResponseDto {
    * Null if not yet archived.
    */
   @ApiProperty({
-    example: '2025-05-01T15:00:00Z',
+    example: '2025-05-18T06:01:32.593Z',
     description:
       'The timestamp indicating when the inspection was successfully archived.',
     nullable: true,
@@ -227,7 +448,7 @@ export class InspectionResponseDto {
    * Null if currently active or never archived.
    */
   @ApiProperty({
-    example: '2025-05-02T10:00:00Z',
+    example: null,
     description:
       'The timestamp indicating when the inspection was deactivated (soft delete).',
     nullable: true,
@@ -235,10 +456,22 @@ export class InspectionResponseDto {
   deactivatedAt: Date | null;
 
   /**
+   * Map of note field paths to their desired font sizes in the report.
+   * Stored as JSON in the database.
+   */
+  @ApiProperty({
+    example: {},
+    description:
+      'Map of note field paths to their desired font sizes in the report.',
+    nullable: true,
+  })
+  notesFontSizes: Prisma.JsonValue | null;
+
+  /**
    * The timestamp when this inspection record was first created in the database.
    */
   @ApiProperty({
-    example: '2025-05-01T14:00:00Z',
+    example: '2025-05-17T17:55:34.539Z',
     description:
       'The timestamp when this inspection record was first created in the database.',
   })
@@ -248,11 +481,32 @@ export class InspectionResponseDto {
    * The timestamp when this inspection record was last updated in the database.
    */
   @ApiProperty({
-    example: '2025-05-01T14:35:00Z',
+    example: '2025-05-18T06:01:32.595Z',
     description:
       'The timestamp when this inspection record was last updated in the database.',
   })
   updatedAt: Date;
+
+  /**
+   * The unique human-readable identifier for the inspection.
+   */
+  @ApiProperty({
+    example: 'SOL-05072025-002',
+    description: 'The unique human-readable identifier for the inspection.',
+  })
+  pretty_id: string;
+
+  /**
+   * The UUID of the user (Inspector) who performed this inspection.
+   * Can be null if not linked.
+   */
+  @ApiProperty({
+    example: null,
+    description:
+      'The UUID of the user (Inspector) who performed this inspection.',
+    nullable: true,
+  })
+  inspectorId: string | null;
 
   /**
    * Constructor to facilitate mapping from a Prisma Inspection entity.

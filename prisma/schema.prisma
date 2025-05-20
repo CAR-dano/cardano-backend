@@ -133,6 +133,9 @@ model Inspection {
   // Timestamp indicating when the inspection was deactivated (soft delete). Optional. Explicit mapping.
   deactivatedAt DateTime? @map("deactivated_at")
 
+  // --- Additional Fields ---
+  // Map of note field paths to their desired font sizes in the report.
+  notesFontSizes Json? @default("{}") @map("notes_font_sizes")
 
   // --- Database Indexes ---
   // Creates indexes on foreign keys and commonly queried fields for performance.

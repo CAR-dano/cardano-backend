@@ -193,6 +193,7 @@ export class InspectionsService {
           inspectionSummary: createInspectionDto.inspectionSummary,
           detailedAssessment: createInspectionDto.detailedAssessment,
           bodyPaintThickness: createInspectionDto.bodyPaintThickness,
+          notesFontSizes: createInspectionDto.notesFontSizes,
           // photoPaths default [], status default NEED_REVIEW
         };
 
