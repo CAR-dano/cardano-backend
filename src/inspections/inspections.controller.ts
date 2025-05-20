@@ -24,6 +24,7 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  NotFoundException,
 } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
@@ -548,6 +549,52 @@ export class InspectionsController {
   }
 
   // --- Inspection Retrieval Endpoints ---
+
+  /**
+   * [GET /inspections/search]
+   * Retrieves a single inspection by vehicle plate number (case-insensitive, space-agnostic).
+   * This endpoint is publicly accessible.
+   *
+   * @param {string} vehiclePlateNumber - The vehicle plate number to search for.
+   * @returns {Promise<InspectionResponseDto>} The found inspection record summary.
+   * @throws {NotFoundException} If inspection not found.
+   */
+  @Get('search')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Search for an inspection by vehicle plate number',
+    description:
+      'Retrieves a single inspection by vehicle plate number (case-insensitive, space-agnostic).',
+  })
+  @ApiQuery({
+    name: 'vehicleNumber',
+    required: true,
+    type: String,
+    description: 'The vehicle plate number to search for (e.g., "AB 1234 CD").',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'The found inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  async searchByVehicleNumber(
+    @Query('vehicleNumber') vehicleNumber: string,
+  ): Promise<InspectionResponseDto> {
+    this.logger.log(
+      `[GET /inspections/search] Searching for vehicle number: ${vehicleNumber}`,
+    );
+    const inspection =
+      await this.inspectionsService.findByVehiclePlateNumber(vehicleNumber);
+
+    if (!inspection) {
+      throw new NotFoundException(
+        `Inspection with vehicle plate number "${vehicleNumber}" not found.`,
+      );
+    }
+
+    return new InspectionResponseDto(inspection);
+  }
 
   /**
    * [GET /inspections]

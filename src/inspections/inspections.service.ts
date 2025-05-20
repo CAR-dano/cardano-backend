@@ -310,6 +310,61 @@ export class InspectionsService {
   }
 
   /**
+   * Finds a single inspection by vehicle plate number (case-insensitive, space-agnostic).
+   * This endpoint is publicly accessible and does not require role-based filtering.
+   *
+   * @param {string} vehiclePlateNumber - The vehicle plate number to search for.
+   * @returns {Promise<Inspection | null>} The found inspection record or null if not found.
+   */
+  async findByVehiclePlateNumber(
+    vehiclePlateNumber: string,
+  ): Promise<Inspection | null> {
+    this.logger.log(
+      `Searching for inspection by vehicle plate number: ${vehiclePlateNumber}`,
+    );
+
+    try {
+      // Use a raw query for a robust solution that works across databases for this specific matching logic.
+      // This compares the lowercased, space-removed version of the input with the lowercased, space-removed version of the DB column.
+      // Prisma's `$queryRaw` handles escaping the input to prevent SQL injection.
+      const idResult = await this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT id
+        FROM "inspections"
+        WHERE lower(replace("vehiclePlateNumber", ' ', '')) = lower(replace(${vehiclePlateNumber}, ' ', ''))
+        LIMIT 1;
+      `;
+
+      if (idResult.length === 0) {
+        this.logger.log(
+          `No inspection found for plate number: ${vehiclePlateNumber}`,
+        );
+        return null;
+      }
+
+      const inspectionId = idResult[0].id;
+
+      // Now fetch the full inspection object with relations using the ID
+      const inspection = await this.prisma.inspection.findUnique({
+        where: { id: inspectionId },
+        include: { photos: true }, // Include photos as in findOne
+      });
+
+      this.logger.log(
+        `Found inspection ID: ${inspection?.id} for plate number: ${vehiclePlateNumber}`,
+      );
+      return inspection;
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to search inspection by plate number ${vehiclePlateNumber}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not search inspection data.',
+      );
+    }
+  }
+
+  /**
    * Logs changes made to an inspection record by a reviewer/admin.
    * Changes are recorded in the InspectionChangeLog table.
    * The actual Inspection record is NOT updated by this method itself;
@@ -376,7 +431,7 @@ export class InspectionsService {
 
     // Iterate over the keys in the DTO (fields intended to be updated)
     for (const key in updateInspectionDto) {
-      if (Object.prototype.hasOwnProperty.call(updateInspectionDto, key)) {
+      if (Object.hasOwn(updateInspectionDto, key)) {
         const dtoKey = key as keyof UpdateInspectionDto;
         const newValue = updateInspectionDto[dtoKey]; // Value from the DTO
         const oldValue = (existingInspection as any)[dtoKey]; // Current value from DB
