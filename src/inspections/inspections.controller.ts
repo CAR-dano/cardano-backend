@@ -31,7 +31,7 @@ import { UpdateInspectionDto } from './dto/update-inspection.dto';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express'; // NestJS interceptor for handling multiple file fields
 import { diskStorage } from 'multer'; // Storage engine for Multer (file uploads)
 import { extname } from 'path'; // Node.js utility for handling file extensions
-import { Role } from '@prisma/client';
+import { Role, InspectionStatus } from '@prisma/client';
 import { InspectionResponseDto } from './dto/inspection-response.dto';
 import { PhotoResponseDto } from '../photos/dto/photo-response.dto';
 import { UpdatePhotoDto } from '../photos/dto/update-photo.dto';
@@ -568,6 +568,12 @@ export class InspectionsController {
     description: 'Filter inspections by user role.',
   })
   @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: InspectionStatus,
+    description: 'Filter inspections by inspection status.',
+  })
+  @ApiQuery({
     name: 'page',
     required: false,
     type: Number,
@@ -604,6 +610,7 @@ export class InspectionsController {
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findAll(
     @Query('role') userRole?: Role,
+    @Query('status') status?: InspectionStatus,
     @Query('page') page = 1,
     @Query('pageSize') pageSize = 10,
     /* @GetUser('role') realUserRole: Role */
@@ -621,6 +628,7 @@ export class InspectionsController {
     );
     const result = await this.inspectionsService.findAll(
       roleToFilter,
+      status,
       pageNumber,
       pageSizeNumber,
     );

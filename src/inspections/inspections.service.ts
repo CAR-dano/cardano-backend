@@ -477,6 +477,7 @@ export class InspectionsService {
    */
   async findAll(
     userRole: Role,
+    status?: InspectionStatus,
     page: number = 1,
     pageSize: number = 10,
   ): Promise<{
@@ -484,9 +485,15 @@ export class InspectionsService {
     meta: { total: number; page: number; pageSize: number; totalPages: number };
   }> {
     this.logger.log(
-      `Retrieving inspections for user role: ${userRole}, page: ${page}, pageSize: ${pageSize}`,
+      `Retrieving inspections for user role: ${userRole}, status: ${status ?? 'ALL'}, page: ${page}, pageSize: ${pageSize}`,
     );
     let whereClause: Prisma.InspectionWhereInput = {}; // Default: no filter
+
+    // Add status filter if provided
+    if (status) {
+      whereClause.status = status;
+      this.logger.log(`Applying filter: status = ${status}`);
+    }
 
     const skip = (page - 1) * pageSize;
     if (skip < 0) {
@@ -504,6 +511,18 @@ export class InspectionsService {
         // Add deactivatedAt check if needed: deactivatedAt: null
       };
       this.logger.log('Applying filter: status = ARCHIVED');
+    }
+    // Apply filter based on role for non-admin/reviewer roles ONLY if no status filter is provided
+    if (
+      !status && // Only apply this default if no status is explicitly requested
+      (userRole === Role.CUSTOMER ||
+        userRole === Role.DEVELOPER ||
+        userRole === Role.INSPECTOR)
+    ) {
+      whereClause.status = InspectionStatus.ARCHIVED;
+      this.logger.log(
+        'Applying default filter for non-admin/reviewer: status = ARCHIVED',
+      );
     }
     // TODO: Consider if INSPECTOR should see their own NEED_REVIEW inspections?
 
