@@ -58,7 +58,7 @@ import { Request } from 'express';
 // --- Multer Configuration ---
 const MAX_PHOTOS_PER_REQUEST = 10; // Max files per batch upload request
 const UPLOAD_PATH = './uploads/inspection-photos';
-const DUMMY_USER_ID = '9f7f3423-0926-4593-a0ec-23206028ced0'; // Temporary placeholder for user ID
+const DUMMY_USER_ID = '15aedb80-e428-4d84-9a84-eae47ebe84c1'; // Temporary placeholder for user ID
 
 /**
  * Multer disk storage configuration for uploaded inspection photos.

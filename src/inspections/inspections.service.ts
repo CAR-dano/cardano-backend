@@ -237,33 +237,108 @@ export class InspectionsService {
   }
 
   /**
-   * Logs changes made to an inspection record by a reviewer.
+   * Helper function for deep comparison of JSON objects up to three levels.
+   * Logs changes to the provided 'changes' array.
+   *
+   * @param fieldName The top-level JSON field name in the Inspection model.
+   * @param oldJsonValue The entire old JSON object/value from the database for this fieldName.
+   * @param newJsonValue The entire new JSON object/value from the DTO for this fieldName.
+   * @param changes Array to push log entries into.
+   * @param inspectionId The ID of the inspection.
+   * @param userId The ID of the user making the change.
+   * @param path Current path within the JSON object (e.g., ['fitur', 'airbag']). Max depth 2 for sub-sub-field.
+   */
+  private logJsonChangesRecursive(
+    fieldName: string, // e.g., 'identityDetails', 'detailedAssessment'
+    oldJsonValue: any,
+    newJsonValue: any,
+    changes: Prisma.InspectionChangeLogCreateManyInput[],
+    inspectionId: string,
+    userId: string,
+    path: string[] = [], // Path of keys, e.g., [], ['fitur'], ['fitur', 'airbag']
+  ) {
+    const isObject = (val: any): val is object =>
+      typeof val === 'object' && val !== null && !Array.isArray(val);
+    // If we are at the max depth (sub-sub-field) or one of the values is not an object, compare them directly.
+    // current path represents nesting:
+    // path.length === 0: comparing root of newJsonValue against root of oldJsonValue (for fieldName)
+    // path.length === 1: comparing a sub-field (e.g., detailedAssessment.fitur)
+    // path.length === 2: comparing a sub-sub-field (e.g., detailedAssessment.fitur.airbag) - MAX DEPTH for specific logging
+    if (
+      path.length >= 2 ||
+      !isObject(oldJsonValue) ||
+      !isObject(newJsonValue)
+    ) {
+      if (JSON.stringify(oldJsonValue) !== JSON.stringify(newJsonValue)) {
+        changes.push({
+          inspectionId: inspectionId,
+          changedByUserId: userId,
+          fieldName: fieldName,
+          subFieldName: path[0] || null,
+          subsubfieldname: path[1] || null,
+          oldValue:
+            oldJsonValue === undefined || oldJsonValue === null
+              ? Prisma.JsonNull
+              : oldJsonValue,
+          newValue:
+            newJsonValue === undefined || newJsonValue === null
+              ? Prisma.JsonNull
+              : newJsonValue,
+        });
+      }
+      return;
+    }
+
+    // If both are objects and we haven't reached max depth for specific path logging
+    const oldObj = oldJsonValue as Record<string, any>;
+    const newObj = newJsonValue as Record<string, any>; // This is the partial update object
+
+    // Iterate ONLY through keys present in the new (update DTO) object.
+    // We only care about what the user *intends* to change or set.
+    for (const key of Object.keys(newObj)) {
+      const currentPathWithKey = [...path, key];
+      this.logJsonChangesRecursive(
+        fieldName, // Keep passing the top-level fieldName
+        oldObj[key], // Value from existing DB record
+        newObj[key], // Value from the update DTO
+        changes,
+        inspectionId,
+        userId,
+        currentPathWithKey,
+      );
+    }
+  }
+
+  /**
+   * Logs changes made to an inspection record by a reviewer/admin.
    * Changes are recorded in the InspectionChangeLog table.
-   * The actual Inspection record is NOT updated by this method.
+   * The actual Inspection record is NOT updated by this method itself;
+   * updates happen during the 'approveInspection' process.
    *
    * @param {string} id - The UUID of the inspection to log changes for.
    * @param {UpdateInspectionDto} updateInspectionDto - DTO containing the potential changes.
-   * @param {string} userId - ID of the user performing the action (reviewer).
-   * @param {Role} userRole - Role of the user.
-   * @returns {Promise<Inspection>} The existing inspection record (after logging changes).
+   * @param {string} userId - ID of the user performing the action (reviewer/admin).
+   * @param {Role} userRole - Role of the user (for logging or future auth).
+   * @returns {Promise<Inspection>} The existing (unchanged) inspection record.
    * @throws {NotFoundException} If the inspection with the given ID is not found.
+   * @throws {BadRequestException} If trying to update an already approved inspection.
    * @throws {InternalServerErrorException} For database errors during logging.
    */
   async update(
     id: string,
     updateInspectionDto: UpdateInspectionDto,
-    userId: string, // User performing the update (reviewer)
-    userRole: Role, // Role of the user
+    userId: string,
+    userRole: Role, // Included for context, though not used for auth in this specific method
   ): Promise<Inspection> {
     this.logger.log(
-      `User ${userId} (Role: ${userRole}) attempting to log changes for inspection ID: ${id}`,
+      `User ${userId} (Role: ${userRole}) attempting to log/stage changes for inspection ID: ${id}`,
     );
     this.logger.debug(
       'Update DTO received:',
       JSON.stringify(updateInspectionDto, null, 2),
     );
 
-    // 1. Fetch the existing inspection
+    // 1. Fetch the existing inspection to compare against
     const existingInspection = await this.prisma.inspection.findUnique({
       where: { id },
     });
@@ -272,102 +347,95 @@ export class InspectionsService {
       throw new NotFoundException(`Inspection with ID "${id}" not found.`);
     }
 
-    // Add check to prevent updating approved inspections
-    if (existingInspection.status === InspectionStatus.APPROVED) {
+    // Check: Prevent logging changes for already approved or archived inspections
+    // This logic might be better suited in the controller or a specific "edit" phase
+    if (
+      existingInspection.status === InspectionStatus.APPROVED ||
+      existingInspection.status === InspectionStatus.ARCHIVED ||
+      existingInspection.status === InspectionStatus.ARCHIVING
+    ) {
       throw new BadRequestException(
-        `Inspection with ID "${id}" has already been approved and cannot be updated.`,
+        `Inspection with ID "${id}" has status ${existingInspection.status} and cannot be updated or have changes logged at this stage.`,
       );
     }
 
-    // 2. Compare data and log changes
+    // 2. Initialize array to store change log entries
     const changesToLog: Prisma.InspectionChangeLogCreateManyInput[] = [];
 
-    // Helper function for deep comparison of JSON objects up to one level
-    const logJsonChangesOneLevel = (
-      fieldName: string,
-      oldValue: any,
-      newValue: any,
-      changes: Prisma.InspectionChangeLogCreateManyInput[],
-    ) => {
-      if (
-        typeof oldValue === 'object' &&
-        oldValue !== null &&
-        typeof newValue === 'object' &&
-        newValue !== null
-      ) {
-        const oldObj = oldValue as any;
-        const newObj = newValue as any;
+    // Define which top-level fields in Inspection are JSON and should be deep compared
+    const jsonFieldsInInspectionModel: Array<
+      keyof UpdateInspectionDto & keyof Inspection
+    > = [
+      'identityDetails',
+      'vehicleData',
+      'equipmentChecklist',
+      'inspectionSummary',
+      'detailedAssessment',
+      'bodyPaintThickness',
+    ];
 
-        // Hanya iterasi melalui kunci yang ada di newValue
-        for (const key in newObj) {
-          if (newObj.hasOwnProperty(key)) {
-            const oldVal = oldObj[key];
-            const newVal = newObj[key];
+    // Iterate over the keys in the DTO (fields intended to be updated)
+    for (const key in updateInspectionDto) {
+      if (Object.prototype.hasOwnProperty.call(updateInspectionDto, key)) {
+        const dtoKey = key as keyof UpdateInspectionDto;
+        const newValue = updateInspectionDto[dtoKey]; // Value from the DTO
+        const oldValue = (existingInspection as any)[dtoKey]; // Current value from DB
 
-            const oldValToLog = oldVal === undefined ? null : oldVal;
-            const newValToLog = newVal === undefined ? null : newVal;
+        if (newValue === undefined) continue; // Skip if DTO field is undefined (not meant to be updated)
 
-            if (JSON.stringify(oldValToLog) !== JSON.stringify(newValToLog)) {
-              changes.push({
-                inspectionId: id,
-                changedByUserId: userId,
-                fieldName: fieldName,
-                subFieldName: key,
-                oldValue: oldValToLog === null ? Prisma.JsonNull : oldValToLog,
-                newValue: newValToLog === null ? Prisma.JsonNull : newValToLog,
-              });
+        if (jsonFieldsInInspectionModel.includes(dtoKey as any)) {
+          this.logger.verbose(`Comparing JSON field: ${dtoKey}`);
+          // For JSON fields, newValue from DTO is an object. oldValue from DB is also object/null.
+          this.logJsonChangesRecursive(
+            dtoKey,
+            oldValue, // This is the full old JSON object for this field
+            newValue, // This is the partial or full new JSON object for this field from DTO
+            changesToLog,
+            id,
+            userId,
+            [], // Start with an empty path for the top-level JSON field
+          );
+        } else {
+          // Handle non-JSON, top-level fields (e.g., vehiclePlateNumber)
+          const oldValToLog =
+            oldValue === undefined || oldValue === null
+              ? Prisma.JsonNull
+              : oldValue;
+          const newValToLog =
+            newValue === undefined || newValue === null
+              ? Prisma.JsonNull
+              : newValue;
+
+          // Add validation for specific top-level fields if needed
+          if (dtoKey === 'vehiclePlateNumber' && typeof newValue === 'string') {
+            const maxLength = 15; // Corresponds to @db.VarChar(15) in schema.prisma
+            if (newValue.length > maxLength) {
+              throw new BadRequestException(
+                `Value for ${dtoKey} exceeds maximum length of ${maxLength} characters.`,
+              );
             }
           }
-        }
-      } else if (oldValue !== newValue) {
-        const oldValToLog = oldValue === undefined ? null : oldValue;
-        const newValToLog = newValue === undefined ? null : newValue;
-        if (JSON.stringify(oldValToLog) !== JSON.stringify(newValToLog)) {
-          changes.push({
-            inspectionId: id,
-            changedByUserId: userId,
-            fieldName: fieldName,
-            subFieldName: null,
-            oldValue: oldValToLog === null ? Prisma.JsonNull : oldValToLog,
-            newValue: newValToLog === null ? Prisma.JsonNull : newValToLog,
-          });
-        }
-      }
-    };
+          // Add similar checks for other non-JSON fields if they have length constraints
 
-    // Compare fields from DTO with existing data and log changes
-    for (const key in updateInspectionDto) {
-      if (updateInspectionDto.hasOwnProperty(key)) {
-        const newValue = (updateInspectionDto as any)[key];
-        const oldValue = (existingInspection as any)[key];
-
-        if (
-          key === 'identityDetails' ||
-          key === 'vehicleData' ||
-          key === 'equipmentChecklist' ||
-          key === 'inspectionSummary' ||
-          key === 'detailedAssessment' ||
-          key === 'bodyPaintThickness'
-        ) {
-          logJsonChangesOneLevel(key, oldValue, newValue, changesToLog);
-        } else if (newValue !== undefined) {
-          const oldValToLog = oldValue === undefined ? null : oldValue;
-          const newValToLog = newValue === undefined ? null : newValue;
           if (JSON.stringify(oldValToLog) !== JSON.stringify(newValToLog)) {
+            this.logger.verbose(
+              `Logging change for top-level non-JSON field: ${dtoKey}`,
+            );
             changesToLog.push({
               inspectionId: id,
               changedByUserId: userId,
-              fieldName: key,
+              fieldName: dtoKey,
               subFieldName: null,
-              oldValue: oldValToLog === null ? Prisma.JsonNull : oldValToLog,
-              newValue: newValToLog === null ? Prisma.JsonNull : newValToLog,
+              subsubfieldname: null,
+              oldValue: oldValToLog,
+              newValue: newValToLog,
             });
           }
         }
       }
     }
 
-    // 3. Save changes to InspectionChangeLog
+    // 3. Save all detected changes to the InspectionChangeLog table
     if (changesToLog.length > 0) {
       try {
         await this.prisma.inspectionChangeLog.createMany({
@@ -387,11 +455,12 @@ export class InspectionsService {
       }
     } else {
       this.logger.log(
-        `No significant changes detected for inspection ID: ${id}`,
+        `No significant changes detected to log for inspection ID: ${id}`,
       );
     }
 
-    // 4. Return the existing inspection
+    // 4. Return the existing (unmodified by this method) inspection record.
+    // The actual update to the 'inspections' table happens in 'approveInspection'.
     return existingInspection;
   }
 
@@ -619,12 +688,16 @@ export class InspectionsService {
         orderBy: { changedAt: 'asc' },
       });
 
-      // Group changes by fieldName and subFieldName
+      // Group changes by fieldName, subFieldName, and subsubfieldname
       const groupedChanges: { [key: string]: InspectionChangeLog[] } = {};
       for (const log of latestChanges) {
-        const key = log.subFieldName
-          ? `${log.fieldName}.${log.subFieldName}`
-          : log.fieldName;
+        let key = log.fieldName;
+        if (log.subFieldName) {
+          key += `.${log.subFieldName}`;
+          if (log.subsubfieldname) {
+            key += `.${log.subsubfieldname}`;
+          }
+        }
         if (!groupedChanges[key]) {
           groupedChanges[key] = [];
         }
@@ -648,27 +721,121 @@ export class InspectionsService {
       // 3. Apply the latest changes to the inspection data
       const updatedInspectionData: any = { ...inspection };
 
+      // Define which top-level fields in Inspection are JSON and can be updated via change log
+      const jsonUpdatableFields: string[] = [
+        'identityDetails',
+        'vehicleData',
+        'equipmentChecklist',
+        'inspectionSummary',
+        'detailedAssessment',
+        'bodyPaintThickness',
+      ];
+
       for (const key in latestValues) {
         if (latestValues.hasOwnProperty(key)) {
-          if (key.includes('.')) {
-            // Handle subFieldName (one level deep)
-            const [fieldName, subFieldName] = key.split('.');
-            if (
-              updatedInspectionData[fieldName] &&
-              typeof updatedInspectionData[fieldName] === 'object'
-            ) {
-              updatedInspectionData[fieldName] = {
-                ...updatedInspectionData[fieldName],
-                [subFieldName]: latestValues[key],
-              };
+          const value = latestValues[key];
+          const parts = key.split('.'); // Split key into parts
+          const fieldName = parts[0];
+
+          if (parts.length === 1) {
+            // Handle top-level fields (fieldName only) - Apply regardless of JSON updatable list
+            const fieldName = parts[0];
+            this.logger.debug(
+              `Applying top-level change: key=${key}, value=${JSON.stringify(value)}, fieldName=${fieldName}`,
+            ); // Added logging
+            // Only attempt to update if the field exists in the original inspection object
+            if (inspection.hasOwnProperty(fieldName)) {
+              try {
+                // Added try block
+                // Explicitly check for null/undefined before assigning
+                if (value !== null && value !== undefined) {
+                  updatedInspectionData[fieldName] = value;
+                } else {
+                  // If the latest value is null/undefined, explicitly set the field to null
+                  updatedInspectionData[fieldName] = null; // Or Prisma.JsonNull
+                }
+              } catch (error: any) {
+                // Added catch block
+                if (
+                  error instanceof Prisma.PrismaClientKnownRequestError &&
+                  error.code === 'P2000'
+                ) {
+                  this.logger.warn(
+                    `Skipping application of change log for field "${fieldName}" due to value being too long or incompatible: ${JSON.stringify(value)}. Error: ${error.message}`,
+                  );
+                } else {
+                  // Re-throw other errors
+                  throw error;
+                }
+              }
             } else {
-              updatedInspectionData[fieldName] = {
-                [subFieldName]: latestValues[key],
-              };
+              this.logger.warn(
+                `Attempted to apply change log for non-existent or non-updatable top-level field: ${key}. Ignoring.`,
+              );
             }
           } else {
-            // Handle top-level fields (fieldName only)
-            updatedInspectionData[key] = latestValues[key];
+            // Handle nested fields (subFieldName or subsubfieldname)
+            // Only apply nested changes if the fieldName is one of the designated JSON updatable fields
+            if (jsonUpdatableFields.includes(fieldName)) {
+              if (parts.length === 2) {
+                // Handle subFieldName (one level deep)
+                const subFieldName = parts[1];
+                if (
+                  updatedInspectionData[fieldName] &&
+                  typeof updatedInspectionData[fieldName] === 'object'
+                ) {
+                  updatedInspectionData[fieldName] = {
+                    ...updatedInspectionData[fieldName],
+                    [subFieldName]: value,
+                  };
+                } else {
+                  // If the parent object doesn't exist or is not an object, create it
+                  updatedInspectionData[fieldName] = {
+                    [subFieldName]: value,
+                  };
+                }
+              } else if (parts.length === 3) {
+                // Handle subsubfieldname (two levels deep)
+                const subFieldName = parts[1];
+                const subsubfieldname = parts[2];
+                if (
+                  updatedInspectionData[fieldName] &&
+                  typeof updatedInspectionData[fieldName] === 'object' &&
+                  updatedInspectionData[fieldName][subFieldName] &&
+                  typeof updatedInspectionData[fieldName][subFieldName] ===
+                    'object'
+                ) {
+                  updatedInspectionData[fieldName][subFieldName] = {
+                    ...updatedInspectionData[fieldName][subFieldName],
+                    [subsubfieldname]: value,
+                  };
+                } else if (
+                  updatedInspectionData[fieldName] &&
+                  typeof updatedInspectionData[fieldName] === 'object'
+                ) {
+                  // If the sub-field object doesn't exist or is not an object, create it
+                  updatedInspectionData[fieldName] = {
+                    ...updatedInspectionData[fieldName],
+                    [subFieldName]: {
+                      [subsubfieldname]: value,
+                    },
+                  };
+                } else {
+                  // If the top-level field doesn't exist or is not an object, create it and nested objects
+                  updatedInspectionData[fieldName] = {
+                    [subFieldName]: {
+                      [subsubfieldname]: value,
+                    },
+                  };
+                }
+              }
+              // Ignore parts.length > 3 for now, as logging is limited to 3 levels
+            } else {
+              this.logger.warn(
+                `Attempted to apply nested change log for non-JSON field: ${key}. Ignoring.`,
+              );
+              // Optionally, log a warning or handle this case differently
+            }
           }
         }
       }

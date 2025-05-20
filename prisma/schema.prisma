@@ -183,6 +183,7 @@ model InspectionChangeLog {
   changedByUser   User      @relation(fields: [changedByUserId], references: [id], onDelete: Cascade)
   fieldName       String
   subFieldName    String? // Added to track changes within nested JSON fields
+  subsubfieldname String? // Added to track changes within the third level of nested JSON fields
   oldValue        Json?
   newValue        Json?
   changedAt       DateTime  @default(now())
