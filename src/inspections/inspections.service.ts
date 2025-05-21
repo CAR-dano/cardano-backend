@@ -732,18 +732,20 @@ export class InspectionsService {
 
   /**
    * Retrieves all inspection records, ordered by creation date descending.
-   * Filters results based on the requesting user's role.
-   * Admins/Reviewers see all. Customers/Developers/Inspectors only see ARCHIVED.
+   * Filters results based on the requesting user's role and optionally by status.
+   * Admins/Reviewers see all by default. Customers/Developers/Inspectors only see ARCHIVED by default (if no status is specified).
+   * If `status` is 'DATABASE', returns all inspections except those with status NEED_REVIEW, overriding role-based filtering.
    * Includes pagination and metadata.
    *
    * @param {Role} userRole - The role of the user making the request.
+   * @param {InspectionStatus | 'DATABASE'} [status] - Optional filter by inspection status. Use 'DATABASE' to retrieve all statuses except NEED_REVIEW, regardless of user role.
    * @param {number} page - The page number (1-based).
    * @param {number} pageSize - The number of items per page.
    * @returns {Promise<{ data: Inspection[], meta: { total: number, page: number, pageSize: number, totalPages: number } }>} An object containing an array of inspection records and pagination metadata.
    */
   async findAll(
     userRole: Role,
-    status?: InspectionStatus,
+    status?: InspectionStatus | 'DATABASE',
     page: number = 1,
     pageSize: number = 10,
   ): Promise<{
@@ -751,46 +753,46 @@ export class InspectionsService {
     meta: { total: number; page: number; pageSize: number; totalPages: number };
   }> {
     this.logger.log(
-      `Retrieving inspections for user role: ${userRole}, status: ${status ?? 'ALL'}, page: ${page}, pageSize: ${pageSize}`,
+      `Retrieving inspections for user role: ${userRole}, status: ${status ?? 'ALL (default)'}, page: ${page}, pageSize: ${pageSize}`,
     );
-    let whereClause: Prisma.InspectionWhereInput = {}; // Default: no filter
 
-    // Add status filter if provided
+    // Initialize whereClause
+    const whereClause: Prisma.InspectionWhereInput = {};
+
+    // 1. Handle explicit status or 'DATABASE'
     if (status) {
-      whereClause.status = status;
-      this.logger.log(`Applying filter: status = ${status}`);
+      if (status === 'DATABASE') {
+        whereClause.status = { not: InspectionStatus.NEED_REVIEW };
+        this.logger.log(
+          `Applying filter: status = DATABASE (excluding NEED_REVIEW)`,
+        );
+      } else {
+        // This is an explicit status filter from the user
+        whereClause.status = status;
+        this.logger.log(`Applying filter: status = ${status}`);
+      }
+    } else {
+      // 2. Handle default status based on role ONLY IF no explicit status is provided
+      if (
+        userRole === Role.CUSTOMER ||
+        userRole === Role.DEVELOPER ||
+        userRole === Role.INSPECTOR
+      ) {
+        whereClause.status = InspectionStatus.ARCHIVED;
+        this.logger.log(
+          `Applying default filter for role ${userRole}: status = ARCHIVED (no specific status requested)`,
+        );
+      }
+      // If Admin/Reviewer and no status is provided, whereClause.status remains empty (meaning they see all)
     }
 
     const skip = (page - 1) * pageSize;
     if (skip < 0) {
+      this.logger.warn(
+        `Invalid page number requested: ${page}. Page number must be positive.`,
+      );
       throw new BadRequestException('Page number must be positive.');
     }
-
-    // Apply filter based on role for non-admin/reviewer roles
-    if (
-      userRole === Role.CUSTOMER ||
-      userRole === Role.DEVELOPER ||
-      userRole === Role.INSPECTOR
-    ) {
-      whereClause = {
-        status: InspectionStatus.ARCHIVED,
-        // Add deactivatedAt check if needed: deactivatedAt: null
-      };
-      this.logger.log('Applying filter: status = ARCHIVED');
-    }
-    // Apply filter based on role for non-admin/reviewer roles ONLY if no status filter is provided
-    if (
-      !status && // Only apply this default if no status is explicitly requested
-      (userRole === Role.CUSTOMER ||
-        userRole === Role.DEVELOPER ||
-        userRole === Role.INSPECTOR)
-    ) {
-      whereClause.status = InspectionStatus.ARCHIVED;
-      this.logger.log(
-        'Applying default filter for non-admin/reviewer: status = ARCHIVED',
-      );
-    }
-    // TODO: Consider if INSPECTOR should see their own NEED_REVIEW inspections?
 
     try {
       const total = await this.prisma.inspection.count({ where: whereClause });
@@ -804,9 +806,11 @@ export class InspectionsService {
         include: { photos: true }, // Include related photos
         // include: { inspector: { select: {id: true, name: true}}, reviewer: { select: {id: true, name: true}} } // Example include
       });
+
       this.logger.log(
-        `Retrieved ${inspections.length} inspections for role ${userRole}. Total: ${total}`,
+        `Retrieved ${inspections.length} inspections of ${total} total for role ${userRole}.`,
       );
+
       const totalPages = Math.ceil(total / pageSize);
       return {
         data: inspections,
@@ -818,7 +822,6 @@ export class InspectionsService {
         },
       };
     } catch (error: unknown) {
-      // Use unknown
       const errorMessage =
         error instanceof Error ? error.message : 'An unknown error occurred';
       const errorStack =

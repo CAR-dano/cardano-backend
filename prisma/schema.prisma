@@ -160,8 +160,8 @@ model Photo {
 
   path String // Unique path/filename in storage (disk or cloud)
   label String // Photo label (can be custom or from originalLabel)
-  category String @default("general")
-  isMandatory Boolean @default(false)
+  category String? @default("general")
+  isMandatory Boolean? @default(false)
   originalLabel String? // Special for FIXED types (e.g. “Front View”, “OBD Scanner”)
   needAttention Boolean? @default(false) // Only relevant for DYNAMIC types, default false
 
