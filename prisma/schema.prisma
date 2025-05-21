@@ -88,6 +88,11 @@ model Inspection {
   // Relation field for the reviewing User. Uses the 'ReviewedBy' relation name defined in User model.
   reviewer    User?    @relation("ReviewedBy", fields: [reviewerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
+  // Foreign Key linking to the InspectionBranchCity. Optional.
+  branchCityId String? @map("branch_city_id")
+  // Relation field for the branch city.
+  branchCity InspectionBranchCity? @relation("InspectionBranchRelation", fields: [branchCityId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
   // --- Basic Inspection Data ---
   // Vehicle's license plate number. VarChar(15) for potential length limit. Optional.
   vehiclePlateNumber String?   @db.VarChar(15)
@@ -173,6 +178,8 @@ model InspectionBranchCity {
   code      String   @unique @db.VarChar(3)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  inspections Inspection[] @relation("InspectionBranchRelation") // Relation to inspections in this branch city
 
   @@map("inspection_branch_city")
 }

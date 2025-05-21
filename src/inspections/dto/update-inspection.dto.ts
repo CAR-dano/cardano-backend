@@ -24,4 +24,8 @@ export class UpdateInspectionDto extends PartialType(CreateInspectionDto) {
   */
   // For now, inheriting all optional fields from CreateInspectionDto is sufficient
   // for updating vehiclePlateNumber, inspectionDate, overallRating, and the JSON fields.
+
+  // Add inspectorId and branchCityId for potential updates
+  inspectorId?: string;
+  branchCityId?: string;
 }

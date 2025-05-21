@@ -28,6 +28,7 @@ import { join } from 'path';
 import { PhotosModule } from './photos/photos.module';
 import { InspectionBranchesModule } from './inspection-branches/inspection-branches.module';
 import { InspectionChangeLogModule } from './inspection-change-log/inspection-change-log.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { InspectionChangeLogModule } from './inspection-change-log/inspection-ch
     PrismaModule,
     PhotosModule,
     InspectionBranchesModule,
+    DashboardModule,
   ],
   controllers: [],
   providers: [],

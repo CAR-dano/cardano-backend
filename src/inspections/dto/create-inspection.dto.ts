@@ -10,33 +10,25 @@ import {
   IsString,
   IsDateString,
   IsObject,
-  IsUUID,
   IsOptional,
-} from 'class-validator'; // Keep minimal validators
+  ValidateNested,
+} from 'class-validator';
+
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IdentityDetailsDto } from './identity-details.dto';
 
 export class CreateInspectionDto {
-  /**
-   * The ID of the inspector performing the inspection.
-   * @example "ac5ae369-a422-426f-b01e-fad5476edda5"
-   */
-  @ApiProperty({
-    example: 'ac5ae369-a422-426f-b01e-fad5476edda5',
-    description: 'The ID of the inspector performing the inspection.',
-  })
-  @IsUUID()
-  inspectorId: string;
-
   /**
    * The license plate number of the inspected vehicle.
    * @example "AB 1 DQ"
    */
   @ApiProperty({
-    example: 'AB 1 CD',
+    example: 'AB 1 DQ',
     description: 'The license plate number of the inspected vehicle.',
   })
-  @IsString() // Decorator validating the field is a string if provided
-  vehiclePlateNumber?: string;
+  @IsString()
+  vehiclePlateNumber: string;
 
   /**
    * The date and time when the inspection was performed.
@@ -66,19 +58,21 @@ export class CreateInspectionDto {
   /**
    * Object containing details from the "Identitas" section of the inspection form.
    * Expected to be a valid JavaScript object after potential parsing from a JSON string by NestJS pipes.
-   * @example { "namaInspektor": "Tony Stark", "namaCustomer": "Maul", "cabangInspeksi": "Solo" }
+   * Contains UUIDs for the inspector (`namaInspektor`) and the inspection branch city (`cabangInspeksi`).
+   * @example { "namaInspektor": "ac5ae369-a422-426f-b01e-fad5476edda5", "namaCustomer": "Maul", "cabangInspeksi": "ac5ae369-a422-426f-b01e-fad5476edda5" }
    */
   @ApiProperty({
     example: {
-      namaInspektor: 'Tony Stark',
-      namaCustomer: 'Steve Roger',
-      cabangInspeksi: 'Solo',
+      namaInspektor: 'ac5ae369-a422-426f-b01e-fad5476edda5',
+      namaCustomer: 'Maul',
+      cabangInspeksi: 'ac5ae369-a422-426f-b01e-fad5476edda5',
     },
     description:
-      'Object containing details from the "Identitas" section of the inspection form.',
+      'Object containing details from the "Identitas" section of the inspection form, with UUIDs for inspector and branch city.',
   })
-  @IsObject() // Validates that the value is an object if provided
-  identityDetails: Record<string, any>; // Property type is an object/record
+  @Type(() => IdentityDetailsDto)
+  @ValidateNested()
+  identityDetails: IdentityDetailsDto;
 
   /**
    * Object containing details from the "Data Kendaraan" section of the inspection form.

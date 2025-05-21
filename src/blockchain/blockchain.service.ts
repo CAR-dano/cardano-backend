@@ -228,8 +228,7 @@ export class BlockchainService {
 
       return { txHash, assetId };
     } catch (error: any) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
-      this.logger.error(`NFT Minting failed: ${error.message}`, error.stack);
+      this.logger.error('NFT Minting failed:', error);
       // Provide more context if possible
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       const errorMessage = error
@@ -374,7 +373,7 @@ export class BlockchainService {
       // The 'onchain_metadata' property usually holds the CIP-25 metadata
       return assetData; // Return the full asset data object
     } catch (error: unknown) {
-      let errorMessage = 'Unknown error during asset data retrieval';
+      let errorMessage = 'Unknown error during metadata retrieval';
       let errorStack: string | undefined = undefined;
 
       if (error instanceof Error) {
