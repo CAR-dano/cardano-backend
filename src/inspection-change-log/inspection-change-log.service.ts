@@ -26,10 +26,21 @@ export class InspectionChangeLogService {
       );
     }
 
-    return this.prisma.inspectionChangeLog.findMany({
+    const changeLogs = await this.prisma.inspectionChangeLog.findMany({
       where: { inspectionId: inspectionId },
-      orderBy: { changedAt: 'asc' }, // Order by timestamp
+      orderBy: { changedAt: 'desc' }, // Order by timestamp descending (latest first)
     });
+
+    const latestChangeLogsMap = new Map<string, InspectionChangeLog>();
+
+    for (const log of changeLogs) {
+      const key = `${log.fieldName}-${log.subFieldName}-${log.subsubfieldname}`;
+      if (!latestChangeLogsMap.has(key)) {
+        latestChangeLogsMap.set(key, log);
+      }
+    }
+
+    return Array.from(latestChangeLogsMap.values());
   }
 
   /**
