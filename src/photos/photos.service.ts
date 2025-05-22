@@ -83,8 +83,9 @@ export class PhotosService {
     );
     await this.ensureInspectionExists(inspectionId);
 
-    // Parse needAttention string to boolean
+    // Parse boolean strings to boolean
     const needAttention = dto.needAttention === 'true';
+    const isMandatory = dto.isMandatory === 'true';
 
     try {
       return await this.prisma.photo.create({
@@ -92,6 +93,8 @@ export class PhotosService {
           inspection: { connect: { id: inspectionId } },
           path: file.filename,
           label: dto.label,
+          category: dto.category, // Add category
+          isMandatory: isMandatory, // Add isMandatory
           originalLabel: null,
           needAttention: needAttention,
           // submittedByUserId: userId,
@@ -350,7 +353,12 @@ export class PhotosService {
     if (!metadataJsonString)
       throw new BadRequestException('Missing metadata JSON string.');
 
-    let parsedMetadata: { label: string; needAttention?: boolean }[]; // Use a simple type for metadata
+    let parsedMetadata: {
+      label: string;
+      needAttention?: boolean;
+      category?: string;
+      isMandatory?: boolean;
+    }[]; // Use a simple type for metadata
     try {
       parsedMetadata = JSON.parse(metadataJsonString);
       if (!Array.isArray(parsedMetadata))
@@ -373,6 +381,17 @@ export class PhotosService {
           throw new BadRequestException(
             `Invalid needAttention at metadata index ${i}.`,
           );
+        if (meta.category !== undefined && typeof meta.category !== 'string')
+          throw new BadRequestException(
+            `Invalid category at metadata index ${i}.`,
+          );
+        if (
+          meta.isMandatory !== undefined &&
+          typeof meta.isMandatory !== 'boolean'
+        )
+          throw new BadRequestException(
+            `Invalid isMandatory at metadata index ${i}.`,
+          );
       });
     } catch (error: any) {
       throw new BadRequestException(
@@ -390,6 +409,8 @@ export class PhotosService {
           inspectionId: inspectionId, // Link each photo to the inspection
           path: file.filename,
           label: meta.label,
+          category: meta.category, // Add category
+          isMandatory: meta.isMandatory ?? false, // Add isMandatory
           originalLabel: null,
           needAttention: meta.needAttention ?? false,
           // submittedByUserId: userId, // Add if tracking
