@@ -321,14 +321,6 @@ export class InspectionsController {
   }
 
   /**
-   * Interface for the parsed metadata of a single photo.
-   */
-  interface SinglePhotoMetadata {
-    label: string;
-    needAttention?: boolean;
-  }
-
-  /**
    * Handles the upload of a single photo for an inspection.
    * [POST /inspections/:id/photos/single]
    * Expects 'multipart/form-data' with 'label' (string) and optionally 'needAttention' (string "true" or "false") and 'photo' (file).

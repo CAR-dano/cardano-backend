@@ -43,4 +43,34 @@ export class AddPhotoDto {
   @IsOptional()
   @IsBooleanString()
   needAttention?: string;
+
+  /**
+   * Category of the photo.
+   * Sent as a text field. Optional, defaults to "general".
+   */
+  @ApiProperty({
+    description: 'Category of the photo',
+    required: false,
+    example: 'exterior',
+    default: 'general',
+  })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  /**
+   * Flag indicating if this photo is mandatory.
+   * Sent as a string ("true" or "false") in form-data, or omitted for false.
+   * Optional field.
+   */
+  @ApiProperty({
+    description:
+      'Flag if photo is mandatory (send "true" or "false" string, or omit for false)',
+    required: false,
+    example: 'true',
+    default: 'false',
+  })
+  @IsOptional()
+  @IsBooleanString()
+  isMandatory?: string;
 }
