@@ -45,6 +45,12 @@ export class InspectionChangeLogController {
     type: [InspectionChangeLogResponseDto],
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  /**
+   * Retrieves change logs for a specific inspection.
+   *
+   * @param inspectionId The ID of the inspection.
+   * @returns A promise that resolves to an array of InspectionChangeLog objects.
+   */
   async findByInspectionId(
     @Param('inspectionId') inspectionId: string,
   ): Promise<InspectionChangeLog[]> {

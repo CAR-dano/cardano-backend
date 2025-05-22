@@ -17,22 +17,34 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
  * All properties are optional as per the standard.
  */
 class NftOnchainMetadataDto {
+  /**
+   * Required display name for the NFT (CIP-25).
+   */
   @ApiPropertyOptional({
     description: 'Required display name for the NFT (CIP-25).',
   })
   name?: string;
 
+  /**
+   * URL (often IPFS) or array of URLs pointing to the NFT's primary media.
+   */
   @ApiPropertyOptional({
     description:
       "URL (often IPFS) or array of URLs pointing to the NFT's primary media.",
   })
   image?: string | string[];
 
+  /**
+   * MIME type of the asset specified in "image".
+   */
   @ApiPropertyOptional({
     description: 'MIME type of the asset specified in "image".',
   })
   mediaType?: string;
 
+  /**
+   * Description of the NFT.
+   */
   @ApiPropertyOptional({ description: 'Description of the NFT.' })
   description?: string | string[];
 
@@ -44,27 +56,51 @@ class NftOnchainMetadataDto {
   })
   inspectionId?: string;
 
+  /**
+   * Vehicle Plate Number.
+   */
   @ApiPropertyOptional({ description: 'Vehicle Plate Number' })
   vehicleNumber?: string;
 
+  /**
+   * Date of Inspection in ISO String format.
+   */
   @ApiPropertyOptional({ description: 'Date of Inspection (ISO String)' })
   inspectionDate?: string;
 
+  /**
+   * Brand of the Vehicle.
+   */
   @ApiPropertyOptional({ description: 'Brand of the Vehicle' })
   vehicleBrand?: string;
 
+  /**
+   * Model of the Vehicle.
+   */
   @ApiPropertyOptional({ description: 'Model of the Vehicle' })
   vehicleModel?: string;
 
+  /**
+   * Overall Rating given during the inspection.
+   */
   @ApiPropertyOptional({ description: 'Overall Rating given' })
   overallRating?: string;
 
+  /**
+   * URL to the off-chain PDF report.
+   */
   @ApiPropertyOptional({ description: 'URL to the off-chain PDF report' })
   pdfUrl?: string;
 
+  /**
+   * SHA-256 Hash of the PDF report.
+   */
   @ApiPropertyOptional({ description: 'SHA-256 Hash of the PDF report' })
   pdfHash?: string;
 
+  /**
+   * ID of the inspector user.
+   */
   @ApiPropertyOptional({
     description: 'ID of the inspector user',
     format: 'uuid',

@@ -49,7 +49,7 @@ export class CreateInspectionDto {
     description:
       'The date and time when the inspection was performed. Expected as an ISO 8601 format string.',
   })
-  @IsDateString() // Validates that the string conforms to the ISO 8601 date format if provided
+  @IsDateString()
   inspectionDate: string;
 
   /**

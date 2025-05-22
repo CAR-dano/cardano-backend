@@ -10,7 +10,7 @@
  * sensitive or internal fields from the original Prisma model.
  * --------------------------------------------------------------------------
  */
-import { Inspection, Prisma } from '@prisma/client'; // Import necessary Prisma types
+import { Inspection, Prisma } from '@prisma/client';
 import { ApiProperty } from '@nestjs/swagger';
 
 // Optional: Import UserResponseDto if you plan to embed user details later

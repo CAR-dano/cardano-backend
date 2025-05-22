@@ -143,7 +143,8 @@ export class BlockchainService {
 
   /**
    * Creates a new MeshTxBuilder instance configured with the service's provider.
-   * @returns {MeshTxBuilder} A new instance of MeshTxBuilder.
+   *
+   * @returns A new instance of MeshTxBuilder.
    */
   private getTxBuilder(): MeshTxBuilder {
     return new MeshTxBuilder({
@@ -154,10 +155,10 @@ export class BlockchainService {
   }
 
   /**
-   * Generates a unique token name based on inspection data.
-   * Uses SHA256 hash and truncates.
-   * @param dataToHash - A string uniquely identifying the inspection (e.g., plate+date+inspector).
-   * @returns {string} A hexadecimal string representing the token name (max 32 bytes / 64 hex chars).
+   * Generates a unique token name based on input data using SHA256 hash.
+   *
+   * @param dataToHash A string uniquely identifying the data to hash.
+   * @returns A hexadecimal string representing the token name (32 bytes / 64 hex chars).
    */
   private generateTokenName(dataToHash: string): string {
     const hash = createHash('sha256');
@@ -171,8 +172,8 @@ export class BlockchainService {
   }
 
   /**
-   * Mints a new NFT on Cardano with inspection metadata.
-   * Uses the wallet configured in the service.
+   * Mints a new NFT on Cardano with provided inspection metadata.
+   * Uses the wallet configured in the service to build, sign, and submit the transaction.
    *
    * @param metadata The metadata object to embed in the NFT.
    * @returns A promise that resolves to an object containing the transaction hash and the full asset ID (policyId + hexName).

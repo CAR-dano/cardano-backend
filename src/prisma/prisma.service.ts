@@ -44,7 +44,6 @@ export class PrismaService
    * Connects to the database when the module is initialized.
    */
   async onModuleInit() {
-    // Connects to the database when the module is initialized
     try {
       await this.$connect();
       console.log('Prisma Client connected');
@@ -57,7 +56,6 @@ export class PrismaService
    * Closes the database connection when the application is shut down.
    */
   async onModuleDestroy() {
-    // Close the connection when the app is shut down
     await this.$disconnect();
     console.log('Prisma Client disconnected.');
   }
@@ -68,7 +66,7 @@ export class PrismaService
    * It uses a Prisma transaction to remove data sequentially based on foreign key constraints.
    */
   async cleanDatabase() {
-    if (process.env.NODE_ENV === 'production') return; // Don't run in production
+    if (process.env.NODE_ENV === 'production') return;
 
     // Prisma transaction to remove data sequentially (if there is a relation)
     // Adjust the order based on foreign key constraints

@@ -13,6 +13,10 @@
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateInspectionBranchCityDto } from './create-inspection-branch-city.dto';
 
+/**
+ * Data Transfer Object for updating an existing inspection branch city.
+ * All fields are optional as it extends PartialType of CreateInspectionBranchCityDto.
+ */
 export class UpdateInspectionBranchCityDto extends PartialType(
   CreateInspectionBranchCityDto,
 ) {}

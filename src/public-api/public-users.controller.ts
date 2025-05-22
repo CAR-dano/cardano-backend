@@ -15,8 +15,8 @@ import { UsersService } from '../users/users.service';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 
-@ApiTags('Public Users') // Tag for documentation
-@Controller('public/users') // Base path: /api/v1/public/users
+@ApiTags('Public Users') // Tag for Swagger documentation
+@Controller('public/users') // Base path for this controller
 export class PublicUsersController {
   private readonly logger = new Logger(PublicUsersController.name);
 

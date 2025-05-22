@@ -9,7 +9,7 @@
  * Does not include file handling properties.
  * --------------------------------------------------------------------------
  */
-import { PartialType } from '@nestjs/mapped-types'; // Utility for optional fields
+import { PartialType } from '@nestjs/mapped-types';
 import { CreateInspectionDto } from './create-inspection.dto';
 // Import additional validators if needed for specific update logic
 // import { IsEnum, IsOptional } from 'class-validator';
