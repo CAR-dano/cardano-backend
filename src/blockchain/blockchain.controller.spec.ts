@@ -1,3 +1,14 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: blockchain.controller.spec.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Unit tests for the BlockchainController.
+ * Tests the basic functionality and definition of the controller.
+ * --------------------------------------------------------------------------
+ */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { BlockchainController } from './blockchain.controller';
 

@@ -1,6 +1,13 @@
-/**
- * @fileoverview Controller for handling blockchain-related operations like
- * triggering NFT minting and retrieving transaction or asset data.
+/*
+ * --------------------------------------------------------------------------
+ * File: blockchain.controller.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: NestJS controller for handling blockchain-related operations.
+ * Provides endpoints for retrieving transaction metadata and NFT data from the Cardano blockchain.
+ * Utilizes the BlockchainService to interact with blockchain data providers.
+ * --------------------------------------------------------------------------
  */
 
 import { Controller, Get, Param, Logger, HttpStatus } from '@nestjs/common';
@@ -8,7 +15,7 @@ import { BlockchainService } from './blockchain.service';
 import { TransactionMetadataResponseDto } from './dto/transaction-metadata-response.dto';
 import { NftDataResponseDto } from './dto/nft-data-response.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
-// Import Guards jika perlu proteksi
+// Import Guards if protection is needed
 // import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 // import { RolesGuard } from '../auth/guards/roles.guard';
 // import { Roles } from '../auth/decorators/roles.decorator';
@@ -22,8 +29,13 @@ export class BlockchainController {
   constructor(private readonly blockchainService: BlockchainService) {}
 
   /**
-   * Endpoint to retrieve transaction metadata by its hash.
-   * Access might be restricted depending on requirements.
+   * Retrieves transaction metadata from Blockfrost using the transaction hash.
+   *
+   * @param txHash The hash of the Cardano transaction.
+   * @returns A promise that resolves to an array of TransactionMetadataResponseDto.
+   * @throws BadRequestException if the transaction hash is missing.
+   * @throws NotFoundException if the transaction or metadata is not found.
+   * @throws InternalServerErrorException for Blockfrost API or other errors.
    */
   @Get('metadata/tx/:txHash')
   // @UseGuards(JwtAuthGuard) // Example protection
@@ -62,8 +74,13 @@ export class BlockchainController {
   }
 
   /**
-   * Endpoint to retrieve asset data (including metadata) by its Asset ID.
-   * Access might be restricted.
+   * Retrieves asset data (including on-chain metadata if available) from Blockfrost using the asset ID.
+   *
+   * @param assetId The full asset ID (PolicyID + HexAssetName).
+   * @returns A promise that resolves to an NftDataResponseDto.
+   * @throws BadRequestException if the asset ID is missing.
+   * @throws NotFoundException if the asset is not found.
+   * @throws InternalServerErrorException for Blockfrost API or other errors.
    */
   @Get('nft/:assetId')
   // @UseGuards(JwtAuthGuard) // Example protection

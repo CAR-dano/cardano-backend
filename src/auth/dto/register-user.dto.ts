@@ -1,3 +1,15 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: register-user.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) for user registration requests.
+ * Defines the structure of the data expected from the client when a new user attempts to register.
+ * Includes fields for email, username, password, and optional fields like name and wallet address.
+ * --------------------------------------------------------------------------
+ */
+
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEmail,

@@ -1,15 +1,21 @@
-/**
- * @fileoverview Service responsible for handling authentication logic.
- * Validates users via different methods (Google OAuth, Local Credentials, Wallet - placeholder)
- * and generates JWT access tokens upon successful validation.
+/*
+ * --------------------------------------------------------------------------
+ * File: auth.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: NestJS service responsible for handling authentication logic.
+ * It validates users through various methods (Local, Google OAuth, and Wallet - placeholder)
+ * and generates JWT access tokens upon successful authentication.
+ * It interacts with the UsersService to manage user data and uses JwtService for token handling
+ * and ConfigService for accessing environment variables.
+ * --------------------------------------------------------------------------
  */
 
 import {
   Injectable,
   Logger,
   InternalServerErrorException,
-  UnauthorizedException,
-  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service'; // To find users
@@ -31,11 +37,11 @@ export class AuthService {
 
   /**
    * Validates a user based on local credentials (email/username and password).
-   * Called by the LocalStrategy.
+   * This method is typically called by the LocalStrategy.
    *
-   * @param {string} loginIdentifier - The email or username provided by the user.
-   * @param {string} pass - The plain text password provided by the user.
-   * @returns {Promise<Omit<User, 'password' | 'googleId'>> | null} The user object without sensitive fields if validation succeeds, otherwise null.
+   * @param loginIdentifier The email or username provided by the user.
+   * @param pass The plain text password provided by the user.
+   * @returns A promise that resolves to the user object without sensitive fields if validation succeeds, otherwise null.
    */
   async validateLocalUser(
     loginIdentifier: string,
@@ -92,16 +98,16 @@ export class AuthService {
 
   /**
    * Validates a user based on a signed message from a Cardano wallet.
-   * (Placeholder - Requires integration with a Cardano wallet library like MeshJS or Lucid)
-   * Called by a potential WalletStrategy.
+   * This method is a placeholder and requires integration with a Cardano wallet library (e.g., MeshJS or Lucid)
+   * for signature verification. It is intended to be called by a potential WalletStrategy.
    *
-   * @param {string} walletAddress - The wallet address claiming ownership.
-   * @param {string | object} signatureData - The signature and potentially the message/payload that was signed.
-   * @returns {Promise<Omit<User, 'password' | 'googleId'>> | null} User object or null.
+   * @param walletAddress The wallet address claiming ownership.
+   * @param signatureData The signature and potentially the message/payload that was signed. (Currently unused placeholder)
+   * @returns A promise that resolves to the user object without sensitive fields if validation succeeds and signature is valid, otherwise null.
    */
   async validateWalletUser(
     walletAddress: string,
-    signatureData: any,
+    signatureData: any, // signatureData is currently unused as signature verification is not implemented.
   ): Promise<Omit<User, 'password' | 'googleId'> | null> {
     this.logger.verbose(`Attempting to validate wallet user: ${walletAddress}`);
 
@@ -152,10 +158,12 @@ export class AuthService {
 
   /**
    * Validates a user based on the profile received from Google OAuth.
-   * Uses the UsersService to find/create user.
-   * Called by the GoogleStrategy.
-   * @param {Profile} profile - The user profile from Google.
-   * @returns {Promise<User>} The found or created user entity.
+   * This method uses the UsersService to find or create the user based on the Google profile information.
+   * It is typically called by the GoogleStrategy.
+   *
+   * @param profile The user profile object received from Google.
+   * @returns A promise that resolves to the found or created user entity.
+   * @throws InternalServerErrorException if there is an error validating the Google profile.
    */
   async validateUserGoogle(profile: Profile): Promise<User> {
     this.logger.log(`Attempting to validate Google profile: ${profile.id}`);
@@ -185,12 +193,13 @@ export class AuthService {
 
   /**
    * Generates a JWT access token for a successfully validated user.
-   * Accepts a user object (potentially partial, must include id, email, role).
-   * Handles potentially null/undefined name/email/username in payload.
+   * This method accepts a user object and creates a JWT payload containing essential user information.
+   * It signs the payload using the configured JWT secret and expiration time.
+   * Although marked as async, this method currently performs synchronous operations.
    *
-   * @param user - The validated user object (needs id, email, role; name/username optional).
-   * @returns {Promise<{ accessToken: string }>} Object containing the JWT.
-   * @throws {InternalServerErrorException} If JWT signing fails.
+   * @param user The validated user object (must include id, email, and role; name and username are optional).
+   * @returns A promise that resolves to an object containing the generated JWT access token.
+   * @throws InternalServerErrorException if the user object is invalid or if JWT signing fails.
    */
   async login(user: {
     id: string;

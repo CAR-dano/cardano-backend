@@ -4,12 +4,10 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: An authentication guard that leverages the 'jwt' Passport strategy.
- * It automatically extracts and validates the JWT from incoming requests for
- * endpoints where it's applied using `@UseGuards(JwtAuthGuard)`.
- * If validation succeeds, the request is allowed to proceed, and the user object
- * returned by the JwtStrategy's validate method is attached to `request.user`.
- * If validation fails, it throws an UnauthorizedException by default.
+ * Description: Authentication guard for JWT strategy.
+ * This guard uses the 'jwt' Passport strategy to protect routes.
+ * It validates the JWT from the request and attaches the authenticated user
+ * to the request object if successful. Throws UnauthorizedException on failure.
  * --------------------------------------------------------------------------
  */
 

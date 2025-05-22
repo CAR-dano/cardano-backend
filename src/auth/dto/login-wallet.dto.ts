@@ -1,3 +1,15 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: login-wallet.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) for wallet login requests.
+ * Defines the structure of the data expected from the client when a user attempts to log in
+ * using their Cardano wallet address and a signed message.
+ * --------------------------------------------------------------------------
+ */
+
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNotEmpty } from 'class-validator';
 

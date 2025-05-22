@@ -1,7 +1,12 @@
-// src/auth/decorators/roles.decorator.ts
-/**
- * @fileoverview Custom decorator (@Roles) to assign role-based metadata (allowed roles)
+/*
+ * --------------------------------------------------------------------------
+ * File: roles.decorator.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Custom decorator (@Roles) to assign role-based metadata (allowed roles)
  * to route handlers or controllers for use by the RolesGuard.
+ * --------------------------------------------------------------------------
  */
 
 import { SetMetadata } from '@nestjs/common';

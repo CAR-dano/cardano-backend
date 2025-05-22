@@ -1,9 +1,15 @@
-/**
- * @fileoverview Controller responsible for handling HTTP requests related to inspections.
+/*
+ * --------------------------------------------------------------------------
+ * File: inspections.controller.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Controller responsible for handling HTTP requests related to inspections.
  * Provides endpoints for creating inspection data, adding photos (single or batch per type),
  * retrieving all/single inspections, updating photos, deleting photos,
  * and managing inspection status lifecycle (approve, reject, archive, deactivate, activate).
  * Authentication/Authorization guards are commented out for initial development/testing.
+ * --------------------------------------------------------------------------
  */
 
 import {
@@ -131,7 +137,7 @@ export class InspectionsController {
    * This is the first step before uploading photos or archiving.
    * Expects 'application/json' content type.
    * @param {CreateInspectionDto} createInspectionDto - DTO containing the initial inspection data.
-   * @returns {Promise<InspectionResponseDto>} The newly created inspection record summary.
+   * @returns {Promise<{ id: string }>} An object containing the ID of the newly created inspection.
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -225,11 +231,11 @@ export class InspectionsController {
   // --- Photo Batch Upload Endpoints ---
 
   /**
-   * [POST /inspections/:id/photos/fixed-batch]
-   * Uploads a batch of FIXED type photos (with predefined labels) for an inspection.
+   * [POST /inspections/:id/photos/multiple]
+   * Uploads a batch of photos for an inspection.
    * Expects 'multipart/form-data' with 'metadata' (JSON string array) and 'photos' (files).
    * @param {string} id - Inspection UUID.
-   * @param {AddBatchFixedPhotosDto} addBatchDto - DTO containing the 'metadata' JSON string.
+   * @param {AddMultiplePhotosDto} addBatchDto - DTO containing the 'metadata' JSON string.
    * @param {Express.Multer.File[]} files - Array of uploaded image files from the 'photos' field.
    * @returns {Promise<PhotoResponseDto[]>} Array of created photo record summaries.
    */
@@ -750,6 +756,8 @@ export class InspectionsController {
   /**
    * [PATCH /inspections/:id/approve]
    * Approves a submitted inspection. Requires Reviewer/Admin role (to be enforced later).
+   * @param {string} id - The UUID of the inspection to approve.
+   * @returns {Promise<InspectionResponseDto>} The approved inspection record summary.
    */
   @Patch(':id/approve')
   @HttpCode(HttpStatus.OK)
@@ -798,6 +806,8 @@ export class InspectionsController {
    * Initiates the archiving process for an approved inspection by fetching a URL and converting it to PDF.
    * Expects a JSON body with a 'url' field.
    * Uses PUT as it replaces/sets the archive-related data.
+   * @param {string} id - The UUID of the inspection to archive.
+   * @returns {Promise<InspectionResponseDto>} The archived inspection record summary.
    */
   @Put(':id/archive')
   @HttpCode(HttpStatus.OK)
@@ -845,6 +855,8 @@ export class InspectionsController {
   /**
    * [PATCH /inspections/:id/deactivate]
    * Deactivates an archived inspection. Requires Admin role.
+   * @param {string} id - The UUID of the inspection to deactivate.
+   * @returns {Promise<InspectionResponseDto>} The deactivated inspection record summary.
    */
   @Patch(':id/deactivate')
   @HttpCode(HttpStatus.OK)
@@ -891,6 +903,8 @@ export class InspectionsController {
   /**
    * [PATCH /inspections/:id/activate]
    * Reactivates a deactivated inspection. Requires Admin role.
+   * @param {string} id - The UUID of the inspection to reactivate.
+   * @returns {Promise<InspectionResponseDto>} The activated inspection record summary.
    */
   @Patch(':id/activate')
   @HttpCode(HttpStatus.OK)
@@ -935,6 +949,8 @@ export class InspectionsController {
   /**
    * [GET /inspections/export/csv]
    * Exports all inspection data to a CSV file, excluding photo data.
+   * @param {Response} res - The Express response object to stream the CSV data.
+   * @returns {Promise<void>} A promise that resolves when the CSV is sent.
    */
   @Get('export/csv')
   @HttpCode(HttpStatus.OK)

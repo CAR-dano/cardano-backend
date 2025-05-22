@@ -1,10 +1,16 @@
-/**
- * @fileoverview Data Transfer Object (DTO) used for creating a new inspection record.
+/*
+ * --------------------------------------------------------------------------
+ * File: create-inspection.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) used for creating a new inspection record.
  * This DTO defines the expected structure of the data sent in the request body
  * when using the `POST /inspections` endpoint (expecting `application/json`).
  * It includes basic data fields and properties intended to hold structured data
  * (parsed from JSON) related to different sections of the inspection form.
  * Minimal validation is applied at this stage. File uploads are handled separately.
+ * --------------------------------------------------------------------------
  */
 import {
   IsString,
@@ -18,6 +24,9 @@ import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IdentityDetailsDto } from './identity-details.dto';
 
+/**
+ * Data Transfer Object (DTO) for creating a new inspection record.
+ */
 export class CreateInspectionDto {
   /**
    * The license plate number of the inspected vehicle.

@@ -1,9 +1,14 @@
-// src/auth/guards/roles.guard.ts
-/**
- * @fileoverview Authorization guard implementing role-based access control (RBAC).
- * Retrieves allowed roles from metadata set by the @Roles decorator and checks
- * against the role attached to the authenticated user (req.user).
- * Must be used AFTER an authentication guard like JwtAuthGuard.
+/*
+ * --------------------------------------------------------------------------
+ * File: roles.guard.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Authorization guard for role-based access control (RBAC).
+ * This guard checks if the authenticated user's role matches the required roles
+ * defined by the @Roles decorator on routes or controllers.
+ * It must be applied after an authentication guard.
+ * --------------------------------------------------------------------------
  */
 
 import {

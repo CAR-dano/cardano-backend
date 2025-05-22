@@ -1,10 +1,17 @@
-/**
- * @fileoverview Module definition for blockchain-related functionalities.
- * Provides BlockchainService and imports ConfigModule for API keys.
+/*
+ * --------------------------------------------------------------------------
+ * File: blockchain.module.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: NestJS module for blockchain-related functionalities.
+ * Imports ConfigModule for configuration access.
+ * Declares BlockchainController and provides/exports BlockchainService.
+ * --------------------------------------------------------------------------
  */
 import { Module } from '@nestjs/common';
 import { BlockchainController } from './blockchain.controller';
-import { ConfigModule } from '@nestjs/config'; // Needed to inject ConfigService
+import { ConfigModule } from '@nestjs/config'; // Required to inject ConfigService
 // Import Controller if you create one here
 // import { BlockchainController } from './blockchain.controller';
 import { BlockchainService } from './blockchain.service';

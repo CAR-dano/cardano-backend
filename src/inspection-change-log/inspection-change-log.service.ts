@@ -1,3 +1,14 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: inspection-change-log.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: NestJS service responsible for managing inspection change logs.
+ * Provides methods to retrieve and delete change logs.
+ * --------------------------------------------------------------------------
+ */
+
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { InspectionChangeLog } from '@prisma/client';
@@ -41,26 +52,5 @@ export class InspectionChangeLogService {
     }
 
     return Array.from(latestChangeLogsMap.values());
-  }
-
-  /**
-   * Deletes a specific change log entry by its ID.
-   *
-   * @param id The ID of the change log entry to delete.
-   * @returns A promise that resolves to the deleted InspectionChangeLog object.
-   * @throws NotFoundException if the change log entry with the given ID does not exist.
-   */
-  async delete(id: string): Promise<InspectionChangeLog> {
-    const changeLog = await this.prisma.inspectionChangeLog.findUnique({
-      where: { id },
-    });
-
-    if (!changeLog) {
-      throw new NotFoundException(`Change log with ID "${id}" not found.`);
-    }
-
-    return this.prisma.inspectionChangeLog.delete({
-      where: { id },
-    });
   }
 }

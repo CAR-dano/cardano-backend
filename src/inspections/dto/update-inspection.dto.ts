@@ -1,7 +1,13 @@
-/**
- * @fileoverview DTO for partially updating an existing inspection record.
+/*
+ * --------------------------------------------------------------------------
+ * File: update-inspection.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) for partially updating an existing inspection record.
  * All fields are optional. Inherits properties from CreateInspectionDto using PartialType.
  * Does not include file handling properties.
+ * --------------------------------------------------------------------------
  */
 import { PartialType } from '@nestjs/mapped-types'; // Utility for optional fields
 import { CreateInspectionDto } from './create-inspection.dto';
@@ -10,8 +16,10 @@ import { CreateInspectionDto } from './create-inspection.dto';
 // import { InspectionStatus } from '@prisma/client';
 // import { ApiPropertyOptional } from '@nestjs/swagger'; // Alternative for optional properties
 
-// CreateUpdateInspectionDto inherits all properties from CreateInspectionDto,
-// but makes them all optional automatically thanks to PartialType.
+/**
+ * Data Transfer Object (DTO) for partially updating an existing inspection record.
+ * Inherits all properties from CreateInspectionDto, making them optional.
+ */
 export class UpdateInspectionDto extends PartialType(CreateInspectionDto) {
   // You can add specific fields here that are ONLY updatable but not creatable,
   // or override properties from CreateInspectionDto if needed (e.g., different validation).
@@ -25,7 +33,15 @@ export class UpdateInspectionDto extends PartialType(CreateInspectionDto) {
   // For now, inheriting all optional fields from CreateInspectionDto is sufficient
   // for updating vehiclePlateNumber, inspectionDate, overallRating, and the JSON fields.
 
-  // Add inspectorId and branchCityId for potential updates
+  /**
+   * The UUID of the inspector.
+   * @example "ac5ae369-a422-426f-b01e-fad5476edda5"
+   */
   inspectorId?: string;
+
+  /**
+   * The UUID of the inspection branch city.
+   * @example "ac5ae369-a422-426f-b01e-fad5476edda5"
+   */
   branchCityId?: string;
 }

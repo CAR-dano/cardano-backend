@@ -1,9 +1,15 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-
-/**
- * @fileoverview DTO representing the detailed response structure for an asset (NFT)
- * from the Blockfrost `/assets/{asset}` endpoint.
+/*
+ * --------------------------------------------------------------------------
+ * File: nft-data-response.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object representing the detailed response structure for an asset (NFT)
+ * from the Blockfrost `/assets/{asset}` endpoint. Includes standard CIP-25/CIP-68 metadata
+ * and potentially legacy metadata.
+ * --------------------------------------------------------------------------
  */
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
  * Represents the structure commonly found within the `onchain_metadata` field

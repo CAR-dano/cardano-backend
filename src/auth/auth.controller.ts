@@ -1,6 +1,14 @@
-/**
- * @fileoverview Controller handling HTTP requests related to authentication for UI users
+/*
+ * --------------------------------------------------------------------------
+ * File: auth.controller.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: NestJS controller handling HTTP requests related to authentication for UI users
  * (Local email/username/password, Google OAuth) and profile management.
+ * It manages routes for local registration, login, Google OAuth flow, logout,
+ * and retrieving user profiles.
+ * --------------------------------------------------------------------------
  */
 
 import {
@@ -48,6 +56,12 @@ interface AuthenticatedRequest extends Request {
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
+  /**
+   * Constructs the AuthController.
+   * @param authService - The authentication service.
+   * @param usersService - The users service.
+   * @param configService - The configuration service.
+   */
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
@@ -56,6 +70,7 @@ export class AuthController {
 
   /**
    * Handles local user registration (Email/Username + Password).
+   *
    * @param registerUserDto - Contains email, username, password, name, walletAddress.
    * @returns {Promise<UserResponseDto>} The newly created user profile (excluding sensitive data).
    */
@@ -260,6 +275,8 @@ export class AuthController {
   // @ApiBearerAuth('JwtAuthGuard')
   // @ApiOperation({ summary: 'Link Google Account to current user' })
   // async linkGoogle(/* ... receive google token/data ... */, @GetUser() user: UserResponseDto) {
+  //   // Placeholder for linking a Google account to the current user.
+  //   // It would typically involve verifying a Google token and updating the user's profile.
   //   // const googleProfile = await verifyGoogleToken(googleToken);
   //   // return this.usersService.linkGoogleAccount(user.id, googleProfile.id, googleProfile.email);
   // }
@@ -270,6 +287,8 @@ export class AuthController {
   // @ApiOperation({ summary: 'Link Cardano Wallet to current user' })
   // @ApiBody({ type: LinkWalletDto }) // Assuming LinkWalletDto exists
   // async linkWallet(@Body() linkWalletDto: LinkWalletDto, @GetUser('id') userId: string) {
+  //   // Placeholder for linking a Cardano wallet to the current user.
+  //   // It would typically involve verifying the wallet address and updating the user's profile.
   //   // return this.usersService.linkWalletAddress(userId, linkWalletDto.walletAddress);
   // }
 
@@ -281,6 +300,8 @@ export class AuthController {
   // @ApiOperation({ summary: 'Login with Cardano Wallet Signature' })
   // @ApiBody({ type: LoginWalletDto })
   // async loginWallet(@Req() req: AuthenticatedRequest): Promise<LoginResponseDto> {
+  //    // Placeholder for logging in with a Cardano wallet signature.
+  //    // It would typically involve verifying the signature and generating a JWT.
   //    this.logger.log(`User logged in via wallet: ${req.user?.walletAddress}`);
   //    const { accessToken } = await this.authService.login(req.user);
   //    return { accessToken, user: new UserResponseDto(req.user as User) };
