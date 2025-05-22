@@ -25,6 +25,7 @@ import {
   HttpStatus,
   Query,
   NotFoundException,
+  Res,
 } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
@@ -48,13 +49,19 @@ import {
 } from '@nestjs/swagger';
 import { AddMultiplePhotosDto } from 'src/photos/dto/add-multiple-photos.dto';
 import { AddSinglePhotoDto } from 'src/inspections/dto/add-single-photo.dto';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 // Import Guards if/when needed for authentication and authorization
 // import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 // import { RolesGuard } from '../auth/guards/roles.guard';
 // import { Roles } from '../auth/decorators/roles.decorator';
 // import { GetUser } from '../auth/decorators/get-user.decorator';
 // import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface'; // Define or import this
+
+// Define an interface for the expected photo metadata structure
+interface PhotoMetadata {
+  label: string;
+  needAttention?: string;
+}
 
 // --- Multer Configuration ---
 const MAX_PHOTOS_PER_REQUEST = 10; // Max files per batch upload request
@@ -365,21 +372,29 @@ export class InspectionsController {
     );
     if (!file) throw new BadRequestException('No photo file provided.');
 
-    let parsedMetadata;
+    let parsedMetadata: PhotoMetadata;
     try {
-      parsedMetadata = JSON.parse(addSingleDto.metadata);
+      const metadata = JSON.parse(addSingleDto.metadata) as PhotoMetadata; // Type assertion
       if (
-        !parsedMetadata ||
-        typeof parsedMetadata.label !== 'string' ||
-        (parsedMetadata.needAttention !== undefined &&
-          typeof parsedMetadata.needAttention !== 'boolean')
+        !metadata ||
+        typeof metadata.label !== 'string' ||
+        (metadata.needAttention !== undefined &&
+          typeof metadata.needAttention !== 'string') // Check for string type
       ) {
         throw new BadRequestException('Invalid metadata format.');
       }
-    } catch (error: any) {
-      throw new BadRequestException(
-        `Invalid metadata format: ${error.message}`,
-      );
+      parsedMetadata = {
+        label: metadata.label,
+        needAttention: metadata.needAttention,
+      };
+    } catch (error: unknown) {
+      // Type error as unknown
+      let errorMessage = 'Invalid metadata format.';
+      if (error instanceof Error) {
+        // Use type guard
+        errorMessage += ` ${error.message}`;
+      }
+      throw new BadRequestException(errorMessage);
     }
 
     const dummyUserId = DUMMY_USER_ID;
@@ -915,5 +930,44 @@ export class InspectionsController {
       dummyUserId,
     );
     return new InspectionResponseDto(inspection);
+  }
+
+  /**
+   * [GET /inspections/export/csv]
+   * Exports all inspection data to a CSV file, excluding photo data.
+   */
+  @Get('export/csv')
+  @HttpCode(HttpStatus.OK)
+  // @UseGuards(JwtAuthGuard, RolesGuard) // Add guards later if needed
+  // @Roles(Role.ADMIN, Role.REVIEWER) // Define allowed roles later
+  @ApiOperation({
+    summary: 'Export all inspection data to CSV',
+    description:
+      'Retrieves all inspection data and exports it as a CSV file, excluding photo data.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'A CSV file containing all inspection data is downloaded.',
+    content: {
+      'text/csv': {
+        schema: {
+          type: 'string',
+          example:
+            'id,pretty_id,vehiclePlateNumber,inspectionDate,overallRating,status,...\n...',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal Server Error (e.g., failed to generate CSV).',
+  })
+  async exportCsv(@Res() res: Response): Promise<void> {
+    // This will be implemented in the service
+    const { filename, csvData } =
+      await this.inspectionsService.exportInspectionsToCsv();
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.send(csvData);
   }
 } // End Controller

@@ -31,12 +31,7 @@ import { format } from 'date-fns'; // for date formating
 import { BlockchainService } from '../blockchain/blockchain.service';
 import puppeteer, { Browser } from 'puppeteer'; // Import puppeteer and Browser type
 import { ConfigService } from '@nestjs/config';
-
-// Define a type for NFT metadata
-type NftMetadata = {
-  vehicleNumber: string;
-  pdfHash: string | null;
-};
+import * as Papa from 'papaparse';
 
 // Define path for archived PDFs (ensure this exists or is created by deployment script/manually)
 const PDF_ARCHIVE_PATH = './pdfarchived';
@@ -1544,6 +1539,204 @@ export class InspectionsService {
       );
       throw new InternalServerErrorException(
         `Could not reactivate inspection ${inspectionId}.`,
+      );
+    }
+  }
+
+  /**
+   * Meratakan objek JavaScript yang bersarang menjadi satu level.
+   * @param obj Objek yang akan diratakan.
+   * @param parentKey Kunci induk untuk prefix.
+   * @param result Objek hasil akumulatif.
+   * @returns Objek yang sudah diratakan.
+   */
+  private flattenObject(
+    obj: any,
+    parentKey = '',
+    result: Record<string, any> = {},
+  ): Record<string, any> {
+    if (obj === null || (typeof obj !== 'object' && !Array.isArray(obj))) {
+      result[parentKey || 'value'] = obj; // Beri nama 'value' jika parentKey kosong di root level primitif
+      return result;
+    }
+
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const newKey = parentKey ? `${parentKey}_${key}` : key;
+        const value = obj[key];
+
+        if (
+          typeof value === 'object' &&
+          value !== null &&
+          !Array.isArray(value)
+        ) {
+          this.flattenObject(value, newKey, result);
+        } else if (Array.isArray(value)) {
+          if (
+            newKey.endsWith('estimasiPerbaikan') &&
+            value.length > 0 &&
+            typeof value[0] === 'object'
+          ) {
+            result[newKey] = value
+              .map((item) => `${item.namaPart || 'N/A'}:${item.harga || 'N/A'}`)
+              .join(' | ');
+          } else if (
+            value.every(
+              (item) =>
+                typeof item === 'string' ||
+                typeof item === 'number' ||
+                typeof item === 'boolean',
+            )
+          ) {
+            result[newKey] = value.join('|');
+          } else {
+            // Untuk array objek lain atau array campuran, stringify sebagai fallback
+            result[newKey] = JSON.stringify(value);
+          }
+        } else {
+          result[newKey] = value;
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Mengambil semua data inspeksi dan memformatnya sebagai string CSV, mengecualikan data foto.
+   * @returns {Promise<{ filename: string; csvData: string }>} Objek berisi nama file dan data CSV.
+   */
+  async exportInspectionsToCsv(): Promise<{
+    filename: string;
+    csvData: string;
+  }> {
+    this.logger.log('Exporting all inspection data to CSV');
+
+    try {
+      const inspectionsFromDb = await this.prisma.inspection.findMany({
+        // Tidak perlu 'include: { photos: false }' jika 'photos' adalah relasi terpisah
+        // dan tidak secara otomatis di-include. Jika 'photos' adalah kolom JSON, kita akan menanganinya di mapping.
+        // Jika 'photos' adalah relasi yang ingin Anda pastikan TIDAK diambil:
+        // select: { id: true, ..., photos: false } // atau cara lain Prisma untuk exclude
+        include: {
+          // Sertakan relasi yang datanya ingin Anda masukkan
+          inspector: {
+            select: { name: true },
+          },
+          reviewer: {
+            select: { name: true },
+          },
+          branchCity: {
+            select: { city: true, code: true },
+          },
+          // Pastikan 'photos' tidak di-include di sini jika itu adalah relasi
+        },
+      });
+
+      if (!inspectionsFromDb || inspectionsFromDb.length === 0) {
+        this.logger.log('No inspection data available.');
+        // Mengembalikan string kosong atau pesan, atau throw error sesuai preferensi
+        return {
+          filename: 'inspections_empty.csv',
+          csvData: 'No inspection data available.',
+        };
+      }
+
+      const processedData = inspectionsFromDb.map((inspection) => {
+        const flatData: Record<string, any> = {};
+
+        // 1. Tambahkan field dari relasi (jika ada)
+        flatData['inspectorName'] = inspection.inspector?.name || '';
+        flatData['reviewerName'] = inspection.reviewer?.name || '';
+        flatData['branchCityName'] = inspection.branchCity?.city || '';
+        flatData['branchCode'] = inspection.branchCity?.code || '';
+
+        // 2. Tambahkan field top-level dari objek inspection
+        // (kecuali yang sudah diambil dari relasi atau merupakan objek JSON)
+        const topLevelFieldsToExclude = [
+          'inspector',
+          'reviewer',
+          'branchCity' /* tambahkan field JSON di sini */,
+          'identityDetails',
+          'vehicleData',
+          'equipmentChecklist',
+          'inspectionSummary',
+          'detailedAssessment',
+          'bodyPaintThickness',
+          'photos',
+          'notesFontSizes', // 'photos' dieksklusikan
+        ];
+
+        for (const key in inspection) {
+          if (
+            inspection.hasOwnProperty(key) &&
+            !topLevelFieldsToExclude.includes(key)
+          ) {
+            if (inspection[key] instanceof Date) {
+              flatData[key] = (inspection[key] as Date).toISOString();
+            } else {
+              flatData[key] = inspection[key];
+            }
+          }
+        }
+
+        // 3. Ratakan field JSON
+        // Pastikan nama field ini sesuai dengan model Prisma Anda
+        const jsonFieldsToFlatten = {
+          identityDetails: inspection.identityDetails,
+          vehicleData: inspection.vehicleData,
+          equipmentChecklist: inspection.equipmentChecklist,
+          inspectionSummary: inspection.inspectionSummary,
+          detailedAssessment: inspection.detailedAssessment,
+          bodyPaintThickness: inspection.bodyPaintThickness,
+          notesFontSizes: inspection.notesFontSizes,
+          // Jangan masukkan 'photos' di sini jika itu adalah kolom JSON
+        };
+
+        for (const parentKey in jsonFieldsToFlatten) {
+          const jsonObject = jsonFieldsToFlatten[parentKey];
+          if (jsonObject && typeof jsonObject === 'object') {
+            // Pastikan jsonObject bukan null dan memang objek sebelum diratakan
+            // Prisma mungkin mengembalikan null untuk field JSON opsional
+            this.flattenObject(jsonObject, parentKey, flatData);
+          } else if (jsonObject !== undefined && jsonObject !== null) {
+            // Jika field JSON adalah nilai primitif (jarang terjadi, tapi untuk jaga-jaga)
+            flatData[parentKey] = jsonObject;
+          }
+        }
+        // Khusus untuk field photos (jika merupakan kolom JSON dan bukan relasi)
+        // Kita ingin mengecualikannya. Jika sudah ditangani di query, ini tidak perlu.
+        // delete flatData['photos']; // Baris ini mungkin tidak perlu jika 'photos' adalah relasi.
+        // Jika 'photos' adalah kolom JSON di tabel `inspection`, dan findMany mengambilnya,
+        // maka kita perlu menghapusnya secara eksplisit dari `flatData` jika `flattenObject` memprosesnya.
+        // Namun, idealnya, jika 'photos' adalah kolom JSON berisi info foto, dan ingin di-exclude,
+        // gunakan `select` di Prisma untuk tidak mengambilnya sejak awal.
+
+        return flatData;
+      });
+
+      // Ambil semua kemungkinan header dari semua data yang diproses
+      // untuk memastikan konsistensi kolom CSV
+      const allKeys = new Set<string>();
+      processedData.forEach((item) => {
+        Object.keys(item).forEach((key) => allKeys.add(key));
+      });
+      const sortedHeaders = Array.from(allKeys).sort(); // Urutkan header agar konsisten
+
+      const csvData = Papa.unparse(processedData, {
+        columns: sortedHeaders, // Gunakan header yang sudah diurutkan dan dikumpulkan
+        header: true,
+      });
+
+      const filename = `inspections_export_${new Date().toISOString().split('T')[0]}.csv`;
+      this.logger.log(`CSV data generated successfully. Filename: ${filename}`);
+      return { filename, csvData };
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to export inspections to CSV: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not export inspection data to CSV.',
       );
     }
   }
