@@ -6,15 +6,16 @@
  * --------------------------------------------------------------------------
  * Description: Data Transfer Object (DTO) representing a single metadata entry
  * returned by the Blockfrost `/txs/{hash}/metadata` endpoint.
- * Contains the metadata label and its associated JSON content.
+ * Imports necessary modules like ApiProperty for Swagger documentation.
+ * Declares the TransactionMetadataResponseDto class with properties for
+ * metadata label and content.
  * --------------------------------------------------------------------------
  */
-
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
- * DTO representing a single metadata entry returned by the Blockfrost
- * `/txs/{hash}/metadata` endpoint.
+ * DTO representing a single metadata entry returned by the
+ * Blockfrost `/txs/{hash}/metadata` endpoint.
  */
 export class TransactionMetadataResponseDto {
   /**

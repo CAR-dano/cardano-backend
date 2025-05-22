@@ -88,6 +88,11 @@ model Inspection {
   // Relation field for the reviewing User. Uses the 'ReviewedBy' relation name defined in User model.
   reviewer    User?    @relation("ReviewedBy", fields: [reviewerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
+  // Foreign Key linking to the InspectionBranchCity. Optional.
+  branchCityId String? @map("branch_city_id")
+  // Relation field for the branch city.
+  branchCity InspectionBranchCity? @relation("InspectionBranchRelation", fields: [branchCityId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
   // --- Basic Inspection Data ---
   // Vehicle's license plate number. VarChar(15) for potential length limit. Optional.
   vehiclePlateNumber String?   @db.VarChar(15)
@@ -133,6 +138,9 @@ model Inspection {
   // Timestamp indicating when the inspection was deactivated (soft delete). Optional. Explicit mapping.
   deactivatedAt DateTime? @map("deactivated_at")
 
+  // --- Additional Fields ---
+  // Map of note field paths to their desired font sizes in the report.
+  notesFontSizes Json? @default("{}") @map("notes_font_sizes")
 
   // --- Database Indexes ---
   // Creates indexes on foreign keys and commonly queried fields for performance.
@@ -152,6 +160,8 @@ model Photo {
 
   path String // Unique path/filename in storage (disk or cloud)
   label String // Photo label (can be custom or from originalLabel)
+  category String? @default("general")
+  isMandatory Boolean? @default(false)
   originalLabel String? // Special for FIXED types (e.g. “Front View”, “OBD Scanner”)
   needAttention Boolean? @default(false) // Only relevant for DYNAMIC types, default false
 
@@ -171,6 +181,8 @@ model InspectionBranchCity {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  inspections Inspection[] @relation("InspectionBranchRelation") // Relation to inspections in this branch city
+
   @@map("inspection_branch_city")
 }
 
@@ -183,6 +195,7 @@ model InspectionChangeLog {
   changedByUser   User      @relation(fields: [changedByUserId], references: [id], onDelete: Cascade)
   fieldName       String
   subFieldName    String? // Added to track changes within nested JSON fields
+  subsubfieldname String? // Added to track changes within the third level of nested JSON fields
   oldValue        Json?
   newValue        Json?
   changedAt       DateTime  @default(now())

@@ -4,9 +4,9 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Data Transfer Object for the response when retrieving
- * inspection branch city information.
- * Defines the structure of the data returned to the client.
+ * Description: Data Transfer Object (DTO) for the response when retrieving
+ * inspection branch city information. Defines the structure of the data
+ * returned to the client.
  * --------------------------------------------------------------------------
  */
 

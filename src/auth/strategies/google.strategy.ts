@@ -1,20 +1,22 @@
-/**
- * @fileoverview Implements the Passport.js strategy for Google OAuth 2.0 authentication.
+/*
+ * --------------------------------------------------------------------------
+ * File: google.strategy.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Implements the Passport.js strategy for Google OAuth 2.0 authentication.
  * Handles the OAuth flow, receives the user profile from Google after successful authentication,
  * and validates/creates the user in the local database via AuthService.
  * Passes the simplified, validated user object to the Passport `done` callback.
+ * --------------------------------------------------------------------------
  */
 
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, VerifyCallback, Profile } from 'passport-google-oauth20'; // Google strategy components
-import {
-  Injectable,
-  Logger,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config'; // For Google credentials
 import { AuthService } from '../auth.service'; // For user validation/creation logic
-import { User, Role } from '@prisma/client'; // Import Role for type safety
+import { User } from '@prisma/client'; // Import Role for type safety
 
 @Injectable()
 // Define the strategy, extending PassportStrategy with the base Google Strategy
@@ -88,10 +90,16 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       done(null, simplifiedUser);
     } catch (error) {
       // If any error occurs during user validation/creation in AuthService
-      this.logger.error(
-        `GoogleStrategy validation failed for profile ID ${profile.id}: ${error.message}`,
-        error.stack,
-      );
+      if (error instanceof Error) {
+        this.logger.error(
+          `GoogleStrategy validation failed for profile ID ${profile.id}: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `GoogleStrategy validation failed for profile ID ${profile.id}: ${error}`,
+        );
+      }
       // Call the 'done' callback with the error object and 'false' to indicate failure.
       done(error, false);
     }

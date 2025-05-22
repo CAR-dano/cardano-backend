@@ -4,9 +4,9 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Data Transfer Object for user registration requests.
- * Defines the structure for the payload used when a new user attempts to register
- * with their email, username, password, and optional details.
+ * Description: Data Transfer Object (DTO) for user registration requests.
+ * Defines the structure of the data expected from the client when a new user attempts to register.
+ * Includes fields for email, username, password, and optional fields like name and wallet address.
  * --------------------------------------------------------------------------
  */
 

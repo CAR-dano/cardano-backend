@@ -4,8 +4,8 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Service responsible for managing inspection change logs.
- * Provides methods to retrieve change logs for specific inspections.
+ * Description: NestJS service responsible for managing inspection change logs.
+ * Provides methods to retrieve and delete change logs.
  * --------------------------------------------------------------------------
  */
 
@@ -37,9 +37,20 @@ export class InspectionChangeLogService {
       );
     }
 
-    return this.prisma.inspectionChangeLog.findMany({
+    const changeLogs = await this.prisma.inspectionChangeLog.findMany({
       where: { inspectionId: inspectionId },
-      orderBy: { changedAt: 'asc' }, // Order by timestamp
+      orderBy: { changedAt: 'desc' }, // Order by timestamp descending (latest first)
     });
+
+    const latestChangeLogsMap = new Map<string, InspectionChangeLog>();
+
+    for (const log of changeLogs) {
+      const key = `${log.fieldName}-${log.subFieldName}-${log.subsubfieldname}`;
+      if (!latestChangeLogsMap.has(key)) {
+        latestChangeLogsMap.set(key, log);
+      }
+    }
+
+    return Array.from(latestChangeLogsMap.values());
   }
 }

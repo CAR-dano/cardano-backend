@@ -1,8 +1,13 @@
-/**
- * @fileoverview This file contains unit tests for the AuthService.
- * It utilizes the NestJS testing utilities (@nestjs/testing) and Jest framework
- * to test the service's methods in isolation by mocking its dependencies
- * (UsersService, JwtService, ConfigService).
+/*
+ * --------------------------------------------------------------------------
+ * File: auth.service.spec.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Unit tests for the AuthService.
+ * This file uses NestJS testing utilities and Jest to test AuthService methods
+ * in isolation by mocking its dependencies (UsersService, JwtService, ConfigService).
+ * --------------------------------------------------------------------------
  */
 
 import { Test, TestingModule } from '@nestjs/testing';

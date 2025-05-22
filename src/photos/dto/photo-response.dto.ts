@@ -1,15 +1,11 @@
 /*
  * --------------------------------------------------------------------------
  * File: photo-response.dto.ts
- * Project: cardano-backend
+ * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Data Transfer Object (DTO) for the response structure of a Photo record.
- * Defines the fields returned by the API when retrieving photo information.
+ * Description: Data Transfer Object representing the structure of a Photo record returned by the API.
  * --------------------------------------------------------------------------
- */
-/**
- * @fileoverview DTO representing the structure of a Photo record returned by the API.
  */
 import { ApiProperty } from '@nestjs/swagger';
 import { Photo } from '@prisma/client';
@@ -43,8 +39,7 @@ export class PhotoResponseDto {
 
   /**
    * Constructs a PhotoResponseDto instance from a Prisma Photo model.
-   *
-   * @param photo The Prisma Photo model instance.
+   * @param photo The Prisma Photo model.
    */
   constructor(photo: Photo) {
     this.id = photo.id;

@@ -4,8 +4,9 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Data Transfer Object for updating an existing inspection branch city.
- * Extends PartialType of CreateInspectionBranchCityDto to make all fields optional.
+ * Description: Data Transfer Object (DTO) for updating an existing
+ * inspection branch city. Inherits properties from CreateInspectionBranchCityDto
+ * and makes them optional using PartialType.
  * --------------------------------------------------------------------------
  */
 

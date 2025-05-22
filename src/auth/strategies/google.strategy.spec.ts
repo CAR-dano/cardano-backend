@@ -1,9 +1,13 @@
-/**
- * @fileoverview This file contains unit tests for the GoogleStrategy.
- * It focuses on testing the `validate` method of the strategy, ensuring it
- * correctly interacts with the mocked AuthService to validate or create a user
- * based on the Google profile, and then calls the Passport `done` callback
- * with the appropriate arguments (error or user object).
+/*
+ * --------------------------------------------------------------------------
+ * File: google.strategy.spec.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Unit tests for the GoogleStrategy.
+ * Tests the validation process of the Google OAuth strategy,
+ * including interactions with the AuthService mock and Passport's done callback.
+ * --------------------------------------------------------------------------
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
@@ -53,10 +57,9 @@ describe('GoogleStrategy', () => {
   /**
    * Sets up the NestJS testing module before each test case.
    * Provides the GoogleStrategy itself and mocked versions of AuthService and ConfigService.
+   * Mocks the configuration values needed by the strategy's constructor to ensure the `super()` call works.
    */
   beforeEach(async () => {
-    // Mock the configuration values needed by the strategy's constructor
-    // This ensures the `super()` call in the strategy constructor works
     mockConfigService.getOrThrow
       .mockReturnValueOnce('mock-client-id')
       .mockReturnValueOnce('mock-client-secret')
@@ -78,7 +81,7 @@ describe('GoogleStrategy', () => {
   });
 
   /**
-   * Basic test to ensure the strategy instance is created correctly.
+   * Basic test to ensure the GoogleStrategy instance is created correctly.
    */
   it('should be defined', () => {
     expect(strategy).toBeDefined();
@@ -127,7 +130,9 @@ describe('GoogleStrategy', () => {
     // Mock the `done` callback function provided by Passport
     let mockDone: VerifyCallback;
 
-    // Reset the mock `done` function before each test in this suite
+    /**
+     * Resets the mock `done` function before each test in this suite.
+     */
     beforeEach(() => {
       mockDone = jest.fn();
     });
@@ -137,6 +142,11 @@ describe('GoogleStrategy', () => {
      * Expects `authService.validateUserGoogle` to be called with the profile,
      * and the `done` callback to be invoked with `null` (no error) and a
      * simplified user object containing essential fields.
+     *
+     * @param accessToken Mock access token.
+     * @param refreshToken Mock refresh token (unused in this test).
+     * @param profile The mock Google profile returned by the OAuth provider.
+     * @param done The Passport done callback function.
      */
     it('should call authService.validateUserGoogle and call done with simplified user on success', async () => {
       // Arrange: Configure mock AuthService to return the mock user
@@ -172,6 +182,11 @@ describe('GoogleStrategy', () => {
      * (e.g., database issue, failed validation).
      * Expects the `done` callback to be invoked with the error object and `false`
      * (indicating validation failure).
+     *
+     * @param accessToken Mock access token.
+     * @param refreshToken Mock refresh token (unused in this test).
+     * @param profile The mock Google profile returned by the OAuth provider.
+     * @param done The Passport done callback function.
      */
     it('should call done with error if authService.validateUserGoogle throws an error', async () => {
       // Arrange: Configure mock AuthService to throw an error

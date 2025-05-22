@@ -4,9 +4,9 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Data Transfer Object for creating a new inspection branch city.
- * Used to define the structure and validation rules for the request body
- * when creating a new inspection branch city entry.
+ * Description: Data Transfer Object (DTO) for creating a new inspection branch city.
+ * Defines the structure and validation rules for the data required to create
+ * an inspection branch city.
  * --------------------------------------------------------------------------
  */
 

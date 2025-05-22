@@ -1,10 +1,13 @@
-/**
- * @fileoverview This file contains unit tests for the JwtStrategy.
- * It focuses on testing the `validate` method of the strategy, ensuring it
- * correctly interacts with the mocked UsersService to fetch a user based on the
- * JWT payload's subject (user ID). It verifies that the correct user object
- * (excluding sensitive fields) is returned upon success, and an
- * UnauthorizedException is thrown if the user is not found.
+/*
+ * --------------------------------------------------------------------------
+ * File: jwt.strategy.spec.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Unit tests for the JwtStrategy.
+ * Tests the validation process of the JWT strategy,
+ * including interactions with the UsersService mock.
+ * --------------------------------------------------------------------------
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
@@ -51,7 +54,6 @@ describe('JwtStrategy', () => {
    * Ensures the ConfigService mock returns a value for JWT_SECRET needed by the constructor.
    */
   beforeEach(async () => {
-    // Mock the config service return value before creating the module
     mockConfigService.getOrThrow.mockReturnValue('mock-test-secret');
 
     const module: TestingModule = await Test.createTestingModule({
@@ -70,7 +72,8 @@ describe('JwtStrategy', () => {
   });
 
   /**
-   * Basic test to ensure the strategy instance is created correctly.
+  /**
+   * Basic test to ensure the JwtStrategy instance is created correctly.
    */
   it('should be defined', () => {
     expect(strategy).toBeDefined();
@@ -105,6 +108,9 @@ describe('JwtStrategy', () => {
      * Expects `usersService.findById` to be called with the user ID from the payload.
      * Expects the method to return the user object, excluding the 'googleId' field
      * (as defined in the strategy's return type).
+     *
+     * @param payload The decoded JWT payload.
+     * @returns A promise that resolves to the user object (excluding sensitive fields).
      */
     it('should validate and return the user based on JWT payload', async () => {
       // Arrange: Configure mock UsersService to return the mock user when findById is called
@@ -126,6 +132,9 @@ describe('JwtStrategy', () => {
      * Tests the scenario where the user ID from the JWT payload does not
      * correspond to any user in the database (usersService.findById returns null).
      * Expects the method to throw an UnauthorizedException.
+     *
+     * @param payload The decoded JWT payload.
+     * @returns A promise that rejects with UnauthorizedException.
      */
     it('should throw an UnauthorizedException if user is not found', async () => {
       // Arrange: Configure mock UsersService to return null (user not found)
@@ -146,6 +155,9 @@ describe('JwtStrategy', () => {
      * Expects the strategy's validate method to let the error propagate (or potentially
      * handle it, though typically Passport strategies let framework handle internal errors).
      * In this case, we'll test that the original error is thrown.
+     *
+     * @param payload The decoded JWT payload.
+     * @returns A promise that rejects with the original error.
      */
     it('should throw the original error if usersService.findById fails unexpectedly', async () => {
       // Arrange: Configure mock UsersService to throw a generic error

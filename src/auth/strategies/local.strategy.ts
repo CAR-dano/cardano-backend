@@ -1,6 +1,12 @@
-/**
- * @fileoverview Implements the Passport.js local strategy for validating user credentials
+/*
+ * --------------------------------------------------------------------------
+ * File: local.strategy.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Implements the Passport.js local strategy for validating user credentials
  * (email/username and password) against the database using AuthService.
+ * --------------------------------------------------------------------------
  */
 
 import { Strategy } from 'passport-local'; // Import Local Strategy definition

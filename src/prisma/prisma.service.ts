@@ -4,9 +4,11 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Provides the Prisma database client as a NestJS injectable service.
- * Handles database connection initialization and disconnection.
- * Includes an optional method for cleaning the database during testing.
+ * Description: Prisma service for database interaction in NestJS.
+ * Extends PrismaClient and implements OnModuleInit and OnModuleDestroy
+ * lifecycle hooks for connecting and disconnecting from the database.
+ * Uses ConfigService to get the database URL.
+ * Includes an optional method for cleaning the database in non-production environments.
  * --------------------------------------------------------------------------
  */
 
@@ -21,10 +23,8 @@ export class PrismaService
 {
   /**
    * Constructs the PrismaService.
-   * Initializes the PrismaClient with the database URL from the ConfigService.
-   *
+   * Initializes the PrismaClient with the database URL from ConfigService.
    * @param config The ConfigService instance.
-   * @throws Error if DATABASE_URL environment variable is not set.
    */
   constructor(config: ConfigService) {
     const dbUrl = config.get<string>('DATABASE_URL');
@@ -53,7 +53,7 @@ export class PrismaService
   }
 
   /**
-   * Disconnects from the database when the application is shut down.
+   * Closes the database connection when the application is shut down.
    */
   async onModuleDestroy() {
     await this.$disconnect();
@@ -62,10 +62,8 @@ export class PrismaService
 
   /**
    * Cleans the database.
-   * This method is intended for testing environments and will not run in production.
-   * It performs a transaction to remove data sequentially based on foreign key constraints.
-   *
-   * @returns A promise that resolves when the database cleaning is complete.
+   * This function is intended for testing environments and will not run in production.
+   * It uses a Prisma transaction to remove data sequentially based on foreign key constraints.
    */
   async cleanDatabase() {
     if (process.env.NODE_ENV === 'production') return;

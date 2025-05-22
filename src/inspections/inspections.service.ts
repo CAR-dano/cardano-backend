@@ -1,8 +1,15 @@
-/**
- * @fileoverview Service responsible for handling business logic related to inspections.
+/*
+ * --------------------------------------------------------------------------
+ * File: inspections.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Service responsible for handling business logic related to inspections.
  * Interacts with PrismaService to manage inspection data in the database.
  * Handles parsing JSON data received as strings and storing file paths from uploads.
- * Authentication details (like associating with a real user) are currently using placeholders or omitted.
+ * Manages inspection lifecycle, including creation, updates, status changes,
+ * PDF generation, and blockchain interaction simulation.
+ * --------------------------------------------------------------------------
  */
 
 import {
@@ -17,7 +24,13 @@ import {
 import { PrismaService } from '../prisma/prisma.service'; // Service for Prisma client interaction
 import { CreateInspectionDto } from './dto/create-inspection.dto'; // DTO for incoming creation data
 import { UpdateInspectionDto } from './dto/update-inspection.dto';
-import { Inspection, InspectionStatus, Prisma, Role } from '@prisma/client'; // Prisma generated types (Inspection model, Prisma namespace)
+import {
+  Inspection,
+  InspectionStatus,
+  Prisma,
+  Role,
+  InspectionChangeLog,
+} from '@prisma/client'; // Prisma generated types (Inspection model, Prisma namespace)
 import * as fs from 'fs/promises'; // Use promise-based fs for async file operations
 import * as path from 'path'; // For constructing file paths
 import * as crypto from 'crypto'; // For generating PDF hash
@@ -25,12 +38,20 @@ import { format } from 'date-fns'; // for date formating
 import { BlockchainService } from '../blockchain/blockchain.service';
 import puppeteer, { Browser } from 'puppeteer'; // Import puppeteer and Browser type
 import { ConfigService } from '@nestjs/config';
+import * as Papa from 'papaparse';
 
 // Define path for archived PDFs (ensure this exists or is created by deployment script/manually)
 const PDF_ARCHIVE_PATH = './pdfarchived';
 // Define public base URL for accessing archived PDFs (should come from config in real app)
 const PDF_PUBLIC_BASE_URL = process.env.PDF_PUBLIC_BASE_URL || '/pdfarchived'; // Example: /pdfarchived if served by Nginx
 
+/**
+ * Service responsible for handling business logic related to inspections.
+ * Interacts with PrismaService to manage inspection data in the database.
+ * Handles parsing JSON data received as strings and storing file paths from uploads.
+ * Manages inspection lifecycle, including creation, updates, status changes,
+ * PDF generation, and blockchain interaction simulation.
+ */
 @Injectable()
 export class InspectionsService {
   // Initialize a logger for this service context
@@ -45,18 +66,19 @@ export class InspectionsService {
     this.ensureDirectoryExists(PDF_ARCHIVE_PATH);
   }
 
-  /** Helper to ensure directory exists */
+  /**
+   * Helper to ensure directory exists.
+   * @param directoryPath The path to the directory.
+   */
   private async ensureDirectoryExists(directoryPath: string) {
     try {
       await fs.mkdir(directoryPath, { recursive: true });
       this.logger.log(`Directory ensured: ${directoryPath}`);
-    } catch (error: any) {
-      // Reverted to any
-      if (error.code !== 'EEXIST') {
-        // Ignore error if directory already exists
+    } catch (error: unknown) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
         this.logger.error(
           `Failed to create directory ${directoryPath}`,
-          error.stack,
+          (error as Error).stack,
         );
         // Depending on severity, you might want to throw an error here
       }
@@ -118,53 +140,78 @@ export class InspectionsService {
    * Status defaults to NEED_REVIEW. Requires the ID of the submitting user (inspector).
    *
    * @param {CreateInspectionDto} createInspectionDto - DTO containing initial data.
-   * @param {string} submitterId - The UUID of the user (INSPECTOR) submitting the inspection.
-   * @returns {Promise<Inspection>} The created inspection record.
+   * @returns {Promise<{ id: string }>} An object containing the ID of the created inspection.
    */
-  async create(createInspectionDto: CreateInspectionDto): Promise<Inspection> {
+  async create(
+    createInspectionDto: CreateInspectionDto,
+  ): Promise<{ id: string }> {
     this.logger.log(
-      `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'} by inspector ${createInspectionDto.inspectorId}`,
+      `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'}`,
     );
-    let branchCode = 'XXX'; // Placeholder - WAJIB DIGANTI
+
+    const { identityDetails } = createInspectionDto;
+    const inspectorUuid = identityDetails.namaInspektor; // This is now the UUID
+    const branchCityUuid = identityDetails.cabangInspeksi; // This is now the UUID
+    const customerName = identityDetails.namaCustomer;
+
+    // 1. Fetch Inspector and Branch City records using UUIDs
+    let inspectorName: string | null = null;
+    let branchCityName: string | null = null;
+    let branchCode = 'XXX'; // Default branch code
+
     try {
-      const identity = createInspectionDto.identityDetails;
-      if (
-        identity &&
-        typeof identity === 'object' &&
-        'cabangInspeksi' in identity &&
-        typeof identity.cabangInspeksi === 'string'
-      ) {
-        // Ambil 3 huruf pertama dan uppercase
-        branchCode = identity.cabangInspeksi.substring(0, 3).toUpperCase();
-        // Validasi sederhana
-        if (!['YOG', 'SOL', 'SEM'].includes(branchCode)) {
-          throw new BadRequestException(
-            `Invalid branch code inferred from identityDetails: ${branchCode}`,
-          );
-        }
-      } else {
+      const inspector = await this.prisma.user.findUnique({
+        where: { id: inspectorUuid },
+        select: { name: true },
+      });
+      if (!inspector) {
         throw new BadRequestException(
-          'Cannot determine branch code from identityDetails.',
+          `Inspector with ID "${inspectorUuid}" not found.`,
         );
       }
-    } catch (e: any) {
-      // Reverted to any
+      inspectorName = inspector.name;
+      this.logger.log(`Fetched inspector name: ${inspectorName}`);
+
+      const branchCity = await this.prisma.inspectionBranchCity.findUnique({
+        where: { id: branchCityUuid },
+        select: { city: true, code: true },
+      });
+      if (!branchCity) {
+        throw new BadRequestException(
+          `Inspection Branch City with ID "${branchCityUuid}" not found.`,
+        );
+      }
+      branchCityName = branchCity.city;
+      branchCode = branchCity.code.toUpperCase(); // Use the fetched branch code
+      this.logger.log(
+        `Fetched branch city name: ${branchCityName}, code: ${branchCode}`,
+      );
+    } catch (e: unknown) {
       if (e instanceof BadRequestException) throw e;
-      throw new BadRequestException(
-        'Failed to determine branch code from identityDetails JSON.',
+      // Log specific error details if available
+      const errorMessage =
+        e instanceof Error ? e.message : 'An unknown error occurred';
+      const errorStack =
+        e instanceof Error ? e.stack : 'No stack trace available';
+      this.logger.error(
+        `Failed to fetch inspector or branch city details: ${errorMessage}`,
+        errorStack,
+      );
+      throw new InternalServerErrorException(
+        'Could not retrieve inspector or branch city details.',
       );
     }
 
     const inspectionDateObj = createInspectionDto.inspectionDate
       ? new Date(createInspectionDto.inspectionDate)
-      : new Date(); // Default ke now() jika tidak ada?
+      : new Date(); // Default to now() if not provided? Consider if this should be required.
     if (isNaN(inspectionDateObj.getTime())) {
       throw new BadRequestException('Invalid inspectionDate format provided.');
     }
 
     return this.prisma.$transaction(
       async (tx) => {
-        // Generate ID Kustom di dalam transaksi
+        // Generate ID Kustom di dalam transaksi menggunakan branchCode yang sudah diambil
         const customId = await this.generateNextInspectionId(
           branchCode,
           inspectionDateObj,
@@ -172,19 +219,44 @@ export class InspectionsService {
         );
         this.logger.log(`Generated custom inspection ID: ${customId}`);
 
+        // 2. Prepare Data for Database
         const dataToCreate: Prisma.InspectionCreateInput = {
-          // Let Prisma generate the UUID for 'id'
-          pretty_id: customId, // <-- Gunakan ID kustom untuk pretty_id
-          inspector: { connect: { id: createInspectionDto.inspectorId } },
+          pretty_id: customId,
+          // Store the UUIDs in the dedicated ID fields
+          inspector: { connect: { id: inspectorUuid } }, // Connect using the UUID
+          branchCity: { connect: { id: branchCityUuid } }, // Connect using the UUID
+
           vehiclePlateNumber: createInspectionDto.vehiclePlateNumber,
-          inspectionDate: inspectionDateObj, // Gunakan objek Date
+          inspectionDate: inspectionDateObj,
           overallRating: createInspectionDto.overallRating,
-          identityDetails: createInspectionDto.identityDetails, // Hasil parse
+
+          // Update identityDetails to store names and customer name
+          identityDetails: {
+            namaInspektor: inspectorName, // Store the fetched name
+            namaCustomer: customerName, // Store the customer name from DTO
+            cabangInspeksi: branchCityName, // Store the fetched name
+          },
+
           vehicleData: createInspectionDto.vehicleData,
           equipmentChecklist: createInspectionDto.equipmentChecklist,
           inspectionSummary: createInspectionDto.inspectionSummary,
           detailedAssessment: createInspectionDto.detailedAssessment,
           bodyPaintThickness: createInspectionDto.bodyPaintThickness,
+          notesFontSizes: createInspectionDto.notesFontSizes ?? {
+            // Use provided font sizes or default
+            inspectionSummary_interiorNotes: 12,
+            inspectionSummary_eksteriorNotes: 12,
+            inspectionSummary_kakiKakiNotes: 12,
+            inspectionSummary_mesinNotes: 12,
+            inspectionSummary_deskripsiKeseluruhan: 12,
+            detailedAssessment_testDrive_catatan: 12,
+            detailedAssessment_banDanKakiKaki_catatan: 12,
+            detailedAssessment_hasilInspeksiEksterior_catatan: 12,
+            detailedAssessment_toolsTest_catatan: 12,
+            detailedAssessment_fitur_catatan: 12,
+            detailedAssessment_hasilInspeksiMesin_catatan: 12,
+            detailedAssessment_hasilInspeksiInterior_catatan: 12,
+          },
           // photoPaths default [], status default NEED_REVIEW
         };
 
@@ -195,10 +267,8 @@ export class InspectionsService {
           this.logger.log(
             `Successfully created inspection with custom ID: ${newInspection.id}`,
           );
-          return newInspection;
-        } catch (error: any) {
-          // Reverted to any
-          // Tangani jika ID kustom ternyata tidak unik (race condition)
+          return { id: newInspection.id };
+        } catch (error: unknown) {
           if (
             error instanceof Prisma.PrismaClientKnownRequestError &&
             error.code === 'P2002'
@@ -210,9 +280,15 @@ export class InspectionsService {
               `Failed to generate unique inspection ID for ${customId}. Please try again.`,
             );
           }
+          const errorMessage =
+            error instanceof Error
+              ? error.message
+              : 'An unknown error occurred';
+          const errorStack =
+            error instanceof Error ? error.stack : 'No stack trace available';
           this.logger.error(
-            `Failed to create inspection with custom ID ${customId}: ${error.message}`,
-            error.stack,
+            `Failed to create inspection with custom ID ${customId}: ${errorMessage}`,
+            errorStack,
           );
           throw new InternalServerErrorException(
             'Could not save inspection data.',
@@ -220,42 +296,187 @@ export class InspectionsService {
         }
       },
       {
-        // Opsi transaksi: tingkat isolasi tinggi untuk mencegah race condition ID
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
-        maxWait: 5000, // milliseconds
-        timeout: 10000, // milliseconds
+        maxWait: 5000,
+        timeout: 10000,
       },
     );
   }
 
   /**
-   * Logs changes made to an inspection record by a reviewer.
+   * Helper function for deep comparison of JSON objects up to three levels.
+   * Logs changes to the provided 'changes' array.
+   *
+   * @param fieldName The top-level JSON field name in the Inspection model.
+   * @param oldJsonValue The entire old JSON object/value from the database for this fieldName.
+   * @param newJsonValue The entire new JSON object/value from the DTO for this fieldName.
+   * @param changes Array to push log entries into.
+   * @param inspectionId The ID of the inspection.
+   * @param userId The ID of the user making the change.
+   * @param path Current path within the JSON object (e.g., ['fitur', 'airbag']). Max depth 2 for sub-sub-field.
+   */
+  private logJsonChangesRecursive(
+    fieldName: string, // e.g., 'identityDetails', 'detailedAssessment'
+    oldJsonValue: Prisma.JsonValue,
+    newJsonValue: Prisma.JsonValue,
+    changes: Prisma.InspectionChangeLogCreateManyInput[],
+    inspectionId: string,
+    userId: string,
+    path: string[] = [], // Path of keys, e.g., [], ['fitur'], ['fitur', 'airbag']
+  ) {
+    const isObject = (
+      val: Prisma.JsonValue,
+    ): val is Record<string, Prisma.JsonValue> =>
+      typeof val === 'object' && val !== null && !Array.isArray(val);
+
+    // If we are at the max depth (sub-sub-field) or one of the values is not an object, compare them directly.
+    // current path represents nesting:
+    // path.length === 0: comparing root of newJsonValue against root of oldJsonValue (for fieldName)
+    // path.length === 1: comparing a sub-field (e.g., detailedAssessment.fitur)
+    // path.length === 2: comparing a sub-sub-field (e.g., detailedAssessment.fitur.airbag) - MAX DEPTH for specific logging
+    if (
+      path.length >= 2 ||
+      !isObject(oldJsonValue) ||
+      !isObject(newJsonValue)
+    ) {
+      // Compare values. Use JSON.stringify for deep comparison of primitives/arrays/simple objects.
+      // This might not be perfect for complex JSON structures with different key orders,
+      // but is generally sufficient for typical form data JSON.
+      if (JSON.stringify(oldJsonValue) !== JSON.stringify(newJsonValue)) {
+        changes.push({
+          inspectionId: inspectionId,
+          changedByUserId: userId,
+          fieldName: fieldName,
+          subFieldName: path[0] || null,
+          subsubfieldname: path[1] || null,
+          oldValue:
+            oldJsonValue === undefined || oldJsonValue === null
+              ? Prisma.JsonNull
+              : oldJsonValue,
+          newValue:
+            newJsonValue === undefined || newJsonValue === null
+              ? Prisma.JsonNull
+              : newJsonValue,
+        });
+      }
+      return;
+    }
+
+    // If both are objects and we haven't reached max depth for specific path logging
+    const oldObj = oldJsonValue as Record<string, Prisma.JsonValue>;
+    const newObj = newJsonValue as Record<string, Prisma.JsonValue>;
+
+    // Iterate ONLY through keys present in the new (update DTO) object.
+    // We only care about what the user *intends* to change or set.
+    // Use Object.keys and then check existence on oldObj.
+    for (const key of Object.keys(newObj)) {
+      // Check if the key exists in the old object before recursing to avoid errors on new keys
+      // This check is not strictly necessary for the logic but can prevent errors if oldObj is null/undefined
+      // However, the isObject check above should handle the null/undefined case.
+      // Let's proceed with recursion as intended, assuming oldObj is an object here.
+      const currentPathWithKey = [...path, key];
+      this.logJsonChangesRecursive(
+        fieldName, // Keep passing the top-level fieldName
+        oldObj[key], // Value from existing DB record (can be undefined if key doesn't exist)
+        newObj[key], // Value from the update DTO
+        changes,
+        inspectionId,
+        userId,
+        currentPathWithKey,
+      );
+    }
+  }
+
+  /**
+   * Finds a single inspection by vehicle plate number (case-insensitive, space-agnostic).
+   * This endpoint is publicly accessible and does not require role-based filtering.
+   *
+   * @param {string} vehiclePlateNumber - The vehicle plate number to search for.
+   * @returns {Promise<Inspection | null>} The found inspection record or null if not found.
+   */
+  async findByVehiclePlateNumber(
+    vehiclePlateNumber: string,
+  ): Promise<Inspection | null> {
+    this.logger.log(
+      `Searching for inspection by vehicle plate number: ${vehiclePlateNumber}`,
+    );
+
+    try {
+      // Use a raw query for a robust solution that works across databases for this specific matching logic.
+      // This compares the lowercased, space-removed version of the input with the lowercased, space-removed version of the DB column.
+      // Prisma's `$queryRaw` handles escaping the input to prevent SQL injection.
+      const idResult = await this.prisma.$queryRaw<{ id: string }[]>`
+        SELECT id
+        FROM "inspections"
+        WHERE lower(replace("vehiclePlateNumber", ' ', '')) = lower(replace(${vehiclePlateNumber}, ' ', ''))
+        LIMIT 1;
+      `;
+
+      if (idResult.length === 0) {
+        this.logger.log(
+          `No inspection found for plate number: ${vehiclePlateNumber}`,
+        );
+        return null;
+      }
+
+      const inspectionId = idResult[0].id;
+
+      // Now fetch the full inspection object with relations using the ID
+      const inspection = await this.prisma.inspection.findUnique({
+        where: { id: inspectionId },
+        include: { photos: true }, // Include related photos
+        // include: { inspector: true, reviewer: true } // Include related users if needed
+      });
+
+      this.logger.log(
+        `Found inspection ID: ${inspection?.id} for plate number: ${vehiclePlateNumber}`,
+      );
+      return inspection;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace available';
+      this.logger.error(
+        `Failed to search inspection by plate number ${vehiclePlateNumber}: ${errorMessage}`,
+        errorStack,
+      );
+      throw new InternalServerErrorException(
+        'Could not search inspection data.',
+      );
+    }
+  }
+
+  /**
+   * Logs changes made to an inspection record by a reviewer/admin.
    * Changes are recorded in the InspectionChangeLog table.
-   * The actual Inspection record is NOT updated by this method.
+   * The actual Inspection record is NOT updated by this method itself;
+   * updates happen during the 'approveInspection' process.
    *
    * @param {string} id - The UUID of the inspection to log changes for.
    * @param {UpdateInspectionDto} updateInspectionDto - DTO containing the potential changes.
-   * @param {string} userId - ID of the user performing the action (reviewer).
-   * @param {Role} userRole - Role of the user.
-   * @returns {Promise<Inspection>} The existing inspection record (after logging changes).
+   * @param {string} userId - ID of the user performing the action (reviewer/admin).
+   * @param {Role} userRole - Role of the user (for logging or future auth).
+   * @returns {Promise<Inspection>} The existing (unchanged) inspection record.
    * @throws {NotFoundException} If the inspection with the given ID is not found.
+   * @throws {BadRequestException} If trying to update an already approved inspection.
    * @throws {InternalServerErrorException} For database errors during logging.
    */
   async update(
     id: string,
     updateInspectionDto: UpdateInspectionDto,
-    userId: string, // User performing the update (reviewer)
-    userRole: Role, // Role of the user
+    userId: string,
+    userRole: Role, // Included for context, though not used for auth in this specific method
   ): Promise<Inspection> {
     this.logger.log(
-      `User ${userId} (Role: ${userRole}) attempting to log changes for inspection ID: ${id}`,
+      `User ${userId} (Role: ${userRole}) attempting to log/stage changes for inspection ID: ${id}`,
     );
     this.logger.debug(
       'Update DTO received:',
       JSON.stringify(updateInspectionDto, null, 2),
     );
 
-    // 1. Fetch the existing inspection
+    // 1. Fetch the existing inspection to compare against
     const existingInspection = await this.prisma.inspection.findUnique({
       where: { id },
     });
@@ -264,430 +485,252 @@ export class InspectionsService {
       throw new NotFoundException(`Inspection with ID "${id}" not found.`);
     }
 
-    // Add check to prevent updating approved inspections
-    if (existingInspection.status === InspectionStatus.APPROVED) {
+    // Check: Prevent logging changes for already approved or archived inspections
+    // This logic might be better suited in the controller or a specific "edit" phase
+    if (
+      existingInspection.status === InspectionStatus.APPROVED ||
+      existingInspection.status === InspectionStatus.ARCHIVED ||
+      existingInspection.status === InspectionStatus.ARCHIVING
+    ) {
       throw new BadRequestException(
-        `Inspection with ID "${id}" has already been approved and cannot be updated.`,
+        `Inspection with ID "${id}" has status ${existingInspection.status} and cannot be updated or have changes logged at this stage.`,
       );
     }
 
-    // 2. Compare data and log changes
+    // 2. Initialize array to store change log entries and update data for the inspection record
     const changesToLog: Prisma.InspectionChangeLogCreateManyInput[] = [];
+    const updateData: Prisma.InspectionUpdateInput = {};
 
-    // Helper function for deep comparison of JSON objects and logging granular changes
-    const logJsonChanges = (
-      fieldName: string,
-      oldValue: any,
-      newValue: any,
-      changes: Prisma.InspectionChangeLogCreateManyInput[],
-      currentPath: string = '', // Track the nested path
-    ) => {
-      // If both are objects, recurse
-      if (
-        typeof oldValue === 'object' &&
-        oldValue !== null &&
-        typeof newValue === 'object' &&
-        newValue !== null
-      ) {
-        const oldObj = oldValue as any;
-        const newObj = newValue as any;
-        const allKeys = new Set([
-          ...Object.keys(oldObj),
-          ...Object.keys(newObj),
-        ]);
+    // Handle changes to inspectorId and branchCityId and update identityDetails immediately
+    let identityDetailsUpdated = false;
+    const currentIdentityDetails =
+      (existingInspection.identityDetails as Prisma.JsonObject) ?? {};
+    const newIdentityDetails = { ...currentIdentityDetails }; // Start with existing details
 
-        for (const key of allKeys) {
-          const nestedOldValue = oldObj[key];
-          const nestedNewValue = newObj[key];
-          const nestedPath = currentPath ? `${currentPath}.${key}` : key;
-          logJsonChanges(
-            fieldName,
-            nestedOldValue,
-            nestedNewValue,
-            changes,
-            nestedPath,
-          );
+    if (
+      updateInspectionDto.inspectorId !== undefined &&
+      updateInspectionDto.inspectorId !== existingInspection.inspectorId
+    ) {
+      const newInspector = await this.prisma.user.findUnique({
+        where: { id: updateInspectionDto.inspectorId },
+        select: { name: true },
+      });
+      if (!newInspector) {
+        throw new BadRequestException(
+          `New inspector with ID "${updateInspectionDto.inspectorId}" not found.`,
+        );
+      }
+      // Log change for identityDetails.namaInspektor
+      changesToLog.push({
+        inspectionId: id,
+        changedByUserId: userId,
+        fieldName: 'identityDetails',
+        subFieldName: 'namaInspektor',
+        subsubfieldname: null,
+        oldValue: currentIdentityDetails?.namaInspektor ?? Prisma.JsonNull, // Safer access
+        newValue: newInspector.name ?? Prisma.JsonNull,
+      });
+      this.logger.log(
+        `Logged change for identityDetails.namaInspektor to "${newInspector.name}"`,
+      );
+      // Update identityDetails in the updateData
+      newIdentityDetails.namaInspektor = newInspector.name;
+      identityDetailsUpdated = true;
+      // Also update the inspectorId directly in the inspection record
+      updateData.inspector = {
+        connect: { id: updateInspectionDto.inspectorId },
+      };
+    }
+
+    if (
+      updateInspectionDto.branchCityId !== undefined &&
+      updateInspectionDto.branchCityId !== existingInspection.branchCityId
+    ) {
+      const newBranchCity = await this.prisma.inspectionBranchCity.findUnique({
+        where: { id: updateInspectionDto.branchCityId },
+        select: { city: true },
+      });
+      if (!newBranchCity) {
+        throw new BadRequestException(
+          `New branch city with ID "${updateInspectionDto.branchCityId}" not found.`,
+        );
+      }
+      // Log change for identityDetails.cabangInspeksi
+      changesToLog.push({
+        inspectionId: id,
+        changedByUserId: userId,
+        fieldName: 'identityDetails',
+        subFieldName: 'cabangInspeksi',
+        subsubfieldname: null,
+        oldValue: currentIdentityDetails?.cabangInspeksi ?? Prisma.JsonNull, // Safer access
+        newValue: newBranchCity.city ?? Prisma.JsonNull,
+      });
+      this.logger.log(
+        `Logged change for identityDetails.cabangInspeksi to "${newBranchCity.city}"`,
+      );
+      // Update identityDetails in the updateData
+      newIdentityDetails.cabangInspeksi = newBranchCity.city;
+      identityDetailsUpdated = true;
+      // Also update the branchCityId directly in the inspection record
+      updateData.branchCity = {
+        connect: { id: updateInspectionDto.branchCityId },
+      };
+    }
+
+    // If identityDetails was updated due to ID changes, add it to the updateData
+    if (identityDetailsUpdated) {
+      updateData.identityDetails = newIdentityDetails;
+    }
+
+    // Define which top-level fields in Inspection are JSON and should be deep compared
+    const jsonFieldsInInspectionModel: Array<
+      keyof UpdateInspectionDto & keyof Inspection
+    > = [
+      // 'identityDetails', // identityDetails is handled separately above
+      'vehicleData',
+      'equipmentChecklist',
+      'inspectionSummary',
+      'detailedAssessment',
+      'bodyPaintThickness',
+      'notesFontSizes', // Added notesFontSizes
+    ];
+
+    // Iterate over the keys in the DTO (fields intended to be updated)
+    // Use Object.keys and type assertion for better type safety than 'for...in' with hasOwnProperty
+    for (const key of Object.keys(updateInspectionDto)) {
+      const dtoKey = key;
+      const newValue = updateInspectionDto[dtoKey]; // Value from the DTO
+      // Access existingInspection using bracket notation with keyof Inspection type assertion
+      const oldValue = (existingInspection as Inspection)[
+        dtoKey as keyof Inspection
+      ]; // Current value from DB
+
+      if (newValue === undefined) continue; // Skip if DTO field is undefined (not meant to be updated)
+      // Skip inspectorId and branchCityId as they are handled above
+      if (dtoKey === 'inspectorId' || dtoKey === 'branchCityId') continue;
+
+      // Convert Date objects to ISO strings before logging/comparing
+      const processedNewValue =
+        newValue instanceof Date ? newValue.toISOString() : newValue;
+      const processedOldValue =
+        oldValue instanceof Date ? oldValue.toISOString() : oldValue;
+
+      // Check if the key is one of the JSON fields
+      if ((jsonFieldsInInspectionModel as string[]).includes(dtoKey)) {
+        this.logger.verbose(`Comparing JSON field: ${dtoKey}`);
+        // For JSON fields, newValue from DTO is an object. oldValue from DB is also object/null.
+        this.logJsonChangesRecursive(
+          dtoKey,
+          processedOldValue, // Cast to JsonValue
+          processedNewValue, // Cast to JsonValue
+          changesToLog,
+          id,
+          userId,
+          [], // Start with an empty path for the top-level JSON field
+        );
+        // Add the JSON field to the updateData
+        updateData[dtoKey] = processedNewValue;
+      } else {
+        // Handle non-JSON, top-level fields (e.g., vehiclePlateNumber, overallRating)
+        const oldValToLog =
+          processedOldValue === undefined || processedOldValue === null
+            ? Prisma.JsonNull
+            : processedOldValue;
+        const newValToLog =
+          processedNewValue === undefined || processedNewValue === null
+            ? Prisma.JsonNull
+            : processedNewValue;
+
+        // Add validation for specific top-level fields if needed
+        if (dtoKey === 'vehiclePlateNumber' && typeof newValue === 'string') {
+          const maxLength = 15; // Corresponds to @db.VarChar(15) in schema.prisma
+          if (newValue.length > maxLength) {
+            throw new BadRequestException(
+              `Value for ${dtoKey} exceeds maximum length of ${maxLength} characters.`,
+            );
+          }
         }
-      } else if (oldValue !== newValue) {
-        // If values are different (and not both objects), log the change
-        // Handle undefined vs null consistently for comparison and logging
-        const oldValToLog = oldValue === undefined ? null : oldValue;
-        const newValToLog = newValue === undefined ? null : newValue;
+        // Add similar checks for other non-JSON fields if they have length constraints
 
-        // Only log if there's an actual change in value (considering undefined/null)
         if (JSON.stringify(oldValToLog) !== JSON.stringify(newValToLog)) {
-          changes.push({
+          this.logger.verbose(
+            `Logging change for top-level non-JSON field: ${dtoKey}`,
+          );
+          changesToLog.push({
             inspectionId: id,
             changedByUserId: userId,
-            fieldName: fieldName,
-            subFieldName: currentPath || null, // Use null if no sub-field path
-            oldValue: oldValToLog === null ? Prisma.JsonNull : oldValToLog,
-            newValue: newValToLog === null ? Prisma.JsonNull : newValToLog,
+            fieldName: dtoKey,
+            subFieldName: null,
+            subsubfieldname: null,
+            oldValue: oldValToLog,
+            newValue: newValToLog,
           });
+          // Add the non-JSON field to the updateData
+          // Ensure newValue is not an object before assigning to non-JSON fields
+          if (typeof newValue !== 'object' || newValue === null) {
+            updateData[dtoKey] = newValue;
+          } else {
+            this.logger.warn(
+              `Attempted to assign object to non-JSON field: ${dtoKey}. Ignoring.`,
+            );
+          }
         }
       }
-      // If values are the same, do nothing
-    };
-
-    // Compare fields from DTO with existing data and log changes
-    if (updateInspectionDto.vehiclePlateNumber !== undefined) {
-      if (
-        existingInspection.vehiclePlateNumber !==
-        updateInspectionDto.vehiclePlateNumber
-      ) {
-        changesToLog.push({
-          inspectionId: id,
-          changedByUserId: userId,
-          fieldName: 'vehiclePlateNumber',
-          subFieldName: null, // Top-level field
-          oldValue:
-            existingInspection.vehiclePlateNumber === null
-              ? Prisma.JsonNull
-              : existingInspection.vehiclePlateNumber,
-          newValue:
-            updateInspectionDto.vehiclePlateNumber === null
-              ? Prisma.JsonNull
-              : updateInspectionDto.vehiclePlateNumber,
-        });
-      }
-    }
-    if (updateInspectionDto.inspectionDate !== undefined) {
-      const existingDate =
-        existingInspection.inspectionDate?.toISOString() ?? null;
-      const newDate = updateInspectionDto.inspectionDate
-        ? new Date(updateInspectionDto.inspectionDate).toISOString()
-        : null;
-      if (existingDate !== newDate) {
-        changesToLog.push({
-          inspectionId: id,
-          changedByUserId: userId,
-          fieldName: 'inspectionDate',
-          subFieldName: null, // Top-level field
-          oldValue: existingDate === null ? Prisma.JsonNull : existingDate,
-          newValue: newDate === null ? Prisma.JsonNull : newDate,
-        });
-      }
-    }
-    if (updateInspectionDto.overallRating !== undefined) {
-      if (
-        existingInspection.overallRating !== updateInspectionDto.overallRating
-      ) {
-        changesToLog.push({
-          inspectionId: id,
-          changedByUserId: userId,
-          fieldName: 'overallRating',
-          subFieldName: null, // Top-level field
-          oldValue:
-            existingInspection.overallRating === null
-              ? Prisma.JsonNull
-              : existingInspection.overallRating,
-          newValue:
-            updateInspectionDto.overallRating === null
-              ? Prisma.JsonNull
-              : updateInspectionDto.overallRating,
-        });
-      }
     }
 
-    // Compare and log changes for JSON fields using the helper function
-    if (updateInspectionDto.identityDetails !== undefined) {
-      logJsonChanges(
-        'identityDetails',
-        existingInspection.identityDetails,
-        updateInspectionDto.identityDetails,
-        changesToLog,
-      );
-    }
-    if (updateInspectionDto.vehicleData !== undefined) {
-      logJsonChanges(
-        'vehicleData',
-        existingInspection.vehicleData,
-        updateInspectionDto.vehicleData,
-        changesToLog,
-      );
-    }
-    if (updateInspectionDto.equipmentChecklist !== undefined) {
-      logJsonChanges(
-        'equipmentChecklist',
-        existingInspection.equipmentChecklist,
-        updateInspectionDto.equipmentChecklist,
-        changesToLog,
-      );
-    }
-    if (updateInspectionDto.inspectionSummary !== undefined) {
-      logJsonChanges(
-        'inspectionSummary',
-        existingInspection.inspectionSummary,
-        updateInspectionDto.inspectionSummary,
-        changesToLog,
-      );
-    }
-    if (updateInspectionDto.detailedAssessment !== undefined) {
-      logJsonChanges(
-        'detailedAssessment',
-        existingInspection.detailedAssessment,
-        updateInspectionDto.detailedAssessment,
-        changesToLog,
-      );
-    }
-    if (updateInspectionDto.bodyPaintThickness !== undefined) {
-      logJsonChanges(
-        'bodyPaintThickness',
-        existingInspection.bodyPaintThickness,
-        updateInspectionDto.bodyPaintThickness,
-        changesToLog,
-      );
-    }
-
-    // 3. Save changes to InspectionChangeLog
+    // 3. Save all detected changes to the InspectionChangeLog table
     if (changesToLog.length > 0) {
       try {
-        // Use createMany for efficiency if logging multiple changes
         await this.prisma.inspectionChangeLog.createMany({
           data: changesToLog,
         });
         this.logger.log(
           `Logged ${changesToLog.length} changes for inspection ID: ${id}`,
         );
-      } catch (error: any) {
-        // Reverted to any
-        // Keep any for now, will refine later
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'An unknown error occurred';
+        const errorStack =
+          error instanceof Error ? error.stack : 'No stack trace available';
         this.logger.error(
-          `Failed to log changes for inspection ID ${id}: ${error.message}`,
-          error.stack,
+          `Failed to log changes for inspection ID ${id}: ${errorMessage}`,
+          errorStack,
         );
-        // Decide how to handle logging failure - throw error or just log?
-        // For now, we'll throw to indicate the save operation failed.
         throw new InternalServerErrorException(
           'Could not save inspection change logs.',
         );
       }
     } else {
-      this.logger.log(`No changes detected for inspection ID: ${id}`);
-    }
-
-    // 4. Return the existing inspection (update to Inspection table happens on approve)
-    // We might want to return the inspection with the *applied* changes for the frontend to preview,
-    // but the plan is to only apply on approve. So, returning the current state is fine for now.
-    // A more advanced approach would be to apply changes in memory and return that object.
-    return existingInspection; // Return the inspection as it is in the DB
-  }
-
-  /**
-   * Retrieves all inspection records, ordered by creation date descending.
-   * Filters results based on the requesting user's role.
-   * Admins/Reviewers see all. Customers/Developers/Inspectors only see ARCHIVED.
-   * (Pagination to be added later).
-   *
-   * @param {Role} userRole - The role of the user making the request.
-   * @returns {Promise<Inspection[]>} An array of inspection records.
-   */
-  async findAll(userRole: Role): Promise<Inspection[]> {
-    this.logger.log(`Retrieving inspections for user role: ${userRole}`);
-    let whereClause: Prisma.InspectionWhereInput = {}; // Default: no filter
-
-    // Apply filter based on role for non-admin/reviewer roles
-    if (
-      userRole === Role.CUSTOMER ||
-      userRole === Role.DEVELOPER ||
-      userRole === Role.INSPECTOR
-    ) {
-      whereClause = {
-        status: InspectionStatus.ARCHIVED,
-        // Add deactivatedAt check if needed: deactivatedAt: null
-      };
-      this.logger.log('Applying filter: status = ARCHIVED');
-    }
-    // TODO: Consider if INSPECTOR should see their own NEED_REVIEW inspections?
-
-    try {
-      const inspections = await this.prisma.inspection.findMany({
-        where: whereClause,
-        orderBy: {
-          createdAt: 'desc', // Order by newest first
-        },
-        include: { photos: true }, // Include related photos
-        // include: { inspector: { select: {id: true, name: true}}, reviewer: { select: {id: true, name: true}} } // Example include
-      });
       this.logger.log(
-        `Retrieved ${inspections.length} inspections for role ${userRole}.`,
-      );
-      return inspections;
-    } catch (error: any) {
-      // Reverted to any
-      this.logger.error(
-        `Failed to retrieve inspections for role ${userRole}: ${error.message}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        'Could not retrieve inspection data.',
+        `No significant changes detected to log for inspection ID: ${id}`,
       );
     }
-  }
 
-  /**
-   * Retrieves a single inspection by ID.
-   * Applies status-based filtering for non-admin/reviewer roles.
-   *
-   * @param {string} id - The UUID of the inspection.
-   * @param {Role} userRole - The role of the requesting user.
-   * @returns {Promise<Inspection>} The found inspection record.
-   * @throws {NotFoundException} If inspection not found.
-   * @throws {ForbiddenException} If user role doesn't have permission to view the inspection in its current status.
-   */
-  async findOne(id: string, userRole: Role): Promise<Inspection> {
-    this.logger.log(
-      `Retrieving inspection ID: ${id} for user role: ${userRole}`,
-    );
-    try {
-      const inspection = await this.prisma.inspection.findUniqueOrThrow({
-        where: { id: id },
-        include: { photos: true }, // Include related photos
-        // include: { inspector: true, reviewer: true } // Include related users if needed
-      });
-
-      // Check authorization based on role and status
-      if (userRole === Role.ADMIN || userRole === Role.REVIEWER) {
-        this.logger.log(`Admin/Reviewer access granted for inspection ${id}`);
-        return inspection; // Admins/Reviewers can see all statuses
-      } else if (inspection.status === InspectionStatus.ARCHIVED) {
-        // TODO: Potentially check deactivatedAt here too?
-        // if (inspection.deactivatedAt !== null) { throw new ForbiddenException(...); }
-        this.logger.log(
-          `Public/Inspector access granted for ARCHIVED inspection ${id}`,
-        );
-        return inspection; // Others can only see ARCHIVED
-      } else {
-        // If found but not ARCHIVED, and user is not Admin/Reviewer
-        this.logger.warn(
-          `Access denied for user role ${userRole} on inspection ${id} with status ${inspection.status}`,
-        );
-        throw new ForbiddenException(
-          `You do not have permission to view this inspection in its current status (${inspection.status}).`,
-        );
-      }
-    } catch (error: any) {
-      // Reverted to any
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2025'
-      ) {
-        throw new NotFoundException(`Inspection with ID "${id}" not found.`);
-      }
-      if (error instanceof ForbiddenException) {
-        // Re-throw ForbiddenException
-        throw error;
-      }
-      this.logger.error(
-        `Failed to retrieve inspection ID ${id}: ${error.message}`,
-        error.stack,
-      );
-      throw new InternalServerErrorException(
-        `Could not retrieve inspection ${id}.`,
-      );
-    }
-  }
-
-  /**
-   * Approves an inspection, applies logged changes, and changes status to APPROVED.
-   * Fetches latest changes from InspectionChangeLog and updates the Inspection record.
-   * Records the reviewer ID and optionally clears applied change logs.
-   *
-   * @param {string} inspectionId - The UUID of the inspection to approve.
-   * @param {string} reviewerId - The UUID of the user (REVIEWER/ADMIN) approving.
-   * @returns {Promise<Inspection>} The updated inspection record.
-   * @throws {NotFoundException} If inspection not found.
-   * @throws {BadRequestException} If inspection is not in NEED_REVIEW or FAIL_ARCHIVE state.
-   * @throws {InternalServerErrorException} For database errors.
-   */
-  async approveInspection(
-    inspectionId: string,
-    reviewerId: string,
-  ): Promise<Inspection> {
-    this.logger.log(
-      `Reviewer ${reviewerId} attempting to approve inspection ${inspectionId}`,
-    );
-
-    return this.prisma.$transaction(async (tx) => {
-      // 1. Find the inspection and validate status within the transaction
-      const inspection = await tx.inspection.findUnique({
-        where: { id: inspectionId },
-      });
-
-      if (!inspection) {
-        throw new NotFoundException(
-          `Inspection with ID "${inspectionId}" not found for approval.`,
-        );
-      }
-
-      if (
-        inspection.status !== InspectionStatus.NEED_REVIEW &&
-        inspection.status !== InspectionStatus.FAIL_ARCHIVE
-      ) {
-        throw new BadRequestException(
-          `Inspection ${inspectionId} cannot be approved. Current status is '${inspection.status}'. Required: '${InspectionStatus.NEED_REVIEW}' or '${InspectionStatus.FAIL_ARCHIVE}'.`,
-        );
-      }
-
-      // 2. Fetch the latest changes from InspectionChangeLog for this inspection
-      const changeLogs = await tx.inspectionChangeLog.findMany({
-        where: { inspectionId: inspectionId },
-        orderBy: { changedAt: 'asc' }, // Apply changes in order
-      });
-
-      // 3. Apply changes to the inspection data in memory
-      const updatedInspectionData: any = { ...inspection }; // Create a mutable copy
-
-      for (const log of changeLogs) {
-        // Handle top-level fields
-        if (!log.subFieldName) {
-          (updatedInspectionData as any)[log.fieldName] = log.newValue;
-        } else {
-          // Handle nested JSON fields
-          const fieldPath = log.subFieldName.split('.');
-          let currentLevel: any = (updatedInspectionData as any)[log.fieldName];
-
-          // Ensure the path exists, creating nested objects if necessary
-          for (let i = 0; i < fieldPath.length - 1; i++) {
-            if (
-              currentLevel[fieldPath[i]] === undefined ||
-              currentLevel[fieldPath[i]] === null
-            ) {
-              currentLevel[fieldPath[i]] = {};
-            }
-            currentLevel = currentLevel[fieldPath[i]];
-          }
-
-          // Apply the new value at the final nested level
-          currentLevel[fieldPath[fieldPath.length - 1]] = log.newValue;
-        }
-      }
-
-      // 4. Update the Inspection record in the database with applied changes and status
-      const updatedInspection = await tx.inspection.update({
-        where: { id: inspectionId },
-        data: {
-          ...updatedInspectionData, // Apply all fields from the modified object
-          status: InspectionStatus.APPROVED,
-          reviewerId: reviewerId,
-        },
-      });
-
-      // 5. Optionally, clear the applied change logs
-      if (changeLogs.length > 0) {
-        await tx.inspectionChangeLog.deleteMany({
-          where: { inspectionId: inspectionId },
+    // 4. Update the Inspection record in the database with all collected changes
+    if (Object.keys(updateData).length > 0) {
+      try {
+        const updatedInspection = await this.prisma.inspection.update({
+          where: { id },
+          data: updateData,
         });
-        this.logger.log(
-          `Cleared ${changeLogs.length} change logs for inspection ID: ${inspectionId}`,
+        this.logger.log(`Inspection ${id} updated successfully.`);
+        return updatedInspection;
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'An unknown error occurred';
+        const errorStack =
+          error instanceof Error ? error.stack : 'No stack trace available';
+        this.logger.error(
+          `Failed to update inspection ID ${id}: ${errorMessage}`,
+          errorStack,
         );
+        throw new InternalServerErrorException('Could not update inspection.');
       }
-
-      this.logger.log(
-        `Inspection ${inspectionId} approved and updated with logged changes by reviewer ${reviewerId}`,
-      );
-      return updatedInspection; // Return the final updated record
-    }); // Transaction ends here
+    } else {
+      this.logger.log(`No data to update for inspection ID: ${id}.`);
+      // Return the existing inspection if no updates were made
+      return existingInspection;
+    }
   }
 
   /**
@@ -723,14 +766,17 @@ export class InspectionsService {
       const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
       this.logger.log(`PDF buffer generated successfully from ${url}`);
       return Buffer.from(pdfBuffer);
-    } catch (error: any) {
-      // Reverted to any
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace available';
       this.logger.error(
-        `Failed to generate PDF from URL ${url}: ${error.message}`,
-        error.stack,
+        `Failed to generate PDF from URL ${url}: ${errorMessage}`,
+        errorStack,
       );
       throw new InternalServerErrorException(
-        `Could not generate PDF report from URL: ${error.message}`,
+        `Could not generate PDF report from URL: ${errorMessage}`,
       );
     } finally {
       if (browser) {
@@ -774,53 +820,15 @@ export class InspectionsService {
       );
     }
 
-    // 2. Update status to ARCHIVING
     try {
-      await this.prisma.inspection.update({
-        where: { id: inspectionId },
-        data: { status: InspectionStatus.ARCHIVING },
-      });
-      this.logger.log(`Inspection ${inspectionId} status set to ARCHIVING.`);
-    } catch (updateError: any) {
-      // Reverted to any
-      // Explicitly type error as any for now
-      this.logger.error(
-        `Failed to set status to ARCHIVING for ${inspectionId}`,
-        updateError.stack,
-      );
-      // Decide if this is critical enough to stop the process
-    }
-    const frontendReportUrl = `${this.config.getOrThrow<string>('CLIENT_BASE_URL')}/data/${inspection.pretty_id}`;
-    let pdfBuffer: Buffer;
-    let pdfHashString: string;
-    const pdfFileName = `${inspectionId}-${Date.now()}.pdf`; // Nama file unik
-    const pdfFilePath = path.join(PDF_ARCHIVE_PATH, pdfFileName);
-    const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${pdfFileName}`; // URL publik
-
-    try {
-      // 3. Generate PDF from url
-      pdfBuffer = await this.generatePdfFromUrl(frontendReportUrl);
-      // 4. Save PDF to Disc
-      await fs.writeFile(pdfFilePath, pdfBuffer);
-      this.logger.log(`PDF report saved to: ${pdfFilePath}`);
-
-      // 5. Calculate PDF Hash
-      const hash = crypto.createHash('sha256');
-      hash.update(pdfBuffer);
-      pdfHashString = hash.digest('hex');
-      this.logger.log(`PDF hash calculated: ${pdfHashString}`);
-      this.logger.log(
-        `PDF hash calculated for inspection ${inspectionId}: ${pdfHashString}`,
-      );
-
-      // 6. Minting
+      // 2. Minting
       let blockchainResult: { txHash: string; assetId: string } | null = null;
-      let blockchainSuccess = false;
+      let blockchainSuccess: boolean = false;
 
       try {
         const metadataForNft: any = {
           vehicleNumber: inspection.vehiclePlateNumber,
-          pdfHash: pdfHashString,
+          pdfHash: inspection.pdfFileHash,
         };
         // Hapus field null/undefined dari metadata jika perlu
         Object.keys(metadataForNft).forEach((key) =>
@@ -838,24 +846,29 @@ export class InspectionsService {
         this.logger.log(
           `Blockchain interaction SUCCESS for inspection ${inspectionId}`,
         );
-      } catch (blockchainError: any) {
-        // Reverted to any
+      } catch (blockchainError: unknown) {
         // Explicitly type error as any for now
+        const errorMessage =
+          blockchainError instanceof Error
+            ? blockchainError.message
+            : 'An unknown blockchain error occurred';
+        const errorStack =
+          blockchainError instanceof Error
+            ? blockchainError.stack
+            : 'No stack trace available';
         this.logger.error(
-          `Blockchain interaction FAILED for inspection ${inspectionId}`,
-          blockchainError.stack,
+          `Blockchain interaction FAILED for inspection ${inspectionId}: ${errorMessage}`,
+          errorStack,
         );
         blockchainSuccess = false;
       }
 
-      // 7. Update Inspection Record in DB (Final Status)
+      // 3. Update Inspection Record in DB (Final Status)
       const finalStatus = blockchainSuccess
         ? InspectionStatus.ARCHIVED
         : InspectionStatus.FAIL_ARCHIVE;
       const updateData: Prisma.InspectionUpdateInput = {
         status: finalStatus,
-        urlPdf: pdfPublicUrl,
-        pdfFileHash: pdfHashString,
         nftAssetId: blockchainResult?.assetId || null,
         blockchainTxHash: blockchainResult?.txHash || null,
         archivedAt: blockchainSuccess ? new Date() : null,
@@ -868,13 +881,15 @@ export class InspectionsService {
         `Inspection ${inspectionId} final status set to ${finalStatus}.`,
       );
       return finalInspection;
-    } catch (error: any) {
-      // Reverted to any
-      // Explicitly type error as any for now
+    } catch (error: unknown) {
       // Catch errors from URL fetch, PDF conversion, file saving, hashing, or the final DB update
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace available';
       this.logger.error(
-        `Archiving process failed during PDF generation or subsequent steps for inspection ${inspectionId}: ${error.message}`,
-        error.stack,
+        `Archiving process failed during PDF generation or subsequent steps for inspection ${inspectionId}: ${errorMessage}`,
+        errorStack,
       );
 
       // Attempt to revert status if stuck in ARCHIVING (best effort)
@@ -886,12 +901,18 @@ export class InspectionsService {
         this.logger.log(
           `Inspection ${inspectionId} status reverted to FAIL_ARCHIVE due to error.`,
         );
-      } catch (revertError: any) {
-        // Reverted to any
-        // Explicitly type error as any for now
+      } catch (revertError: unknown) {
+        const revertErrorMessage =
+          revertError instanceof Error
+            ? revertError.message
+            : 'An unknown error occurred during revert';
+        const revertErrorStack =
+          revertError instanceof Error
+            ? revertError.stack
+            : 'No stack trace available during revert';
         this.logger.error(
-          `Failed to revert status from ARCHIVING for inspection ${inspectionId} after error`,
-          revertError.stack,
+          `Failed to revert status from ARCHIVING for inspection ${inspectionId} after error: ${revertErrorMessage}`,
+          revertErrorStack,
         );
       }
 
@@ -956,17 +977,19 @@ export class InspectionsService {
       return this.prisma.inspection.findUniqueOrThrow({
         where: { id: inspectionId },
       });
-    } catch (error: any) {
-      // Reverted to any
-      // Explicitly type error as any for now
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace available';
       if (
         error instanceof NotFoundException ||
         error instanceof BadRequestException
       )
         throw error;
       this.logger.error(
-        `Failed to reactivate inspection ${inspectionId}: ${error.message}`,
-        error.stack,
+        `Failed to reactivate inspection ${inspectionId}: ${errorMessage}`,
+        errorStack,
       );
       throw new InternalServerErrorException(
         `Could not reactivate inspection ${inspectionId}.`,
@@ -1013,7 +1036,7 @@ export class InspectionsService {
           );
         } else {
           throw new BadRequestException(
-            `Inspection ${inspectionId} cannot be reactivated because its current status is '${exists.status}', not '${InspectionStatus.DEACTIVATED}'.`,
+            `Inspection ${inspectionId} cannot be reactivated because its current status is '${exists.status}', not '${InspectionStatus.ARCHIVED}'.`,
           );
         }
       }
@@ -1023,20 +1046,225 @@ export class InspectionsService {
       return this.prisma.inspection.findUniqueOrThrow({
         where: { id: inspectionId },
       });
-    } catch (error: any) {
-      // Reverted to any
-      // Explicitly type error as any for now
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace available';
       if (
         error instanceof NotFoundException ||
         error instanceof BadRequestException
       )
         throw error;
       this.logger.error(
-        `Failed to reactivate inspection ${inspectionId}: ${error.message}`,
-        error.stack,
+        `Failed to reactivate inspection ${inspectionId}: ${errorMessage}`,
+        errorStack,
       );
       throw new InternalServerErrorException(
         `Could not reactivate inspection ${inspectionId}.`,
+      );
+    }
+  }
+
+  /**
+   * Flattens a nested JavaScript object into a single level.
+   * Handles arrays of simple types and specific array of objects (estimasiPerbaikan).
+   * @param obj The object to flatten.
+   * @param parentKey The parent key for prefixing.
+   * @param result The accumulating result object.
+   * @returns The flattened object.
+   */
+  private flattenObject(
+    obj: any,
+    parentKey = '',
+    result: Record<string, any> = {},
+  ): Record<string, any> {
+    if (obj === null || (typeof obj !== 'object' && !Array.isArray(obj))) {
+      result[parentKey || 'value'] = obj; // Name 'value' if parentKey is empty at root level primitive
+      return result;
+    }
+
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const newKey = parentKey ? `${parentKey}_${key}` : key;
+        const value = obj[key];
+
+        if (
+          typeof value === 'object' &&
+          value !== null &&
+          !Array.isArray(value)
+        ) {
+          this.flattenObject(value, newKey, result);
+        } else if (Array.isArray(value)) {
+          if (
+            newKey.endsWith('estimasiPerbaikan') &&
+            value.length > 0 &&
+            typeof value[0] === 'object'
+          ) {
+            result[newKey] = value
+              .map((item) => `${item.namaPart || 'N/A'}:${item.harga || 'N/A'}`)
+              .join(' | ');
+          } else if (
+            value.every(
+              (item) =>
+                typeof item === 'string' ||
+                typeof item === 'number' ||
+                typeof item === 'boolean',
+            )
+          ) {
+            result[newKey] = value.join('|');
+          } else {
+            // For other arrays of objects or mixed arrays, stringify as fallback
+            result[newKey] = JSON.stringify(value);
+          }
+        } else {
+          result[newKey] = value;
+        }
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Retrieves all inspection data and formats it as a CSV string, excluding photo data.
+   * @returns {Promise<{ filename: string; csvData: string }>} An object containing the filename and CSV data.
+   */
+  async exportInspectionsToCsv(): Promise<{
+    filename: string;
+    csvData: string;
+  }> {
+    this.logger.log('Exporting all inspection data to CSV');
+
+    try {
+      const inspectionsFromDb = await this.prisma.inspection.findMany({
+        // Do not need 'include: { photos: false }' if 'photos' is a separate relation
+        // and not automatically included. If 'photos' is a JSON column, we will handle it in mapping.
+        // If 'photos' is a relation you want to ensure is NOT fetched:
+        // select: { id: true, ..., photos: false } // or other Prisma way to exclude
+        include: {
+          // Include relations whose data you want to include
+          inspector: {
+            select: { name: true },
+          },
+          reviewer: {
+            select: { name: true },
+          },
+          branchCity: {
+            select: { city: true, code: true },
+          },
+          // Ensure 'photos' is not included here if it is a relation
+        },
+      });
+
+      if (!inspectionsFromDb || inspectionsFromDb.length === 0) {
+        this.logger.log('No inspection data available.');
+        // Return empty string or message, or throw error based on preference
+        return {
+          filename: 'inspections_empty.csv',
+          csvData: 'No inspection data available.',
+        };
+      }
+
+      const processedData = inspectionsFromDb.map((inspection) => {
+        const flatData: Record<string, any> = {};
+
+        // 1. Add fields from relations (if any)
+        flatData['inspectorName'] = inspection.inspector?.name || '';
+        flatData['reviewerName'] = inspection.reviewer?.name || '';
+        flatData['branchCityName'] = inspection.branchCity?.city || '';
+        flatData['branchCode'] = inspection.branchCity?.code || '';
+
+        // 2. Add top-level fields from the inspection object
+        // (excluding those already taken from relations or are JSON objects)
+        const topLevelFieldsToExclude = [
+          'inspector',
+          'reviewer',
+          'branchCity' /* add JSON fields here */,
+          'identityDetails',
+          'vehicleData',
+          'equipmentChecklist',
+          'inspectionSummary',
+          'detailedAssessment',
+          'bodyPaintThickness',
+          'photos',
+          'notesFontSizes', // 'photos' is excluded
+        ];
+
+        for (const key in inspection) {
+          if (
+            Object.prototype.hasOwnProperty.call(inspection, key) &&
+            !topLevelFieldsToExclude.includes(key)
+          ) {
+            if (inspection[key] instanceof Date) {
+              flatData[key] = (inspection[key] as Date).toISOString();
+            } else {
+              flatData[key] = inspection[key];
+            }
+          }
+        }
+
+        // 3. Flatten JSON fields
+        // Ensure these field names match your Prisma model
+        const jsonFieldsToFlatten = {
+          identityDetails: inspection.identityDetails,
+          vehicleData: inspection.vehicleData,
+          equipmentChecklist: inspection.equipmentChecklist,
+          inspectionSummary: inspection.inspectionSummary,
+          detailedAssessment: inspection.detailedAssessment,
+          bodyPaintThickness: inspection.bodyPaintThickness,
+          notesFontSizes: inspection.notesFontSizes,
+          // Do not include 'photos' here if it is a JSON column
+        };
+
+        for (const parentKey in jsonFieldsToFlatten) {
+          if (
+            Object.prototype.hasOwnProperty.call(jsonFieldsToFlatten, parentKey)
+          ) {
+            const jsonObject = jsonFieldsToFlatten[parentKey];
+            if (jsonObject && typeof jsonObject === 'object') {
+              // Ensure jsonObject is not null and is indeed an object before flattening
+              // Prisma might return null for optional JSON fields
+              this.flattenObject(jsonObject, parentKey, flatData);
+            } else if (jsonObject !== undefined && jsonObject !== null) {
+              // If the JSON field is a primitive value (rare, but for safety)
+              flatData[parentKey] = jsonObject;
+            }
+          }
+        }
+        // Specifically for the photos field (if it's a JSON column and not a relation)
+        // We want to exclude it. If already handled in the query, this is not needed.
+        // delete flatData['photos']; // This line might not be needed if 'photos' is a relation.
+        // If 'photos' is a JSON column in the `inspection` table, and findMany fetches it,
+        // then we need to explicitly remove it from `flatData` if `flattenObject` processes it.
+        // However, ideally, if 'photos' is a JSON column containing photo info, and you want to exclude it,
+        // use `select` in Prisma to not fetch it from the start.
+
+        return flatData;
+      });
+
+      // Get all possible headers from all processed data
+      // to ensure CSV column consistency
+      const allKeys = new Set<string>();
+      processedData.forEach((item) => {
+        Object.keys(item).forEach((key) => allKeys.add(key));
+      });
+      const sortedHeaders = Array.from(allKeys).sort(); // Sort headers for consistency
+
+      const csvData = Papa.unparse(processedData, {
+        columns: sortedHeaders, // Use sorted and collected headers
+        header: true,
+      });
+
+      const filename = `inspections_export_${new Date().toISOString().split('T')[0]}.csv`;
+      this.logger.log(`CSV data generated successfully. Filename: ${filename}`);
+      return { filename, csvData };
+    } catch (error: any) {
+      this.logger.error(
+        `Failed to export inspections to CSV: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Could not export inspection data to CSV.',
       );
     }
   }

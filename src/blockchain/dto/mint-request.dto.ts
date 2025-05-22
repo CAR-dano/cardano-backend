@@ -4,13 +4,10 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Data Transfer Object (DTO) for requesting the minting of an NFT
- * representing a car inspection record on the Cardano blockchain.
- * Contains all necessary data fields from the inspection record to be included
- * in the NFT metadata.
+ * Description: Data Transfer Object for requesting the minting of an NFT for an inspection record.
+ * Contains necessary data fields for the minting process.
  * --------------------------------------------------------------------------
  */
-
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsString,
@@ -36,10 +33,6 @@ export class MintRequestDto {
   @IsNotEmpty()
   inspectionId: string;
 
-  /**
-   * Vehicle Plate Number.
-   * Included in NFT metadata for easy identification.
-   */
   @ApiProperty({ description: 'Vehicle Plate Number', example: 'B 123 RI' })
   @IsString()
   @IsNotEmpty()
@@ -105,10 +98,6 @@ export class MintRequestDto {
   @IsNotEmpty()
   pdfHash: string;
 
-  /**
-   * Optional display name for the NFT.
-   * If omitted, a name will be generated based on other data.
-   */
   @ApiProperty({
     description:
       'Display name for the NFT (optional, will be generated if omitted)',

@@ -1,8 +1,14 @@
-/**
- * @fileoverview Implements the Passport.js JWT strategy for validating access tokens.
+/*
+ * --------------------------------------------------------------------------
+ * File: jwt.strategy.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Implements the Passport.js JWT strategy for validating access tokens.
  * Extracts the JWT from the Authorization header, verifies its signature and expiration,
  * then uses the payload (user ID) to fetch the corresponding user from the database via UsersService.
  * Attaches the validated user object (without sensitive fields) to `request.user`.
+ * --------------------------------------------------------------------------
  */
 
 import { ExtractJwt, Strategy } from 'passport-jwt'; // Import JWT Strategy components

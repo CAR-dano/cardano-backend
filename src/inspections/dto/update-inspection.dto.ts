@@ -1,11 +1,11 @@
 /*
  * --------------------------------------------------------------------------
  * File: update-inspection.dto.ts
- * Project: cardano-backend
+ * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
  * Description: Data Transfer Object (DTO) for partially updating an existing inspection record.
- * Inherits properties from CreateInspectionDto using PartialType, making all fields optional.
+ * All fields are optional. Inherits properties from CreateInspectionDto using PartialType.
  * Does not include file handling properties.
  * --------------------------------------------------------------------------
  */
@@ -17,7 +17,7 @@ import { CreateInspectionDto } from './create-inspection.dto';
 // import { ApiPropertyOptional } from '@nestjs/swagger'; // Alternative for optional properties
 
 /**
- * DTO for partially updating an existing inspection record.
+ * Data Transfer Object (DTO) for partially updating an existing inspection record.
  * Inherits all properties from CreateInspectionDto, making them optional.
  */
 export class UpdateInspectionDto extends PartialType(CreateInspectionDto) {
@@ -32,4 +32,16 @@ export class UpdateInspectionDto extends PartialType(CreateInspectionDto) {
   */
   // For now, inheriting all optional fields from CreateInspectionDto is sufficient
   // for updating vehiclePlateNumber, inspectionDate, overallRating, and the JSON fields.
+
+  /**
+   * The UUID of the inspector.
+   * @example "ac5ae369-a422-426f-b01e-fad5476edda5"
+   */
+  inspectorId?: string;
+
+  /**
+   * The UUID of the inspection branch city.
+   * @example "ac5ae369-a422-426f-b01e-fad5476edda5"
+   */
+  branchCityId?: string;
 }

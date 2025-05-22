@@ -4,12 +4,10 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Data Transfer Object (DTO) for the response of a successful
- * NFT minting request on the Cardano blockchain.
- * Contains the transaction hash and the minted asset ID.
+ * Description: Data Transfer Object representing the response after a successful NFT minting request.
+ * Contains the transaction hash and asset ID of the minted NFT.
  * --------------------------------------------------------------------------
  */
-
 import { ApiProperty } from '@nestjs/swagger';
 
 /**

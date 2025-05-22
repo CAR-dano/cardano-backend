@@ -7,8 +7,7 @@
  * Description: NestJS module for managing inspection change logs.
  * Imports necessary modules like PrismaModule for database access.
  * Declares the InspectionChangeLogController to handle routes.
- * Provides the InspectionChangeLogService for business logic.
- * Exports InspectionChangeLogService if needed by other modules.
+ * Provides and exports the InspectionChangeLogService.
  * --------------------------------------------------------------------------
  */
 

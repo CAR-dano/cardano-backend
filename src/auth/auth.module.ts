@@ -30,9 +30,15 @@ import { RolesGuard } from './guards/roles.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { WalletAuthGuard } from './guards/wallet-auth.guard';
 
+/**
+ * NestJS module responsible for managing authentication.
+ */
 @Module({
+  /**
+   * Imports necessary modules for authentication functionality.
+   */
   imports: [
-    UsersModule, // Butuh UsersService
+    UsersModule, // Depends on UsersService
     PassportModule.register({ defaultStrategy: 'jwt' }), // Register Passport, default can be jwt
     JwtModule.registerAsync({
       // Configure JWT Module asynchronously
@@ -47,7 +53,13 @@ import { WalletAuthGuard } from './guards/wallet-auth.guard';
     }),
     ConfigModule, // Required by Strategies and JwtModule factory
   ],
+  /**
+   * Declares the controllers used in this module.
+   */
   controllers: [AuthController],
+  /**
+   * Provides services, strategies, and guards used within this module.
+   */
   providers: [
     AuthService,
     GoogleStrategy, // Register Google Strategy
@@ -59,6 +71,9 @@ import { WalletAuthGuard } from './guards/wallet-auth.guard';
     LocalAuthGuard, // Register Local Auth (username, email, password) Guard as a provider
     WalletAuthGuard, // Register Wallet Auth Guard as a provider
   ],
+  /**
+   * Exports services and guards to be used by other modules.
+   */
   exports: [AuthService, JwtAuthGuard, RolesGuard, PassportModule, JwtModule], // Export service & guard if necessary in another module
 })
 export class AuthModule {}

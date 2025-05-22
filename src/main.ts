@@ -1,3 +1,17 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: main.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: The main entry point for the CAR-dano backend application.
+ * Initializes the NestJS application, configures global settings like
+ * prefixes, validation pipes, and CORS, and sets up Swagger documentation.
+ * It also retrieves the application port from environment variables and
+ * starts the server.
+ * --------------------------------------------------------------------------
+ */
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder, OpenAPIObject } from '@nestjs/swagger';
@@ -6,10 +20,18 @@ import { ConfigService } from '@nestjs/config';
 
 let openApiDocument: OpenAPIObject | null = null;
 
+/**
+ * Retrieves the generated OpenAPI document.
+ *
+ * @returns The OpenAPI document object or null if not yet generated.
+ */
 export function getOpenApiDocument(): OpenAPIObject | null {
   return openApiDocument;
 }
 
+/**
+ * The main bootstrap function to initialize and start the NestJS application.
+ */
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
@@ -48,10 +70,10 @@ async function bootstrap() {
   }
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('CAR-dano API') // Judul API Anda
-    .setDescription('API documentation for the CAR-dano backend system.') // Deskripsi
-    .setVersion('1.0.0') // Versi API
-    // Tambahkan tag untuk mengelompokkan endpoint di dokumentasi
+    .setTitle('CAR-dano API') // CAR-dano API Title
+    .setDescription('API documentation for the CAR-dano backend system.') // Description
+    .setVersion('1.0.0') // API Version
+    // Add tags to group endpoints in the documentation
     .addTag('Auth (UI Users)', 'Authentication for Internal Users')
     .addTag('User Management (Admin)', 'User management operations for Admins')
     .addTag('Inspection Data', 'Core inspection data operations')
@@ -62,9 +84,9 @@ async function bootstrap() {
     .addTag('Public API', 'Endpoints for public access')
     .addTag('Scalar Docs', 'Endpoints for Scalar documentation')
     .addTag('Users', 'User management operations')
-    // Tambahkan definisi skema keamanan jika API Anda terproteksi
+    // Add security scheme definition if your API is protected
     .addBearerAuth(
-      // Untuk JWT
+      // For JWT
       {
         type: 'http',
         scheme: 'bearer',
@@ -73,14 +95,14 @@ async function bootstrap() {
         description: 'Enter JWT token',
         in: 'header',
       },
-      'JwtAuthGuard', // Nama skema keamanan (gunakan ini di @ApiBearerAuth())
+      'JwtAuthGuard', // Security scheme name (use this in @ApiBearerAuth())
     )
     .build();
 
-  // Generate dokumen OpenAPI TANPA men-setup UI Swagger bawaan
+  // Generate OpenAPI document WITHOUT setting up the default Swagger UI
   const document = SwaggerModule.createDocument(app, swaggerConfig);
 
-  // Simpan dokumen ke variabel global (opsional)
+  // Store the document in a global variable (optional)
   openApiDocument = document;
 
   const port = configService.get<number>('PORT') || 3000; // Retrieve port from .env

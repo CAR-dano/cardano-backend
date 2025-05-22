@@ -1,10 +1,16 @@
-/**
- * @fileoverview Defines the structure of the data embedded within the JWT access token.
+/*
+ * --------------------------------------------------------------------------
+ * File: jwt-payload.interface.ts
+ * Project: cardano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Defines the structure of the data embedded within the JWT access token.
  * This interface is used by the JwtStrategy to type the validated payload
  * and by the AuthService when signing the token.
+ * --------------------------------------------------------------------------
  */
 
-import { Role } from '@prisma/client'; // Import Role enum
+import { Role } from '@prisma/client';
 
 export interface JwtPayload {
   /**
@@ -20,17 +26,17 @@ export interface JwtPayload {
   /**
    * User's email address (optional in payload, might be null/undefined).
    */
-  email?: string; // Optional in payload
+  email?: string;
 
   /**
    * User's username (optional in payload, might be null/undefined).
    */
-  username?: string; // Optional in payload
+  username?: string;
 
   /**
    * User's display name (optional in payload, might be null/undefined).
    */
-  name?: string; // Optional in payload
+  name?: string;
 
   // Add other relevant, non-sensitive claims here if necessary (e.g., provider type?).
 }

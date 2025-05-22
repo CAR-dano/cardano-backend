@@ -4,9 +4,9 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: NestJS module responsible for providing the PrismaService globally.
- * Imports the ConfigModule as PrismaService requires ConfigService.
- * Exports the PrismaService to be injected into other modules.
+ * Description: NestJS module for providing the PrismaService globally.
+ * Imports ConfigModule for configuration access.
+ * Exports PrismaService for use in other modules.
  * --------------------------------------------------------------------------
  */
 

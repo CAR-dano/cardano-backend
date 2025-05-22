@@ -4,9 +4,9 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Data Transfer Object for user login requests.
- * Defines the structure for the payload used when a user attempts to log in
- * with their email/username and password.
+ * Description: Data Transfer Object (DTO) for user login requests.
+ * Defines the structure of the data expected from the client when a user attempts to log in
+ * using either their email or username and password.
  * --------------------------------------------------------------------------
  */
 

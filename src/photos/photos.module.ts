@@ -5,7 +5,9 @@
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
  * Description: NestJS module responsible for managing photo-related operations.
- * Imports the PhotosService and exports it for use in other modules.
+ * Imports the PhotosService.
+ * Declares no controllers as photo operations are likely handled by other modules (e.g., InspectionsModule).
+ * Provides and exports the PhotosService for use in other modules.
  * --------------------------------------------------------------------------
  */
 

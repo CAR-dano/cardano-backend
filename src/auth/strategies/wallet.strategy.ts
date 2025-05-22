@@ -1,8 +1,14 @@
-/**
- * @fileoverview Placeholder for a custom Passport.js strategy for Cardano wallet authentication.
+/*
+ * --------------------------------------------------------------------------
+ * File: wallet.strategy.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Placeholder for a custom Passport.js strategy for Cardano wallet authentication.
  * WARNING: The core signature verification logic within AuthService.validateWalletUser
  * needs to be implemented using a suitable Cardano library (MeshJS, Lucid, CSL)
  * based on the frontend's signing mechanism.
+ * --------------------------------------------------------------------------
  */
 
 import { Strategy } from 'passport-custom'; // Using passport-custom for flexibility
@@ -16,6 +22,12 @@ import {
 import { AuthService } from '../auth.service';
 import { User } from '@prisma/client';
 import { Request } from 'express'; // Import Request to access body/query
+
+// Define an interface for the expected request body structure
+interface WalletAuthRequestBody {
+  walletAddress?: string;
+  signatureData?: any; // Adjust 'any' to a more specific type if known
+}
 
 @Injectable()
 // Use a unique name 'wallet' for this strategy
@@ -43,7 +55,8 @@ export class WalletStrategy extends PassportStrategy(Strategy, 'wallet') {
 
     // --- Extract Data from Request ---
     // Adjust this based on how the frontend sends the data (body, query, headers?)
-    const { walletAddress, signatureData } = req.body; // Example: Assuming sent in body
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const { walletAddress, signatureData } = req.body as WalletAuthRequestBody; // Example: Assuming sent in body
     // ---------------------------------
 
     if (!walletAddress || !signatureData) {

@@ -4,9 +4,9 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Service responsible for managing inspection branch cities.
- * Provides methods for creating, retrieving, updating, and deleting
- * inspection branch city data using Prisma.
+ * Description: NestJS service for managing inspection branch cities.
+ * Interacts with the database via Prisma to perform CRUD operations
+ * on InspectionBranchCity entities.
  * --------------------------------------------------------------------------
  */
 
@@ -21,10 +21,10 @@ export class InspectionBranchesService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Creates a new inspection branch city.
+   * Creates a new inspection branch city in the database.
    *
    * @param createInspectionBranchCityDto The data for creating the inspection branch city.
-   * @returns A promise that resolves to the created InspectionBranchCity object.
+   * @returns A promise that resolves to the created InspectionBranchCity.
    */
   async create(
     createInspectionBranchCityDto: CreateInspectionBranchCityDto,
@@ -41,19 +41,19 @@ export class InspectionBranchesService {
   }
 
   /**
-   * Retrieves all inspection branch cities.
+   * Retrieves all inspection branch cities from the database.
    *
-   * @returns A promise that resolves to an array of InspectionBranchCity objects.
+   * @returns A promise that resolves to an array of InspectionBranchCity.
    */
   async findAll(): Promise<InspectionBranchCity[]> {
     return await this.prisma.inspectionBranchCity.findMany();
   }
 
   /**
-   * Retrieves a single inspection branch city by its ID.
+   * Retrieves an inspection branch city by its ID from the database.
    *
    * @param id The ID of the inspection branch city.
-   * @returns A promise that resolves to the InspectionBranchCity object.
+   * @returns A promise that resolves to the InspectionBranchCity.
    * @throws NotFoundException if the inspection branch city with the given ID is not found.
    */
   async findOne(id: string): Promise<InspectionBranchCity> {
@@ -70,11 +70,11 @@ export class InspectionBranchesService {
   }
 
   /**
-   * Updates an existing inspection branch city.
+   * Updates an existing inspection branch city in the database.
    *
    * @param id The ID of the inspection branch city to update.
    * @param updateInspectionBranchCityDto The data for updating the inspection branch city.
-   * @returns A promise that resolves to the updated InspectionBranchCity object.
+   * @returns A promise that resolves to the updated InspectionBranchCity.
    * @throws NotFoundException if the inspection branch city with the given ID is not found.
    */
   async update(
@@ -92,10 +92,10 @@ export class InspectionBranchesService {
   }
 
   /**
-   * Removes an inspection branch city by its ID.
+   * Deletes an inspection branch city from the database.
    *
-   * @param id The ID of the inspection branch city to remove.
-   * @returns A promise that resolves to the removed InspectionBranchCity object.
+   * @param id The ID of the inspection branch city to delete.
+   * @returns A promise that resolves to the deleted InspectionBranchCity.
    * @throws NotFoundException if the inspection branch city with the given ID is not found.
    */
   async remove(id: string): Promise<InspectionBranchCity> {

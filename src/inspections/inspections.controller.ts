@@ -30,6 +30,8 @@ import {
   HttpCode,
   HttpStatus,
   Query,
+  NotFoundException,
+  Res,
 } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
@@ -37,7 +39,7 @@ import { UpdateInspectionDto } from './dto/update-inspection.dto';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express'; // NestJS interceptor for handling multiple file fields
 import { diskStorage } from 'multer'; // Storage engine for Multer (file uploads)
 import { extname } from 'path'; // Node.js utility for handling file extensions
-import { Role } from '@prisma/client';
+import { Role, InspectionStatus } from '@prisma/client';
 import { InspectionResponseDto } from './dto/inspection-response.dto';
 import { PhotoResponseDto } from '../photos/dto/photo-response.dto';
 import { UpdatePhotoDto } from '../photos/dto/update-photo.dto';
@@ -53,7 +55,7 @@ import {
 } from '@nestjs/swagger';
 import { AddMultiplePhotosDto } from 'src/photos/dto/add-multiple-photos.dto';
 import { AddSinglePhotoDto } from 'src/inspections/dto/add-single-photo.dto';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 // Import Guards if/when needed for authentication and authorization
 // import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 // import { RolesGuard } from '../auth/guards/roles.guard';
@@ -61,10 +63,16 @@ import { Request } from 'express';
 // import { GetUser } from '../auth/decorators/get-user.decorator';
 // import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface'; // Define or import this
 
+// Define an interface for the expected photo metadata structure
+interface PhotoMetadata {
+  label: string;
+  needAttention?: string;
+}
+
 // --- Multer Configuration ---
 const MAX_PHOTOS_PER_REQUEST = 10; // Max files per batch upload request
 const UPLOAD_PATH = './uploads/inspection-photos';
-const DUMMY_USER_ID = '9f7f3423-0926-4593-a0ec-23206028ced0'; // Temporary placeholder for user ID
+const DUMMY_USER_ID = '15aedb80-e428-4d84-9a84-eae47ebe84c1'; // Temporary placeholder for user ID
 
 /**
  * Multer disk storage configuration for uploaded inspection photos.
@@ -130,8 +138,8 @@ export class InspectionsController {
    * Creates the initial inspection record containing text and JSON data.
    * This is the first step before uploading photos or archiving.
    * Expects 'application/json' content type.
-   * @param createInspectionDto DTO containing the initial inspection data.
-   * @returns A promise that resolves to the newly created inspection record summary.
+   * @param {CreateInspectionDto} createInspectionDto - DTO containing the initial inspection data.
+   * @returns {Promise<{ id: string }>} An object containing the ID of the newly created inspection.
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -156,10 +164,10 @@ export class InspectionsController {
   async create(
     @Body() createInspectionDto: CreateInspectionDto,
     // @GetUser('id') userId: string, // Get authenticated user ID later
-  ): Promise<InspectionResponseDto> {
+  ): Promise<{ id: string }> {
     const newInspection =
       await this.inspectionsService.create(createInspectionDto);
-    return new InspectionResponseDto(newInspection);
+    return newInspection;
   }
 
   /**
@@ -188,13 +196,18 @@ export class InspectionsController {
   })
   @ApiBody({ type: UpdateInspectionDto })
   @ApiResponse({
-    status: 200,
-    description: 'The updated inspection record summary.',
-    type: InspectionResponseDto,
+    status: 201,
+    description: 'The ID of the newly created inspection.',
+    schema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string', format: 'uuid' },
+      },
+    },
   })
   @ApiResponse({
     status: 400,
-    description: 'Bad Request (e.g., invalid input data, invalid ID format).',
+    description: 'Bad Request (e.g., invalid input data).',
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
@@ -221,14 +234,13 @@ export class InspectionsController {
   // --- Photo Batch Upload Endpoints ---
 
   /**
-   * Handles the upload of multiple photos for an inspection.
    * [POST /inspections/:id/photos/multiple]
    * Uploads a batch of photos for an inspection.
    * Expects 'multipart/form-data' with 'metadata' (JSON string array) and 'photos' (files).
-   * @param id Inspection UUID.
-   * @param addBatchDto DTO containing the 'metadata' JSON string.
-   * @param files Array of uploaded image files from the 'photos' field.
-   * @returns A promise that resolves to an array of created photo record summaries.
+   * @param {string} id - Inspection UUID.
+   * @param {AddMultiplePhotosDto} addBatchDto - DTO containing the 'metadata' JSON string.
+   * @param {Express.Multer.File[]} files - Array of uploaded image files from the 'photos' field.
+   * @returns {Promise<PhotoResponseDto[]>} Array of created photo record summaries.
    */
   @Post(':id/photos/multiple') // Renamed endpoint
   @HttpCode(HttpStatus.CREATED)
@@ -375,21 +387,29 @@ export class InspectionsController {
     );
     if (!file) throw new BadRequestException('No photo file provided.');
 
-    let parsedMetadata: SinglePhotoMetadata;
+    let parsedMetadata: PhotoMetadata;
     try {
-      parsedMetadata = JSON.parse(addSingleDto.metadata) as SinglePhotoMetadata;
+      const metadata = JSON.parse(addSingleDto.metadata) as PhotoMetadata; // Type assertion
       if (
-        !parsedMetadata ||
-        typeof parsedMetadata.label !== 'string' ||
-        (parsedMetadata.needAttention !== undefined &&
-          typeof parsedMetadata.needAttention !== 'boolean')
+        !metadata ||
+        typeof metadata.label !== 'string' ||
+        (metadata.needAttention !== undefined &&
+          typeof metadata.needAttention !== 'string') // Check for string type
       ) {
         throw new BadRequestException('Invalid metadata format.');
       }
-    } catch (error: any) {
-      throw new BadRequestException(
-        `Invalid metadata format: ${error.message}`,
-      );
+      parsedMetadata = {
+        label: metadata.label,
+        needAttention: metadata.needAttention,
+      };
+    } catch (error: unknown) {
+      // Type error as unknown
+      let errorMessage = 'Invalid metadata format.';
+      if (error instanceof Error) {
+        // Use type guard
+        errorMessage += ` ${error.message}`;
+      }
+      throw new BadRequestException(errorMessage);
     }
 
     const dummyUserId = DUMMY_USER_ID;
@@ -572,18 +592,62 @@ export class InspectionsController {
   // --- Inspection Retrieval Endpoints ---
 
   /**
-   * Handles the retrieval of all inspection records.
+   * [GET /inspections/search]
+   * Retrieves a single inspection by vehicle plate number (case-insensitive, space-agnostic).
+   * This endpoint is publicly accessible.
+   *
+   * @param {string} vehiclePlateNumber - The vehicle plate number to search for.
+   * @returns {Promise<InspectionResponseDto>} The found inspection record summary.
+   * @throws {NotFoundException} If inspection not found.
+   */
+  @Get('search')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Search for an inspection by vehicle plate number',
+    description:
+      'Retrieves a single inspection by vehicle plate number (case-insensitive, space-agnostic).',
+  })
+  @ApiQuery({
+    name: 'vehicleNumber',
+    required: true,
+    type: String,
+    description: 'The vehicle plate number to search for (e.g., "AB 1234 CD").',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'The found inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  async searchByVehicleNumber(
+    @Query('vehicleNumber') vehicleNumber: string,
+  ): Promise<InspectionResponseDto> {
+    this.logger.log(
+      `[GET /inspections/search] Searching for vehicle number: ${vehicleNumber}`,
+    );
+    const inspection =
+      await this.inspectionsService.findByVehiclePlateNumber(vehicleNumber);
+
+    if (!inspection) {
+      throw new NotFoundException(
+        `Inspection with vehicle plate number "${vehicleNumber}" not found.`,
+      );
+    }
+
+    return new InspectionResponseDto(inspection);
+  }
+
+  /**
    * [GET /inspections]
-   * Retrieves all inspection records, potentially filtered by role (passed via query).
-   * @param userRole Optional role to filter inspections by.
-   * @returns A promise that resolves to an array of inspection record summaries.
+   * Retrieves all inspection records with pagination and metadata.
+   * Filters results based on the requesting user's role (passed via query).
    */
   @Get()
   // @UseGuards(JwtAuthGuard) // Add later if needed
   @ApiOperation({
-    summary: 'Retrieve all inspection records',
+    summary: 'Retrieve all inspection records with pagination',
     description:
-      'Retrieves all inspection records, potentially filtered by role (passed via query parameter).',
+      'Retrieves all inspection records with pagination and metadata, potentially filtered by role (passed via query parameter).',
   })
   @ApiQuery({
     name: 'role',
@@ -591,23 +655,77 @@ export class InspectionsController {
     enum: Role,
     description: 'Filter inspections by user role.',
   })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    enum: InspectionStatus,
+    description: 'Filter inspections by inspection status.',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (1-based). Defaults to 1.',
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    type: Number,
+    description: 'Number of items per page. Defaults to 10.',
+  })
   @ApiResponse({
     status: 200,
-    description: 'Array of inspection record summaries.',
-    type: [InspectionResponseDto],
+    description: 'Paginated list of inspection record summaries with metadata.',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/InspectionResponseDto' },
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            total: { type: 'number' },
+            page: { type: 'number' },
+            pageSize: { type: 'number' },
+            totalPages: { type: 'number' },
+          },
+        },
+      },
+    },
   })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findAll(
-    @Query('role') userRole?: Role /*, @GetUser('role') realUserRole: Role */,
-  ): Promise<InspectionResponseDto[]> {
+    @Query('role') userRole?: Role,
+    @Query('status') status?: InspectionStatus,
+    @Query('page') page = 1,
+    @Query('pageSize') pageSize = 10,
+    /* @GetUser('role') realUserRole: Role */
+  ): Promise<{
+    data: InspectionResponseDto[];
+    meta: { total: number; page: number; pageSize: number; totalPages: number };
+  }> {
     const roleToFilter = userRole || Role.ADMIN; // Temporary filter logic
+    const pageNumber =
+      parseInt(page as any, 10) > 0 ? parseInt(page as any, 10) : 1;
+    const pageSizeNumber =
+      parseInt(pageSize as any, 10) > 0 ? parseInt(pageSize as any, 10) : 10;
     this.logger.warn(
-      `[GET /inspections] Applying filter for DUMMY role: ${roleToFilter}`,
+      `[GET /inspections] Applying filter for DUMMY role: ${roleToFilter}, page: ${page}, pageSize: ${pageSize}`,
     );
-    const inspections = await this.inspectionsService.findAll(roleToFilter);
-    return inspections.map(
-      (inspection) => new InspectionResponseDto(inspection),
+    const result = await this.inspectionsService.findAll(
+      roleToFilter,
+      status,
+      pageNumber,
+      pageSizeNumber,
     );
+    return {
+      data: result.data.map(
+        (inspection) => new InspectionResponseDto(inspection),
+      ),
+      meta: result.meta,
+    };
   }
 
   /**
@@ -663,8 +781,8 @@ export class InspectionsController {
    * Handles the approval of a submitted inspection.
    * [PATCH /inspections/:id/approve]
    * Approves a submitted inspection. Requires Reviewer/Admin role (to be enforced later).
-   * @param id Inspection ID.
-   * @returns A promise that resolves to the approved inspection record summary.
+   * @param {string} id - The UUID of the inspection to approve.
+   * @returns {Promise<InspectionResponseDto>} The approved inspection record summary.
    */
   @Patch(':id/approve')
   @HttpCode(HttpStatus.OK)
@@ -714,8 +832,8 @@ export class InspectionsController {
    * Initiates the archiving process for an approved inspection by fetching a URL and converting it to PDF.
    * Expects a JSON body with a 'url' field.
    * Uses PUT as it replaces/sets the archive-related data.
-   * @param id Inspection ID.
-   * @returns A promise that resolves to the archived inspection record summary.
+   * @param {string} id - The UUID of the inspection to archive.
+   * @returns {Promise<InspectionResponseDto>} The archived inspection record summary.
    */
   @Put(':id/archive')
   @HttpCode(HttpStatus.OK)
@@ -762,8 +880,8 @@ export class InspectionsController {
    * Handles the deactivation of an archived inspection.
    * [PATCH /inspections/:id/deactivate]
    * Deactivates an archived inspection. Requires Admin role.
-   * @param id Inspection ID.
-   * @returns A promise that resolves to the deactivated inspection record summary.
+   * @param {string} id - The UUID of the inspection to deactivate.
+   * @returns {Promise<InspectionResponseDto>} The deactivated inspection record summary.
    */
   @Patch(':id/deactivate')
   @HttpCode(HttpStatus.OK)
@@ -810,8 +928,8 @@ export class InspectionsController {
    * Handles the reactivation of a deactivated inspection.
    * [PATCH /inspections/:id/activate]
    * Reactivates a deactivated inspection. Requires Admin role.
-   * @param id Inspection ID.
-   * @returns A promise that resolves to the activated inspection record summary.
+   * @param {string} id - The UUID of the inspection to reactivate.
+   * @returns {Promise<InspectionResponseDto>} The activated inspection record summary.
    */
   @Patch(':id/activate')
   @HttpCode(HttpStatus.OK)
@@ -850,5 +968,46 @@ export class InspectionsController {
       dummyUserId,
     );
     return new InspectionResponseDto(inspection);
+  }
+
+  /**
+   * [GET /inspections/export/csv]
+   * Exports all inspection data to a CSV file, excluding photo data.
+   * @param {Response} res - The Express response object to stream the CSV data.
+   * @returns {Promise<void>} A promise that resolves when the CSV is sent.
+   */
+  @Get('export/csv')
+  @HttpCode(HttpStatus.OK)
+  // @UseGuards(JwtAuthGuard, RolesGuard) // Add guards later if needed
+  // @Roles(Role.ADMIN, Role.REVIEWER) // Define allowed roles later
+  @ApiOperation({
+    summary: 'Export all inspection data to CSV',
+    description:
+      'Retrieves all inspection data and exports it as a CSV file, excluding photo data.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'A CSV file containing all inspection data is downloaded.',
+    content: {
+      'text/csv': {
+        schema: {
+          type: 'string',
+          example:
+            'id,pretty_id,vehiclePlateNumber,inspectionDate,overallRating,status,...\n...',
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 500,
+    description: 'Internal Server Error (e.g., failed to generate CSV).',
+  })
+  async exportCsv(@Res() res: Response): Promise<void> {
+    // This will be implemented in the service
+    const { filename, csvData } =
+      await this.inspectionsService.exportInspectionsToCsv();
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.send(csvData);
   }
 } // End Controller

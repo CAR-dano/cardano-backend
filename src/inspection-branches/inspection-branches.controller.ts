@@ -5,8 +5,9 @@
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
  * Description: NestJS controller for managing inspection branch cities.
- * Handles API requests related to creating, retrieving, updating, and deleting
- * inspection branch city data.
+ * Handles incoming requests related to inspection branch cities,
+ * delegates logic to the InspectionBranchesService, and returns responses.
+ * Uses Swagger decorators for API documentation.
  * --------------------------------------------------------------------------
  */
 
@@ -82,6 +83,7 @@ export class InspectionBranchesController {
    *
    * @param id The ID of the inspection branch city.
    * @returns A promise that resolves to the InspectionBranchCityResponseDto.
+   * @throws NotFoundException if the inspection branch city is not found.
    */
   @Get(':id')
   @ApiOperation({ summary: 'Get an inspection branch city by ID' })
@@ -109,6 +111,7 @@ export class InspectionBranchesController {
    * @param id The ID of the inspection branch city to update.
    * @param updateInspectionBranchCityDto The data for updating the inspection branch city.
    * @returns A promise that resolves to the updated InspectionBranchCityResponseDto.
+   * @throws NotFoundException if the inspection branch city is not found.
    */
   @Put(':id')
   @ApiOperation({ summary: 'Update an inspection branch city by ID' })
@@ -142,7 +145,8 @@ export class InspectionBranchesController {
    * Deletes an inspection branch city by its ID.
    *
    * @param id The ID of the inspection branch city to delete.
-   * @returns A promise that resolves when the inspection branch city is successfully deleted.
+   * @returns A promise that resolves to the deleted InspectionBranchCity.
+   * @throws NotFoundException if the inspection branch city is not found.
    */
   @Delete(':id')
   @ApiOperation({ summary: 'Delete an inspection branch city by ID' })

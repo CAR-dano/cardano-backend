@@ -4,13 +4,11 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Data Transfer Object (DTO) representing the detailed response
- * structure for an asset (NFT) as returned by the Blockfrost `/assets/{asset}`
- * endpoint. Includes standard on-chain metadata fields and CAR-dano specific
- * metadata fields.
+ * Description: Data Transfer Object representing the detailed response structure for an asset (NFT)
+ * from the Blockfrost `/assets/{asset}` endpoint. Includes standard CIP-25/CIP-68 metadata
+ * and potentially legacy metadata.
  * --------------------------------------------------------------------------
  */
-
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
@@ -50,11 +48,8 @@ class NftOnchainMetadataDto {
   @ApiPropertyOptional({ description: 'Description of the NFT.' })
   description?: string | string[];
 
-  // --- CAR-dano Specific Metadata ---
-  /**
-   * Original Inspection Record ID.
-   * This ID links the NFT back to the backend's database record.
-   */
+  // --- CAR-dano Specific Metadata (Example) ---
+  // Add specific properties that YOU include in the metadata during minting
   @ApiPropertyOptional({
     description: 'Original Inspection Record ID',
     format: 'uuid',

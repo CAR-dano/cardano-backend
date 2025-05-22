@@ -1,7 +1,14 @@
-/**
- * @fileoverview Service responsible for all business logic related to users,
- * including finding, creating (local & Google), updating, and managing user data
- * through PrismaService. Includes password hashing for local registration.
+/*
+ * --------------------------------------------------------------------------
+ * File: users.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: NestJS service responsible for managing user-related business logic.
+ * Handles operations like finding, creating (local and Google), updating,
+ * and deleting users. Interacts with the database via PrismaService.
+ * Includes password hashing for local user registration and linking external accounts.
+ * --------------------------------------------------------------------------
  */
 
 import {
@@ -26,15 +33,17 @@ export class UsersService {
   private readonly saltRounds = 10;
 
   /**
-   * Injects PrismaService for database interactions.
+   * Constructs the UsersService and injects the PrismaService for database interactions.
    * @param {PrismaService} prisma - The Prisma database client service.
    */
   constructor(private prisma: PrismaService) {}
 
   /**
    * Finds a single user by their unique email address.
+   *
    * @param {string} email - The email address to search for.
    * @returns {Promise<User | null>} The found user or null if not found.
+   * @throws {InternalServerErrorException} If a database error occurs.
    */
   async findByEmail(email: string): Promise<User | null> {
     if (!email) return null; // Return null if email is empty or null
@@ -61,9 +70,12 @@ export class UsersService {
   }
 
   /**
-   * Finds a single user by their unique username. Case-insensitive search is recommended.
+   * Finds a single user by their unique username.
+   * Case-insensitive search might require a different Prisma query depending on the database.
+   *
    * @param {string} username - The username to search for.
    * @returns {Promise<User | null>} The found user or null if not found.
+   * @throws {InternalServerErrorException} If a database error occurs.
    */
   async findByUsername(username: string): Promise<User | null> {
     if (!username) return null;
@@ -97,8 +109,10 @@ export class UsersService {
 
   /**
    * Finds a single user by their unique wallet address.
+   *
    * @param {string} walletAddress - The wallet address to search for.
    * @returns {Promise<User | null>} The found user or null if not found.
+   * @throws {InternalServerErrorException} If a database error occurs.
    */
   async findByWalletAddress(walletAddress: string): Promise<User | null> {
     if (!walletAddress) return null;
@@ -126,8 +140,10 @@ export class UsersService {
 
   /**
    * Finds a single user by their unique ID (UUID).
+   *
    * @param {string} id - The UUID of the user.
    * @returns {Promise<User | null>} The found user or null.
+   * @throws {InternalServerErrorException} If a database error occurs.
    */
   async findById(id: string): Promise<User | null> {
     if (!id) return null;
@@ -153,7 +169,9 @@ export class UsersService {
 
   /**
    * Finds all users. Primarily for admin use.
+   *
    * @returns {Promise<User[]>} Array of users.
+   * @throws {InternalServerErrorException} If a database error occurs.
    */
   async findAll(): Promise<User[]> {
     this.logger.log('Finding all users');
@@ -291,8 +309,11 @@ export class UsersService {
   /**
    * Finds or creates a user based on Google profile data.
    * Uses upsert for efficiency. Handles potential errors.
+   *
    * @param profile - Profile object from passport-google-oauth20.
    * @returns {Promise<User>} The found or created user.
+   * @throws {InternalServerErrorException} If the Google profile is missing email or a database error occurs.
+   * @throws {ConflictException} If the Google account or email is already linked to another user.
    */
   async findOrCreateByGoogleProfile(profile: {
     id: string;
@@ -368,9 +389,12 @@ export class UsersService {
 
   /**
    * Updates the role of a specific user. Requires ADMIN privileges (checked in Controller).
+   *
    * @param {string} id - The UUID of the user.
    * @param {Role} newRole - The new role to assign.
    * @returns {Promise<User>} The updated user.
+   * @throws {NotFoundException} If the user with the given ID is not found.
+   * @throws {InternalServerErrorException} If a database error occurs.
    */
   async updateRole(id: string, newRole: Role): Promise<User> {
     this.logger.log(
@@ -413,9 +437,12 @@ export class UsersService {
 
   /**
    * Updates the 'active' status of a user. Requires 'isActive' field in schema.
+   *
    * @param {string} id - User UUID.
    * @param {boolean} isActive - New status.
    * @returns {Promise<User>} Updated user.
+   * @throws {NotFoundException} If the user with the given ID is not found.
+   * @throws {InternalServerErrorException} If a database error occurs.
    */
   async setStatus(id: string, isActive: boolean): Promise<User> {
     this.logger.log(
@@ -749,7 +776,9 @@ export class UsersService {
 
   /**
    * Finds all users with the 'INSPECTOR' role. Primarily for admin use.
+   *
    * @returns {Promise<User[]>} Array of inspector users.
+   * @throws {InternalServerErrorException} If a database error occurs.
    */
   async findAllInspectors(): Promise<User[]> {
     this.logger.log('Finding all inspector users');

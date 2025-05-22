@@ -1,3 +1,14 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: scalar-docs.controller.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: NestJS controller for serving API documentation (OpenAPI spec and Scalar UI).
+ * Handles requests for the OpenAPI JSON specification and the Scalar documentation HTML page.
+ * --------------------------------------------------------------------------
+ */
+
 import {
   Controller,
   Get,
@@ -15,6 +26,12 @@ import { getOpenApiDocument } from '../main'; // Import the function to get the 
 export class ScalarDocsController {
   private readonly logger = new Logger(ScalarDocsController.name);
 
+  /**
+   * Retrieves the generated OpenAPI specification document.
+   *
+   * @returns The OpenAPI document object.
+   * @throws InternalServerErrorException if the OpenAPI document has not been generated.
+   */
   @Get('openapi.json')
   getOpenApiSpec() {
     const openApiDocument = getOpenApiDocument();
@@ -27,6 +44,13 @@ export class ScalarDocsController {
     return openApiDocument;
   }
 
+  /**
+   * Serves the Scalar API documentation HTML page.
+   *
+   * @param res The Express response object.
+   * @throws NotFoundException if the Scalar HTML file is not found.
+   * @throws InternalServerErrorException if there is an error serving the file.
+   */
   @Get('docs')
   getScalarDocs(@Res() res: Response) {
     try {
@@ -52,10 +76,10 @@ export class ScalarDocsController {
           }
         }
       });
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         'Failed to serve Scalar documentation page:',
-        error.stack,
+        error instanceof Error ? error.stack : error,
       );
       if (!res.headersSent) {
         res.status(500).send('Could not load API documentation.');

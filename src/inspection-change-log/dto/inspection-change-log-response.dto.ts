@@ -4,13 +4,16 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Data transfer object (DTO) for the response of inspection change logs.
- * Defines the structure of the data returned when retrieving inspection change log entries.
+ * Description: Data Transfer Object (DTO) for the inspection change log response.
+ * Defines the structure of the response when retrieving inspection change logs.
  * --------------------------------------------------------------------------
  */
 
 import { ApiProperty } from '@nestjs/swagger';
 
+/**
+ * Represents the response structure for an inspection change log entry.
+ */
 export class InspectionChangeLogResponseDto {
   /**
    * The unique identifier of the change log entry.

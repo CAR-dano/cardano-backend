@@ -1,3 +1,14 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: blockchain.service.spec.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Unit tests for the BlockchainService.
+ * Tests the basic functionality and definition of the service.
+ * --------------------------------------------------------------------------
+ */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { BlockchainService } from './blockchain.service';
 

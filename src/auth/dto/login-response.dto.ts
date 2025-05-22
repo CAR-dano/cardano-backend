@@ -4,8 +4,8 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Data Transfer Object for login responses.
- * Defines the structure of the payload returned to the client after a successful login,
+ * Description: Data Transfer Object (DTO) for the login response.
+ * Defines the structure of the data returned to the client upon successful authentication,
  * including the access token and authenticated user details.
  * --------------------------------------------------------------------------
  */

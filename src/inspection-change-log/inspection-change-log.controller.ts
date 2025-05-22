@@ -5,11 +5,8 @@
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
  * Description: NestJS controller for managing inspection change logs.
- * Imports necessary modules and classes like Controller, Get, Param from @nestjs/common,
- * InspectionChangeLogService, InspectionChangeLog, ApiTags, ApiOperation, ApiResponse, ApiParam,
- * and InspectionChangeLogResponseDto.
- * Declares the InspectionChangeLogController class.
- * Provides the InspectionChangeLogService dependency.
+ * Handles API requests related to retrieving and deleting change log entries
+ * for specific inspections.
  * --------------------------------------------------------------------------
  */
 
@@ -26,6 +23,12 @@ export class InspectionChangeLogController {
     private readonly inspectionChangeLogService: InspectionChangeLogService,
   ) {}
 
+  /**
+   * Retrieves change logs for a specific inspection.
+   *
+   * @param inspectionId The ID of the inspection.
+   * @returns A promise that resolves to an array of InspectionChangeLog objects.
+   */
   @Get()
   @ApiOperation({
     summary: 'Get inspection change log',

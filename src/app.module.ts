@@ -1,3 +1,18 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: app.module.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: The root module of the NestJS application.
+ * Configures and imports all necessary modules for the application to function,
+ * including authentication, blockchain interaction, external authentication,
+ * inspections, public API endpoints, documentation, user management,
+ * database access, static file serving, photos, inspection branches,
+ * and inspection change logs.
+ * --------------------------------------------------------------------------
+ */
+
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from './auth/auth.module';
@@ -13,6 +28,7 @@ import { join } from 'path';
 import { PhotosModule } from './photos/photos.module';
 import { InspectionBranchesModule } from './inspection-branches/inspection-branches.module';
 import { InspectionChangeLogModule } from './inspection-change-log/inspection-change-log.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -20,28 +36,28 @@ import { InspectionChangeLogModule } from './inspection-change-log/inspection-ch
       isGlobal: true, // Make ConfigModule available across applications
       envFilePath: '.env', // Specifies the .env file
     }),
-    // --- Konfigurasi ServeStaticModule ---
+    // --- ServeStaticModule Configuration ---
     ServeStaticModule.forRoot({
-      // rootPath: Menentukan folder di filesystem server yang ingin disajikan.
-      // join(process.cwd(), 'uploads'): Membuat path absolut ke folder 'uploads'
-      // di root proyek Anda (tempat folder 'dist' biasanya berada setelah build).
+      // rootPath: Specifies the folder in the server's filesystem to be served.
+      // join(process.cwd(), 'uploads'): Creates an absolute path to the 'uploads' folder
+      // at the project root (where the 'dist' folder is usually located after build).
       rootPath: join(process.cwd(), 'uploads'),
 
-      // serveRoot: Menentukan prefix URL tempat file akan tersedia.
-      // Jika serveRoot: '/uploads', maka file di './uploads/inspection-photos/image.jpg'
-      // akan bisa diakses via URL: http://localhost:3000/uploads/inspection-photos/image.jpg
-      // Jika serveRoot: '/static-files', URLnya akan jadi http://localhost:3000/static-files/inspection-photos/image.jpg
-      // '/uploads' adalah pilihan yang umum dan intuitif.
+      // serveRoot: Specifies the URL prefix where files will be available.
+      // If serveRoot: '/uploads', files in './uploads/inspection-photos/image.jpg'
+      // will be accessible via URL: http://localhost:3000/uploads/inspection-photos/image.jpg
+      // If serveRoot: '/static-files', the URL will be http://localhost:3000/static-files/inspection-photos/image.jpg
+      // '/uploads' is a common and intuitive choice.
       serveRoot: '/uploads',
 
-      // Opsional: Exclude route API agar tidak tertimpa oleh static serving
-      // exclude: ['/api/v1/(.*)'], // Hati-hati jika serveRoot juga '/api/v1'
+      // Optional: Exclude API routes so they are not overridden by static serving
+      // exclude: ['/api/v1/(.*)'], // Be careful if serveRoot is also '/api/v1'
 
-      // Opsional: Konfigurasi tambahan (cache control, dll.)
+      // Optional: Additional configurations (cache control, etc.)
       // serveStaticOptions: {
-      //   maxAge: '1d', // Contoh cache 1 hari
+      //   maxAge: '1d', // Example cache 1 day
       //   setHeaders: (res, path, stat) => {
-      //     res.set('Cross-Origin-Resource-Policy', 'cross-origin'); // Penting jika FE di domain berbeda
+      //     res.set('Cross-Origin-Resource-Policy', 'cross-origin'); // Important if FE is on a different domain
       //   },
       // },
     }),
@@ -56,6 +72,7 @@ import { InspectionChangeLogModule } from './inspection-change-log/inspection-ch
     PrismaModule,
     PhotosModule,
     InspectionBranchesModule,
+    DashboardModule,
   ],
   controllers: [],
   providers: [],

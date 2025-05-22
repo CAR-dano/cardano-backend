@@ -4,8 +4,8 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Data Transfer Object for wallet login requests.
- * Defines the structure for the payload used when a user attempts to log in
+ * Description: Data Transfer Object (DTO) for wallet login requests.
+ * Defines the structure of the data expected from the client when a user attempts to log in
  * using their Cardano wallet address and a signed message.
  * --------------------------------------------------------------------------
  */

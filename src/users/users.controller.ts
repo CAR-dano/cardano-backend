@@ -1,6 +1,16 @@
-/**
- * @fileoverview Controller for admin-level user management operations.
- * All endpoints require authentication (JWT) and ADMIN role authorization.
+/*
+ * --------------------------------------------------------------------------
+ * File: users.controller.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: NestJS controller for managing user-related operations,
+ * specifically focusing on admin-level functionalities. It handles API
+ * endpoints for retrieving, updating, creating, and deleting user accounts,
+ * including specific endpoints for managing inspector users. All endpoints
+ * within this controller are protected by JWT authentication and require
+ * the ADMIN role for access.
+ * --------------------------------------------------------------------------
  */
 
 import {
@@ -48,7 +58,10 @@ export class UsersController {
   }
 
   /**
-   * Retrieves a list of all users. Requires ADMIN role.
+   * Retrieves a list of all users.
+   * Requires ADMIN role.
+   *
+   * @returns A promise that resolves to an array of UserResponseDto.
    */
   @Get()
   @Roles(Role.ADMIN) // Only ADMINs can access this
@@ -78,6 +91,9 @@ export class UsersController {
 
   /**
    * Retrieves a list of all inspector users.
+   * Requires ADMIN role.
+   *
+   * @returns A promise that resolves to an array of UserResponseDto.
    */
   @Get('inspectors') // Specific endpoint for finding all inspectors
   @Roles(Role.ADMIN) // Only ADMINs can access this
@@ -102,7 +118,12 @@ export class UsersController {
   }
 
   /**
-   * Retrieves details for a specific user by ID. Requires ADMIN role.
+   * Retrieves details for a specific user by ID.
+   * Requires ADMIN role.
+   *
+   * @param id The UUID of the user.
+   * @returns A promise that resolves to a UserResponseDto.
+   * @throws NotFoundException if the user with the specified ID is not found.
    */
   @Get(':id')
   @Roles(Role.ADMIN)
@@ -148,7 +169,13 @@ export class UsersController {
   }
 
   /**
-   * Updates the role of a specific user. Requires ADMIN role.
+   * Updates the role of a specific user.
+   * Requires ADMIN role.
+   *
+   * @param id The UUID of the user.
+   * @param updateUserRoleDto The DTO containing the new role.
+   * @returns A promise that resolves to the updated UserResponseDto.
+   * @throws NotFoundException if the user with the specified ID is not found.
    */
   @Put(':id/role') // Using PUT as role is a specific resource attribute being replaced
   @Roles(Role.ADMIN)
@@ -206,8 +233,13 @@ export class UsersController {
   }
 
   /**
-   * Disables a user account. Requires ADMIN role.
-   * (Assumes 'setStatus' method and 'isActive' field exist).
+   * Disables a user account.
+   * Requires ADMIN role.
+   * Assumes 'setStatus' method and 'isActive' field exist in the service.
+   *
+   * @param id The UUID of the user to disable.
+   * @returns A promise that resolves to the updated UserResponseDto.
+   * @throws NotFoundException if the user with the specified ID is not found.
    */
   @Put(':id/disable') // Using PUT to set a specific state
   @Roles(Role.ADMIN)
@@ -250,8 +282,13 @@ export class UsersController {
   }
 
   /**
-   * Enables a user account. Requires ADMIN role.
-   * (Assumes 'setStatus' method and 'isActive' field exist).
+   * Enables a user account.
+   * Requires ADMIN role.
+   * Assumes 'setStatus' method and 'isActive' field exist in the service.
+   *
+   * @param id The UUID of the user to enable.
+   * @returns A promise that resolves to the updated UserResponseDto.
+   * @throws NotFoundException if the user with the specified ID is not found.
    */
   @Put(':id/enable') // Using PUT to set a specific state
   @Roles(Role.ADMIN)
@@ -293,23 +330,13 @@ export class UsersController {
     return new UserResponseDto(user);
   }
 
-  // Optional: Add DELETE endpoint if needed
-  /*
-   @Delete(':id')
-   @Roles(Role.ADMIN)
-   @HttpCode(HttpStatus.NO_CONTENT) // 204 No Content for successful DELETE
-   @ApiOperation({ summary: 'Delete a user (Admin Only) - Use with caution!'})
-   @ApiParam({ name: 'id', type: String, format: 'uuid' })
-   @ApiResponse({ status: 204, description: 'User deleted.'})
-   @ApiResponse({ status: 401 }) @ApiResponse({ status: 403 }) @ApiResponse({ status: 404 })
-   async remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-       this.logger.warn(`Admin request: DELETE user ${id}`);
-       await this.usersService.deleteUser(id); // Assumes deleteUser method exists in service
-   }
-   */
-
   /**
-   * Creates a new inspector user. Requires ADMIN role.
+   * Creates a new inspector user.
+   * Requires ADMIN role.
+   *
+   * @param createInspectorDto The DTO containing details for the new inspector user.
+   * @returns A promise that resolves to the created UserResponseDto.
+   * @throws ConflictException if a user with the provided email, username, or wallet address already exists.
    */
   @Post('inspector') // Specific endpoint for creating inspectors
   @Roles(Role.ADMIN)
@@ -353,7 +380,14 @@ export class UsersController {
   }
 
   /**
-   * Updates details for a specific user (including inspectors). Requires ADMIN role.
+   * Updates details for a specific user (including inspectors).
+   * Requires ADMIN role.
+   *
+   * @param id The UUID of the user to update.
+   * @param updateUserDto The DTO containing the updated user details.
+   * @returns A promise that resolves to the updated UserResponseDto.
+   * @throws NotFoundException if the user with the specified ID is not found.
+   * @throws ConflictException if a user with the provided email, username, or wallet address already exists.
    */
   @Put(':id') // General PUT endpoint for user updates
   @Roles(Role.ADMIN)
@@ -407,7 +441,12 @@ export class UsersController {
   }
 
   /**
-   * Deletes a user by ID. Requires ADMIN role.
+   * Deletes a user by ID.
+   * Requires ADMIN role.
+   *
+   * @param id The UUID of the user to delete.
+   * @returns A promise that resolves when the user is successfully deleted.
+   * @throws NotFoundException if the user with the specified ID is not found.
    */
   @Delete(':id') // DELETE endpoint for deleting users
   @Roles(Role.ADMIN)

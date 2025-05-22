@@ -1,9 +1,14 @@
-// src/auth/guards/local-auth.guard.ts
-/**
- * @fileoverview Authentication guard using the 'local' Passport strategy.
- * This guard is typically applied to the login route. It triggers the LocalStrategy
- * to validate username/password credentials provided in the request body.
- * If validation succeeds, Passport attaches the user object to request.user.
+/*
+ * --------------------------------------------------------------------------
+ * File: local-auth.guard.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Authentication guard for local strategy.
+ * This guard uses the 'local' Passport strategy for username/password authentication.
+ * It's typically applied to login routes and validates credentials from the request body.
+ * If successful, it attaches the user object to the request.
+ * --------------------------------------------------------------------------
  */
 
 import { Injectable, ExecutionContext, Logger } from '@nestjs/common';
@@ -11,7 +16,6 @@ import { AuthGuard } from '@nestjs/passport';
 import { Observable } from 'rxjs';
 
 @Injectable()
-// Extends the built-in AuthGuard, specifying the 'local' strategy registered in LocalStrategy.
 export class LocalAuthGuard extends AuthGuard('local') {
   private readonly logger = new Logger(LocalAuthGuard.name);
 
@@ -30,14 +34,4 @@ export class LocalAuthGuard extends AuthGuard('local') {
     // Delegate credential validation to the Passport 'local' strategy
     return super.canActivate(context);
   }
-
-  // Optional: Override handleRequest if you need custom error handling for local login failures
-  // handleRequest(err, user, info, context, status) {
-  //   if (err || !user) {
-  //     this.logger.warn(`Local Authentication failed: ${info?.message || err?.message}`);
-  //     // You might throw a specific exception type here if needed
-  //     throw err || new UnauthorizedException('Incorrect email/username or password.');
-  //   }
-  //   return user;
-  // }
 }
