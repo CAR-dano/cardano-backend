@@ -1,98 +1,123 @@
 <p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+  <a href="https://car-dano.id" target="blank">
+    <img src="./public/logo_car-dano.png" width="160" alt="CAR-dano Logo" />
+  </a>
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+<h1 align="center">CAR-dano Backend</h1>
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
+<p align="center">
+  Backend system for CAR-dano, a Cardano blockchain-based car inspection records platform.
 </p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+
+<p align="center">
+  <a href="https://deepwiki.com/CAR-dano/form-app" target="_blank">
+    <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki about CAR-dano Form App"/>
+  </a>
+  <a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
+  </p>
 
 ## Description
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+CAR-dano is a blockchain-based platform designed to securely store and make used car inspection reports immutable. By leveraging the Cardano blockchain, CAR-dano ensures transparency, reliability, and security in the used car market. The platform aims to reduce fraud and misinformation by providing an unalterable record of vehicle inspections, allowing buyers, sellers, and other stakeholders to access trusted reports.
 
-## Project setup
+This repository contains the source code for the CAR-dano backend service, built with [NestJS](https://nestjs.com), a progressive Node.js framework for building efficient and scalable server-side applications. This backend is responsible for handling business logic, authentication, database interactions (Prisma with PostgreSQL), integration with the Cardano blockchain (via Blockfrost API and MeshJS SDK), and providing APIs for the frontend application and external developers.
+
+## Key Backend Features
+
+- Inspection Management: Create, read, update, and review inspection data.
+- Blockchain Integration: Record report hashes and essential metadata onto the Cardano blockchain.
+- Authentication & Authorization: Secure login system with user roles (Admin, Inspector, Reviewer, User).
+- User Management: User account and role administration.
+- Public API: Provides API endpoints for external developer access.
+- Data Export: Functionality to export inspection data (e.g., to CSV).
+- File Storage: Manages uploads of inspection report PDF files and related photos.
+
+## Technology Stack
+
+- **Framework**: NestJS (Node.js)
+- **Language**: TypeScript
+- **ORM**: Prisma
+- **Database**: PostgreSQL
+- **Blockchain Interaction**:
+  - Blockfrost API
+  - MeshJS SDK (for some off-chain operations or if direct backend wallet interactions are needed)
+- **API Documentation**: Swagger (Scalar) - accessible at `/api/v1/docs` when running locally.
+- **Authentication**: JWT, Google OAuth, Cardano Wallet (CIP-0008)
+- **Containerization**: Docker
+
+## Project Structure (Overview of Main Modules)
+
+- `src/auth`: Module for authentication (login, registration, JWT, guards).
+- `src/users`: Module for user management.
+- `src/inspections`: Core module for inspection data management.
+- `src/photos`: Module for managing photos related to inspections.
+- `src/inspection-branches`: Module for inspection branch management.
+- `src/blockchain`: Module for Cardano blockchain interactions.
+- `src/prisma`: Prisma configuration and service.
+- `src/dashboard`: Module for dashboard analytics and statistics.
+- `src/public-api`: Module for public API endpoints.
+- `libs`: Contains shared libraries like configuration, database, etc.
+
+## Installation & Project Setup
+
+1.  **Clone the repository:**
+
+    ```bash
+    git clone https://github.com/CAR-dano/cardano-backend.git
+    cd cardano-backend
+    ```
+
+2.  **Install dependencies:**
+
+    ```bash
+    npm install
+    ```
+
+3.  **Set up environment variables:**
+    Copy the `.env.example` file to `.env` and fill in the required values based on the comments in `.env.example`.
+
+    ```bash
+    cp .env.example .env
+    ```
+
+    Key variables include:
+
+    - `NODE_ENV`, `PORT`, `URL`
+    - `DATABASE_URL` (or `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`)
+    - `JWT_SECRET`, `JWT_EXPIRATION_TIME`
+    - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`
+    - `CLIENT_BASE_URL`
+    - `PDF_PUBLIC_BASE_URL`
+    - `BLOCKFROST_ENV`, `BLOCKFROST_API_KEY_PREVIEW`, `BLOCKFROST_API_KEY_PREPROD`, `BLOCKFROST_API_KEY_MAINNET`
+    - `WALLET_SECRET_KEY_TESTNET`, `WALLET_ADDRESS_TESTNET`
+    - `WALLET_SECRET_KEY_MAINNET`, `WALLET_ADDRESS_MAINNET`
+    - `DUMMY_USER_ID`
+
+4.  **Run Prisma migrations:**
+    Ensure your PostgreSQL database is running.
+
+    ```bash
+    npx prisma migrate dev --name init # Replace 'init' with an appropriate migration name if not the first time
+    ```
+
+5.  **Generate Prisma Client:**
+    ```bash
+    npx prisma generate
+    ```
+
+## Running the Application
 
 ```bash
-$ npm install
-```
-
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
+# Development mode (with hot-reload)
 $ npm run start:dev
 
-# production mode
+# Production mode
+# First, build the application:
+$ npm run build
+# Then run from the dist directory:
 $ npm run start:prod
+
+# Running with Docker (see docker-compose.yml)
+# $ docker-compose up -d
 ```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
