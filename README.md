@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://car-dano.id" target="blank">
+  <a href="https://cari.inspeksimobil.id" target="blank">
     <img src="./public/logo_car-dano.png" width="160" alt="CAR-dano Logo" />
   </a>
 </p>
@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  <a href="https://deepwiki.com/CAR-dano/form-app" target="_blank">
-    <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki about CAR-dano Form App"/>
+  <a href="https://deepwiki.com/CAR-dano/cardano-backend" target="_blank">
+    <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki about CAR-dano Backend"/>
   </a>
   <a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
   </p>
