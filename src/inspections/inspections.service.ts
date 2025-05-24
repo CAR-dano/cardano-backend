@@ -457,7 +457,7 @@ export class InspectionsService {
    * @param {UpdateInspectionDto} updateInspectionDto - DTO containing the potential changes.
    * @param {string} userId - ID of the user performing the action (reviewer/admin).
    * @param {Role} userRole - Role of the user (for logging or future auth).
-   * @returns {Promise<Inspection>} The existing (unchanged) inspection record.
+   * @returns {Promise<{ message: string }>} The existing (unchanged) inspection record.
    * @throws {NotFoundException} If the inspection with the given ID is not found.
    * @throws {BadRequestException} If trying to update an already approved inspection.
    * @throws {InternalServerErrorException} For database errors during logging.
@@ -467,7 +467,7 @@ export class InspectionsService {
     updateInspectionDto: UpdateInspectionDto,
     userId: string,
     userRole: Role, // Included for context, though not used for auth in this specific method
-  ): Promise<Inspection> {
+  ): Promise<{ message: string }> {
     this.logger.log(
       `User ${userId} (Role: ${userRole}) attempting to log/stage changes for inspection ID: ${id}`,
     );
@@ -497,15 +497,12 @@ export class InspectionsService {
       );
     }
 
-    // 2. Initialize array to store change log entries and update data for the inspection record
+    // 2. Initialize array to store change log entries
     const changesToLog: Prisma.InspectionChangeLogCreateManyInput[] = [];
-    const updateData: Prisma.InspectionUpdateInput = {};
 
     // Handle changes to inspectorId and branchCityId and update identityDetails immediately
-    let identityDetailsUpdated = false;
     const currentIdentityDetails =
       (existingInspection.identityDetails as Prisma.JsonObject) ?? {};
-    const newIdentityDetails = { ...currentIdentityDetails }; // Start with existing details
 
     if (
       updateInspectionDto.inspectorId !== undefined &&
@@ -533,13 +530,20 @@ export class InspectionsService {
       this.logger.log(
         `Logged change for identityDetails.namaInspektor to "${newInspector.name}"`,
       );
-      // Update identityDetails in the updateData
-      newIdentityDetails.namaInspektor = newInspector.name;
-      identityDetailsUpdated = true;
-      // Also update the inspectorId directly in the inspection record
-      updateData.inspector = {
-        connect: { id: updateInspectionDto.inspectorId },
-      };
+
+      // Log change for inspectorId
+      changesToLog.push({
+        inspectionId: id,
+        changedByUserId: userId,
+        fieldName: 'inspector',
+        subFieldName: null,
+        subsubfieldname: null,
+        oldValue: existingInspection?.inspectorId ?? Prisma.JsonNull, // Safer access
+        newValue: updateInspectionDto.inspectorId ?? Prisma.JsonNull,
+      });
+      this.logger.log(
+        `Logged change for inspectorId "${updateInspectionDto.inspectorId}"`,
+      );
     }
 
     if (
@@ -568,18 +572,42 @@ export class InspectionsService {
       this.logger.log(
         `Logged change for identityDetails.cabangInspeksi to "${newBranchCity.city}"`,
       );
-      // Update identityDetails in the updateData
-      newIdentityDetails.cabangInspeksi = newBranchCity.city;
-      identityDetailsUpdated = true;
-      // Also update the branchCityId directly in the inspection record
-      updateData.branchCity = {
-        connect: { id: updateInspectionDto.branchCityId },
-      };
+
+      // Log change for branchCityId
+      changesToLog.push({
+        inspectionId: id,
+        changedByUserId: userId,
+        fieldName: 'branchCity',
+        subFieldName: null,
+        subsubfieldname: null,
+        oldValue: existingInspection?.branchCityId ?? Prisma.JsonNull, // Safer access
+        newValue: updateInspectionDto.branchCityId ?? Prisma.JsonNull,
+      });
+      this.logger.log(
+        `Logged change for branchCityId "${updateInspectionDto.branchCityId}"`,
+      );
     }
 
-    // If identityDetails was updated due to ID changes, add it to the updateData
-    if (identityDetailsUpdated) {
-      updateData.identityDetails = newIdentityDetails;
+    // Handle changes to namaCustomer in identityDetails
+    if (
+      updateInspectionDto.identityDetails?.namaCustomer !== undefined &&
+      updateInspectionDto.identityDetails.namaCustomer !==
+        currentIdentityDetails?.namaCustomer
+    ) {
+      const newCustomerName = updateInspectionDto.identityDetails.namaCustomer;
+      // Log change for identityDetails.namaCustomer
+      changesToLog.push({
+        inspectionId: id,
+        changedByUserId: userId,
+        fieldName: 'identityDetails',
+        subFieldName: 'namaCustomer',
+        subsubfieldname: null,
+        oldValue: currentIdentityDetails?.namaCustomer ?? Prisma.JsonNull, // Safer access
+        newValue: newCustomerName ?? Prisma.JsonNull,
+      });
+      this.logger.log(
+        `Logged change for identityDetails.namaCustomer to "${newCustomerName}"`,
+      );
     }
 
     // Define which top-level fields in Inspection are JSON and should be deep compared
@@ -606,8 +634,13 @@ export class InspectionsService {
       ]; // Current value from DB
 
       if (newValue === undefined) continue; // Skip if DTO field is undefined (not meant to be updated)
-      // Skip inspectorId and branchCityId as they are handled above
-      if (dtoKey === 'inspectorId' || dtoKey === 'branchCityId') continue;
+      // Skip inspectorId, branchCityId, and identityDetails as they are handled separately/specifically
+      if (
+        dtoKey === 'inspectorId' ||
+        dtoKey === 'branchCityId' ||
+        dtoKey === 'identityDetails'
+      )
+        continue;
 
       // Convert Date objects to ISO strings before logging/comparing
       const processedNewValue =
@@ -628,8 +661,6 @@ export class InspectionsService {
           userId,
           [], // Start with an empty path for the top-level JSON field
         );
-        // Add the JSON field to the updateData
-        updateData[dtoKey] = processedNewValue;
       } else {
         // Handle non-JSON, top-level fields (e.g., vehiclePlateNumber, overallRating)
         const oldValToLog =
@@ -651,7 +682,6 @@ export class InspectionsService {
           }
         }
         // Add similar checks for other non-JSON fields if they have length constraints
-
         if (JSON.stringify(oldValToLog) !== JSON.stringify(newValToLog)) {
           this.logger.verbose(
             `Logging change for top-level non-JSON field: ${dtoKey}`,
@@ -665,15 +695,6 @@ export class InspectionsService {
             oldValue: oldValToLog,
             newValue: newValToLog,
           });
-          // Add the non-JSON field to the updateData
-          // Ensure newValue is not an object before assigning to non-JSON fields
-          if (typeof newValue !== 'object' || newValue === null) {
-            updateData[dtoKey] = newValue;
-          } else {
-            this.logger.warn(
-              `Attempted to assign object to non-JSON field: ${dtoKey}. Ignoring.`,
-            );
-          }
         }
       }
     }
@@ -691,7 +712,9 @@ export class InspectionsService {
         const errorMessage =
           error instanceof Error ? error.message : 'An unknown error occurred';
         const errorStack =
-          error instanceof Error ? error.stack : 'No stack trace available';
+          error instanceof Error && error.stack
+            ? error.stack
+            : 'No stack trace available';
         this.logger.error(
           `Failed to log changes for inspection ID ${id}: ${errorMessage}`,
           errorStack,
@@ -706,30 +729,22 @@ export class InspectionsService {
       );
     }
 
-    // 4. Update the Inspection record in the database with all collected changes
-    if (Object.keys(updateData).length > 0) {
-      try {
-        const updatedInspection = await this.prisma.inspection.update({
-          where: { id },
-          data: updateData,
-        });
-        this.logger.log(`Inspection ${id} updated successfully.`);
-        return updatedInspection;
-      } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : 'An unknown error occurred';
-        const errorStack =
-          error instanceof Error ? error.stack : 'No stack trace available';
-        this.logger.error(
-          `Failed to update inspection ID ${id}: ${errorMessage}`,
-          errorStack,
-        );
-        throw new InternalServerErrorException('Could not update inspection.');
-      }
+    // 4. Do NOT update the Inspection record in this method.
+    // Changes are logged and will be applied during the 'approveInspection' process.
+    if (changesToLog.length > 0) {
+      this.logger.log(
+        `Changes logged for inspection ID: ${id}. Awaiting approval to apply.`,
+      );
+      return {
+        message: `${changesToLog.length} changes have been logged for inspection ID "${id}". Please approve the inspection to apply these changes.`,
+      };
     } else {
-      this.logger.log(`No data to update for inspection ID: ${id}.`);
-      // Return the existing inspection if no updates were made
-      return existingInspection;
+      this.logger.log(
+        `No significant changes detected to log or apply for inspection ID: ${id}.`,
+      );
+      return {
+        message: `No significant changes detected for inspection ID "${id}".`,
+      };
     }
   }
 
@@ -984,84 +999,102 @@ export class InspectionsService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      // 2. Fetch the latest change log for each field
-      const latestChanges = await tx.inspectionChangeLog.findMany({
-        where: { inspectionId: inspectionId },
-        orderBy: { changedAt: 'asc' },
-      });
+    try {
+      return this.prisma.$transaction(async (tx) => {
+        // 2. Fetch all change logs for this inspection
+        const allChanges = await tx.inspectionChangeLog.findMany({
+          where: { inspectionId: inspectionId },
+          orderBy: { changedAt: 'desc' }, // Order by latest first for easier processing
+        });
 
-      // Group changes by fieldName, subFieldName, and subsubfieldname
-      const groupedChanges: { [key: string]: InspectionChangeLog[] } = {};
-      for (const log of latestChanges) {
-        let key = log.fieldName;
-        if (log.subFieldName) {
-          key += `.${log.subFieldName}`;
-          if (log.subsubfieldname) {
-            key += `.${log.subsubfieldname}`;
+        // Group changes by field key and get the latest change for each field
+        const latestChanges = new Map<string, InspectionChangeLog>();
+
+        for (const log of allChanges) {
+          // Create a unique key for each field path
+          let key = log.fieldName;
+          if (log.subFieldName) {
+            key += `.${log.subFieldName}`;
+            if (log.subsubfieldname) {
+              key += `.${log.subsubfieldname}`;
+            }
+          }
+
+          // Only store if we haven't seen this field key before (since we're processing latest first)
+          if (!latestChanges.has(key)) {
+            latestChanges.set(key, log);
           }
         }
-        if (!groupedChanges[key]) {
-          groupedChanges[key] = [];
-        }
-        groupedChanges[key].push(log);
-      }
 
-      // Get the latest change for each field
-      const latestValues: Record<
-        string,
-        Prisma.JsonValue | string | number | boolean | null
-      > = {};
-      for (const key in groupedChanges) {
-        if (Object.prototype.hasOwnProperty.call(groupedChanges, key)) {
-          const logs = groupedChanges[key];
-          // Sort by changedAt descending and take the first one
-          logs.sort((a, b) => b.changedAt.getTime() - a.changedAt.getTime());
-          const latestLog = logs[0];
-          if (latestLog) {
-            latestValues[key] = latestLog.newValue;
-          }
-        }
-      }
+        // 3. Apply the latest changes to the inspection data
+        // Start with a partial update object
+        const updateData: Prisma.InspectionUpdateInput = {
+          status: InspectionStatus.APPROVED,
+          // Correctly update the reviewer relationship
+          reviewer: {
+            connect: { id: reviewerId },
+          },
+          urlPdf: pdfPublicUrl,
+          pdfFileHash: pdfHashString,
+        };
 
-      // 3. Apply the latest changes to the inspection data
-      // Start with a partial update object
-      const updateData: Prisma.InspectionUpdateInput = {
-        status: InspectionStatus.APPROVED,
-        // Correctly update the reviewer relationship
-        reviewer: {
-          connect: { id: reviewerId },
-        },
-        urlPdf: pdfPublicUrl,
-        pdfFileHash: pdfHashString,
-      };
+        // Define which top-level fields in Inspection are JSON and can be updated via change log
+        const jsonUpdatableFields: (keyof Inspection)[] = [
+          'identityDetails',
+          'vehicleData',
+          'equipmentChecklist',
+          'inspectionSummary',
+          'detailedAssessment',
+          'bodyPaintThickness',
+        ];
 
-      // Define which top-level fields in Inspection are JSON and can be updated via change log
-      const jsonUpdatableFields: (keyof Inspection)[] = [
-        'identityDetails',
-        'vehicleData',
-        'equipmentChecklist',
-        'inspectionSummary',
-        'detailedAssessment',
-        'bodyPaintThickness',
-      ];
-
-      for (const key in latestValues) {
-        // Use Object.prototype.hasOwnProperty.call for safer property check
-        if (Object.prototype.hasOwnProperty.call(latestValues, key)) {
-          const value = latestValues[key];
-          const parts = key.split('.'); // Split key into parts
+        // Process each latest change
+        for (const [fieldKey, changeLog] of latestChanges) {
+          const value = changeLog.newValue;
+          const parts = fieldKey.split('.'); // Split key into parts
           const fieldName = parts[0] as keyof Inspection; // Assert fieldName type
 
+          this.logger.debug(
+            `Applying change: fieldKey=${fieldKey}, value=${JSON.stringify(value)}, fieldName=${fieldName}`,
+          );
+
           if (parts.length === 1) {
-            // Handle top-level fields (fieldName only) - Apply regardless of JSON updatable list
             this.logger.debug(
-              `Applying top-level change: key=${key}, value=${JSON.stringify(value)}, fieldName=${fieldName}`,
-            );
+              `Processing top-level field from changelog. fieldName: "${fieldName}", value: "${JSON.stringify(value)}"`,
+            ); // KILOCODE DEBUG LOG
+            // Handle top-level fields (fieldName only)
             // Only attempt to update if the field exists in the original inspection object
-            // Use Object.prototype.hasOwnProperty.call for safer property check
-            if (Object.prototype.hasOwnProperty.call(inspection, fieldName)) {
-              // Assign value directly to the updateData object with specific type handling
+            // KILOCODE FIX: Use parts[0] for 'inspector' and 'branchCity' checks to avoid TS error
+            if (
+              parts[0] === 'inspector' &&
+              value !== null &&
+              typeof value === 'string'
+            ) {
+              this.logger.debug(
+                `Condition for 'inspector' (from parts[0]) met. Applying change.`,
+              );
+              updateData.inspector = { connect: { id: value.toString() } };
+              this.logger.debug(
+                `Applied inspector change using connect: ${value}`,
+              );
+            } else if (
+              parts[0] === 'branchCity' &&
+              value !== null &&
+              typeof value === 'string'
+            ) {
+              this.logger.debug(
+                `Condition for 'branchCity' (from parts[0]) met. Applying change.`,
+              );
+              updateData.branchCity = { connect: { id: value.toString() } };
+              this.logger.debug(
+                `Applied branchCity change using connect: ${value}`,
+              );
+            }
+            // KILOCODE FIX: Fallback to check actual properties on inspection object using fieldName (keyof Inspection)
+            else if (
+              Object.prototype.hasOwnProperty.call(inspection, fieldName)
+            ) {
+              // Handle specific top-level fields with proper type conversion
               if (
                 fieldName === 'vehiclePlateNumber' &&
                 typeof value === 'string'
@@ -1081,12 +1114,11 @@ export class InspectionsService {
               // Add other top-level fields here as needed with appropriate type checks and assignments
               else {
                 // Fallback for other top-level fields, might still need refinement
-                updateData[fieldName as keyof Prisma.InspectionUpdateInput] =
-                  value as any;
+                // updateData[fieldName as keyof Prisma.InspectionUpdateInput] = value as any; // Removed generic assignment
               }
             } else {
               this.logger.warn(
-                `Attempted to apply change log for non-existent or non-updatable top-level field: ${key}. Ignoring.`,
+                `Top-level field "${parts[0]}" from changelog (key: ${fieldKey}) did not match any specific update logic. Value: ${JSON.stringify(value)}. 'inspector' check: ${parts[0] === 'inspector'}. 'branchCity' check: ${parts[0] === 'branchCity'}. HasOwnProperty on inspection for fieldName: ${Object.prototype.hasOwnProperty.call(inspection, fieldName)}. Ignoring.`, // KILOCODE DEBUG LOG MODIFIED with parts[0]
               );
             }
           } else {
@@ -1133,44 +1165,33 @@ export class InspectionsService {
                 const subsubfieldname = parts[2];
 
                 // Ensure the sub-field object exists, initializing if necessary
+                const currentField = updateData[
+                  fieldName as keyof Prisma.InspectionUpdateInput
+                ] as Record<string, Prisma.JsonValue>;
+
                 if (
-                  !(
-                    updateData[
-                      fieldName as keyof Prisma.InspectionUpdateInput
-                    ] as Record<string, Prisma.JsonValue>
-                  )[subFieldName] ||
-                  typeof (
-                    updateData[
-                      fieldName as keyof Prisma.InspectionUpdateInput
-                    ] as Record<string, Prisma.JsonValue>
-                  )[subFieldName] !== 'object' ||
-                  (
-                    updateData[
-                      fieldName as keyof Prisma.InspectionUpdateInput
-                    ] as Record<string, Prisma.JsonValue>
-                  )[subFieldName] === null
+                  !currentField[subFieldName] ||
+                  typeof currentField[subFieldName] !== 'object' ||
+                  currentField[subFieldName] === null
                 ) {
                   // Initialize with the existing value from the inspection, or an empty object
-                  (
-                    updateData[
-                      fieldName as keyof Prisma.InspectionUpdateInput
-                    ] as Record<string, Prisma.JsonValue>
-                  )[subFieldName] =
-                    inspection[fieldName] &&
-                    typeof inspection[fieldName] === 'object' &&
-                    inspection[fieldName] !== null &&
-                    (inspection[fieldName] as Record<string, Prisma.JsonValue>)[
+                  const existingParentField = inspection[fieldName];
+                  currentField[subFieldName] =
+                    existingParentField &&
+                    typeof existingParentField === 'object' &&
+                    existingParentField !== null &&
+                    (existingParentField as Record<string, Prisma.JsonValue>)[
                       subFieldName
                     ] &&
                     typeof (
-                      inspection[fieldName] as Record<string, Prisma.JsonValue>
+                      existingParentField as Record<string, Prisma.JsonValue>
                     )[subFieldName] === 'object' &&
-                    (inspection[fieldName] as Record<string, Prisma.JsonValue>)[
+                    (existingParentField as Record<string, Prisma.JsonValue>)[
                       subFieldName
                     ] !== null
                       ? {
                           ...((
-                            inspection[fieldName] as Record<
+                            existingParentField as Record<
                               string,
                               Prisma.JsonValue
                             >
@@ -1181,35 +1202,44 @@ export class InspectionsService {
 
                 // Use type assertion to allow indexed access and assignment
                 (
-                  (
-                    updateData[
-                      fieldName as keyof Prisma.InspectionUpdateInput
-                    ] as Record<string, Prisma.JsonValue>
-                  )[subFieldName] as Record<string, Prisma.JsonValue>
+                  currentField[subFieldName] as Record<string, Prisma.JsonValue>
                 )[subsubfieldname] = value;
               }
               // Ignore parts.length > 3 for now, as logging is limited to 3 levels
             } else {
               this.logger.warn(
-                `Attempted to apply nested change log for non-JSON field: ${key}. Ignoring.`,
+                `Attempted to apply nested change log for non-JSON field: ${fieldKey}. Ignoring.`,
               );
               // Optionally, log a warning or handle this case differently
             }
           }
         }
-      }
 
-      // 4. Update the Inspection record in the database
-      const updatedInspection = await tx.inspection.update({
-        where: { id: inspectionId },
-        data: updateData, // Use the prepared updateData object
+        // 4. Update the Inspection record in the database
+        const updatedInspection = await tx.inspection.update({
+          where: { id: inspectionId },
+          data: updateData, // Use the prepared updateData object
+        });
+
+        this.logger.log(
+          `Inspection ${inspectionId} approved and updated with latest logged changes by reviewer ${reviewerId}`,
+        );
+        return updatedInspection;
       });
-
-      this.logger.log(
-        `Inspection ${inspectionId} approved and updated with latest logged changes by reviewer ${reviewerId}`,
+    } catch (error: unknown) {
+      // Use unknown
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace available';
+      this.logger.error(
+        `Failed to generate or save PDF for inspection ${inspectionId}: ${errorMessage}`,
+        errorStack,
       );
-      return updatedInspection;
-    });
+      throw new InternalServerErrorException(
+        `Could not generate PDF report from URL: ${errorMessage}`,
+      );
+    }
   }
 
   /**

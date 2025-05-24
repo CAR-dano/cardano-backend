@@ -196,12 +196,12 @@ export class InspectionsController {
   })
   @ApiBody({ type: UpdateInspectionDto })
   @ApiResponse({
-    status: 201,
-    description: 'The ID of the newly created inspection.',
+    status: 200,
+    description: 'Message indicating changes have been logged.',
     schema: {
       type: 'object',
       properties: {
-        id: { type: 'string', format: 'uuid' },
+        message: { type: 'string' },
       },
     },
   })
@@ -216,19 +216,19 @@ export class InspectionsController {
     @Body() updateInspectionDto: UpdateInspectionDto,
     // @GetUser('id') userId: string, // Get authenticated user ID later
     // @GetUser('role') userRole: Role // Get role later
-  ): Promise<InspectionResponseDto> {
+  ): Promise<{ message: string }> {
     const dummyUserId = DUMMY_USER_ID; // Temporary
     const dummyUserRole = Role.ADMIN; // Temporary
     this.logger.warn(
       `Using DUMMY user context for PATCH /inspections/${id}: User=${dummyUserId}, Role=${dummyUserRole}`,
     );
-    const updatedInspection = await this.inspectionsService.update(
+    const result = await this.inspectionsService.update(
       id,
       updateInspectionDto,
       dummyUserId,
       dummyUserRole,
     );
-    return new InspectionResponseDto(updatedInspection);
+    return result;
   }
 
   // --- Photo Batch Upload Endpoints ---
