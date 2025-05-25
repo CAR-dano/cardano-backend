@@ -9,12 +9,7 @@
  * --------------------------------------------------------------------------
  */
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsBooleanString,
-} from 'class-validator';
+import { IsString, IsOptional, IsBooleanString } from 'class-validator';
 
 export class AddPhotoDto {
   /**
@@ -22,12 +17,15 @@ export class AddPhotoDto {
    * Sent as a text field.
    */
   @ApiProperty({
-    description: 'Custom label for the photo',
+    description:
+      'Custom label for the photo. Defaults to "Tambahan" if not provided.',
     example: 'Rear Right Door Scratch',
+    required: false,
+    default: 'Tambahan',
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  label: string;
+  label?: string;
 
   /**
    * Flag indicating if this photo needs special attention.

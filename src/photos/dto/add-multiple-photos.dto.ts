@@ -16,16 +16,16 @@ export class AddMultiplePhotosDto {
    * REQUIRED: A JSON string representing an array of metadata objects.
    * Each object MUST correspond to a file uploaded in the 'photos' field,
    * maintaining the same order.
-   * Structure per object: { label: string, needAttention?: boolean, category?: string, isMandatory?: boolean }
-   * @example '[{"label":"Baret 1","needAttention":true, "category": "exterior", "isMandatory": false},{"label":"Interior Jok", "category": "interior", "isMandatory": true},{"label":"Mesin Atas","needAttention":false, "category": "engine"}]'
+   * Structure per object: { label?: string, needAttention?: boolean, category?: string, isMandatory?: boolean }
+   * @example '[{"label":"Baret 1","needAttention":true, "category": "exterior", "isMandatory": false},{"needAttention":false, "category": "engine"}]'
    */
   @ApiProperty({
     type: 'string',
     format: 'json',
     description:
-      'REQUIRED: JSON string array of metadata ({label: string, needAttention?: boolean, category?: string, isMandatory?: boolean}) matching file upload order.',
+      'REQUIRED: JSON string array of metadata ({label?: string, needAttention?: boolean, category?: string, isMandatory?: boolean}) matching file upload order. Label defaults to "Tambahan" if not provided.',
     example:
-      '[{"label":"Baret 1","needAttention":true, "category": "exterior", "isMandatory": false},{"label":"Interior Jok", "category": "interior", "isMandatory": true}]',
+      '[{"label":"Baret 1","needAttention":true, "category": "exterior", "isMandatory": false},{"category": "interior", "isMandatory": true}]',
   })
   @IsString()
   @IsNotEmpty()

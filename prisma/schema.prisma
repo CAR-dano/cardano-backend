@@ -159,8 +159,8 @@ model Photo {
   inspection Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade) // Many-to-One relation
 
   path String // Unique path/filename in storage (disk or cloud)
-  label String // Photo label (can be custom or from originalLabel)
-  category String? @default("general")
+  label String? @default("Tambahan") // Photo label (can be custom or from originalLabel)
+  category String? @default("General")
   isMandatory Boolean? @default(false)
   originalLabel String? // Special for FIXED types (e.g. “Front View”, “OBD Scanner”)
   needAttention Boolean? @default(false) // Only relevant for DYNAMIC types, default false
