@@ -39,8 +39,6 @@ import { BlockchainService } from '../blockchain/blockchain.service';
 import puppeteer, { Browser } from 'puppeteer'; // Import puppeteer and Browser type
 import { ConfigService } from '@nestjs/config';
 import * as Papa from 'papaparse';
-import { MintRequestDto } from '../blockchain/dto/mint-request.dto'; // Import MintRequestDto
-
 // Define path for archived PDFs (ensure this exists or is created by deployment script/manually)
 const PDF_ARCHIVE_PATH = './pdfarchived';
 // Define public base URL for accessing archived PDFs (should come from config in real app)
@@ -193,7 +191,7 @@ export class InspectionsService {
       const errorMessage =
         e instanceof Error ? e.message : 'An unknown error occurred';
       const errorStack =
-        e instanceof Error ? e.stack : 'No stack trace available';
+        e instanceof Error && e.stack ? e.stack : 'No stack trace available';
       this.logger.error(
         `Failed to fetch inspector or branch city details: ${errorMessage}`,
         errorStack,
@@ -286,7 +284,9 @@ export class InspectionsService {
               ? error.message
               : 'An unknown error occurred';
           const errorStack =
-            error instanceof Error ? error.stack : 'No stack trace available';
+            error instanceof Error && error.stack
+              ? error.stack
+              : 'No stack trace available';
           this.logger.error(
             `Failed to create inspection with custom ID ${customId}: ${errorMessage}`,
             errorStack,
@@ -764,7 +764,7 @@ export class InspectionsService {
    */
   async findAll(
     userRole: Role | undefined,
-    status?: InspectionStatus[] | 'DATABASE',
+    status?: string | InspectionStatus[], // Accept string or array
     page: number = 1,
     pageSize: number = 10,
   ): Promise<{
@@ -778,23 +778,56 @@ export class InspectionsService {
     // Initialize whereClause
     const whereClause: Prisma.InspectionWhereInput = {};
 
-    // 1. Handle explicit status or 'DATABASE'
-    if (status) {
-      if (status === 'DATABASE') {
+    let parsedStatus: InspectionStatus[] | 'DATABASE' | undefined;
+
+    if (status === 'DATABASE') {
+      parsedStatus = 'DATABASE';
+    } else if (typeof status === 'string') {
+      // If it's a comma-separated string (e.g., "ARCHIVED,NEED_REVIEW"), split it
+      parsedStatus = status.split(',').map((s) => {
+        const trimmedStatus = s.trim();
+        if (!(trimmedStatus in InspectionStatus)) {
+          // Log a warning or throw an error if an invalid status is provided
+          this.logger.warn(
+            `Invalid InspectionStatus provided: ${trimmedStatus}`,
+          );
+          throw new BadRequestException(
+            `Invalid InspectionStatus: ${trimmedStatus}`,
+          );
+        }
+        return trimmedStatus as InspectionStatus;
+      });
+    } else if (Array.isArray(status)) {
+      // If it's already an array, use it directly after validation
+      parsedStatus = status.map((s) => {
+        const trimmedStatus = s.trim();
+        if (!(trimmedStatus in InspectionStatus)) {
+          this.logger.warn(
+            `Invalid InspectionStatus provided: ${trimmedStatus}`,
+          );
+          throw new BadRequestException(
+            `Invalid InspectionStatus: ${trimmedStatus}`,
+          );
+        }
+        return trimmedStatus as InspectionStatus;
+      });
+    }
+
+    // Apply status filter based on parsedStatus
+    if (parsedStatus) {
+      if (parsedStatus === 'DATABASE') {
         whereClause.status = { not: InspectionStatus.NEED_REVIEW };
         this.logger.log(
           `Applying filter: status = DATABASE (excluding NEED_REVIEW)`,
         );
-      } else if (Array.isArray(status)) {
-        whereClause.status = { in: status };
-        this.logger.log(`Applying filter: status in [${status.join(',')}]`);
       } else {
-        // This is a single explicit status filter from the user
-        whereClause.status = status;
-        this.logger.log(`Applying filter: status = ${status}`);
+        whereClause.status = { in: parsedStatus };
+        this.logger.log(
+          `Applying filter: status in [${parsedStatus.join(',')}]`,
+        );
       }
     } else {
-      // 2. Handle default status based on role ONLY IF no explicit status is provided
+      // Handle default status based on role ONLY IF no explicit status is provided
       if (
         userRole === Role.CUSTOMER ||
         userRole === Role.DEVELOPER ||
