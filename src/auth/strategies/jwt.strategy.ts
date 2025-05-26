@@ -18,6 +18,8 @@ import { ConfigService } from '@nestjs/config'; // Needed for JWT secret
 import { UsersService } from '../../users/users.service'; // Needed to find user by ID
 import { JwtPayload } from '../interfaces/jwt-payload.interface'; // Type definition for the decoded payload
 import { User } from '@prisma/client'; // Prisma User type
+import { AuthService } from '../auth.service'; // Import AuthService
+import { Request } from 'express'; // Import Request type
 
 @Injectable()
 // Define the strategy, extending PassportStrategy with the base JWT Strategy.
@@ -34,15 +36,18 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
    *
    * @param {ConfigService} configService - Service for accessing configuration (JWT_SECRET).
    * @param {UsersService} usersService - Service for user database operations.
+   * @param {AuthService} authService - Service for authentication logic, including token blacklisting.
    */
   constructor(
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
+    private readonly authService: AuthService, // Inject AuthService
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(), // Standard extraction method
       ignoreExpiration: false, // Validate token expiration
       secretOrKey: configService.getOrThrow<string>('JWT_SECRET'), // Get secret from config
+      passReqToCallback: true, // Pass the request to the validate method
     });
     this.logger.log('JWT Strategy Initialized');
   }
@@ -54,16 +59,35 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
    * This method must look up the user based on the payload information (usually the user ID in 'sub')
    * and return the user object if valid, or throw an error if not.
    *
+   * @param {Request} req - The raw request object, needed to extract the token for blacklisting check.
    * @param {JwtPayload} payload - The decoded payload extracted from the validated JWT.
    * @returns {Promise<Omit<User, 'password' | 'googleId'>>} The validated user object (excluding sensitive fields). Passport attaches this to `request.user`.
-   * @throws {UnauthorizedException} If the user referenced in the payload (`payload.sub`) is not found in the database.
+   * @throws {UnauthorizedException} If the user referenced in the payload (`payload.sub`) is not found in the database, or if the token is blacklisted.
    */
   async validate(
+    req: Request, // Add req parameter
     payload: JwtPayload,
   ): Promise<Omit<User, 'password' | 'googleId'>> {
     this.logger.verbose(
       `JWT Strategy validating payload for user ID (sub): ${payload.sub}`,
     );
+
+    // Extract the raw token from the request
+    const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req) as string; // Assert type to string
+    if (!token) {
+      this.logger.warn('JWT validation failed: Token not found in request.');
+      throw new UnauthorizedException('Token not provided.');
+    }
+
+    // Check if the token is blacklisted
+    const isBlacklisted = await this.authService.isTokenBlacklisted(token);
+    if (isBlacklisted) {
+      this.logger.warn(
+        `JWT validation failed: Token for user ID ${payload.sub} is blacklisted.`,
+      );
+      throw new UnauthorizedException('Token has been invalidated.');
+    }
+
     // Find the user in the database based on the 'sub' (subject) claim from the JWT payload
     const user = await this.usersService.findById(payload.sub);
 

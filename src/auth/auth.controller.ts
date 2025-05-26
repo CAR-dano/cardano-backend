@@ -23,6 +23,7 @@ import {
   Logger,
   HttpCode,
   InternalServerErrorException,
+  UnauthorizedException, // Import UnauthorizedException
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -45,6 +46,8 @@ import { LoginUserDto } from './dto/login-user.dto'; // DTO for local login inpu
 import { LoginResponseDto } from './dto/login-response.dto'; // DTO for successful login response
 import { UserResponseDto } from '../users/dto/user-response.dto'; // DTO for profile response
 import { GetUser } from './decorators/get-user.decorator'; // Custom decorator to get user
+import { JwtService } from '@nestjs/jwt'; // Import JwtService
+import { ExtractJwt } from 'passport-jwt'; // Import ExtractJwt
 
 // Define interface for request object after JWT or Local auth guard runs
 interface AuthenticatedRequest extends Request {
@@ -61,11 +64,13 @@ export class AuthController {
    * @param authService - The authentication service.
    * @param usersService - The users service.
    * @param configService - The configuration service.
+   * @param jwtService - The JWT service for token decoding.
    */
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
+    private readonly jwtService: JwtService, // Inject JwtService
   ) {}
 
   /**
@@ -205,15 +210,40 @@ export class AuthController {
     description: 'Unauthorized.',
   })
   async logout(@Req() req: AuthenticatedRequest, @Res() res: Response) {
-    // Inject Req to log user if needed
     this.logger.log(`User logged out: ${req.user?.email ?? req.user?.id}`);
-    // Server-side action (e.g., blacklist token) could be added here if needed.
-    // For HttpOnly cookies, clear the cookie:
-    // res.clearCookie('access_token', { ...options });
-    return res.json({
-      message:
-        'Logout successful. Please clear your token/session client-side.',
-    });
+
+    const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+
+    if (!token) {
+      this.logger.warn('Logout failed: No token provided in request.');
+      throw new UnauthorizedException('No token provided.');
+    }
+
+    try {
+      // Decode the token to get its expiration time
+      const decodedToken = this.jwtService.decode(token) as { exp: number };
+      if (!decodedToken || !decodedToken.exp) {
+        this.logger.warn(
+          'Logout failed: Invalid token format (missing expiration).',
+        );
+        throw new UnauthorizedException('Invalid token format.');
+      }
+
+      const expiresAt = new Date(decodedToken.exp * 1000); // Convert Unix timestamp to Date object
+
+      // Blacklist the token
+      await this.authService.blacklistToken(token, expiresAt);
+
+      return res.json({
+        message: 'Logout successful. Token has been invalidated on the server.',
+      });
+    } catch (error) {
+      this.logger.error(
+        `Error during server-side logout for user ${req.user?.id}: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+      throw new InternalServerErrorException('Failed to process logout.');
+    }
   }
 
   /**

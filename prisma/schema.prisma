@@ -214,3 +214,12 @@ model InspectionSequence {
   @@id([branchCode, datePrefix]) // Compound primary key
   @@map("inspection_sequences")
 }
+
+model BlacklistedToken {
+  id        String   @id @default(uuid())
+  token     String   @unique @db.VarChar(512) // Store the full token or its hash
+  expiresAt DateTime // When the original token expires
+  createdAt DateTime @default(now())
+
+  @@map("blacklisted_tokens")
+}
