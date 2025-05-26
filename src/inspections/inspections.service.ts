@@ -39,6 +39,7 @@ import { BlockchainService } from '../blockchain/blockchain.service';
 import puppeteer, { Browser } from 'puppeteer'; // Import puppeteer and Browser type
 import { ConfigService } from '@nestjs/config';
 import * as Papa from 'papaparse';
+import { MintRequestDto } from '../blockchain/dto/mint-request.dto'; // Import MintRequestDto
 
 // Define path for archived PDFs (ensure this exists or is created by deployment script/manually)
 const PDF_ARCHIVE_PATH = './pdfarchived';
@@ -755,15 +756,15 @@ export class InspectionsService {
    * If `status` is 'DATABASE', returns all inspections except those with status NEED_REVIEW, overriding role-based filtering.
    * Includes pagination and metadata.
    *
-   * @param {Role} userRole - The role of the user making the request.
-   * @param {InspectionStatus | 'DATABASE'} [status] - Optional filter by inspection status. Use 'DATABASE' to retrieve all statuses except NEED_REVIEW, regardless of user role.
+   * @param {Role | undefined} userRole - The role of the user making the request.
+   * @param {InspectionStatus[] | 'DATABASE' | undefined} [status] - Optional filter by inspection status. Can be a single status, an array of statuses, or 'DATABASE' to retrieve all statuses except NEED_REVIEW, regardless of user role.
    * @param {number} page - The page number (1-based).
    * @param {number} pageSize - The number of items per page.
    * @returns {Promise<{ data: Inspection[], meta: { total: number, page: number, pageSize: number, totalPages: number } }>} An object containing an array of inspection records and pagination metadata.
    */
   async findAll(
-    userRole: Role,
-    status?: InspectionStatus | 'DATABASE',
+    userRole: Role | undefined,
+    status?: InspectionStatus[] | 'DATABASE',
     page: number = 1,
     pageSize: number = 10,
   ): Promise<{
@@ -771,7 +772,7 @@ export class InspectionsService {
     meta: { total: number; page: number; pageSize: number; totalPages: number };
   }> {
     this.logger.log(
-      `Retrieving inspections for user role: ${userRole}, status: ${status ?? 'ALL (default)'}, page: ${page}, pageSize: ${pageSize}`,
+      `Retrieving inspections for user role: ${userRole ?? 'N/A'}, status: ${Array.isArray(status) ? status.join(',') : (status ?? 'ALL (default)')}, page: ${page}, pageSize: ${pageSize}`,
     );
 
     // Initialize whereClause
@@ -784,8 +785,11 @@ export class InspectionsService {
         this.logger.log(
           `Applying filter: status = DATABASE (excluding NEED_REVIEW)`,
         );
+      } else if (Array.isArray(status)) {
+        whereClause.status = { in: status };
+        this.logger.log(`Applying filter: status in [${status.join(',')}]`);
       } else {
-        // This is an explicit status filter from the user
+        // This is a single explicit status filter from the user
         whereClause.status = status;
         this.logger.log(`Applying filter: status = ${status}`);
       }
@@ -826,7 +830,7 @@ export class InspectionsService {
       });
 
       this.logger.log(
-        `Retrieved ${inspections.length} inspections of ${total} total for role ${userRole}.`,
+        `Retrieved ${inspections.length} inspections of ${total} total for role ${userRole ?? 'N/A'}.`,
       );
 
       const totalPages = Math.ceil(total / pageSize);
@@ -845,7 +849,7 @@ export class InspectionsService {
       const errorStack =
         error instanceof Error ? error.stack : 'No stack trace available';
       this.logger.error(
-        `Failed to retrieve inspections for role ${userRole}: ${errorMessage}`,
+        `Failed to retrieve inspections for role ${userRole ?? 'N/A'}: ${errorMessage}`,
         errorStack,
       );
       throw new InternalServerErrorException(
@@ -985,7 +989,6 @@ export class InspectionsService {
       pdfHashString = hash.digest('hex');
       this.logger.log(`PDF hash calculated: ${pdfHashString}`);
     } catch (error: unknown) {
-      // Use unknown
       const errorMessage =
         error instanceof Error ? error.message : 'An unknown error occurred';
       const errorStack =
@@ -1227,7 +1230,6 @@ export class InspectionsService {
         return updatedInspection;
       });
     } catch (error: unknown) {
-      // Use unknown
       const errorMessage =
         error instanceof Error ? error.message : 'An unknown error occurred';
       const errorStack =
@@ -1356,7 +1358,6 @@ export class InspectionsService {
           `Blockchain interaction SUCCESS for inspection ${inspectionId}`,
         );
       } catch (blockchainError: unknown) {
-        // Explicitly type error as any for now
         const errorMessage =
           blockchainError instanceof Error
             ? blockchainError.message

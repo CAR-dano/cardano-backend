@@ -33,6 +33,7 @@ import {
   NotFoundException,
   Res,
   UseGuards,
+  ParseArrayPipe, // Added ParseArrayPipe
 } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -671,7 +672,8 @@ export class InspectionsController {
     name: 'status',
     required: false,
     enum: InspectionStatus,
-    description: 'Filter inspections by inspection status.',
+    isArray: true, // Indicate that multiple values are allowed
+    description: 'Filter inspections by inspection status (can be multiple).',
   })
   @ApiQuery({
     name: 'page',
@@ -718,7 +720,8 @@ export class InspectionsController {
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findAll(
     @Query('role') userRole?: Role,
-    @Query('status') status?: InspectionStatus,
+    @Query('status', new ParseArrayPipe({ optional: true })) // Removed enum from ParseArrayPipe
+    status?: InspectionStatus[], // Changed to array type
     @Query('page') page = 1,
     @Query('pageSize') pageSize = 10,
     /* @GetUser('role') realUserRole: Role */
@@ -726,17 +729,16 @@ export class InspectionsController {
     data: InspectionResponseDto[];
     meta: { total: number; page: number; pageSize: number; totalPages: number };
   }> {
-    const roleToFilter = userRole || Role.ADMIN; // Temporary filter logic
     const pageNumber =
       parseInt(page as any, 10) > 0 ? parseInt(page as any, 10) : 1;
     const pageSizeNumber =
       parseInt(pageSize as any, 10) > 0 ? parseInt(pageSize as any, 10) : 10;
     this.logger.warn(
-      `[GET /inspections] Applying filter for DUMMY role: ${roleToFilter}, page: ${page}, pageSize: ${pageSize}`,
-    );
+      `[GET /inspections] Applying filter for DUMMY role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${status?.join(',')}`,
+    ); // Added status to log and handled undefined/array
     const result = await this.inspectionsService.findAll(
-      roleToFilter,
-      status,
+      userRole,
+      status, // Pass status as is, service will handle undefined/array
       pageNumber,
       pageSizeNumber,
     );
