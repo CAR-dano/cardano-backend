@@ -671,7 +671,6 @@ export class InspectionsController {
   @ApiQuery({
     name: 'status',
     required: false,
-    enum: InspectionStatus,
     isArray: true, // Indicate that multiple values are allowed
     description: 'Filter inspections by inspection status (can be multiple).',
   })
@@ -733,12 +732,23 @@ export class InspectionsController {
       parseInt(page as any, 10) > 0 ? parseInt(page as any, 10) : 1;
     const pageSizeNumber =
       parseInt(pageSize as any, 10) > 0 ? parseInt(pageSize as any, 10) : 10;
+
+    let parsedStatus: InspectionStatus[] | 'DATABASE' | undefined = status;
+    if (Array.isArray(status)) {
+      parsedStatus = status.map((s) => {
+        if (!(s in InspectionStatus)) {
+          throw new BadRequestException(`Invalid InspectionStatus: ${s}`);
+        }
+        return s;
+      });
+    }
+
     this.logger.warn(
-      `[GET /inspections] Applying filter for DUMMY role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${status?.join(',')}`,
-    ); // Added status to log and handled undefined/array
+      `[GET /inspections] Applying filter for DUMMY role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${Array.isArray(parsedStatus) ? parsedStatus.join(',') : parsedStatus}`,
+    );
     const result = await this.inspectionsService.findAll(
       userRole,
-      status, // Pass status as is, service will handle undefined/array
+      parsedStatus,
       pageNumber,
       pageSizeNumber,
     );
