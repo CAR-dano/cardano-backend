@@ -76,11 +76,7 @@ export class PhotosService {
     inspectionId: string,
     file: Express.Multer.File,
     dto: AddPhotoDto,
-    userId?: string,
   ): Promise<Photo> {
-    this.logger.log(
-      `User ${userId || 'N/A'} adding photo (label: ${dto.label}) for inspection ${inspectionId}`,
-    );
     await this.ensureInspectionExists(inspectionId);
 
     // Parse boolean strings to boolean
@@ -99,7 +95,6 @@ export class PhotosService {
           isMandatory: isMandatory, // Add isMandatory
           originalLabel: null,
           needAttention: needAttention,
-          // submittedByUserId: userId,
         },
       });
     } catch (error: unknown) {
@@ -364,11 +359,7 @@ export class PhotosService {
     inspectionId: string,
     files: Express.Multer.File[],
     metadataJsonString: string,
-    userId?: string,
   ): Promise<Photo[]> {
-    this.logger.log(
-      `User ${userId || 'N/A'} adding BATCH of ${files?.length} photos to inspection ${inspectionId}`,
-    );
     if (!files || files.length === 0) {
       throw new BadRequestException('No photo files provided.');
     }
@@ -453,7 +444,6 @@ export class PhotosService {
           isMandatory: meta.isMandatory ?? false, // Add isMandatory
           originalLabel: null,
           needAttention: meta.needAttention ?? false,
-          // submittedByUserId: userId, // Add if tracking
         };
       },
     );

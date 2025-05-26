@@ -38,7 +38,6 @@ export class BlockchainController {
    * @throws InternalServerErrorException for Blockfrost API or other errors.
    */
   @Get('metadata/tx/:txHash')
-  // @UseGuards(JwtAuthGuard) // Example protection
   @ApiOperation({
     summary: 'Get Transaction Metadata by Hash',
     description:
@@ -83,7 +82,6 @@ export class BlockchainController {
    * @throws InternalServerErrorException for Blockfrost API or other errors.
    */
   @Get('nft/:assetId')
-  // @UseGuards(JwtAuthGuard) // Example protection
   @ApiOperation({
     summary: 'Get NFT Data by Asset ID',
     description:
