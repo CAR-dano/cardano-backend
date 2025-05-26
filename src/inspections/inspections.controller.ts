@@ -33,7 +33,6 @@ import {
   NotFoundException,
   Res,
   UseGuards,
-  ParseArrayPipe, // Added ParseArrayPipe
 } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -719,8 +718,7 @@ export class InspectionsController {
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findAll(
     @Query('role') userRole?: Role,
-    @Query('status', new ParseArrayPipe({ optional: true })) // Removed enum from ParseArrayPipe
-    status?: InspectionStatus[], // Changed to array type
+    @Query('status') status?: string | string[], // Accept as string or string array
     @Query('page') page = 1,
     @Query('pageSize') pageSize = 10,
     /* @GetUser('role') realUserRole: Role */
@@ -733,18 +731,34 @@ export class InspectionsController {
     const pageSizeNumber =
       parseInt(pageSize as any, 10) > 0 ? parseInt(pageSize as any, 10) : 10;
 
-    let parsedStatus: InspectionStatus[] | 'DATABASE' | undefined = status;
-    if (Array.isArray(status)) {
-      parsedStatus = status.map((s) => {
-        if (!(s in InspectionStatus)) {
-          throw new BadRequestException(`Invalid InspectionStatus: ${s}`);
+    let parsedStatus: InspectionStatus[] | undefined;
+
+    if (typeof status === 'string') {
+      // If it's a comma-separated string, split it
+      parsedStatus = status.split(',').map((s) => {
+        const trimmedStatus = s.trim();
+        if (!(trimmedStatus in InspectionStatus)) {
+          throw new BadRequestException(
+            `Invalid InspectionStatus: ${trimmedStatus}`,
+          );
         }
-        return s;
+        return trimmedStatus as InspectionStatus;
+      });
+    } else if (Array.isArray(status)) {
+      // If it's already an array (e.g., from development environment or direct array input)
+      parsedStatus = status.map((s) => {
+        const trimmedStatus = s.trim();
+        if (!(trimmedStatus in InspectionStatus)) {
+          throw new BadRequestException(
+            `Invalid InspectionStatus: ${trimmedStatus}`,
+          );
+        }
+        return trimmedStatus as InspectionStatus;
       });
     }
 
     this.logger.warn(
-      `[GET /inspections] Applying filter for DUMMY role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${Array.isArray(parsedStatus) ? parsedStatus.join(',') : parsedStatus}`,
+      `[GET /inspections] Applying filter for DUMMY role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${parsedStatus ? parsedStatus.join(',') : 'undefined'}`,
     );
     const result = await this.inspectionsService.findAll(
       userRole,
