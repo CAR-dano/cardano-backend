@@ -15,6 +15,7 @@ export enum TimePeriod {
   MONTH = 'month',
   WEEK = 'week',
   DAY = 'day',
+  ALL_TIME = 'all_time',
 }
 
 export class GetDashboardStatsDto {

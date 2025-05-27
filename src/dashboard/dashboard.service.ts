@@ -6,6 +6,19 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { InspectionStatus, Prisma } from '@prisma/client'; // Assuming InspectionStatus is a Prisma enum
 
+export interface BranchDistributionItem {
+  branch: string;
+  count: number;
+  percentage: string;
+  change: string;
+}
+
+export interface BranchDistributionResponse {
+  total: number;
+  totalChange: string;
+  branchDistribution: BranchDistributionItem[];
+}
+
 @Injectable()
 export class DashboardService {
   constructor(private readonly prisma: PrismaService) {}
@@ -15,16 +28,20 @@ export class DashboardService {
     period: TimePeriod,
     startDate?: string,
     endDate?: string,
-  ): { start: Date; end: Date } {
+  ): { start?: Date; end?: Date } {
     const now = new Date();
-    let start: Date;
-    let end: Date;
+    let start: Date | undefined;
+    let end: Date | undefined;
 
     if (startDate && endDate) {
       start = new Date(startDate);
       end = new Date(endDate);
     } else {
       switch (period) {
+        case TimePeriod.ALL_TIME:
+          start = undefined; // No start date for all time
+          end = undefined; // No end date for all time
+          break;
         case TimePeriod.YEAR:
           start = new Date(now.getFullYear(), 0, 1);
           end = new Date(now.getFullYear(), 11, 31);
@@ -58,7 +75,7 @@ export class DashboardService {
   async getMainOrderStatistics(query: GetDashboardStatsDto) {
     const { period, startDate, endDate, branch } = query;
     const { start, end } = this.getDateRange(
-      period ?? TimePeriod.DAY,
+      period ?? TimePeriod.ALL_TIME,
       startDate,
       endDate,
     );
@@ -128,27 +145,199 @@ export class DashboardService {
     ];
   }
 
-  async getBranchDistribution(query: GetDashboardStatsDto) {
+  async getBranchDistribution(
+    query: GetDashboardStatsDto,
+  ): Promise<BranchDistributionResponse> {
     const { period, startDate, endDate } = query;
     const { start, end } = this.getDateRange(
-      period ?? TimePeriod.DAY,
+      period ?? TimePeriod.ALL_TIME,
       startDate,
       endDate,
     );
 
-    // Lakukan query untuk distribusi per cabang
-    return [
-      { branch: 'Yogyakarta', count: 500, percentage: '33.3%', change: '+5%' },
-      { branch: 'Semarang', count: 400, percentage: '26.7%', change: '-2%' },
-      { branch: 'Solo', count: 300, percentage: '20.0%', change: '+10%' },
-      { branch: 'Others', count: 300, percentage: '20.0%', change: '0%' },
-    ];
+    // Get all unique branch cities
+    const branchCities = await this.prisma.inspectionBranchCity.findMany({
+      select: {
+        city: true,
+      },
+    });
+
+    const branchDistribution: BranchDistributionItem[] = [];
+    let totalInspectionsCurrentPeriod = 0;
+
+    // Calculate total inspections for the current period first
+    const totalInspectionsResult = await this.prisma.inspection.aggregate({
+      _count: {
+        id: true,
+      },
+      where: {
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+      },
+    });
+    totalInspectionsCurrentPeriod = totalInspectionsResult._count.id;
+
+    for (const branchCity of branchCities) {
+      const currentPeriodCount = await this.prisma.inspection.count({
+        where: {
+          branchCity: {
+            city: branchCity.city,
+          },
+          createdAt: {
+            gte: start,
+            lte: end,
+          },
+        },
+      });
+
+      // Calculate percentage for current period
+      const percentage =
+        totalInspectionsCurrentPeriod > 0
+          ? (
+              (currentPeriodCount / totalInspectionsCurrentPeriod) *
+              100
+            ).toFixed(1) + '%'
+          : '0.0%';
+
+      // Calculate previous period's range
+      const { start: prevStart, end: prevEnd } = this.getPreviousDateRange(
+        period ?? TimePeriod.ALL_TIME,
+        start,
+        end,
+      );
+
+      let previousPeriodCount = 0;
+      if (prevStart || prevEnd) {
+        // Only query if previous period is defined
+        previousPeriodCount = await this.prisma.inspection.count({
+          where: {
+            branchCity: {
+              city: branchCity.city,
+            },
+            createdAt: {
+              gte: prevStart,
+              lte: prevEnd,
+            },
+          },
+        });
+      }
+
+      // Calculate change percentage
+      let change = '0%';
+      if (previousPeriodCount > 0) {
+        const changeValue =
+          ((currentPeriodCount - previousPeriodCount) / previousPeriodCount) *
+          100;
+        change = `${changeValue > 0 ? '+' : ''}${changeValue.toFixed(1)}%`;
+      } else if (currentPeriodCount > 0) {
+        change = '+100%'; // If previous was 0 and current is > 0
+      }
+
+      branchDistribution.push({
+        branch: branchCity.city,
+        count: currentPeriodCount,
+        percentage: percentage,
+        change: change,
+      });
+    }
+
+    // Handle 'Others' if there are inspections not tied to a specific branch city or if some branches are not listed
+    // For simplicity, let's assume all inspections are tied to a branch city for now.
+    // If there's a need for 'Others', it would involve querying inspections without a branchCityId.
+
+    // Calculate total inspections for the previous period
+    const { start: prevTotalStart, end: prevTotalEnd } =
+      this.getPreviousDateRange(period ?? TimePeriod.ALL_TIME, start, end);
+
+    let totalInspectionsPreviousPeriod = 0;
+    if (prevTotalStart || prevTotalEnd) {
+      const totalPrevInspectionsResult = await this.prisma.inspection.aggregate(
+        {
+          _count: {
+            id: true,
+          },
+          where: {
+            createdAt: {
+              gte: prevTotalStart,
+              lte: prevTotalEnd,
+            },
+          },
+        },
+      );
+      totalInspectionsPreviousPeriod = totalPrevInspectionsResult._count.id;
+    }
+
+    // Calculate overall change percentage
+    let totalChange = '0%';
+    if (totalInspectionsPreviousPeriod > 0) {
+      const changeValue =
+        ((totalInspectionsCurrentPeriod - totalInspectionsPreviousPeriod) /
+          totalInspectionsPreviousPeriod) *
+        100;
+      totalChange = `${changeValue > 0 ? '+' : ''}${changeValue.toFixed(1)}%`;
+    } else if (totalInspectionsCurrentPeriod > 0) {
+      totalChange = '+100%'; // If previous total was 0 and current is > 0
+    }
+
+    return {
+      total: totalInspectionsCurrentPeriod,
+      totalChange: totalChange,
+      branchDistribution: branchDistribution,
+    };
+  }
+
+  // Helper to get the previous date range
+  private getPreviousDateRange(
+    period: TimePeriod,
+    currentStart?: Date,
+    currentEnd?: Date,
+  ): { start?: Date; end?: Date } {
+    if (!currentStart || !currentEnd) {
+      // For ALL_TIME or if current range is not defined, previous range is also undefined
+      return { start: undefined, end: undefined };
+    }
+
+    let prevStart: Date;
+    let prevEnd: Date;
+
+    switch (period) {
+      case TimePeriod.YEAR:
+        prevStart = new Date(currentStart.getFullYear() - 1, 0, 1);
+        prevEnd = new Date(currentEnd.getFullYear() - 1, 11, 31);
+        break;
+      case TimePeriod.MONTH:
+        prevStart = new Date(
+          currentStart.getFullYear(),
+          currentStart.getMonth() - 1,
+          1,
+        );
+        prevEnd = new Date(
+          currentStart.getFullYear(),
+          currentStart.getMonth(),
+          0,
+        );
+        break;
+      case TimePeriod.WEEK:
+        prevStart = new Date(currentStart.setDate(currentStart.getDate() - 7));
+        prevEnd = new Date(currentEnd.setDate(currentEnd.getDate() - 7));
+        break;
+      case TimePeriod.DAY:
+        prevStart = new Date(currentStart.setDate(currentStart.getDate() - 1));
+        prevEnd = new Date(currentEnd.setDate(currentEnd.getDate() - 1));
+        break;
+      case TimePeriod.ALL_TIME:
+      default:
+        return { start: undefined, end: undefined };
+    }
+    return { start: prevStart, end: prevEnd };
   }
 
   async getInspectorPerformance(query: GetDashboardStatsDto) {
     const { period, startDate, endDate } = query;
     const { start, end } = this.getDateRange(
-      period ?? TimePeriod.DAY,
+      period ?? TimePeriod.ALL_TIME, // Changed default to ALL_TIME
       startDate,
       endDate,
     );
