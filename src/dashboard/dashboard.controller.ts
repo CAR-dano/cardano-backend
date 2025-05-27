@@ -31,17 +31,18 @@ import { CarBrandDistributionResponseDto } from './dto/car-brand-distribution-re
 import { ProductionYearDistributionResponseDto } from './dto/production-year-distribution-response.dto';
 import { TransmissionTypeDistributionResponseDto } from './dto/transmission-type-distribution-response.dto';
 import { BlockchainStatusResponseDto } from './dto/blockchain-status-response.dto';
+import { Role } from '@prisma/client';
 // Import other DTOs as needed
 
 @ApiTags('Dashboard Admin') // For Swagger
 @ApiBearerAuth() // For Swagger, indicates endpoint requires a token
 @Controller('dashboard')
 @UseGuards(JwtAuthGuard, RolesGuard) // Ensure JWTAuthGuard runs first
-@Roles('ADMIN') // Only users with 'admin' role can access this controller
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
   @Get('main-stats')
+  @Roles(Role.ADMIN, Role.REVIEWER)
   @ApiOperation({ summary: 'Get main order statistics' })
   @ApiResponse({
     status: 200,
@@ -59,6 +60,7 @@ export class DashboardController {
   }
 
   @Get('order-trend')
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Get order trend data' })
   @ApiResponse({
     status: 200,
@@ -76,6 +78,7 @@ export class DashboardController {
   }
 
   @Get('branch-distribution')
+  @Roles(Role.ADMIN)
   @ApiOperation({
     summary: 'Get order distribution by branch',
   })
@@ -95,6 +98,7 @@ export class DashboardController {
   }
 
   @Get('inspector-performance')
+  @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Get inspector performance' })
   @ApiResponse({
     status: 200,
@@ -112,6 +116,7 @@ export class DashboardController {
   }
 
   @Get('overall-value-distribution')
+  @Roles(Role.ADMIN)
   @ApiOperation({
     summary: 'Get order distribution by overall value',
   })
@@ -130,6 +135,7 @@ export class DashboardController {
   }
 
   @Get('car-brand-distribution')
+  @Roles(Role.ADMIN)
   @ApiOperation({
     summary: 'Get order distribution by car brand',
   })
@@ -148,6 +154,7 @@ export class DashboardController {
   }
 
   @Get('production-year-distribution')
+  @Roles(Role.ADMIN)
   @ApiOperation({
     summary: 'Get order distribution by car production year',
   })
@@ -167,6 +174,7 @@ export class DashboardController {
   }
 
   @Get('transmission-type-distribution')
+  @Roles(Role.ADMIN)
   @ApiOperation({
     summary: 'Get order distribution by car transmission type',
   })
@@ -186,6 +194,7 @@ export class DashboardController {
   }
 
   @Get('blockchain-status')
+  @Roles(Role.ADMIN)
   @ApiOperation({
     summary: 'Get order count by blockchain status',
   })
