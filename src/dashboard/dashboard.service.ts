@@ -3,6 +3,10 @@ import {
   GetDashboardStatsDto,
   TimePeriod,
 } from './dto/get-dashboard-stats/get-dashboard-stats.dto';
+import {
+  InspectorPerformanceItemDto,
+  InspectorPerformanceResponseDto,
+} from './dto/inspector-performance-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { InspectionStatus, Prisma } from '@prisma/client'; // Assuming InspectionStatus is a Prisma enum
 
@@ -334,20 +338,82 @@ export class DashboardService {
     return { start: prevStart, end: prevEnd };
   }
 
-  async getInspectorPerformance(query: GetDashboardStatsDto) {
-    const { period, startDate, endDate } = query;
-    const { start, end } = this.getDateRange(
-      period ?? TimePeriod.ALL_TIME, // Changed default to ALL_TIME
-      startDate,
-      endDate,
+  async getInspectorPerformance(): Promise<InspectorPerformanceResponseDto> {
+    // Get date ranges for current month, week, and day based on current date
+    const { start: monthStart, end: monthEnd } = this.getDateRange(
+      TimePeriod.MONTH,
     );
+    const { start: weekStart, end: weekEnd } = this.getDateRange(
+      TimePeriod.WEEK,
+    );
+    const { start: dayStart, end: dayEnd } = this.getDateRange(TimePeriod.DAY);
 
-    // Query untuk kinerja inspektur
-    return [
-      { inspector: 'Budi Santoso', inspections: 80 },
-      { inspector: 'Ani Rahayu', inspections: 75 },
-      { inspector: 'Candra Wijaya', inspections: 60 },
-    ];
+    // Get all inspectors (users with role 'INSPECTOR')
+    const inspectors = await this.prisma.user.findMany({
+      where: {
+        role: 'INSPECTOR',
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
+
+    const performanceData: InspectorPerformanceItemDto[] = [];
+
+    for (const inspector of inspectors) {
+      if (!inspector.name) continue; // Skip if inspector name is null
+
+      // Total inspections for all time
+      const totalInspections = await this.prisma.inspection.count({
+        where: {
+          inspectorId: inspector.id,
+        },
+      });
+
+      // Monthly inspections
+      const monthlyInspections = await this.prisma.inspection.count({
+        where: {
+          inspectorId: inspector.id,
+          createdAt: {
+            gte: monthStart,
+            lte: monthEnd,
+          },
+        },
+      });
+
+      // Weekly inspections
+      const weeklyInspections = await this.prisma.inspection.count({
+        where: {
+          inspectorId: inspector.id,
+          createdAt: {
+            gte: weekStart,
+            lte: weekEnd,
+          },
+        },
+      });
+
+      // Daily inspections
+      const dailyInspections = await this.prisma.inspection.count({
+        where: {
+          inspectorId: inspector.id,
+          createdAt: {
+            gte: dayStart,
+            lte: dayEnd,
+          },
+        },
+      });
+
+      performanceData.push({
+        inspector: inspector.name,
+        totalInspections,
+        monthlyInspections,
+        weeklyInspections,
+        dailyInspections,
+      });
+    }
+
+    return { data: performanceData };
   }
 
   async getOverallValueDistribution() {

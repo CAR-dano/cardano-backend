@@ -108,11 +108,10 @@ export class DashboardController {
   /**
    * Retrieves inspector performance data based on the provided query parameters.
    *
-   * @param query - The query parameters for filtering the performance data (e.g., time period, branch).
    * @returns A promise that resolves to the inspector performance data.
    */
-  async getInspectorPerformance(@Query() query: GetDashboardStatsDto) {
-    return this.dashboardService.getInspectorPerformance(query);
+  async getInspectorPerformance() {
+    return this.dashboardService.getInspectorPerformance();
   }
 
   @Get('overall-value-distribution')
