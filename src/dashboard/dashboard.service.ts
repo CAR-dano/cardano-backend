@@ -7,6 +7,10 @@ import {
   InspectorPerformanceItemDto,
   InspectorPerformanceResponseDto,
 } from './dto/inspector-performance-response.dto';
+import {
+  CarBrandDistributionItemDto,
+  CarBrandDistributionResponseDto,
+} from './dto/car-brand-distribution-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { InspectionStatus, Prisma } from '@prisma/client'; // Assuming InspectionStatus is a Prisma enum
 
@@ -131,13 +135,9 @@ export class DashboardService {
     };
   }
 
-  async getOrderTrend(query: GetDashboardStatsDto) {
-    const { period, startDate, endDate, branch } = query;
-    const { start, end } = this.getDateRange(
-      period ?? TimePeriod.DAY,
-      startDate,
-      endDate,
-    );
+  getOrderTrend(query: GetDashboardStatsDto) {
+    const { period, startDate, endDate } = query;
+    this.getDateRange(period ?? TimePeriod.DAY, startDate, endDate);
 
     // Lakukan query ke database untuk mendapatkan jumlah pesanan per periode waktu
     // Contoh: SELECT DATE_TRUNC(period, createdAt), COUNT(*) FROM inspections WHERE ... GROUP BY ...
@@ -416,7 +416,7 @@ export class DashboardService {
     return { data: performanceData };
   }
 
-  async getOverallValueDistribution() {
+  getOverallValueDistribution() {
     // Query untuk pengelompokan berdasarkan rentang nilai
     return [
       { range: '< 50 Juta', count: 200 },
@@ -425,17 +425,65 @@ export class DashboardService {
     ];
   }
 
-  async getCarBrandDistribution() {
-    // Query untuk distribusi berdasarkan merek mobil
-    return [
-      { brand: 'Toyota', count: 400 },
-      { brand: 'Honda', count: 350 },
-      { brand: 'Mitsubishi', count: 200 },
-      { brand: 'Suzuki', count: 150 },
-    ];
+  async getCarBrandDistribution(
+    query: GetDashboardStatsDto,
+  ): Promise<CarBrandDistributionResponseDto> {
+    const { period, startDate, endDate } = query;
+    const { start, end } = this.getDateRange(
+      period ?? TimePeriod.ALL_TIME,
+      startDate,
+      endDate,
+    );
+
+    const inspections = await this.prisma.inspection.findMany({
+      where: {
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+        vehicleData: {
+          // Ensure vehicleData is not null and contains a 'brand' key
+          // This is a basic check, more robust validation might be needed depending on data consistency
+          not: Prisma.JsonNull,
+        },
+      },
+      select: {
+        vehicleData: true,
+      },
+    });
+
+    const brandCounts = new Map<string, number>();
+
+    for (const inspection of inspections) {
+      if (inspection.vehicleData) {
+        // Assuming vehicleData is a JSON object with a 'brand' property
+        const vehicleData = inspection.vehicleData as Prisma.JsonObject;
+        const brand = vehicleData['merekKendaraan'];
+
+        if (typeof brand === 'string' && brand.trim() !== '') {
+          const normalizedBrand = brand.trim();
+          brandCounts.set(
+            normalizedBrand,
+            (brandCounts.get(normalizedBrand) || 0) + 1,
+          );
+        }
+      }
+    }
+
+    const data: CarBrandDistributionItemDto[] = Array.from(
+      brandCounts.entries(),
+    ).map(([brand, count]) => ({
+      brand,
+      count,
+    }));
+
+    // Sort by count in descending order
+    data.sort((a, b) => b.count - a.count);
+
+    return { data };
   }
 
-  async getProductionYearDistribution() {
+  getProductionYearDistribution() {
     // Query untuk distribusi berdasarkan tahun produksi mobil
     return [
       { year: 2020, count: 250 },
@@ -445,7 +493,7 @@ export class DashboardService {
     ];
   }
 
-  async getTransmissionTypeDistribution() {
+  getTransmissionTypeDistribution() {
     // Query untuk distribusi berdasarkan jenis transmisi mobil
     return [
       { type: 'Manual', count: 600 },
@@ -453,7 +501,7 @@ export class DashboardService {
     ];
   }
 
-  async getBlockchainStatus() {
+  getBlockchainStatus() {
     // Query untuk jumlah pesanan yang sudah diunggah/minted ke blockchain
     return {
       mintedToBlockchain: 800,

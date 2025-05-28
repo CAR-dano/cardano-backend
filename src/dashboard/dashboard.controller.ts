@@ -148,8 +148,8 @@ export class DashboardController {
    *
    * @returns A promise that resolves to the car brand distribution data.
    */
-  async getCarBrandDistribution() {
-    return this.dashboardService.getCarBrandDistribution();
+  async getCarBrandDistribution(@Query() query: GetDashboardStatsDto) {
+    return this.dashboardService.getCarBrandDistribution(query);
   }
 
   @Get('production-year-distribution')
