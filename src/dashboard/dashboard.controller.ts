@@ -31,6 +31,7 @@ import { CarBrandDistributionResponseDto } from './dto/car-brand-distribution-re
 import { ProductionYearDistributionResponseDto } from './dto/production-year-distribution-response.dto';
 import { TransmissionTypeDistributionResponseDto } from './dto/transmission-type-distribution-response.dto';
 import { BlockchainStatusResponseDto } from './dto/blockchain-status-response.dto';
+import { InspectionStatsResponseDto } from './dto/inspection-stats-response.dto';
 import { Role } from '@prisma/client';
 // Import other DTOs as needed
 
@@ -209,5 +210,25 @@ export class DashboardController {
    */
   getBlockchainStatus() {
     return this.dashboardService.getBlockchainStatus();
+  }
+
+  @Get('inspection-review-stats')
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiOperation({
+    summary: 'Get inspection statistics by status and time period',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Inspection statistics successfully retrieved.',
+    type: InspectionStatsResponseDto,
+  })
+  /**
+   * Retrieves inspection statistics (total, approved, need review, percentage reviewed)
+   * for different time periods (all time, month, week, day).
+   *
+   * @returns A promise that resolves to the inspection statistics data.
+   */
+  async getInspectionStats() {
+    return this.dashboardService.getInspectionReviewStats();
   }
 }

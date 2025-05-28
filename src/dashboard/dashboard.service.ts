@@ -15,6 +15,10 @@ import {
   TransmissionTypeDistributionItemDto,
   TransmissionTypeDistributionResponseDto,
 } from './dto/transmission-type-distribution-response.dto';
+import {
+  InspectionStatsPeriodData,
+  InspectionStatsResponseDto,
+} from './dto/inspection-stats-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { InspectionStatus, Prisma } from '@prisma/client'; // Assuming InspectionStatus is a Prisma enum
 
@@ -82,6 +86,87 @@ export class DashboardService {
       }
     }
     return { start, end };
+  }
+
+  private calculatePercentage(approved: number, total: number): string {
+    if (total === 0) {
+      return '0.00%';
+    }
+    const percentage = (approved / total) * 100;
+    return percentage.toFixed(2) + '%';
+  }
+
+  private async getInspectionReviewStatsForPeriod(
+    start?: Date,
+    end?: Date,
+  ): Promise<InspectionStatsPeriodData> {
+    const whereClause: Prisma.InspectionWhereInput = {
+      createdAt: {
+        gte: start,
+        lte: end,
+      },
+    };
+
+    const total = await this.prisma.inspection.count({
+      where: whereClause,
+    });
+
+    const approved = await this.prisma.inspection.count({
+      where: { ...whereClause, status: InspectionStatus.APPROVED },
+    });
+
+    const needReview = await this.prisma.inspection.count({
+      where: { ...whereClause, status: InspectionStatus.NEED_REVIEW },
+    });
+
+    const percentageReviewed = this.calculatePercentage(approved, total);
+
+    return {
+      total,
+      approved,
+      needReview,
+      percentageReviewed,
+    };
+  }
+
+  async getInspectionReviewStats(): Promise<InspectionStatsResponseDto> {
+    // All Time
+    const allTimeStats = await this.getInspectionReviewStatsForPeriod(
+      undefined,
+      undefined,
+    );
+
+    // This Month
+    const { start: monthStart, end: monthEnd } = this.getDateRange(
+      TimePeriod.MONTH,
+    );
+    const thisMonthStats = await this.getInspectionReviewStatsForPeriod(
+      monthStart,
+      monthEnd,
+    );
+
+    // This Week
+    const { start: weekStart, end: weekEnd } = this.getDateRange(
+      TimePeriod.WEEK,
+    );
+    const thisWeekStats = await this.getInspectionReviewStatsForPeriod(
+      weekStart,
+      weekEnd,
+    );
+
+    // Today
+    const { start: dayStart, end: dayEnd } = this.getDateRange(TimePeriod.DAY);
+    const todayStats = await this.getInspectionReviewStatsForPeriod(
+      dayStart,
+      dayEnd,
+    );
+
+    return {
+      allTime: allTimeStats,
+      thisMonth: thisMonthStats,
+      thisWeek: thisWeekStats,
+      today: todayStats,
+    };
   }
 
   async getMainOrderStatistics(query: GetDashboardStatsDto) {
