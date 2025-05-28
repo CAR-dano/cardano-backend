@@ -10,7 +10,7 @@
  * --------------------------------------------------------------------------
  */
 
-import { Controller, Get, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, UseGuards, Query, Body } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiTags,
@@ -22,6 +22,8 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { DashboardService } from './dashboard.service';
 import { GetDashboardStatsDto } from './dto/get-dashboard-stats/get-dashboard-stats.dto';
+import { SetInspectionTargetDto } from './dto/set-inspection-target.dto';
+import { InspectionTargetStatsResponseDto } from './dto/inspection-target-stats.dto';
 import { MainStatsResponseDto } from './dto/main-stats-response.dto';
 import { OrderTrendResponseDto } from './dto/order-trend-response.dto';
 import { BranchDistributionResponseDto } from './dto/branch-distribution-response.dto';
@@ -33,6 +35,7 @@ import { TransmissionTypeDistributionResponseDto } from './dto/transmission-type
 import { BlockchainStatusResponseDto } from './dto/blockchain-status-response.dto';
 import { InspectionStatsResponseDto } from './dto/inspection-stats-response.dto';
 import { Role } from '@prisma/client';
+import { InspectionTargetDto } from './dto/inspection-target.dto';
 // Import other DTOs as needed
 
 @ApiTags('Dashboard Admin') // For Swagger
@@ -41,6 +44,30 @@ import { Role } from '@prisma/client';
 @UseGuards(JwtAuthGuard, RolesGuard) // Ensure JWTAuthGuard runs first
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
+
+  @Post('target')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Set inspection target for a period' })
+  @ApiResponse({
+    status: 200,
+    description: 'Inspection target successfully set.',
+    type: InspectionTargetDto,
+  })
+  async setInspectionTarget(@Body() dto: SetInspectionTargetDto) {
+    return this.dashboardService.setInspectionTarget(dto);
+  }
+
+  @Get('target-stats')
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiOperation({ summary: 'Get inspection target statistics' })
+  @ApiResponse({
+    status: 200,
+    description: 'Inspection target statistics successfully retrieved.',
+    type: InspectionTargetStatsResponseDto,
+  })
+  async getInspectionTargetStats() {
+    return this.dashboardService.getInspectionTargetStats();
+  }
 
   @Get('main-stats')
   @Roles(Role.ADMIN, Role.REVIEWER)

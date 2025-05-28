@@ -223,3 +223,22 @@ model BlacklistedToken {
 
   @@map("blacklisted_tokens")
 }
+
+enum TargetPeriod {
+  YEAR
+  MONTH
+  WEEK
+  DAY
+}
+
+model InspectionTarget {
+  id          String     @id @default(uuid())
+  targetValue Int
+  period      TargetPeriod // Enum for YEAR, MONTH, WEEK, DAY
+  targetDate  DateTime   @db.Date // Stores only the date part (YYYY-MM-DD)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([period, targetDate]) // Ensure only one target per period per day/week/month
+  @@map("inspection_targets")
+}

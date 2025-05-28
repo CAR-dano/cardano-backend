@@ -3,6 +3,11 @@ import {
   GetDashboardStatsDto,
   TimePeriod,
 } from './dto/get-dashboard-stats/get-dashboard-stats.dto';
+import { SetInspectionTargetDto } from './dto/set-inspection-target.dto';
+import {
+  InspectionTargetStatsItemDto,
+  InspectionTargetStatsResponseDto,
+} from './dto/inspection-target-stats.dto';
 import {
   InspectorPerformanceItemDto,
   InspectorPerformanceResponseDto,
@@ -20,7 +25,12 @@ import {
   InspectionStatsResponseDto,
 } from './dto/inspection-stats-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
-import { InspectionStatus, Prisma } from '@prisma/client'; // Assuming InspectionStatus is a Prisma enum
+import {
+  InspectionStatus,
+  Prisma,
+  TargetPeriod,
+  InspectionTarget,
+} from '@prisma/client';
 
 export interface BranchDistributionItem {
   branch: string;
@@ -41,7 +51,7 @@ export class DashboardService {
 
   // Helper untuk mendapatkan rentang tanggal berdasarkan periode
   private getDateRange(
-    period: TimePeriod,
+    period: TimePeriod | TargetPeriod, // Allow both TimePeriod and TargetPeriod
     startDate?: string,
     endDate?: string,
   ): { start?: Date; end?: Date } {
@@ -59,19 +69,43 @@ export class DashboardService {
           end = undefined; // No end date for all time
           break;
         case TimePeriod.YEAR:
+        case TargetPeriod.YEAR: // Add TargetPeriod.YEAR here
           start = new Date(now.getFullYear(), 0, 1);
-          end = new Date(now.getFullYear(), 11, 31);
+          end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
           break;
         case TimePeriod.MONTH:
+        case TargetPeriod.MONTH:
           start = new Date(now.getFullYear(), now.getMonth(), 1);
-          end = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of month
+          end = new Date(
+            now.getFullYear(),
+            now.getMonth() + 1,
+            0,
+            23,
+            59,
+            59,
+            999,
+          ); // Last day of month
           break;
         case TimePeriod.WEEK:
+        case TargetPeriod.WEEK:
           // Adjust to Sunday of the current week (or Monday depending on locale)
-          start = new Date(now.setDate(now.getDate() - now.getDay()));
-          end = new Date(now.setDate(now.getDate() + 6));
+          start = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate() - now.getDay(),
+          );
+          end = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate() - now.getDay() + 6,
+            23,
+            59,
+            59,
+            999,
+          );
           break;
         case TimePeriod.DAY:
+        case TargetPeriod.DAY:
         default:
           start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
           end = new Date(
@@ -81,6 +115,7 @@ export class DashboardService {
             23,
             59,
             59,
+            999,
           );
           break;
       }
@@ -88,11 +123,11 @@ export class DashboardService {
     return { start, end };
   }
 
-  private calculatePercentage(approved: number, total: number): string {
-    if (total === 0) {
+  private calculatePercentage(current: number, target: number): string {
+    if (target === 0) {
       return '0.00%';
     }
-    const percentage = (approved / total) * 100;
+    const percentage = (current / target) * 100;
     return percentage.toFixed(2) + '%';
   }
 
@@ -127,6 +162,165 @@ export class DashboardService {
       needReview,
       percentageReviewed,
     };
+  }
+
+  async setInspectionTarget(
+    dto: SetInspectionTargetDto,
+  ): Promise<InspectionTarget> {
+    const { period, targetValue } = dto;
+    const { start: targetDate } = this.getDateRange(period); // Get the start of the period as targetDate
+
+    if (!targetDate) {
+      throw new Error('Could not determine target date for the given period.');
+    }
+
+    // Ensure targetDate only contains date part for comparison with @db.Date
+    targetDate.setHours(0, 0, 0, 0);
+
+    return this.prisma.inspectionTarget.upsert({
+      where: {
+        period_targetDate: {
+          period: period,
+          targetDate: targetDate,
+        },
+      },
+      update: {
+        targetValue: targetValue,
+      },
+      create: {
+        period: period,
+        targetValue: targetValue,
+        targetDate: targetDate,
+      },
+    });
+  }
+
+  async getInspectionTargetStats(): Promise<InspectionTargetStatsResponseDto> {
+    const response: InspectionTargetStatsResponseDto = {};
+
+    // All Time Stats
+    const allTimeInspections = await this.prisma.inspection.count();
+    response.allTime = {
+      totalInspections: allTimeInspections,
+      targetInspections: 0, // No target for all time
+      percentageMet: this.calculatePercentage(allTimeInspections, 0), // Will be 0%
+    };
+
+    // This Year Stats
+    const { start: yearStart, end: yearEnd } = this.getDateRange(
+      TimePeriod.YEAR,
+    );
+    const thisYearInspections = await this.prisma.inspection.count({
+      where: {
+        createdAt: {
+          gte: yearStart,
+          lte: yearEnd,
+        },
+      },
+    });
+    const thisYearTarget = await this.prisma.inspectionTarget.findUnique({
+      where: {
+        period_targetDate: {
+          period: TargetPeriod.YEAR,
+          targetDate: yearStart!, // Use the start of the year as the targetDate
+        },
+      },
+    });
+    response.thisYear = {
+      totalInspections: thisYearInspections,
+      targetInspections: thisYearTarget?.targetValue || 0,
+      percentageMet: this.calculatePercentage(
+        thisYearInspections,
+        thisYearTarget?.targetValue || 0,
+      ),
+    };
+
+    // This Month Stats
+    const { start: monthStart, end: monthEnd } = this.getDateRange(
+      TimePeriod.MONTH,
+    );
+    const thisMonthInspections = await this.prisma.inspection.count({
+      where: {
+        createdAt: {
+          gte: monthStart,
+          lte: monthEnd,
+        },
+      },
+    });
+    const thisMonthTarget = await this.prisma.inspectionTarget.findUnique({
+      where: {
+        period_targetDate: {
+          period: TargetPeriod.MONTH,
+          targetDate: monthStart!, // Use the start of the month as the targetDate
+        },
+      },
+    });
+    response.thisMonth = {
+      totalInspections: thisMonthInspections,
+      targetInspections: thisMonthTarget?.targetValue || 0,
+      percentageMet: this.calculatePercentage(
+        thisMonthInspections,
+        thisMonthTarget?.targetValue || 0,
+      ),
+    };
+
+    // This Week Stats
+    const { start: weekStart, end: weekEnd } = this.getDateRange(
+      TimePeriod.WEEK,
+    );
+    const thisWeekInspections = await this.prisma.inspection.count({
+      where: {
+        createdAt: {
+          gte: weekStart,
+          lte: weekEnd,
+        },
+      },
+    });
+    const thisWeekTarget = await this.prisma.inspectionTarget.findUnique({
+      where: {
+        period_targetDate: {
+          period: TargetPeriod.WEEK,
+          targetDate: weekStart!, // Use the start of the week as the targetDate
+        },
+      },
+    });
+    response.thisWeek = {
+      totalInspections: thisWeekInspections,
+      targetInspections: thisWeekTarget?.targetValue || 0,
+      percentageMet: this.calculatePercentage(
+        thisWeekInspections,
+        thisWeekTarget?.targetValue || 0,
+      ),
+    };
+
+    // Today Stats
+    const { start: dayStart, end: dayEnd } = this.getDateRange(TimePeriod.DAY);
+    const todayInspections = await this.prisma.inspection.count({
+      where: {
+        createdAt: {
+          gte: dayStart,
+          lte: dayEnd,
+        },
+      },
+    });
+    const todayTarget = await this.prisma.inspectionTarget.findUnique({
+      where: {
+        period_targetDate: {
+          period: TargetPeriod.DAY,
+          targetDate: dayStart!, // Use the start of the day as the targetDate
+        },
+      },
+    });
+    response.today = {
+      totalInspections: todayInspections,
+      targetInspections: todayTarget?.targetValue || 0,
+      percentageMet: this.calculatePercentage(
+        todayInspections,
+        todayTarget?.targetValue || 0,
+      ),
+    };
+
+    return response;
   }
 
   async getInspectionReviewStats(): Promise<InspectionStatsResponseDto> {
