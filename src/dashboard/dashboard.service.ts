@@ -11,6 +11,10 @@ import {
   CarBrandDistributionItemDto,
   CarBrandDistributionResponseDto,
 } from './dto/car-brand-distribution-response.dto';
+import {
+  TransmissionTypeDistributionItemDto,
+  TransmissionTypeDistributionResponseDto,
+} from './dto/transmission-type-distribution-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { InspectionStatus, Prisma } from '@prisma/client'; // Assuming InspectionStatus is a Prisma enum
 
@@ -533,12 +537,62 @@ export class DashboardService {
     return { data };
   }
 
-  getTransmissionTypeDistribution() {
-    // Query untuk distribusi berdasarkan jenis transmisi mobil
-    return [
-      { type: 'Manual', count: 600 },
-      { type: 'Otomatis', count: 900 },
-    ];
+  async getTransmissionTypeDistribution(
+    query: GetDashboardStatsDto,
+  ): Promise<TransmissionTypeDistributionResponseDto> {
+    const { period, startDate, endDate } = query;
+    const { start, end } = this.getDateRange(
+      period ?? TimePeriod.ALL_TIME,
+      startDate,
+      endDate,
+    );
+
+    const inspections = await this.prisma.inspection.findMany({
+      where: {
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+        vehicleData: {
+          not: Prisma.JsonNull,
+        },
+      },
+      select: {
+        vehicleData: true,
+      },
+    });
+
+    const transmissionCounts = new Map<string, number>();
+
+    for (const inspection of inspections) {
+      if (inspection.vehicleData) {
+        const vehicleData = inspection.vehicleData as Prisma.JsonObject;
+        const transmissionType = vehicleData['transmisi']; // Assuming 'transmisi' is the key for transmission type
+
+        if (
+          typeof transmissionType === 'string' &&
+          transmissionType.trim() !== ''
+        ) {
+          const normalizedTransmissionType = transmissionType.trim();
+          transmissionCounts.set(
+            normalizedTransmissionType,
+            (transmissionCounts.get(normalizedTransmissionType) || 0) + 1,
+          );
+        }
+      }
+    }
+
+    const data: TransmissionTypeDistributionItemDto[] = Array.from(
+      transmissionCounts.entries(),
+    ).map(([type, count]) => ({
+      type,
+      count,
+    }));
+
+    // Sort by count in descending order
+    data.sort((a, b) => b.count - a.count);
+
+    return { data };
   }
 
   getBlockchainStatus() {

@@ -188,8 +188,8 @@ export class DashboardController {
    *
    * @returns A promise that resolves to the transmission type distribution data.
    */
-  getTransmissionTypeDistribution() {
-    return this.dashboardService.getTransmissionTypeDistribution();
+  async getTransmissionTypeDistribution(@Query() query: GetDashboardStatsDto) {
+    return this.dashboardService.getTransmissionTypeDistribution(query);
   }
 
   @Get('blockchain-status')

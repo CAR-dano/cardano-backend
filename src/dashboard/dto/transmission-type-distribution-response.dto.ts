@@ -1,39 +1,23 @@
-/*
- * --------------------------------------------------------------------------
- * File: transmission-type-distribution-response.dto.ts
- * Project: car-dano-backend
- * Copyright © 2025 PT. Inspeksi Mobil Jogja
- * --------------------------------------------------------------------------
- * Description: Data Transfer Object for the transmission type distribution response.
- * --------------------------------------------------------------------------
- */
 import { ApiProperty } from '@nestjs/swagger';
 
 export class TransmissionTypeDistributionItemDto {
-  @ApiProperty({ description: 'Car transmission type', example: 'Automatic' })
+  @ApiProperty({
+    description: 'Type of transmission (e.g., Manual, Otomatis)',
+    example: 'Manual',
+  })
   type: string;
 
   @ApiProperty({
-    description: 'Number of orders for the transmission type',
-    example: 400,
+    description: 'Number of inspections for this transmission type',
+    example: 600,
   })
   count: number;
 }
 
 export class TransmissionTypeDistributionResponseDto {
   @ApiProperty({
+    description: 'List of transmission type distribution items',
     type: [TransmissionTypeDistributionItemDto],
-    description: 'Distribution of orders by car transmission type',
-    example: [
-      {
-        type: 'Automatic',
-        count: 400,
-      },
-      {
-        type: 'Manual',
-        count: 200,
-      },
-    ],
   })
   data: TransmissionTypeDistributionItemDto[];
 }
