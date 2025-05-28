@@ -483,14 +483,54 @@ export class DashboardService {
     return { data };
   }
 
-  getProductionYearDistribution() {
-    // Query untuk distribusi berdasarkan tahun produksi mobil
-    return [
-      { year: 2020, count: 250 },
-      { year: 2021, count: 300 },
-      { year: 2022, count: 400 },
-      { year: 2023, count: 350 },
-    ];
+  async getProductionYearDistribution(query: GetDashboardStatsDto) {
+    const { period, startDate, endDate } = query;
+    const { start, end } = this.getDateRange(
+      period ?? TimePeriod.ALL_TIME,
+      startDate,
+      endDate,
+    );
+
+    const inspections = await this.prisma.inspection.findMany({
+      where: {
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+        vehicleData: {
+          not: Prisma.JsonNull,
+        },
+      },
+      select: {
+        vehicleData: true,
+      },
+    });
+
+    const yearCounts = new Map<number, number>();
+
+    for (const inspection of inspections) {
+      if (inspection.vehicleData) {
+        const vehicleData = inspection.vehicleData as Prisma.JsonObject;
+        const productionYear = vehicleData['tahun'];
+
+        if (typeof productionYear === 'number') {
+          yearCounts.set(
+            productionYear,
+            (yearCounts.get(productionYear) || 0) + 1,
+          );
+        }
+      }
+    }
+
+    const data = Array.from(yearCounts.entries()).map(([year, count]) => ({
+      year,
+      count,
+    }));
+
+    // Sort by year in ascending order
+    data.sort((a, b) => a.year - b.year);
+
+    return { data };
   }
 
   getTransmissionTypeDistribution() {

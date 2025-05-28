@@ -73,7 +73,7 @@ export class DashboardController {
    * @param query - The query parameters for filtering the trend data (e.g., time period, branch).
    * @returns A promise that resolves to the order trend data.
    */
-  async getOrderTrend(@Query() query: GetDashboardStatsDto) {
+  getOrderTrend(@Query() query: GetDashboardStatsDto) {
     return this.dashboardService.getOrderTrend(query);
   }
 
@@ -129,7 +129,7 @@ export class DashboardController {
    *
    * @returns A promise that resolves to the overall value distribution data.
    */
-  async getOverallValueDistribution() {
+  getOverallValueDistribution() {
     return this.dashboardService.getOverallValueDistribution();
   }
 
@@ -168,8 +168,8 @@ export class DashboardController {
    *
    * @returns A promise that resolves to the production year distribution data.
    */
-  async getProductionYearDistribution() {
-    return this.dashboardService.getProductionYearDistribution();
+  async getProductionYearDistribution(@Query() query: GetDashboardStatsDto) {
+    return this.dashboardService.getProductionYearDistribution(query);
   }
 
   @Get('transmission-type-distribution')
@@ -188,7 +188,7 @@ export class DashboardController {
    *
    * @returns A promise that resolves to the transmission type distribution data.
    */
-  async getTransmissionTypeDistribution() {
+  getTransmissionTypeDistribution() {
     return this.dashboardService.getTransmissionTypeDistribution();
   }
 
@@ -207,7 +207,7 @@ export class DashboardController {
    *
    * @returns A promise that resolves to the blockchain status data.
    */
-  async getBlockchainStatus() {
+  getBlockchainStatus() {
     return this.dashboardService.getBlockchainStatus();
   }
 }
