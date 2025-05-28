@@ -595,12 +595,25 @@ export class DashboardService {
     return { data };
   }
 
-  getBlockchainStatus() {
-    // Query untuk jumlah pesanan yang sudah diunggah/minted ke blockchain
+  async getBlockchainStatus() {
+    const pendingMint = await this.prisma.inspection.count({
+      where: { status: InspectionStatus.ARCHIVING },
+    });
+
+    const mintedToBlockchain = await this.prisma.inspection.count({
+      where: { status: InspectionStatus.ARCHIVED },
+    });
+
+    const failedMint = await this.prisma.inspection.count({
+      where: { status: InspectionStatus.FAIL_ARCHIVE },
+    });
+
     return {
-      mintedToBlockchain: 800,
-      pendingMint: 50,
-      failedMint: 10,
+      data: {
+        mintedToBlockchain,
+        pendingMint,
+        failedMint,
+      },
     };
   }
 }
