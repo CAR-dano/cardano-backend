@@ -34,8 +34,11 @@ import {
   Res,
   UseGuards,
   ParseArrayPipe, // Added ParseArrayPipe
+  Header, // Added for CSV export
+  InternalServerErrorException, // Added for error handling
 } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
+import { CsvExportService } from '../export/csv-export.service'; // Import CsvExportService
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
 import { UpdateInspectionDto } from './dto/update-inspection.dto';
@@ -133,6 +136,7 @@ export class InspectionsController {
   constructor(
     private readonly inspectionsService: InspectionsService,
     private readonly photosService: PhotosService,
+    private readonly csvExportService: CsvExportService, // Inject CsvExportService
   ) {}
 
   /**
@@ -1070,12 +1074,21 @@ export class InspectionsController {
     status: HttpStatus.FORBIDDEN,
     description: 'User does not have the required permissions.',
   })
+  @Header('Content-Type', 'text/csv') // Set content type header using decorator
   async exportCsv(@Res() res: Response): Promise<void> {
-    // This will be implemented in the service
-    const { filename, csvData } =
-      await this.inspectionsService.exportInspectionsToCsv();
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
-    res.send(csvData);
+    try {
+      const { filename, csvData } =
+        await this.csvExportService.exportInspectionsToCsv(); // Use CsvExportService
+      res.header('Content-Disposition', `attachment; filename=${filename}`);
+      res.send(csvData);
+    } catch (error) {
+      this.logger.error(`Failed to export inspections to CSV: ${error.message}`, error.stack);
+      // Optionally, check error type to provide more specific feedback
+      if (error instanceof InternalServerErrorException) {
+        throw error;
+      }
+      // Fallback error
+      throw new InternalServerErrorException('Could not export inspection data to CSV.');
+    }
   }
 } // End Controller
