@@ -10,7 +10,16 @@
  * --------------------------------------------------------------------------
  */
 
-import { Controller, Get, Post, UseGuards, Query, Body } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  UseGuards,
+  Query,
+  Body,
+  UsePipes,
+  ValidationPipe,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiTags,
@@ -26,13 +35,9 @@ import { SetInspectionTargetDto } from './dto/set-inspection-target.dto';
 import { InspectionTargetStatsResponseDto } from './dto/inspection-target-stats.dto';
 import { MainStatsResponseDto } from './dto/main-stats-response.dto';
 import { OrderTrendResponseDto } from './dto/order-trend-response.dto';
+import { GetOrderTrendDto } from './dto/get-order-trend/get-order-trend.dto';
 import { BranchDistributionResponseDto } from './dto/branch-distribution-response.dto';
 import { InspectorPerformanceResponseDto } from './dto/inspector-performance-response.dto';
-import { OverallValueDistributionResponseDto } from './dto/overall-value-distribution-response.dto';
-import { CarBrandDistributionResponseDto } from './dto/car-brand-distribution-response.dto';
-import { ProductionYearDistributionResponseDto } from './dto/production-year-distribution-response.dto';
-import { TransmissionTypeDistributionResponseDto } from './dto/transmission-type-distribution-response.dto';
-import { BlockchainStatusResponseDto } from './dto/blockchain-status-response.dto';
 import { InspectionStatsResponseDto } from './dto/inspection-stats-response.dto';
 import { Role } from '@prisma/client';
 import { InspectionTargetDto } from './dto/inspection-target.dto';
@@ -101,7 +106,14 @@ export class DashboardController {
    * @param query - The query parameters for filtering the trend data (e.g., time period, branch).
    * @returns A promise that resolves to the order trend data.
    */
-  getOrderTrend(@Query() query: GetDashboardStatsDto) {
+  @UsePipes(new ValidationPipe({ transform: true })) // Explicitly apply ValidationPipe with transform
+  /**
+   * Retrieves order trend data based on the provided query parameters.
+   *
+   * @param query - The query parameters for filtering the trend data (e.g., time period, branch).
+   * @returns A promise that resolves to the order trend data.
+   */
+  getOrderTrend(@Query() query: GetOrderTrendDto) {
     return this.dashboardService.getOrderTrend(query);
   }
 
@@ -140,103 +152,6 @@ export class DashboardController {
    */
   async getInspectorPerformance() {
     return this.dashboardService.getInspectorPerformance();
-  }
-
-  @Get('overall-value-distribution')
-  @Roles(Role.ADMIN)
-  @ApiOperation({
-    summary: 'Get order distribution by overall value',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Order distribution by overall value successfully retrieved.',
-    type: OverallValueDistributionResponseDto,
-  })
-  /**
-   * Retrieves order distribution data by overall value.
-   *
-   * @returns A promise that resolves to the overall value distribution data.
-   */
-  getOverallValueDistribution() {
-    return this.dashboardService.getOverallValueDistribution();
-  }
-
-  @Get('car-brand-distribution')
-  @Roles(Role.ADMIN)
-  @ApiOperation({
-    summary: 'Get order distribution by car brand',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Order distribution by car brand successfully retrieved.',
-    type: CarBrandDistributionResponseDto,
-  })
-  /**
-   * Retrieves order distribution data by car brand.
-   *
-   * @returns A promise that resolves to the car brand distribution data.
-   */
-  async getCarBrandDistribution(@Query() query: GetDashboardStatsDto) {
-    return this.dashboardService.getCarBrandDistribution(query);
-  }
-
-  @Get('production-year-distribution')
-  @Roles(Role.ADMIN)
-  @ApiOperation({
-    summary: 'Get order distribution by car production year',
-  })
-  @ApiResponse({
-    status: 200,
-    description:
-      'Order distribution by car production year successfully retrieved.',
-    type: ProductionYearDistributionResponseDto,
-  })
-  /**
-   * Retrieves order distribution data by car production year.
-   *
-   * @returns A promise that resolves to the production year distribution data.
-   */
-  async getProductionYearDistribution(@Query() query: GetDashboardStatsDto) {
-    return this.dashboardService.getProductionYearDistribution(query);
-  }
-
-  @Get('transmission-type-distribution')
-  @Roles(Role.ADMIN)
-  @ApiOperation({
-    summary: 'Get order distribution by car transmission type',
-  })
-  @ApiResponse({
-    status: 200,
-    description:
-      'Order distribution by car transmission type successfully retrieved.',
-    type: TransmissionTypeDistributionResponseDto,
-  })
-  /**
-   * Retrieves order distribution data by car transmission type.
-   *
-   * @returns A promise that resolves to the transmission type distribution data.
-   */
-  async getTransmissionTypeDistribution(@Query() query: GetDashboardStatsDto) {
-    return this.dashboardService.getTransmissionTypeDistribution(query);
-  }
-
-  @Get('blockchain-status')
-  @Roles(Role.ADMIN)
-  @ApiOperation({
-    summary: 'Get order count by blockchain status',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Order count by blockchain status successfully retrieved.',
-    type: BlockchainStatusResponseDto,
-  })
-  /**
-   * Retrieves the count of orders based on their blockchain status.
-   *
-   * @returns A promise that resolves to the blockchain status data.
-   */
-  getBlockchainStatus() {
-    return this.dashboardService.getBlockchainStatus();
   }
 
   @Get('inspection-review-stats')

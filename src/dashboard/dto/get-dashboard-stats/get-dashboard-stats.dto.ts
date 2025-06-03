@@ -7,8 +7,17 @@
  * Description: Data Transfer Object for requesting dashboard statistics with optional filters.
  * --------------------------------------------------------------------------
  */
-import { IsOptional, IsEnum, IsString, IsDateString } from 'class-validator';
+import {
+  IsOptional,
+  IsEnum,
+  IsString,
+  IsDateString,
+  IsNumber,
+  Min,
+  Max,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export enum TimePeriod {
   YEAR = 'year',
@@ -55,4 +64,26 @@ export class GetDashboardStatsDto {
   @IsOptional()
   @IsString()
   branch?: string; // For filtering by specific branch
+
+  @ApiProperty({
+    description: 'Year for the statistics (e.g., 2023)',
+    example: 2023,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  year?: number;
+
+  @ApiProperty({
+    description: 'Month for the statistics (1-12, e.g., 1 for January)',
+    example: 1,
+    required: false,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(12)
+  @Type(() => Number)
+  month?: number;
 }
