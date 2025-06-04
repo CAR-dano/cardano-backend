@@ -4,22 +4,13 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Controller for handling dashboard-related requests.
+ * Description: NestJS controller responsible for handling dashboard-related requests.
  * Provides endpoints for retrieving various dashboard statistics and data.
- * Requires JWT authentication and ADMIN role for access.
+ * Requires JWT authentication and ADMIN/REVIEWER roles for access to different endpoints.
  * --------------------------------------------------------------------------
  */
 
-import {
-  Controller,
-  Get,
-  Post,
-  UseGuards,
-  Query,
-  Body,
-  UsePipes,
-  ValidationPipe,
-} from '@nestjs/common';
+import { Controller, Get, Post, UseGuards, Query, Body } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiTags,
@@ -50,6 +41,13 @@ import { InspectionTargetDto } from './dto/inspection-target.dto';
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
+  /**
+   * Sets the inspection target for a specific period.
+   * Requires ADMIN role.
+   *
+   * @param dto - The data transfer object containing the inspection target details.
+   * @returns A promise that resolves to the created inspection target.
+   */
   @Post('target')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Set inspection target for a period' })
@@ -62,6 +60,12 @@ export class DashboardController {
     return this.dashboardService.setInspectionTarget(dto);
   }
 
+  /**
+   * Retrieves inspection target statistics.
+   * Requires ADMIN or REVIEWER role.
+   *
+   * @returns A promise that resolves to the inspection target statistics data.
+   */
   @Get('target-stats')
   @Roles(Role.ADMIN, Role.REVIEWER)
   @ApiOperation({ summary: 'Get inspection target statistics' })
@@ -74,6 +78,13 @@ export class DashboardController {
     return this.dashboardService.getInspectionTargetStats();
   }
 
+  /**
+   * Retrieves main order statistics based on the provided query parameters.
+   * Requires ADMIN or REVIEWER role.
+   *
+   * @param query - The query parameters for filtering statistics (e.g., time period, branch).
+   * @returns A promise that resolves to the main statistics data.
+   */
   @Get('main-stats')
   @Roles(Role.ADMIN, Role.REVIEWER)
   @ApiOperation({ summary: 'Get main order statistics' })
@@ -82,16 +93,17 @@ export class DashboardController {
     description: 'Main order statistics successfully retrieved.',
     type: MainStatsResponseDto,
   })
-  /**
-   * Retrieves main order statistics based on the provided query parameters.
-   *
-   * @param query - The query parameters for filtering statistics (e.g., time period, branch).
-   * @returns A promise that resolves to the main statistics data.
-   */
   async getMainStats(@Query() query: GetDashboardStatsDto) {
     return this.dashboardService.getMainOrderStatistics(query);
   }
 
+  /**
+   * Retrieves order trend data based on the provided query parameters.
+   * Requires ADMIN role.
+   *
+   * @param query - The query parameters for filtering the trend data (e.g., time period, branch).
+   * @returns A promise that resolves to the order trend data.
+   */
   @Get('order-trend')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Get order trend data' })
@@ -100,23 +112,17 @@ export class DashboardController {
     description: 'Order trend data successfully retrieved.',
     type: OrderTrendResponseDto,
   })
-  /**
-   * Retrieves order trend data based on the provided query parameters.
-   *
-   * @param query - The query parameters for filtering the trend data (e.g., time period, branch).
-   * @returns A promise that resolves to the order trend data.
-   */
-  @UsePipes(new ValidationPipe({ transform: true })) // Explicitly apply ValidationPipe with transform
-  /**
-   * Retrieves order trend data based on the provided query parameters.
-   *
-   * @param query - The query parameters for filtering the trend data (e.g., time period, branch).
-   * @returns A promise that resolves to the order trend data.
-   */
   getOrderTrend(@Query() query: GetOrderTrendDto) {
     return this.dashboardService.getOrderTrend(query);
   }
 
+  /**
+   * Retrieves order distribution data by branch based on the provided query parameters.
+   * Requires ADMIN role.
+   *
+   * @param query - The query parameters for filtering the distribution data (e.g., time period, branch).
+   * @returns A promise that resolves to the branch distribution data.
+   */
   @Get('branch-distribution')
   @Roles(Role.ADMIN)
   @ApiOperation({
@@ -127,16 +133,16 @@ export class DashboardController {
     description: 'Order distribution by branch successfully retrieved.',
     type: BranchDistributionResponseDto,
   })
-  /**
-   * Retrieves order distribution data by branch based on the provided query parameters.
-   *
-   * @param query - The query parameters for filtering the distribution data (e.g., time period, branch).
-   * @returns A promise that resolves to the branch distribution data.
-   */
   async getBranchDistribution(@Query() query: GetDashboardStatsDto) {
     return this.dashboardService.getBranchDistribution(query);
   }
 
+  /**
+   * Retrieves inspector performance data.
+   * Requires ADMIN role.
+   *
+   * @returns A promise that resolves to the inspector performance data.
+   */
   @Get('inspector-performance')
   @Roles(Role.ADMIN)
   @ApiOperation({ summary: 'Get inspector performance' })
@@ -145,15 +151,17 @@ export class DashboardController {
     description: 'Inspector performance successfully retrieved.',
     type: InspectorPerformanceResponseDto,
   })
-  /**
-   * Retrieves inspector performance data based on the provided query parameters.
-   *
-   * @returns A promise that resolves to the inspector performance data.
-   */
   async getInspectorPerformance() {
     return this.dashboardService.getInspectorPerformance();
   }
 
+  /**
+   * Retrieves inspection statistics (total, approved, need review, percentage reviewed)
+   * for different time periods (all time, month, week, day).
+   * Requires ADMIN or REVIEWER role.
+   *
+   * @returns A promise that resolves to the inspection statistics data.
+   */
   @Get('inspection-review-stats')
   @Roles(Role.ADMIN, Role.REVIEWER)
   @ApiOperation({
@@ -164,12 +172,6 @@ export class DashboardController {
     description: 'Inspection statistics successfully retrieved.',
     type: InspectionStatsResponseDto,
   })
-  /**
-   * Retrieves inspection statistics (total, approved, need review, percentage reviewed)
-   * for different time periods (all time, month, week, day).
-   *
-   * @returns A promise that resolves to the inspection statistics data.
-   */
   async getInspectionStats() {
     return this.dashboardService.getInspectionReviewStats();
   }

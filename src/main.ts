@@ -84,6 +84,7 @@ async function bootstrap() {
     .addTag('Public API', 'Endpoints for public access')
     .addTag('Scalar Docs', 'Endpoints for Scalar documentation')
     .addTag('Users', 'User management operations')
+    .addTag('Dashboard Admin', 'Administrator management operations')
     // Add security scheme definition if your API is protected
     .addBearerAuth(
       // For JWT
