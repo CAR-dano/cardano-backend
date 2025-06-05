@@ -1005,7 +1005,7 @@ export class InspectionsService {
     }
 
     const frontendReportUrl = `${this.config.getOrThrow<string>(
-      'CLIENT_BASE_URL',
+      'CLIENT_BASE_URL_PDF',
     )}/dashboard/preview/${inspection.id}`;
     let pdfBuffer: Buffer;
     let pdfHashString: string | null = null;
