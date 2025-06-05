@@ -61,6 +61,7 @@ import { AddSinglePhotoDto } from 'src/inspections/dto/add-single-photo.dto';
 import { Request, Response } from 'express';
 // Import Guards for authentication and authorization
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Req } from '@nestjs/common'; // Import Req decorator
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 // import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -874,10 +875,15 @@ export class InspectionsController {
   async approveInspection(
     @Param('id') id: string,
     @GetUser('id') reviewerId: string,
+    @Req() req: Request, // Inject Request object
   ): Promise<InspectionResponseDto> {
+    const authHeader = req.headers.authorization;
+    const token = authHeader ? authHeader.split(' ')[1] : null; // Extract token
+
     const inspection = await this.inspectionsService.approveInspection(
       id,
       reviewerId,
+      token, // Pass the token to the service
     );
     return new InspectionResponseDto(inspection);
   }

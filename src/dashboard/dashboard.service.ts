@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import {
   GetDashboardStatsDto,
   TimePeriod,
@@ -66,6 +66,7 @@ export interface BranchDistributionResponse {
 
 @Injectable()
 export class DashboardService {
+  private readonly logger = new Logger(DashboardService.name);
   constructor(private readonly prisma: PrismaService) {}
 
   // Helper untuk mendapatkan rentang tanggal berdasarkan periode
@@ -1035,17 +1036,12 @@ export class DashboardService {
     return { start: prevStart, end: prevEnd };
   }
 
-  async getInspectorPerformance(): Promise<InspectorPerformanceResponseDto> {
-    // Get date ranges for current month, week, and day based on current date
-    const { start: monthStart, end: monthEnd } = this.getDateRange(
-      TimePeriod.MONTH,
-    );
-    const { start: weekStart, end: weekEnd } = this.getDateRange(
-      TimePeriod.WEEK,
-    );
-    const { start: dayStart, end: dayEnd } = this.getDateRange(TimePeriod.DAY);
-
+  async getInspectorPerformance(
+    startDate?: string,
+    endDate?: string,
+  ): Promise<InspectorPerformanceResponseDto> {
     // Get all inspectors (users with role 'INSPECTOR')
+    this.logger.log(`Date ${startDate} ${startDate}`);
     const inspectors = await this.prisma.user.findMany({
       where: {
         role: 'INSPECTOR',
@@ -1061,52 +1057,29 @@ export class DashboardService {
     for (const inspector of inspectors) {
       if (!inspector.name) continue; // Skip if inspector name is null
 
-      // Total inspections for all time
+      // Total inspections within the specified date range
+      const whereClause: any = {
+        // Tipe any untuk sederhana, idealnya gunakan tipe Prisma
+        inspectorId: inspector.id,
+      };
+
+      if (startDate || endDate) {
+        whereClause.createdAt = {};
+        if (startDate) {
+          whereClause.createdAt.gte = startDate;
+        }
+        if (endDate) {
+          whereClause.createdAt.lte = endDate;
+        }
+      }
+
       const totalInspections = await this.prisma.inspection.count({
-        where: {
-          inspectorId: inspector.id,
-        },
-      });
-
-      // Monthly inspections
-      const monthlyInspections = await this.prisma.inspection.count({
-        where: {
-          inspectorId: inspector.id,
-          createdAt: {
-            gte: monthStart,
-            lte: monthEnd,
-          },
-        },
-      });
-
-      // Weekly inspections
-      const weeklyInspections = await this.prisma.inspection.count({
-        where: {
-          inspectorId: inspector.id,
-          createdAt: {
-            gte: weekStart,
-            lte: weekEnd,
-          },
-        },
-      });
-
-      // Daily inspections
-      const dailyInspections = await this.prisma.inspection.count({
-        where: {
-          inspectorId: inspector.id,
-          createdAt: {
-            gte: dayStart,
-            lte: dayEnd,
-          },
-        },
+        where: whereClause,
       });
 
       performanceData.push({
         inspector: inspector.name,
         totalInspections,
-        monthlyInspections,
-        weeklyInspections,
-        dailyInspections,
       });
     }
 

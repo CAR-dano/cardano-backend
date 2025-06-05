@@ -14,28 +14,11 @@ export class InspectorPerformanceItemDto {
   inspector: string;
 
   @ApiProperty({
-    description: 'Total number of inspections performed by the inspector',
-    example: 150,
+    description:
+      'Total number of inspections performed by the inspector within the specified date range',
+    example: 75, // Updated example
   })
   totalInspections: number;
-
-  @ApiProperty({
-    description: 'Number of inspections performed by the inspector this month',
-    example: 50,
-  })
-  monthlyInspections: number;
-
-  @ApiProperty({
-    description: 'Number of inspections performed by the inspector this week',
-    example: 15,
-  })
-  weeklyInspections: number;
-
-  @ApiProperty({
-    description: 'Number of inspections performed by the inspector today',
-    example: 5,
-  })
-  dailyInspections: number;
 }
 
 export class InspectorPerformanceResponseDto {
@@ -45,17 +28,11 @@ export class InspectorPerformanceResponseDto {
     example: [
       {
         inspector: 'John Doe',
-        totalInspections: 150,
-        monthlyInspections: 50,
-        weeklyInspections: 15,
-        dailyInspections: 5,
+        totalInspections: 75, // Updated example
       },
       {
         inspector: 'Jane Smith',
-        totalInspections: 120,
-        monthlyInspections: 40,
-        weeklyInspections: 10,
-        dailyInspections: 3,
+        totalInspections: 60, // Updated example
       },
     ],
   })

@@ -966,6 +966,7 @@ export class InspectionsService {
    *
    * @param {string} inspectionId - The UUID of the inspection to approve.
    * @param {string} reviewerId - The UUID of the user (REVIEWER/ADMIN) approving.
+   * @param {string | null} token - The JWT token of the reviewer.
    * @returns {Promise<Inspection>} The updated inspection record.
    * @throws {NotFoundException} If inspection not found.
    * @throws {BadRequestException} If inspection is not in NEED_REVIEW or FAIL_ARCHIVE state.
@@ -974,10 +975,14 @@ export class InspectionsService {
   async approveInspection(
     inspectionId: string,
     reviewerId: string,
+    token: string | null, // Accept the token
   ): Promise<Inspection> {
     this.logger.log(
       `Reviewer ${reviewerId} attempting to approve inspection ${inspectionId}`,
     );
+    this.logger.debug(
+      `Received token for approval: ${token ? 'Exists' : 'Null'}`,
+    ); // Log token presence
 
     // 1. Find the inspection and validate status
     const inspection = await this.prisma.inspection.findUnique({
@@ -1001,7 +1006,7 @@ export class InspectionsService {
 
     const frontendReportUrl = `${this.config.getOrThrow<string>(
       'CLIENT_BASE_URL',
-    )}/data/${inspection.pretty_id}`;
+    )}/dashboard/preview/${inspection.id}`;
     let pdfBuffer: Buffer;
     let pdfHashString: string | null = null;
     const pdfFileName = `${inspection.pretty_id}-${Date.now()}.pdf`; // Nama file unik
@@ -1009,8 +1014,8 @@ export class InspectionsService {
     const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${pdfFileName}`; // URL publik
 
     try {
-      // Generate PDF from URL
-      pdfBuffer = await this.generatePdfFromUrl(frontendReportUrl);
+      // Generate PDF from URL, passing the token
+      pdfBuffer = await this.generatePdfFromUrl(frontendReportUrl, token);
 
       // Save PDF to Disc
       await fs.writeFile(pdfFilePath, pdfBuffer);
@@ -1280,9 +1285,13 @@ export class InspectionsService {
   /**
    * Generates PDF from a frontend URL using Puppeteer.
    * @param url The URL of the frontend page to render.
+   * @param token Optional JWT token to include in headers.
    * @returns A Buffer containing the generated PDF data.
    */
-  private async generatePdfFromUrl(url: string): Promise<Buffer> {
+  private async generatePdfFromUrl(
+    url: string,
+    token: string | null, // Accept the token
+  ): Promise<Buffer> {
     let browser: Browser | null = null;
     this.logger.log(`Generating PDF from URL: ${url}`);
     try {
@@ -1299,9 +1308,21 @@ export class InspectionsService {
         // executablePath: '/usr/bin/google-chrome-stable',
       });
       const page = await browser.newPage();
+
+      if (token) {
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${token}`,
+        };
+        await page.setExtraHTTPHeaders(headers);
+        this.logger.debug(
+          'Added Authorization header to Puppeteer navigation.',
+        );
+      }
+
       await page.goto(url, {
-        waitUntil: 'networkidle0', // Tunggu network tenang
-        timeout: 60000, // Tambahkan timeout (misal 60 detik)
+        waitUntil: 'networkidle0',
+        timeout: 360000,
+        // headers are set using page.setExtraHTTPHeaders() before goto
       });
 
       // Opsional: Tunggu selector spesifik jika networkidle0 tidak cukup
@@ -1618,53 +1639,59 @@ export class InspectionsService {
    * @returns The flattened object.
    */
   private flattenObject(
-    obj: any,
+    obj: any, // Keeping 'any' for simplicity in this helper, but ideally would use a more specific type or handle recursively with known types
     parentKey = '',
-    result: Record<string, any> = {},
+    result: Record<string, any> = {}, // Keeping 'any' for simplicity
   ): Record<string, any> {
     if (obj === null || (typeof obj !== 'object' && !Array.isArray(obj))) {
       result[parentKey || 'value'] = obj; // Name 'value' if parentKey is empty at root level primitive
       return result;
     }
 
-    for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
-        const newKey = parentKey ? `${parentKey}_${key}` : key;
-        const value = obj[key];
+    // Use Object.keys for safer iteration than 'for...in'
+    Object.keys(obj).forEach((key) => {
+      const newKey = parentKey ? `${parentKey}_${key}` : key;
+      const value = obj[key];
 
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        !Array.isArray(value)
+      ) {
+        this.flattenObject(value, newKey, result);
+      } else if (Array.isArray(value)) {
         if (
-          typeof value === 'object' &&
-          value !== null &&
-          !Array.isArray(value)
+          newKey.endsWith('estimasiPerbaikan') &&
+          value.length > 0 &&
+          typeof value[0] === 'object' &&
+          value[0] !== null // Ensure the object is not null
         ) {
-          this.flattenObject(value, newKey, result);
-        } else if (Array.isArray(value)) {
-          if (
-            newKey.endsWith('estimasiPerbaikan') &&
-            value.length > 0 &&
-            typeof value[0] === 'object'
-          ) {
-            result[newKey] = value
-              .map((item) => `${item.namaPart || 'N/A'}:${item.harga || 'N/A'}`)
-              .join(' | ');
-          } else if (
-            value.every(
+          // Safely access properties with optional chaining or checks
+          result[newKey] = value
+            .map(
               (item) =>
-                typeof item === 'string' ||
-                typeof item === 'number' ||
-                typeof item === 'boolean',
-            )
-          ) {
-            result[newKey] = value.join('|');
-          } else {
-            // For other arrays of objects or mixed arrays, stringify as fallback
-            result[newKey] = JSON.stringify(value);
-          }
+                `${(item as any)?.namaPart || 'N/A'}:${(item as any)?.harga || 'N/A'}`,
+            ) // Use any for item for simplicity, or define a type
+            .join(' | ');
+        } else if (
+          value.every(
+            (item) =>
+              typeof item === 'string' ||
+              typeof item === 'number' ||
+              typeof item === 'boolean' ||
+              item === null, // Allow null in arrays
+          )
+        ) {
+          result[newKey] = value.join('|');
         } else {
-          result[newKey] = value;
+          // For other arrays of objects or mixed arrays, stringify as fallback
+          result[newKey] = JSON.stringify(value);
         }
+      } else {
+        result[newKey] = value;
       }
-    }
+    });
+
     return result;
   }
 
