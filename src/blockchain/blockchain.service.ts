@@ -31,7 +31,7 @@ import { NftDataResponseDto } from './dto/nft-data-response.dto';
 /**
  * Defines the structure for inspection NFT metadata, aligning with desired on-chain data.
  */
-interface InspectionNftMetadata {
+export interface InspectionNftMetadata {
   vehicleNumber: string;
   pdfUrl: string;
   pdfHash: string;

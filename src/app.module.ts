@@ -29,6 +29,7 @@ import { PhotosModule } from './photos/photos.module';
 import { InspectionBranchesModule } from './inspection-branches/inspection-branches.module';
 import { InspectionChangeLogModule } from './inspection-change-log/inspection-change-log.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { IpfsModule } from './ipfs/ipfs.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     PhotosModule,
     InspectionBranchesModule,
     DashboardModule,
+    IpfsModule,
   ],
   controllers: [],
   providers: [],

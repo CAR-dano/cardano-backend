@@ -120,6 +120,8 @@ model Inspection {
   // --- Report & Blockchain Metadata (Populated Later) ---
   // URL of the generated PDF report stored off-chain. Optional. Explicit column name mapping. Max length 255.
   urlPdf             String?        @map("url_pdf") @db.VarChar(255)
+  // IPFS URL with CID of the generated PDF report stored at IPFS
+  ipfsPdf             String?        @map("ipfs_pdf") @db.VarChar(255)
   // Unique Cardano NFT Asset ID (Policy ID + Asset Name Hex). Optional. Explicit mapping. Indexed for uniqueness. Max length 255.
   nftAssetId         String?        @unique @map("nft_asset_id") @db.VarChar(255)
   // Cardano transaction hash for the minting process. Should be unique if present. Explicit mapping. Max length 255.

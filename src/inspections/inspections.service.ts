@@ -35,7 +35,11 @@ import * as fs from 'fs/promises'; // Use promise-based fs for async file operat
 import * as path from 'path'; // For constructing file paths
 import * as crypto from 'crypto'; // For generating PDF hash
 import { format } from 'date-fns'; // for date formating
-import { BlockchainService } from '../blockchain/blockchain.service';
+import {
+  BlockchainService,
+  InspectionNftMetadata,
+} from '../blockchain/blockchain.service';
+import { IpfsService } from '../ipfs/ipfs.service';
 import puppeteer, { Browser } from 'puppeteer'; // Import puppeteer and Browser type
 import { ConfigService } from '@nestjs/config';
 import * as Papa from 'papaparse';
@@ -43,6 +47,12 @@ import * as Papa from 'papaparse';
 const PDF_ARCHIVE_PATH = './pdfarchived';
 // Define public base URL for accessing archived PDFs (should come from config in real app)
 const PDF_PUBLIC_BASE_URL = process.env.PDF_PUBLIC_BASE_URL || '/pdfarchived'; // Example: /pdfarchived if served by Nginx
+
+interface NftMetadata {
+  vehicleNumber: string | null;
+  pdfUrl: string | null;
+  pdfHash: string | null;
+}
 
 /**
  * Service responsible for handling business logic related to inspections.
@@ -60,6 +70,7 @@ export class InspectionsService {
     private prisma: PrismaService,
     private blockchainService: BlockchainService,
     private config: ConfigService,
+    private readonly ipfsService: IpfsService,
   ) {
     // Ensure the PDF archive directory exists on startup
     this.ensureDirectoryExists(PDF_ARCHIVE_PATH);
@@ -1008,6 +1019,7 @@ export class InspectionsService {
       'CLIENT_BASE_URL_PDF',
     )}/dashboard/preview/${inspection.id}`;
     let pdfBuffer: Buffer;
+    let pdfCid: string;
     let pdfHashString: string | null = null;
     const pdfFileName = `${inspection.pretty_id}-${Date.now()}.pdf`; // Nama file unik
     const pdfFilePath = path.join(PDF_ARCHIVE_PATH, pdfFileName);
@@ -1016,7 +1028,7 @@ export class InspectionsService {
     try {
       // Generate PDF from URL, passing the token
       pdfBuffer = await this.generatePdfFromUrl(frontendReportUrl, token);
-
+      pdfCid = await this.ipfsService.add(pdfBuffer);
       // Save PDF to Disc
       await fs.writeFile(pdfFilePath, pdfBuffer);
       this.logger.log(`PDF report saved to: ${pdfFilePath}`);
@@ -1077,6 +1089,7 @@ export class InspectionsService {
           },
           urlPdf: pdfPublicUrl,
           pdfFileHash: pdfHashString,
+          ipfsPdf: `ipfs://${pdfCid}`,
         };
 
         // Define which top-level fields in Inspection are JSON and can be updated via change log
@@ -1385,18 +1398,45 @@ export class InspectionsService {
       );
     }
 
+    // Ensure required metadata fields are present for minting
+    if (!inspection.vehiclePlateNumber) {
+      this.logger.error(
+        `Missing vehiclePlateNumber for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+      throw new BadRequestException(
+        `Missing vehicle plate number for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+    }
+    if (!inspection.ipfsPdf && !inspection.urlPdf) {
+      this.logger.error(
+        `Missing PDF URL (ipfsPdf or urlPdf) for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+      throw new BadRequestException(
+        `Missing PDF URL for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+    }
+    if (!inspection.pdfFileHash) {
+      this.logger.error(
+        `Missing PDF file hash for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+      throw new BadRequestException(
+        `Missing PDF file hash for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+    }
+
     try {
       // 2. Minting
       let blockchainResult: { txHash: string; assetId: string } | null = null;
       let blockchainSuccess: boolean = false;
 
       try {
-        const metadataForNft: any = {
+        // Now that we've checked for null, we can safely assert these are strings for the metadata type
+        const metadataForNft: NftMetadata = {
           vehicleNumber: inspection.vehiclePlateNumber,
-          pdfUrl: inspection.urlPdf,
+          pdfUrl: inspection.ipfsPdf ? inspection.ipfsPdf : inspection.urlPdf,
           pdfHash: inspection.pdfFileHash,
         };
-        // Hapus field null/undefined dari metadata jika perlu
+        // Hapus field null/undefined dari metadata jika perlu (This step might be redundant now with checks above, but kept for safety)
         Object.keys(metadataForNft).forEach((key) =>
           metadataForNft[key] === undefined || metadataForNft[key] === null
             ? delete metadataForNft[key]
@@ -1406,8 +1446,10 @@ export class InspectionsService {
         this.logger.log(
           `Calling blockchainService.mintInspectionNft for inspection ${inspectionId}`,
         );
-        blockchainResult =
-          await this.blockchainService.mintInspectionNft(metadataForNft); // Panggil service minting
+        // Cast to InspectionNftMetadata as we've ensured non-nullability
+        blockchainResult = await this.blockchainService.mintInspectionNft(
+          metadataForNft as InspectionNftMetadata,
+        ); // Panggil service minting
         blockchainSuccess = true;
         this.logger.log(
           `Blockchain interaction SUCCESS for inspection ${inspectionId}`,
