@@ -25,7 +25,6 @@ import {
   resolveScriptHash,
   stringToHex,
 } from '@meshsdk/core';
-import { createHash } from 'crypto'; // For generating token name hash
 import { TransactionMetadataResponseDto } from './dto/transaction-metadata-response.dto';
 import { NftDataResponseDto } from './dto/nft-data-response.dto';
 
@@ -33,17 +32,9 @@ import { NftDataResponseDto } from './dto/nft-data-response.dto';
  * Defines the structure for inspection NFT metadata, aligning with desired on-chain data.
  */
 interface InspectionNftMetadata {
-  inspectionId: string;
-  inspectionDate: string;
   vehicleNumber: string;
-  vehicleBrand: string;
-  vehicleModel: string;
-  vehicleYear: string;
-  vehicleColor: string;
-  overallRating: string;
   pdfUrl: string;
   pdfHash: string;
-  inspectorId: string;
 }
 
 @Injectable()
@@ -155,23 +146,6 @@ export class BlockchainService {
   }
 
   /**
-   * Generates a unique token name based on input data using SHA256 hash.
-   *
-   * @param dataToHash A string uniquely identifying the data to hash.
-   * @returns A hexadecimal string representing the token name (32 bytes / 64 hex chars).
-   */
-  private generateTokenName(dataToHash: string): string {
-    const hash = createHash('sha256');
-    hash.update(dataToHash);
-    const digest = hash.digest('hex');
-    this.logger.debug(
-      `Generated SHA256 digest (Token Name Hex): ${digest} (Length: ${digest.length})`,
-    ); // Should be 64
-    // No need to substring if already 64 char hex (32 byte)
-    return digest;
-  }
-
-  /**
    * Mints a new NFT on Cardano with provided inspection metadata.
    * Uses the wallet configured in the service to build, sign, and submit the transaction.
    *
@@ -213,7 +187,13 @@ export class BlockchainService {
       // Prepare the metadata according to CIP-0025 (NFT standard) under the 721 label
       // Ensure 'name' is set for display purposes
       const nftDisplayName = `CarInspection-${metadata.vehicleNumber}`; // Use provided name or generate one
-      const finalMetadata = { ...metadata, name: nftDisplayName }; // Add/overwrite name
+      const imageForDisplay = `ipfs://QmY65h6y6zUoJjN3ripc4J2PzEvzL2VkiVXz3sCZboqPJw`; // Use provided name or generate one
+      const finalMetadata = {
+        ...metadata,
+        name: nftDisplayName,
+        image: imageForDisplay, // logo CAR-dano
+        mediaType: 'image/png',
+      }; // Add/overwrite name
       // Structure for CIP-0025: { policyId: { assetName: { metadata } } }
       const cip25Metadata = {
         [policyId]: { [simpleAssetName]: finalMetadata },

@@ -1393,6 +1393,7 @@ export class InspectionsService {
       try {
         const metadataForNft: any = {
           vehicleNumber: inspection.vehiclePlateNumber,
+          pdfUrl: inspection.urlPdf,
           pdfHash: inspection.pdfFileHash,
         };
         // Hapus field null/undefined dari metadata jika perlu
