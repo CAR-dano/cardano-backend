@@ -122,19 +122,19 @@ export class DashboardController {
    * @param query - The query parameters for filtering the distribution data (e.g., time period, branch).
    * @returns A promise that resolves to the branch distribution data.
    */
-  // @Get('branch-distribution')
-  // @Roles(Role.ADMIN)
-  // @ApiOperation({
-  //   summary: 'Get order distribution by branch',
-  // })
-  // @ApiResponse({
-  //   status: 200,
-  //   description: 'Order distribution by branch successfully retrieved.',
-  //   type: BranchDistributionResponseDto,
-  // })
-  // async getBranchDistribution(@Query() query: GetDashboardStatsDto) {
-  //   return this.dashboardService.getBranchDistribution(query);
-  // }
+  @Get('branch-distribution')
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Get order distribution by branch',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Order distribution by branch successfully retrieved.',
+    type: BranchDistributionResponseDto,
+  })
+  async getBranchDistribution(@Query() query: GetDashboardStatsDto) {
+    return this.dashboardService.getBranchDistribution(query);
+  }
 
   /**
    * Retrieves inspector performance data.

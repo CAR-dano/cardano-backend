@@ -437,148 +437,151 @@ export class DashboardService {
     };
   }
 
-  // async getBranchDistribution(
-  //   query: GetDashboardStatsDto,
-  // ): Promise<BranchDistributionResponse> {
-  //   const { period, startDate, endDate } = query;
-  //   const { start, end } = this.getDateRange(
-  //     period ?? TimePeriod.ALL_TIME,
-  //     startDate,
-  //     endDate,
-  //   );
+  async getBranchDistribution(
+    query: GetDashboardStatsDto,
+  ): Promise<BranchDistributionResponse> {
+    const { start_date, end_date, timezone } = query;
 
-  //   // Get all unique branch cities
-  //   const branchCities = await this.prisma.inspectionBranchCity.findMany({
-  //     select: {
-  //       city: true,
-  //     },
-  //   });
+    if (!start_date || !end_date) {
+      throw new BadRequestException(
+        'start_date and end_date are required for this operation.',
+      );
+    }
 
-  //   const branchDistribution: BranchDistributionItem[] = [];
-  //   let totalInspectionsCurrentPeriod = 0;
+    const { current, previous } = this.calculateDateRanges(
+      start_date,
+      end_date,
+      timezone,
+    );
+    const { start, end } = current;
 
-  //   // Calculate total inspections for the current period first
-  //   const totalInspectionsResult = await this.prisma.inspection.aggregate({
-  //     _count: {
-  //       id: true,
-  //     },
-  //     where: {
-  //       createdAt: {
-  //         gte: start,
-  //         lte: end,
-  //       },
-  //     },
-  //   });
-  //   totalInspectionsCurrentPeriod = totalInspectionsResult._count.id;
+    // Get all unique branch cities
+    const branchCities = await this.prisma.inspectionBranchCity.findMany({
+      select: {
+        city: true,
+      },
+    });
 
-  //   for (const branchCity of branchCities) {
-  //     const currentPeriodCount = await this.prisma.inspection.count({
-  //       where: {
-  //         branchCity: {
-  //           city: branchCity.city,
-  //         },
-  //         createdAt: {
-  //           gte: start,
-  //           lte: end,
-  //         },
-  //       },
-  //     });
+    const branchDistribution: BranchDistributionItem[] = [];
+    let totalInspectionsCurrentPeriod = 0;
 
-  //     // Calculate percentage for current period
-  //     const percentage =
-  //       totalInspectionsCurrentPeriod > 0
-  //         ? (
-  //             (currentPeriodCount / totalInspectionsCurrentPeriod) *
-  //             100
-  //           ).toFixed(1) + '%'
-  //         : '0.0%';
+    // Calculate total inspections for the current period first
+    const totalInspectionsResult = await this.prisma.inspection.aggregate({
+      _count: {
+        id: true,
+      },
+      where: {
+        createdAt: {
+          gte: start,
+          lte: end,
+        },
+      },
+    });
+    totalInspectionsCurrentPeriod = totalInspectionsResult._count.id;
 
-  //     // Calculate previous period's range
-  //     const { start: prevStart, end: prevEnd } = this.getPreviousDateRange(
-  //       period ?? TimePeriod.ALL_TIME,
-  //       start,
-  //       end,
-  //     );
+    for (const branchCity of branchCities) {
+      const currentPeriodCount = await this.prisma.inspection.count({
+        where: {
+          branchCity: {
+            city: branchCity.city,
+          },
+          createdAt: {
+            gte: start,
+            lte: end,
+          },
+        },
+      });
 
-  //     let previousPeriodCount = 0;
-  //     if (prevStart || prevEnd) {
-  //       // Only query if previous period is defined
-  //       previousPeriodCount = await this.prisma.inspection.count({
-  //         where: {
-  //           branchCity: {
-  //             city: branchCity.city,
-  //           },
-  //           createdAt: {
-  //             gte: prevStart,
-  //             lte: prevEnd,
-  //           },
-  //         },
-  //       });
-  //     }
+      // Calculate percentage for current period
+      const percentage =
+        totalInspectionsCurrentPeriod > 0
+          ? (
+              (currentPeriodCount / totalInspectionsCurrentPeriod) *
+              100
+            ).toFixed(1) + '%'
+          : '0.0%';
 
-  //     // Calculate change percentage
-  //     let change = '0%';
-  //     if (previousPeriodCount > 0) {
-  //       const changeValue =
-  //         ((currentPeriodCount - previousPeriodCount) / previousPeriodCount) *
-  //         100;
-  //       change = `${changeValue > 0 ? '+' : ''}${changeValue.toFixed(1)}%`;
-  //     } else if (currentPeriodCount > 0) {
-  //       change = '+100%'; // If previous was 0 and current is > 0
-  //     }
+      // Calculate previous period's range
+      const { start: prevStart, end: prevEnd } = previous;
 
-  //     branchDistribution.push({
-  //       branch: branchCity.city,
-  //       count: currentPeriodCount,
-  //       percentage: percentage,
-  //       change: change,
-  //     });
-  //   }
+      let previousPeriodCount = 0;
+      if (prevStart && prevEnd) {
+        // Only query if previous period is defined
+        previousPeriodCount = await this.prisma.inspection.count({
+          where: {
+            branchCity: {
+              city: branchCity.city,
+            },
+            createdAt: {
+              gte: prevStart,
+              lte: prevEnd,
+            },
+          },
+        });
+      }
 
-  //   // Handle 'Others' if there are inspections not tied to a specific branch city or if some branches are not listed
-  //   // For simplicity, let's assume all inspections are tied to a branch city for now.
-  //   // If there's a need for 'Others', it would involve querying inspections without a branchCityId.
+      // Calculate change percentage
+      let change = '0%';
+      if (previousPeriodCount > 0) {
+        const changeValue =
+          ((currentPeriodCount - previousPeriodCount) / previousPeriodCount) *
+          100;
+        change = `${changeValue > 0 ? '+' : ''}${changeValue.toFixed(1)}%`;
+      } else if (currentPeriodCount > 0) {
+        change = '+100%'; // If previous was 0 and current is > 0
+      }
 
-  //   // Calculate total inspections for the previous period
-  //   const { start: prevTotalStart, end: prevTotalEnd } =
-  //     this.getPreviousDateRange(period ?? TimePeriod.ALL_TIME, start, end);
+      branchDistribution.push({
+        branch: branchCity.city,
+        count: currentPeriodCount,
+        percentage: percentage,
+        change: change,
+      });
+    }
 
-  //   let totalInspectionsPreviousPeriod = 0;
-  //   if (prevTotalStart || prevTotalEnd) {
-  //     const totalPrevInspectionsResult = await this.prisma.inspection.aggregate(
-  //       {
-  //         _count: {
-  //           id: true,
-  //         },
-  //         where: {
-  //           createdAt: {
-  //             gte: prevTotalStart,
-  //             lte: prevTotalEnd,
-  //           },
-  //         },
-  //       },
-  //     );
-  //     totalInspectionsPreviousPeriod = totalPrevInspectionsResult._count.id;
-  //   }
+    // Handle 'Others' if there are inspections not tied to a specific branch city or if some branches are not listed
+    // For simplicity, let's assume all inspections are tied to a branch city for now.
+    // If there's a need for 'Others', it would involve querying inspections without a branchCityId.
 
-  //   // Calculate overall change percentage
-  //   let totalChange = '0%';
-  //   if (totalInspectionsPreviousPeriod > 0) {
-  //     const changeValue =
-  //       ((totalInspectionsCurrentPeriod - totalInspectionsPreviousPeriod) /
-  //         totalInspectionsPreviousPeriod) *
-  //       100;
-  //     totalChange = `${changeValue > 0 ? '+' : ''}${changeValue.toFixed(1)}%`;
-  //   } else if (totalInspectionsCurrentPeriod > 0) {
-  //     totalChange = '+100%'; // If previous total was 0 and current is > 0
-  //   }
+    // Calculate total inspections for the previous period
+    const { start: prevTotalStart, end: prevTotalEnd } = previous;
 
-  //   return {
-  //     total: totalInspectionsCurrentPeriod,
-  //     totalChange: totalChange,
-  //     branchDistribution: branchDistribution,
-  //   };
-  // }
+    let totalInspectionsPreviousPeriod = 0;
+    if (prevTotalStart && prevTotalEnd) {
+      const totalPrevInspectionsResult = await this.prisma.inspection.aggregate(
+        {
+          _count: {
+            id: true,
+          },
+          where: {
+            createdAt: {
+              gte: prevTotalStart,
+              lte: prevTotalEnd,
+            },
+          },
+        },
+      );
+      totalInspectionsPreviousPeriod = totalPrevInspectionsResult._count.id;
+    }
+
+    // Calculate overall change percentage
+    let totalChange = '0%';
+    if (totalInspectionsPreviousPeriod > 0) {
+      const changeValue =
+        ((totalInspectionsCurrentPeriod - totalInspectionsPreviousPeriod) /
+          totalInspectionsPreviousPeriod) *
+        100;
+      totalChange = `${changeValue > 0 ? '+' : ''}${changeValue.toFixed(1)}%`;
+    } else if (totalInspectionsCurrentPeriod > 0) {
+      totalChange = '+100%'; // If previous total was 0 and current is > 0
+    }
+
+    return {
+      total: totalInspectionsCurrentPeriod,
+      totalChange: totalChange,
+      branchDistribution: branchDistribution,
+    };
+  }
 
   // async getInspectorPerformance(
   //   query: GetDashboardStatsDto,
