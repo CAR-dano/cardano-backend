@@ -1,28 +1,7 @@
-import { IsString, IsOptional, IsEnum, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsDateString } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
-export enum OrderTrendRangeType {
-  TODAY = 'today',
-  LAST_7_DAYS = 'last_7_days',
-  LAST_30_DAYS = 'last_30_days',
-  MONTH_TO_DATE = 'month_to_date',
-  LAST_12_MONTHS = 'last_12_months',
-  YEAR_TO_DATE = 'year_to_date',
-  LAST_3_YEARS = 'last_3_years',
-  CUSTOM = 'custom',
-}
-
-export class GetOrderTrendDto {
-  @ApiProperty({
-    enum: OrderTrendRangeType,
-    description: 'Type of date range for order trend data.',
-    example: OrderTrendRangeType.LAST_7_DAYS,
-  })
-  @IsEnum(OrderTrendRangeType, {
-    message: `range_type must be one of: ${Object.values(OrderTrendRangeType).join(', ')}`,
-  })
-  range_type: OrderTrendRangeType;
-
+export class GetDashboardStatsDto {
   @ApiProperty({
     description:
       'Start date for custom range (YYYY-MM-DD). Required if range_type is custom.',
