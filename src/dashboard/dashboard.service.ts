@@ -1,3 +1,16 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: dashboard.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: NestJS service responsible for handling dashboard data retrieval and processing.
+ * Provides methods to fetch various statistics like main counters, order trends,
+ * branch distribution, and inspector performance.
+ * Utilizes Prisma for database interactions and date-fns for date calculations.
+ * --------------------------------------------------------------------------
+ */
+
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { GetDashboardStatsDto } from './dto/get-dashboard-stats.dto';
 import {
@@ -51,6 +64,13 @@ export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Calculates the percentage change between a current and previous value.
+   *
+   * @param current The current value.
+   * @param previous The previous value.
+   * @returns A string representing the percentage change (e.g., "+10.5%", "-5.2%", "0.0%").
+   */
   private calculateChangePercentage(current: number, previous: number): string {
     if (previous === 0) {
       return current > 0 ? '+100.0%' : '0.0%';
@@ -59,6 +79,16 @@ export class DashboardService {
     return `${changeValue > 0 ? '+' : ''}${changeValue.toFixed(1)}%`;
   }
 
+  /**
+   * Validates and returns a date range based on provided start and end date strings.
+   * Ensures the start date is not after the end date and adjusts times to start/end of day in the specified timezone.
+   *
+   * @param startDateStr The start date string (YYYY-MM-DD).
+   * @param endDateStr The end date string (YYYY-MM-DD).
+   * @param timezone The timezone to use for date interpretation (default: 'Asia/Jakarta').
+   * @returns An object containing the validated start and end Date objects.
+   * @throws BadRequestException if start_date or end_date are missing or if start_date is after end_date.
+   */
   private getValidatedDateRange(
     startDateStr?: string,
     endDateStr?: string,
@@ -83,6 +113,15 @@ export class DashboardService {
     };
   }
 
+  /**
+   * Calculates the current and previous date ranges based on a given date range.
+   * The previous range has the same duration as the current range and ends one day before the current range starts.
+   *
+   * @param startDateStr The start date string for the current period (YYYY-MM-DD).
+   * @param endDateStr The end date string for the current period (YYYY-MM-DD).
+   * @param timezone The timezone to use for date calculations (default: 'Asia/Jakarta').
+   * @returns An object containing the current and previous date ranges.
+   */
   private calculateDateRanges(
     startDateStr: string,
     endDateStr: string,
@@ -101,6 +140,13 @@ export class DashboardService {
     };
   }
 
+  /**
+   * Retrieves the total count of inspections and counts by status within a specified date range.
+   *
+   * @param startDate The start date of the period (UTC).
+   * @param endDate The end date of the period (UTC).
+   * @returns A promise that resolves to an object containing the total count and counts by status.
+   */
   private async getInspectionCountsInPeriod(
     startDate: Date,
     endDate: Date,
@@ -127,13 +173,13 @@ export class DashboardService {
       },
     });
 
-    // Jalankan kedua query secara bersamaan untuk efisiensi
+    // Execute both queries concurrently for efficiency
     const [total, countsByStatus] = await Promise.all([
       totalPromise,
       countsByStatusPromise,
     ]);
 
-    // Format hasil dari groupBy menjadi objek yang mudah digunakan
+    // Format the results from groupBy into an easy-to-use object
     const statusCounts = countsByStatus.reduce((acc, current) => {
       acc[current.status] = current._count.status;
       return acc;
@@ -145,11 +191,18 @@ export class DashboardService {
     };
   }
 
+  /**
+   * Retrieves main dashboard counter statistics (total orders, need review, approved, etc.)
+   * for a specified date range and compares them to the previous period.
+   *
+   * @param query The query parameters containing start_date, end_date, and timezone.
+   * @returns A promise that resolves to an object containing the main counter data with counts and change percentages.
+   * @throws BadRequestException if start_date or end_date are missing.
+   */
   async getMainCounter(query: GetDashboardStatsDto) {
     const { start_date, end_date, timezone } = query;
 
     if (!start_date || !end_date) {
-      // Kita bisa menggunakan kembali error dari fungsi aslinya.
       throw new BadRequestException(
         'start_date and end_date are required for this operation.',
       );
@@ -188,6 +241,15 @@ export class DashboardService {
     };
   }
 
+  /**
+   * Generates a list of time periods based on the specified date range and granularity.
+   *
+   * @param startDate The start date of the range (UTC).
+   * @param endDate The end date of the range (UTC).
+   * @param granularity The desired time granularity ('hour', 'day', or 'month').
+   * @param timezone The timezone to use for period labeling and boundary calculations (default: 'Asia/Jakarta').
+   * @returns An array of OrderTrendItemDto representing the generated periods.
+   */
   private generatePeriods(
     startDate: Date,
     endDate: Date,
@@ -206,6 +268,14 @@ export class DashboardService {
     }
   }
 
+  /**
+   * Generates a list of hourly periods within a single day for order trend analysis.
+   * Periods are 2 hours long.
+   *
+   * @param startDate The start date of the day (UTC).
+   * @param timezone The timezone to use for period labeling and boundary calculations.
+   * @returns An array of OrderTrendItemDto representing the hourly periods.
+   */
   private generateHourlyPeriods(
     startDate: Date, // This date is the actualStartDateUsed in UTC
     timezone: string,
@@ -235,6 +305,14 @@ export class DashboardService {
     return periods;
   }
 
+  /**
+   * Generates a list of daily periods within a specified date range.
+   *
+   * @param startDate The start date of the range (UTC).
+   * @param endDate The end date of the range (UTC).
+   * @param timezone The timezone to use for period labeling and boundary calculations.
+   * @returns An array of OrderTrendItemDto representing the daily periods.
+   */
   private generateDailyPeriods(
     startDate: Date,
     endDate: Date,
@@ -261,6 +339,14 @@ export class DashboardService {
     return periods;
   }
 
+  /**
+   * Generates a list of monthly periods within a specified date range.
+   *
+   * @param startDate The start date of the range (UTC).
+   * @param endDate The end date of the range (UTC).
+   * @param timezone The timezone to use for period labeling and boundary calculations.
+   * @returns An array of OrderTrendItemDto representing the monthly periods.
+   */
   private generateMonthlyPeriods(
     startDate: Date,
     endDate: Date,
@@ -281,6 +367,15 @@ export class DashboardService {
     return periods;
   }
 
+  /**
+   * Retrieves aggregated inspection data (counts) for a specified date range and granularity.
+   *
+   * @param startDate The start date of the range (UTC).
+   * @param endDate The end date of the range (UTC).
+   * @param granularity The desired time granularity ('hour', 'day', or 'month').
+   * @param timezone The timezone to use for aggregation grouping (default: 'Asia/Jakarta').
+   * @returns A promise that resolves to a Map where keys are period identifiers (ISO strings) and values are counts.
+   */
   private async getAggregatedInspectionData(
     startDate: Date,
     endDate: Date,
@@ -337,6 +432,13 @@ export class DashboardService {
     }
   }
 
+  /**
+   * Retrieves order trend data based on the provided query parameters.
+   * The granularity of the trend data (hourly, daily, or monthly) is determined by the duration of the date range.
+   *
+   * @param query The query parameters containing start_date, end_date, and timezone.
+   * @returns A promise that resolves to an OrderTrendResponseDto containing the trend data and summary.
+   */
   async getOrderTrend(
     query: GetDashboardStatsDto,
   ): Promise<OrderTrendResponseDto> {
@@ -354,11 +456,11 @@ export class DashboardService {
     let granularity: 'hour' | 'day' | 'month';
 
     if (durationInDays === 0) {
-      granularity = 'hour'; // Jika start & end di hari yang sama -> tren per jam
+      granularity = 'hour'; // If start & end are on the same day -> hourly trend
     } else if (durationInDays <= 31) {
-      granularity = 'day'; // Jika rentang <= 31 hari -> tren per hari
+      granularity = 'day'; // If range <= 31 days -> daily trend
     } else {
-      granularity = 'month'; // Jika rentang > 31 hari -> tren per bulan
+      granularity = 'month'; // If range > 31 days -> monthly trend
     }
 
     const periods = this.generatePeriods(
@@ -424,6 +526,14 @@ export class DashboardService {
     };
   }
 
+  /**
+   * Retrieves order distribution data by branch for a specified date range.
+   * Calculates the count, percentage, and change compared to the previous period for each branch.
+   *
+   * @param query The query parameters containing start_date, end_date, and timezone.
+   * @returns A promise that resolves to a BranchDistributionResponse containing the total count, total change, and branch distribution data.
+   * @throws BadRequestException if start_date or end_date are missing.
+   */
   async getBranchDistribution(
     query: GetDashboardStatsDto,
   ): Promise<BranchDistributionResponse> {
@@ -570,6 +680,13 @@ export class DashboardService {
     };
   }
 
+  /**
+   * Retrieves inspector performance data for a specified date range.
+   * Calculates the total inspections performed by each inspector within the period.
+   *
+   * @param query The query parameters containing start_date, end_date, and timezone.
+   * @returns A promise that resolves to an InspectorPerformanceResponseDto containing the performance data.
+   */
   async getInspectorPerformance(
     query: GetDashboardStatsDto,
   ): Promise<InspectorPerformanceResponseDto> {

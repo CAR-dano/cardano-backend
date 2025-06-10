@@ -1045,7 +1045,7 @@ export const openApiDocument = {
         requestBody: {
           required: true,
           description:
-            'Metadata (label, needAttention) and photo file for the upload.',
+            'Optional metadata updates (label, needAttention) and/or a new photo file.',
           content: {
             'multipart/form-data': {
               schema: {
@@ -1817,83 +1817,12 @@ export const openApiDocument = {
         tags: ['Inspection Branches'],
       },
     },
-    '/api/v1/dashboard/target': {
-      post: {
-        operationId: 'DashboardController_setInspectionTarget',
-        parameters: [],
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: {
-                $ref: '#/components/schemas/SetInspectionTargetDto',
-              },
-            },
-          },
-        },
-        responses: {
-          '200': {
-            description: 'Inspection target successfully set.',
-            content: {
-              'application/json': {
-                schema: {
-                  $ref: '#/components/schemas/InspectionTargetDto',
-                },
-              },
-            },
-          },
-        },
-        security: [
-          {
-            bearer: [],
-          },
-        ],
-        summary: 'Set inspection target for a period',
-        tags: ['Dashboard Admin'],
-      },
-    },
-    '/api/v1/dashboard/target-stats': {
-      get: {
-        operationId: 'DashboardController_getInspectionTargetStats',
-        parameters: [],
-        responses: {
-          '200': {
-            description: 'Inspection target statistics successfully retrieved.',
-            content: {
-              'application/json': {
-                schema: {
-                  $ref: '#/components/schemas/InspectionTargetStatsResponseDto',
-                },
-              },
-            },
-          },
-        },
-        security: [
-          {
-            bearer: [],
-          },
-        ],
-        summary: 'Get inspection target statistics',
-        tags: ['Dashboard Admin'],
-      },
-    },
     '/api/v1/dashboard/main-stats': {
       get: {
         operationId: 'DashboardController_getMainStats',
         parameters: [
           {
-            name: 'period',
-            required: false,
-            in: 'query',
-            description: 'Time period for the statistics',
-            schema: {
-              example: 'month',
-              type: 'string',
-              enum: ['year', 'month', 'week', 'day', 'all_time'],
-            },
-          },
-          {
-            name: 'startDate',
+            name: 'start_date',
             required: false,
             in: 'query',
             description: 'Start date for the statistics (YYYY-MM-DD)',
@@ -1903,43 +1832,13 @@ export const openApiDocument = {
             },
           },
           {
-            name: 'endDate',
+            name: 'end_date',
             required: false,
             in: 'query',
             description: 'End date for the statistics (YYYY-MM-DD)',
             schema: {
               example: '2023-01-31',
               type: 'string',
-            },
-          },
-          {
-            name: 'branch',
-            required: false,
-            in: 'query',
-            description: 'For filtering by specific branch',
-            schema: {
-              example: 'Main Branch',
-              type: 'string',
-            },
-          },
-          {
-            name: 'year',
-            required: false,
-            in: 'query',
-            description: 'Year for the statistics (e.g., 2023)',
-            schema: {
-              example: 2023,
-              type: 'number',
-            },
-          },
-          {
-            name: 'month',
-            required: false,
-            in: 'query',
-            description: 'Month for the statistics (1-12, e.g., 1 for January)',
-            schema: {
-              example: 1,
-              type: 'number',
             },
           },
         ],
@@ -1950,6 +1849,30 @@ export const openApiDocument = {
               'application/json': {
                 schema: {
                   $ref: '#/components/schemas/MainStatsResponseDto',
+                  totalOrders: {
+                    count: 14,
+                    changePercentage: '-83.3%',
+                  },
+                  needReview: {
+                    count: 13,
+                    changePercentage: '-80.0%',
+                  },
+                  approved: {
+                    count: 1,
+                    changePercentage: '-92.3%',
+                  },
+                  archived: {
+                    count: 0,
+                    changePercentage: '-100.0%',
+                  },
+                  failArchive: {
+                    count: 0,
+                    changePercentage: '-100.0%',
+                  },
+                  deactivated: {
+                    count: 0,
+                    changePercentage: '0.0%',
+                  },
                 },
               },
             },
@@ -1968,26 +1891,6 @@ export const openApiDocument = {
       get: {
         operationId: 'DashboardController_getOrderTrend',
         parameters: [
-          {
-            name: 'range_type',
-            required: true,
-            in: 'query',
-            description: 'Type of date range for order trend data.',
-            schema: {
-              example: 'last_7_days',
-              type: 'string',
-              enum: [
-                'today',
-                'last_7_days',
-                'last_30_days',
-                'month_to_date',
-                'last_12_months',
-                'year_to_date',
-                'last_3_years',
-                'custom',
-              ],
-            },
-          },
           {
             name: 'start_date',
             required: false,
@@ -2029,6 +1932,33 @@ export const openApiDocument = {
               'application/json': {
                 schema: {
                   $ref: '#/components/schemas/OrderTrendResponseDto',
+                  example: {
+                    data: [
+                      {
+                        period_label: '00:00-02:00',
+                        period_start: '2024-01-01T00:00:00Z',
+                        period_end: '2024-01-01T01:59:59Z',
+                        count: 15,
+                      },
+                      {
+                        period_label: '02:00-04:00',
+                        period_start: '2024-01-01T02:00:00Z',
+                        period_end: '2024-01-01T03:59:59Z',
+                        count: 20,
+                      },
+                      {
+                        period_label: '04:00-06:00',
+                        period_start: '2024-01-01T04:00:00Z',
+                        period_end: '2024-01-01T05:59:59Z',
+                        count: 25,
+                      },
+                    ],
+                    summary: {
+                      total_orders: 60,
+                      actual_start_date_used: '2024-01-01T00:00:00Z',
+                      actual_end_date_used: '2024-01-01T05:59:59Z',
+                    },
+                  },
                 },
               },
             },
@@ -2048,18 +1978,7 @@ export const openApiDocument = {
         operationId: 'DashboardController_getBranchDistribution',
         parameters: [
           {
-            name: 'period',
-            required: false,
-            in: 'query',
-            description: 'Time period for the statistics',
-            schema: {
-              example: 'month',
-              type: 'string',
-              enum: ['year', 'month', 'week', 'day', 'all_time'],
-            },
-          },
-          {
-            name: 'startDate',
+            name: 'start_date',
             required: false,
             in: 'query',
             description: 'Start date for the statistics (YYYY-MM-DD)',
@@ -2069,43 +1988,13 @@ export const openApiDocument = {
             },
           },
           {
-            name: 'endDate',
+            name: 'end_date',
             required: false,
             in: 'query',
             description: 'End date for the statistics (YYYY-MM-DD)',
             schema: {
               example: '2023-01-31',
               type: 'string',
-            },
-          },
-          {
-            name: 'branch',
-            required: false,
-            in: 'query',
-            description: 'For filtering by specific branch',
-            schema: {
-              example: 'Main Branch',
-              type: 'string',
-            },
-          },
-          {
-            name: 'year',
-            required: false,
-            in: 'query',
-            description: 'Year for the statistics (e.g., 2023)',
-            schema: {
-              example: 2023,
-              type: 'number',
-            },
-          },
-          {
-            name: 'month',
-            required: false,
-            in: 'query',
-            description: 'Month for the statistics (1-12, e.g., 1 for January)',
-            schema: {
-              example: 1,
-              type: 'number',
             },
           },
         ],
@@ -2116,6 +2005,28 @@ export const openApiDocument = {
               'application/json': {
                 schema: {
                   $ref: '#/components/schemas/BranchDistributionResponseDto',
+                  example: {
+                    data: [
+                      {
+                        branch: 'Main Branch',
+                        count: 250,
+                        percentage: '50%',
+                        change: '+5%',
+                      },
+                      {
+                        branch: 'Branch B',
+                        count: 150,
+                        percentage: '30%',
+                        change: '-2%',
+                      },
+                      {
+                        branch: 'Branch C',
+                        count: 100,
+                        percentage: '20%',
+                        change: '+1%',
+                      },
+                    ],
+                  },
                 },
               },
             },
@@ -2141,6 +2052,18 @@ export const openApiDocument = {
               'application/json': {
                 schema: {
                   $ref: '#/components/schemas/InspectorPerformanceResponseDto',
+                  example: {
+                    data: [
+                      {
+                        inspector: 'John Doe',
+                        totalInspections: 7,
+                      },
+                      {
+                        inspector: 'Jane Doe',
+                        totalInspections: 7,
+                      },
+                    ],
+                  },
                 },
               },
             },
@@ -2152,31 +2075,6 @@ export const openApiDocument = {
           },
         ],
         summary: 'Get inspector performance',
-        tags: ['Dashboard Admin'],
-      },
-    },
-    '/api/v1/dashboard/inspection-review-stats': {
-      get: {
-        operationId: 'DashboardController_getInspectionStats',
-        parameters: [],
-        responses: {
-          '200': {
-            description: 'Inspection statistics successfully retrieved.',
-            content: {
-              'application/json': {
-                schema: {
-                  $ref: '#/components/schemas/InspectionStatsResponseDto',
-                },
-              },
-            },
-          },
-        },
-        security: [
-          {
-            bearer: [],
-          },
-        ],
-        summary: 'Get inspection statistics by status and time period',
         tags: ['Dashboard Admin'],
       },
     },
@@ -2709,7 +2607,8 @@ export const openApiDocument = {
               ],
             },
             description:
-              'Object containing details from the "Hasil Inspeksi" summary section of the form.',
+              'Object containing summary results from the inspection form.',
+            nullable: true,
           },
           detailedAssessment: {
             type: 'object',
@@ -2859,6 +2758,7 @@ export const openApiDocument = {
             },
             description:
               'Object containing details from the "Penilaian" section(s) of the inspection form.',
+            nullable: true,
           },
           bodyPaintThickness: {
             type: 'object',
@@ -2879,342 +2779,6 @@ export const openApiDocument = {
                 frontDoor: 10,
                 rearDoor: 10,
                 rearFender: 10,
-              },
-            },
-            description:
-              'Object containing details from the "Body Paint Thickness" test section of the form.',
-          },
-          notesFontSizes: {
-            type: 'object',
-            example: {
-              'inspectionSummary.interiorNotes': 12,
-              'inspectionSummary.eksteriorNotes': 12,
-              'inspectionSummary.kakiKakiNotes': 12,
-              'inspectionSummary.mesinNotes': 12,
-              'inspectionSummary.deskripsiKeseluruhan': 12,
-              'detailedAssessment.testDrive.catatan': 12,
-              'detailedAssessment.banDanKakiKaki.catatan': 12,
-              'detailedAssessment.hasilInspeksiEksterior.catatan': 12,
-              'detailedAssessment.toolsTest.catatan': 12,
-              'detailedAssessment.fitur.catatan': 12,
-              'detailedAssessment.hasilInspeksiMesin.catatan': 12,
-              'detailedAssessment.hasilInspeksiInterior.catatan': 12,
-            },
-            description:
-              'Map of note field paths to their desired font sizes in the report.',
-          },
-        },
-        required: [
-          'vehiclePlateNumber',
-          'inspectionDate',
-          'overallRating',
-          'identityDetails',
-          'vehicleData',
-          'equipmentChecklist',
-          'inspectionSummary',
-          'detailedAssessment',
-          'bodyPaintThickness',
-          'notesFontSizes',
-        ],
-      },
-      InspectionResponseDto: {
-        type: 'object',
-        properties: {
-          id: {
-            type: 'string',
-            example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
-            description:
-              'The unique identifier (UUID) for the inspection record.',
-          },
-          submittedByUserId: {
-            type: 'object',
-            example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
-            description:
-              'The UUID of the user (Inspector) who submitted this inspection.',
-            nullable: true,
-          },
-          reviewerId: {
-            type: 'object',
-            example: null,
-            description:
-              'The UUID of the user (Reviewer) who last reviewed (approved/rejected) this inspection.',
-            nullable: true,
-          },
-          vehiclePlateNumber: {
-            type: 'object',
-            example: 'AB 4332 KJ',
-            description: 'The license plate number of the inspected vehicle.',
-            nullable: true,
-          },
-          inspectionDate: {
-            type: 'object',
-            example: '2025-07-05T14:30:00.000Z',
-            description: 'The date and time the inspection occurred.',
-            nullable: true,
-          },
-          overallRating: {
-            type: 'object',
-            example: '8',
-            description: 'The overall rating assigned during the inspection.',
-            nullable: true,
-          },
-          status: {
-            type: 'string',
-            example: 'ARCHIVED',
-            description:
-              'The current status of the inspection in its lifecycle.',
-          },
-          identityDetails: {
-            type: 'object',
-            example: {
-              namaCustomer: 'Steve Roger',
-              namaInspektor: 'Tony Stark',
-              cabangInspeksi: 'Semarang',
-            },
-            description:
-              'Object containing identity details from the inspection form.',
-            nullable: true,
-          },
-          vehicleData: {
-            type: 'object',
-            example: {
-              tahun: 2023,
-              odometer: 15000,
-              platNomor: 'AB 4332 KJ',
-              transmisi: 'Automatic',
-              biayaPajak: 3500000,
-              kepemilikan: 'Tangan Pertama',
-              pajak1Tahun: '2025-10-15',
-              pajak5Tahun: '2028-10-15',
-              tipeKendaraan: 'Ioniq 5',
-              merekKendaraan: 'Hyundai',
-              warnaKendaraan: 'Silver',
-            },
-            description:
-              'Object containing vehicle details from the inspection form.',
-            nullable: true,
-          },
-          equipmentChecklist: {
-            type: 'object',
-            example: {
-              bpkb: false,
-              noMesin: true,
-              toolkit: true,
-              banSerep: true,
-              dongkrak: true,
-              noRangka: true,
-              bukuManual: true,
-              kunciSerep: false,
-              bukuService: true,
-            },
-            description:
-              'Object containing checklist results for equipment from the inspection form.',
-            nullable: true,
-          },
-          inspectionSummary: {
-            type: 'object',
-            example: {
-              merkban: 'Bridgestone',
-              tipeVelg: 'Original',
-              posisiBan: 'Bridgestone',
-              mesinNotes: 'Suara halus',
-              mesinScore: 9,
-              ketebalanBan: '80%',
-              interiorNotes: 'Bersih terawat',
-              interiorScore: 9,
-              kakiKakiNotes: 'Aman',
-              kakiKakiScore: 10,
-              eksteriorNotes: 'Baret halus pintu kanan',
-              eksteriorScore: 8,
-              indikasiBanjir: false,
-              indikasiTabrakan: false,
-              estimasiPerbaikan: [
-                {
-                  harga: 700000,
-                  namaPart: 'Tie Rod Kanan Kiri',
-                },
-                {
-                  harga: 300000,
-                  namaPart: 'Spooring',
-                },
-              ],
-              deskripsiKeseluruhan: ['Kondisi sangat baik', 'Ada baret halus'],
-              indikasiOdometerReset: false,
-              penilaianKeseluruhanScore: 9,
-            },
-            description:
-              'Object containing summary results from the inspection form.',
-            nullable: true,
-          },
-          detailedAssessment: {
-            type: 'object',
-            example: {
-              fitur: {
-                airbag: 7,
-                catatan: 'OK',
-                sistemAC: 6,
-                interior1: 5,
-                interior2: 4,
-                interior3: 3,
-                powerWindow: 2,
-                sistemAudio: 1,
-              },
-              testDrive: {
-                rpm: 10,
-                catatan: 'OK',
-                stirBalance: 10,
-                bunyiGetaran: 10,
-                performaStir: 9,
-                performaKopling: 10,
-                performaSuspensi: 9,
-                perpindahanTransmisi: 10,
-              },
-              toolsTest: {
-                catatan: 'OK',
-                testAccu: 10,
-                obdScanner: 10,
-                temperatureAC: 4,
-                tebalCatBodyAtap: 110,
-                tebalCatBodyKiri: 8,
-                tebalCatBodyDepan: 8,
-                tebalCatBodyKanan: 5,
-                tebalCatBodyBelakang: 1,
-              },
-              banDanKakiKaki: {
-                gardan: 10,
-                tieRod: 10,
-                catatan: 'OK',
-                knalpot: 10,
-                banDepan: 9,
-                brakePad: 9,
-                balljoint: 10,
-                discBrake: 10,
-                karetBoot: 10,
-                masterRem: 10,
-                rocksteer: 10,
-                velgDepan: 10,
-                banBelakang: 9,
-                crossmember: 10,
-                shockBreaker: 9,
-                velgBelakang: 10,
-                upperLowerArm: 10,
-                linkStabilizer: 10,
-              },
-              hasilInspeksiMesin: {
-                fan: 10,
-                accu: 9,
-                belt: 9,
-                kabel: 10,
-                oliRem: 10,
-                selang: 10,
-                catatan: 'OK',
-                oliMesin: 9,
-                radiator: 10,
-                coverKlep: 10,
-                karterOli: 10,
-                kondensor: 10,
-                transmisi: 10,
-                waterPump: 10,
-                alternator: 10,
-                suaraMesin: 10,
-                airRadiator: 10,
-                bushingBesar: 10,
-                bushingKecil: 10,
-                cylinderHead: 10,
-                getaranMesin: 10,
-                kompressorAC: 10,
-                oliTransmisi: 10,
-                cylinderBlock: 10,
-                tutupRadiator: 10,
-                coverTimingChain: 10,
-                oliPowerSteering: 10,
-                pompaPowerSteering: 10,
-              },
-              hasilInspeksiInterior: {
-                stir: 10,
-                pedal: 10,
-                plafon: 10,
-                catatan: 'OK',
-                klakson: 10,
-                jokDepan: 9,
-                sunVisor: 10,
-                remTangan: 10,
-                consoleBox: 10,
-                handlePintu: 10,
-                jokBelakang: 9,
-                karpetDasar: 8,
-                lampuHazard: 10,
-                spionTengah: 10,
-                switchLampu: 10,
-                switchWiper: 10,
-                trimInterior: 9,
-                aromaInterior: 10,
-                pembukaBagasi: 10,
-                sabukPengaman: 10,
-                panelDashboard: 9,
-                panelIndikator: 10,
-                tuasPersneling: 10,
-                pembukaKapMesin: 10,
-                tuasTangkiBensin: 10,
-                switchLampuInterior: 10,
-              },
-              hasilInspeksiEksterior: {
-                grill: 10,
-                catatan: 'Baret halus pintu kanan',
-                kapMesin: 10,
-                trunklid: 10,
-                daunWiper: 10,
-                kacaDepan: 10,
-                panelAtap: 10,
-                spionKiri: 10,
-                fenderKiri: 10,
-                kacaBening: 10,
-                lampuUtama: 10,
-                pintuDepan: 10,
-                spionKanan: 10,
-                bumperDepan: 8,
-                fenderKanan: 10,
-                lampuFoglamp: 10,
-                lisplangKiri: 10,
-                lampuBelakang: 10,
-                lisplangKanan: 10,
-                pintuBelakang: 10,
-                sideSkirtKiri: 10,
-                wiperBelakang: 10,
-                bumperBelakang: 9,
-                pintuDepanKiri: 10,
-                sideSkirtKanan: 10,
-                kacaJendelaKiri: 10,
-                kacaJendelaKanan: 10,
-                quarterPanelKiri: 10,
-                pintuBelakangKiri: 10,
-                quarterPanelKanan: 10,
-                pintuBelakangKanan: 10,
-              },
-            },
-            description:
-              'Object containing detailed assessment scores from the inspection form.',
-            nullable: true,
-          },
-          bodyPaintThickness: {
-            type: 'object',
-            example: {
-              left: {
-                rearDoor: 10,
-                frontDoor: 10,
-                rearFender: 10,
-                frontFender: 10,
-              },
-              rear: {
-                trunk: 10,
-                bumper: 10,
-              },
-              front: '10',
-              right: {
-                rearDoor: 10,
-                frontDoor: 10,
-                rearFender: 10,
-                frontFender: 10,
               },
             },
             description:
@@ -3794,11 +3358,13 @@ export const openApiDocument = {
                 percentage: '30%',
                 change: '-2%',
               },
+              {
+                branch: 'Branch C',
+                count: 100,
+                percentage: '20%',
+                change: '+1%',
+              },
             ],
-            type: 'array',
-            items: {
-              $ref: '#/components/schemas/BranchDistributionItemDto',
-            },
           },
         },
         required: ['data'],
@@ -3865,10 +3431,6 @@ export const openApiDocument = {
                 dailyInspections: 3,
               },
             ],
-            type: 'array',
-            items: {
-              $ref: '#/components/schemas/InspectorPerformanceItemDto',
-            },
           },
         },
         required: ['data'],
