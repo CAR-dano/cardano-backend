@@ -1,26 +1,15 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { GetDashboardStatsDto } from './dto/get-dashboard-stats.dto';
-import { SetInspectionTargetDto } from './dto/set-inspection-target.dto';
-import { InspectionTargetStatsResponseDto } from './dto/inspection-target-stats.dto';
 import {
   InspectorPerformanceItemDto,
   InspectorPerformanceResponseDto,
 } from './dto/inspector-performance-response.dto';
 import {
-  InspectionStatsPeriodData,
-  InspectionStatsResponseDto,
-} from './dto/inspection-stats-response.dto';
-import {
   OrderTrendItemDto,
   OrderTrendResponseDto,
 } from './dto/order-trend-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  InspectionStatus,
-  Prisma,
-  TargetPeriod,
-  InspectionTarget,
-} from '@prisma/client';
+import { InspectionStatus, Prisma } from '@prisma/client';
 // import { GetOrderTrendDto, OrderTrendRangeType } from './dto/get-order-trend.';
 import {
   startOfDay,
@@ -36,8 +25,6 @@ import {
   endOfMonth,
   isSameDay,
   isSameMonth,
-  getMonth,
-  getYear,
 } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 
@@ -583,54 +570,48 @@ export class DashboardService {
     };
   }
 
-  // async getInspectorPerformance(
-  //   query: GetDashboardStatsDto,
-  // ): Promise<InspectorPerformanceResponseDto> {
-  //   const { start_date, end_date, timezone } = query;
-  //   const userTimezone = timezone || 'Asia/Jakarta';
-  //   // Get all inspectors (users with role 'INSPECTOR')
-  //   this.logger.log(`Date ${start_date} ${end_date}`);
-  //   const inspectors = await this.prisma.user.findMany({
-  //     where: {
-  //       role: 'INSPECTOR',
-  //     },
-  //     select: {
-  //       id: true,
-  //       name: true,
-  //     },
-  //   });
+  async getInspectorPerformance(
+    query: GetDashboardStatsDto,
+  ): Promise<InspectorPerformanceResponseDto> {
+    const { start_date, end_date, timezone } = query;
 
-  //   const performanceData: InspectorPerformanceItemDto[] = [];
+    const { start, end } = this.getValidatedDateRange(
+      start_date,
+      end_date,
+      timezone,
+    );
 
-  //   for (const inspector of inspectors) {
-  //     if (!inspector.name) continue; // Skip if inspector name is null
+    const inspectors = await this.prisma.user.findMany({
+      where: {
+        role: 'INSPECTOR',
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+    });
 
-  //     // Total inspections within the specified date range
-  //     const whereClause: any = {
-  //       // Tipe any untuk sederhana, idealnya gunakan tipe Prisma
-  //       inspectorId: inspector.id,
-  //     };
+    const performanceData: InspectorPerformanceItemDto[] = [];
 
-  //     if (start_date || end_date) {
-  //       whereClause.createdAt = {};
-  //       if (start_date) {
-  //         whereClause.createdAt.gte = start_date;
-  //       }
-  //       if (end_date) {
-  //         whereClause.createdAt.lte = end_date;
-  //       }
-  //     }
+    for (const inspector of inspectors) {
+      if (!inspector.name) continue; // Skip if inspector name is null
 
-  //     const totalInspections = await this.prisma.inspection.count({
-  //       where: whereClause,
-  //     });
+      const totalInspections = await this.prisma.inspection.count({
+        where: {
+          inspectorId: inspector.id,
+          createdAt: {
+            gte: start,
+            lte: end,
+          },
+        },
+      });
 
-  //     performanceData.push({
-  //       inspector: inspector.name,
-  //       totalInspections,
-  //     });
-  //   }
+      performanceData.push({
+        inspector: inspector.name,
+        totalInspections,
+      });
+    }
 
-  //   return { data: performanceData };
-  // }
+    return { data: performanceData };
+  }
 }

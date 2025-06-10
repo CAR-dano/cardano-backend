@@ -142,17 +142,17 @@ export class DashboardController {
    *
    * @returns A promise that resolves to the inspector performance data.
    */
-  // @Get('inspector-performance')
-  // @Roles(Role.ADMIN)
-  // @ApiOperation({ summary: 'Get inspector performance' })
-  // @ApiResponse({
-  //   status: 200,
-  //   description: 'Inspector performance successfully retrieved.',
-  //   type: InspectorPerformanceResponseDto,
-  // })
-  // async getInspectorPerformance(@Query() query: GetDashboardStatsDto) {
-  //   return this.dashboardService.getInspectorPerformance(query);
-  // }
+  @Get('inspector-performance')
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Get inspector performance' })
+  @ApiResponse({
+    status: 200,
+    description: 'Inspector performance successfully retrieved.',
+    type: InspectorPerformanceResponseDto,
+  })
+  async getInspectorPerformance(@Query() query: GetDashboardStatsDto) {
+    return this.dashboardService.getInspectorPerformance(query);
+  }
 
   /**
    * Retrieves inspection statistics (total, approved, need review, percentage reviewed)
