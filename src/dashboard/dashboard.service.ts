@@ -457,10 +457,10 @@ export class DashboardService {
 
     if (durationInDays === 0) {
       granularity = 'hour'; // If start & end are on the same day -> hourly trend
-    } else if (durationInDays <= 31) {
-      granularity = 'day'; // If range <= 31 days -> daily trend
+    } else if (durationInDays <= 92) {
+      granularity = 'day'; // If range <= 92 days (3 months) -> daily trend
     } else {
-      granularity = 'month'; // If range > 31 days -> monthly trend
+      granularity = 'month'; // If range > 92 days (3 months) -> monthly trend
     }
 
     const periods = this.generatePeriods(
