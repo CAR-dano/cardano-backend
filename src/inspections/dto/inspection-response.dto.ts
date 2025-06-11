@@ -17,6 +17,87 @@ import { ApiProperty } from '@nestjs/swagger';
 // import { UserResponseDto } from '../../users/dto/user-response.dto';
 
 /**
+ * Data Transfer Object (DTO) representing a photo associated with an inspection.
+ */
+export class PhotoResponseDto {
+  @ApiProperty({
+    example: 'add815ce-d602-4e49-a360-e6012e23cead',
+    description: 'The unique identifier (UUID) for the photo record.',
+  })
+  id: string;
+
+  @ApiProperty({
+    example: '2a2b508c-c0c5-4d41-9341-2cdc88635c8a',
+    description: 'The UUID of the inspection this photo belongs to.',
+  })
+  inspectionId: string;
+
+  @ApiProperty({
+    example: '1748917020710-compressed-1748917126971-729831521.jpg',
+    description: 'The file path of the photo.',
+  })
+  path: string;
+
+  @ApiProperty({
+    example: 'Foto Tambahan',
+    description: 'The label assigned to the photo.',
+    nullable: true,
+  })
+  label: string | null;
+
+  @ApiProperty({
+    example: 'General Tambahan',
+    description: 'The category of the photo.',
+    nullable: true,
+  })
+  category: string | null;
+
+  @ApiProperty({
+    example: false,
+    description: 'Indicates if the photo is mandatory.',
+    nullable: true,
+  })
+  isMandatory: boolean | null;
+
+  @ApiProperty({
+    example: null,
+    description: 'The original label of the photo.',
+    nullable: true,
+  })
+  originalLabel: string | null;
+
+  @ApiProperty({
+    example: false,
+    description: 'Indicates if the photo needs attention.',
+    nullable: true,
+  })
+  needAttention: boolean | null;
+
+  @ApiProperty({
+    example: true,
+    description:
+      'Indicates if the photo should be displayed in the PDF report.',
+  })
+  displayInPdf: boolean;
+
+  @ApiProperty({
+    example: '2025-06-03T02:18:46.983Z',
+    description: 'The timestamp when the photo record was created.',
+  })
+  createdAt: Date;
+
+  @ApiProperty({
+    example: '2025-06-03T02:18:46.983Z',
+    description: 'The timestamp when the photo record was last updated.',
+  })
+  updatedAt: Date;
+
+  constructor(partial: Partial<PhotoResponseDto>) {
+    Object.assign(this, partial);
+  }
+}
+
+/**
  * Data Transfer Object (DTO) representing a complete Inspection record for API responses.
  */
 export class InspectionResponseDto {
@@ -395,16 +476,23 @@ export class InspectionResponseDto {
    * An array containing metadata for photos associated with this inspection.
    * Each element is expected to be an object (e.g., { path: string, label?: string }).
    * Stored as a JSON array in the database.
-   * @example [ { "path": "/uploads/photo1.jpg", "label": "front" } ]
+   * @example [ { "id": "...", "path": "/uploads/photo1.jpg", "label": "front", "displayInPdf": true } ]
    */
   @ApiProperty({
-    example: [{ path: '/uploads/photo1.jpg', label: 'front' }],
+    example: [
+      {
+        id: '...',
+        path: '/uploads/photo1.jpg',
+        label: 'front',
+        displayInPdf: true,
+      },
+    ],
     description:
       'An array containing metadata for photos associated with this inspection.',
-    type: 'array',
-    items: { type: 'object' },
+    type: PhotoResponseDto, // Specify the DTO type for array items
+    isArray: true, // Indicate that this is an array
   })
-  photos: Prisma.JsonValue[]; // Type Json[] from Prisma
+  photos: PhotoResponseDto[]; // Use the new PhotoResponseDto type
 
   /**
    * The URL pointing to the generated PDF report file (stored off-chain).
@@ -546,11 +634,20 @@ export class InspectionResponseDto {
    * Constructor to facilitate mapping from a Prisma Inspection entity.
    * Uses Object.assign for straightforward mapping of properties with the same name.
    * Can be extended to explicitly map or exclude fields if needed.
-   * @param {Partial<Inspection>} partial - The Prisma Inspection entity or a partial object.
+   * @param {Partial<Inspection & { photos: Partial<PhotoResponseDto>[] }>} partial - The Prisma Inspection entity or a partial object including photos.
    */
-  constructor(partial: Partial<Inspection>) {
+  constructor(
+    partial: Partial<Inspection & { photos: Partial<PhotoResponseDto>[] }>,
+  ) {
     // Copies properties from the Prisma entity to this DTO instance
     Object.assign(this, partial);
+
+    // Map the photos array to PhotoResponseDto instances
+    if (partial.photos && Array.isArray(partial.photos)) {
+      this.photos = partial.photos.map((photo) => new PhotoResponseDto(photo));
+    } else {
+      this.photos = [];
+    }
 
     // Example: If you included user relations in the service query and want to map them to UserResponseDto
     // if (partial.submittedByUser) {
