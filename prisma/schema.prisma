@@ -166,6 +166,7 @@ model Photo {
   isMandatory Boolean? @default(false)
   originalLabel String? // Special for FIXED types (e.g. “Front View”, “OBD Scanner”)
   needAttention Boolean? @default(false) // Only relevant for DYNAMIC types, default false
+  displayInPdf    Boolean? @default(true) // Indicates if the photo should be displayed in the PDF report
 
   // --- Timestamps ---
   // Automatically set when the record is created.

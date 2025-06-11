@@ -199,6 +199,14 @@ export class PhotosService {
         );
       }
 
+      if (updatePhotoDto.displayInPdf !== undefined) {
+        const displayInPdfBool = updatePhotoDto.displayInPdf === 'true';
+        dataToUpdate.displayInPdf = displayInPdfBool;
+        this.logger.verbose(
+          `Updating displayInPdf for photo ${photoId} to ${displayInPdfBool}`,
+        );
+      }
+
       // 4. Handle File Replacement
       if (newPhotoFile) {
         this.logger.verbose(
