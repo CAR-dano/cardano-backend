@@ -11,10 +11,12 @@
  * metadata label and content.
  * --------------------------------------------------------------------------
  */
+
+// Library imports
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
- * DTO representing a single metadata entry returned by the
+ * Data Transfer Object (DTO) representing a single metadata entry returned by the
  * Blockfrost `/txs/{hash}/metadata` endpoint.
  */
 export class TransactionMetadataResponseDto {
@@ -23,10 +25,10 @@ export class TransactionMetadataResponseDto {
    * Example: "721" for NFT metadata standard.
    */
   @ApiProperty({
-    description: 'Metadata label (key) as a string (e.g., "721")',
-    example: '721',
+    description: 'Metadata label (key) as a string (e.g., "721")', // Description for Swagger documentation
+    example: '721', // Example value for Swagger documentation
   })
-  label: string;
+  label: string; // Property to hold the metadata label
 
   /**
    * The content of the metadata associated with the label.
@@ -37,31 +39,27 @@ export class TransactionMetadataResponseDto {
    */
   @ApiProperty({
     description:
-      'The JSON metadata content associated with the label. Structure varies.',
+      'The JSON metadata content associated with the label. Structure varies.', // Description for Swagger documentation
     example: {
       'a1b2c3d4...': {
         // Policy ID
         TokenNameHex: {
           // Asset Name (Hex) - Note: Blockfrost shows hex here in some contexts, but the lookup key in metadata is often the non-hex name
           name: 'CarInspection-B123RI', // Example name
-          inspectionId: 'uuid...',
-          inspectionDate: 'YYYY-MM-DD',
-          vehicleNumber: 'XYZ123',
-          vehicleBrand: 'Toyota',
-          vehicleModel: 'Camry',
-          overallRating: 'Excellent',
-          pdfUrl: 'https://example.com/report.pdf',
-          pdfHash: 'sha256...',
-          inspectorId: 'inspector-uuid...',
+          image: 'ipfs://QmY65h6y6zUoJjN3ripc4J2PzEvzL2VkiVXz3sCZboqPJw',
+          mediaType: 'image/png',
+          description: 'NFT Proof of Vehicle Inspection',
+          vehicleNumber: 'XYZ123', // Example vehicle number
+          pdfHash: 'sha256...', // Example PDF hash
         },
       },
     },
     // We use 'any' here because the structure can be highly variable.
     // For better documentation, you could create more specific nested DTOs if
     // you always expect a certain structure under label '721'.
-    type: 'object', // General hint, could be array, string etc.
+    type: 'object', // General hint for Swagger, could be array, string etc.
     additionalProperties: true, // Allow additional properties as the structure can vary
     nullable: true, // Metadata could potentially be JSON null
   })
-  json_metadata: any;
+  json_metadata: any; // Property to hold the JSON metadata content
 }

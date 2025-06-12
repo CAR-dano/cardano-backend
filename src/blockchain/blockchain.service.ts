@@ -9,6 +9,7 @@
  * using Mesh SDK and BlockfrostProvider.
  * --------------------------------------------------------------------------
  */
+// NestJS Common Modules, Decorators, and Exceptions
 import {
   Injectable,
   Logger,
@@ -16,7 +17,11 @@ import {
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+
+// NestJS Config Module
 import { ConfigService } from '@nestjs/config';
+
+// Mesh SDK Core Library for blockchain interactions
 import {
   BlockfrostProvider,
   MeshTxBuilder,
@@ -27,13 +32,22 @@ import {
   mConStr,
   type Data,
 } from '@meshsdk/core';
+
+// Mesh SDK Core CST Library for Plutus script operations
 import { applyParamsToScript } from '@meshsdk/core-cst';
+
+// Internal Data Transfer Objects (DTOs)
 import { TransactionMetadataResponseDto } from './dto/transaction-metadata-response.dto';
 import { NftDataResponseDto } from './dto/nft-data-response.dto';
 import { BuildMintTxDto } from './dto/build-mint-tx.dto';
 import { BuildMintTxResponseDto } from './dto/build-mint-tx-response.dto';
+
+// Internal JSON data (Plutus blueprint)
 import * as blueprint from './plutus.json';
+
+// Internal Types
 import { PlutusBlueprint, PlutusValidator } from './types/blueprint.type';
+
 /**
  * Defines the structure for inspection NFT metadata, aligning with desired on-chain data.
  */
@@ -113,6 +127,7 @@ export class BlockchainService {
         type: 'root', // Assuming root key from bech32 string
         bech32: secretKey,
       },
+      // Parameters can be added here if needed globally
     });
     this.logger.log('MeshWallet Initialized.');
   }
@@ -402,10 +417,14 @@ export class BlockchainService {
   }
 
   /**
-   * Membangun unsigned transaction untuk minting NFT menggunakan Aiken Smart Contract.
-   * Fungsi ini tidak menandatangani atau mengirimkan transaksi.
-   * @param buildMintTxDto Data yang berisi alamat admin dan detail inspeksi.
-   * @returns Promise yang resolve ke unsigned transaction CBOR dan asset ID NFT.
+   * Builds an unsigned transaction for minting NFT using an Aiken Smart Contract.
+   * This function does not sign or submit the transaction.
+   *
+   * @param buildMintTxDto Data containing the admin address and inspection details.
+   * @returns A promise that resolves to an object containing the unsigned transaction CBOR and the NFT asset ID.
+   * @throws NotFoundException if no UTXOs are available at the admin address.
+   * @throws BadRequestException if at least two UTXOs are not available for input and collateral.
+   * @throws InternalServerErrorException if building the transaction fails or the Aiken validator is not found.
    */
   async buildAikenMintTransaction(
     buildMintTxDto: BuildMintTxDto,
@@ -413,30 +432,28 @@ export class BlockchainService {
     const { adminAddress, inspectionData } = buildMintTxDto;
 
     this.logger.log(
-      `Mulai membangun transaksi Aiken untuk admin: ${adminAddress}`,
+      `Starting to build Aiken transaction for admin: ${adminAddress}`,
     );
 
     try {
-      // 1. Dapatkan UTXO milik admin dari Blockfrost
-      // Di arsitektur baru, frontend sebaiknya mengirimkan UTXO yang akan digunakan
-      // Namun untuk saat ini, kita akan fetch di backend.
+      // 1. Get admin's UTXO from Blockfrost
+      // In the new architecture, the frontend should ideally send the UTXO to be used
+      // However, for now, we will fetch it in the backend.
       const utxos =
         await this.blockfrostProvider.fetchAddressUTxOs(adminAddress);
       if (utxos.length === 0) {
-        throw new NotFoundException(
-          'Tidak ada UTXO yang tersedia di alamat admin.',
-        );
+        throw new NotFoundException('No UTXOs available at the admin address.');
       }
       const refUtxo = utxos[0];
 
-      // 2. Persiapkan policy dan redeemer menggunakan logika Aiken
+      // 2. Prepare policy and redeemer using Aiken logic
       const { policy, policyId } = this.getParameterizedPolicy(
         refUtxo.input.txHash,
         refUtxo.input.outputIndex,
       );
       const mintRedeemer = this.constructMintRedeemer();
 
-      // 3. Siapkan metadata dan nama aset
+      // 3. Prepare metadata and asset name
       const assetName = inspectionData.nftDisplayName;
       const assetNameHex = stringToHex(assetName);
       const nftAssetId = `${policyId}${assetNameHex}`;
@@ -457,20 +474,20 @@ export class BlockchainService {
         },
       };
 
-      // 4. Inisialisasi MeshTxBuilder
+      // 4. Initialize MeshTxBuilder
       const txBuilder = this.getTxBuilder();
 
-      // Untuk collateral, kita perlu UTXO yang berbeda dari refUtxo
+      // For collateral, we need a different UTXO from refUtxo
       const collateralUtxo = utxos.find(
         (u) => u.input.txHash !== refUtxo.input.txHash,
       );
       if (!collateralUtxo) {
         throw new BadRequestException(
-          'Membutuhkan setidaknya 2 UTXO di alamat admin (untuk input dan collateral).',
+          'Requires at least 2 UTXOs at the admin address (for input and collateral).',
         );
       }
 
-      // 5. Bangun transaksi
+      // 5. Build the transaction
       const unsignedTx = await txBuilder
         .txIn(
           refUtxo.input.txHash,
@@ -495,16 +512,16 @@ export class BlockchainService {
         .complete();
 
       this.logger.log(
-        `Unsigned transaction (Aiken) berhasil dibuat. Asset ID: ${nftAssetId}`,
+        `Unsigned transaction (Aiken) built successfully. Asset ID: ${nftAssetId}`,
       );
 
       return { unsignedTx, nftAssetId };
     } catch (error: unknown) {
       this.logger.error(
-        'Gagal membangun transaksi minting Aiken. Menampilkan detail error:',
+        'Failed to build Aiken minting transaction. Displaying error details:',
       );
       if (error instanceof Error) {
-        this.logger.error(`Pesan Error: ${error.message}`);
+        this.logger.error(`Error Message: ${error.message}`);
         this.logger.error(`Stack Trace: ${error.stack}`);
       } else if (typeof error === 'object' && error !== null) {
         if ('info' in error) {
@@ -517,11 +534,11 @@ export class BlockchainService {
           );
         }
         this.logger.error(
-          'Objek Error Lengkap (JSON):',
+          'Full Error Object (JSON):',
           JSON.stringify(error, null, 2),
         );
       } else {
-        this.logger.error('Error tidak dikenal:', error);
+        this.logger.error('Unknown Error:', error);
       }
 
       if (
@@ -531,11 +548,19 @@ export class BlockchainService {
         throw error;
       }
       throw new InternalServerErrorException(
-        'Gagal memproses permintaan minting dengan Aiken.',
+        'Failed to process minting request with Aiken.',
       );
     }
   }
 
+  /**
+   * Retrieves the parameterized policy script and policy ID for the Aiken minting policy.
+   * The policy is parameterized with a reference UTXO.
+   *
+   * @param txHash The transaction hash of the reference UTXO.
+   * @param outputIndex The output index of the reference UTXO.
+   * @returns An object containing the parameterized policy script and its policy ID.
+   */
   private getParameterizedPolicy(
     txHash: string,
     outputIndex: number,
@@ -551,10 +576,21 @@ export class BlockchainService {
     return { policy, policyId };
   }
 
+  /**
+   * Constructs the mint redeemer for the Aiken minting policy.
+   *
+   * @returns The mint redeemer as Data.
+   */
   private constructMintRedeemer(): Data {
     return mConStr(0, []);
   }
 
+  /**
+   * Retrieves the Aiken validator from the plutus.json blueprint.
+   *
+   * @returns The PlutusValidator for the inspection minting policy.
+   * @throws InternalServerErrorException if the required validator is not found in plutus.json.
+   */
   private getAikenValidator(): PlutusValidator {
     const typedBlueprint = blueprint as PlutusBlueprint;
     const validator = typedBlueprint.validators.find(
@@ -562,7 +598,7 @@ export class BlockchainService {
     );
     if (!validator) {
       throw new InternalServerErrorException(
-        'Validator "inspection_policy.inspection_policy.mint" tidak ditemukan di plutus.json.',
+        'Validator "inspection_policy.inspection_policy.mint" not found in plutus.json.',
       );
     }
     return validator;

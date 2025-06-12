@@ -8,6 +8,8 @@
  * Contains necessary data fields for the minting process.
  * --------------------------------------------------------------------------
  */
+
+// External library imports are grouped together.
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsString,
@@ -31,12 +33,16 @@ export class MintRequestDto {
   })
   @IsString()
   @IsNotEmpty()
-  inspectionId: string;
+  inspectionId: string; // Internal ID of the inspection record
 
+  /**
+   * Vehicle Plate Number.
+   * Included in NFT metadata.
+   */
   @ApiProperty({ description: 'Vehicle Plate Number', example: 'B 123 RI' })
   @IsString()
   @IsNotEmpty()
-  vehicleNumber: string;
+  vehicleNumber: string; // Vehicle plate number
 
   /**
    * Inspection Date in ISO String format.
@@ -48,7 +54,7 @@ export class MintRequestDto {
   })
   @IsString()
   @IsNotEmpty()
-  inspectionDate: string;
+  inspectionDate: string; // Inspection date in ISO string format
 
   /**
    * ID of the Inspector user who performed the inspection.
@@ -57,7 +63,7 @@ export class MintRequestDto {
   @ApiProperty({ description: 'ID of the Inspector user', format: 'uuid' })
   @IsString()
   @IsNotEmpty()
-  inspectorId: string;
+  inspectorId: string; // ID of the inspector user
 
   /**
    * Vehicle Mileage at the time of inspection.
@@ -66,7 +72,7 @@ export class MintRequestDto {
   @ApiProperty({ description: 'Vehicle Mileage', example: 15000 })
   @IsNumber()
   @IsNotEmpty()
-  mileage: number;
+  mileage: number; // Vehicle mileage at the time of inspection
 
   /**
    * Inspection Status. Should be 'APPROVED' for minting.
@@ -78,7 +84,7 @@ export class MintRequestDto {
   })
   @IsString()
   @IsNotEmpty()
-  status: string;
+  status: string; // Inspection status (should be APPROVED for minting)
 
   /**
    * Public URL of the archived PDF report.
@@ -87,7 +93,7 @@ export class MintRequestDto {
   @ApiProperty({ description: 'Public URL of the archived PDF report' })
   @IsUrl()
   @IsNotEmpty()
-  pdfUrl: string;
+  pdfUrl: string; // Public URL of the archived PDF report
 
   /**
    * SHA-256 Hash of the PDF report.
@@ -96,7 +102,7 @@ export class MintRequestDto {
   @ApiProperty({ description: 'SHA-256 Hash of the PDF report' })
   @IsString()
   @IsNotEmpty()
-  pdfHash: string;
+  pdfHash: string; // SHA-256 hash of the PDF report
 
   @ApiProperty({
     description:
@@ -106,5 +112,5 @@ export class MintRequestDto {
   })
   @IsOptional()
   @IsString()
-  nftDisplayName?: string;
+  nftDisplayName?: string; // Optional display name for the NFT
 }

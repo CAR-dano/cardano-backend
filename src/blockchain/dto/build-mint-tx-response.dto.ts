@@ -1,22 +1,43 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: build-mint-tx-response.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Data Transfer Object (DTO) for the response of the endpoint
+ * that builds a transaction. This data is sent from the backend to the frontend.
+ * --------------------------------------------------------------------------
+ */
+
+// Library imports
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
- * DTO untuk respons dari endpoint yang membangun transaksi.
- * Backend akan mengirimkan data ini ke frontend.
+ * DTO for the response of the endpoint that builds a transaction.
+ * The backend sends this data to the frontend.
+ */
+/**
+ * Exports the class to make it available for use in other modules.
  */
 export class BuildMintTxResponseDto {
+  /**
+   * The unsigned transaction in CBOR hex string format. This string will be passed to the wallet on the frontend for signing.
+   */
   @ApiProperty({
     description:
-      'Transaksi yang belum ditandatangani dalam format CBOR hex string. String ini akan diserahkan ke dompet di frontend untuk ditandatangani.',
+      'The unsigned transaction in CBOR hex string format. This string will be passed to the wallet on the frontend for signing.',
     example: '84a40082825820...',
   })
-  unsignedTx: string;
+  unsignedTx: string; // Represents the unsigned transaction as a string.
 
+  /**
+   * The unique Asset ID (PolicyID + AssetNameHex) of the NFT to be created. The frontend needs to temporarily store this to send back during confirmation.
+   */
   @ApiProperty({
     description:
-      'Asset ID unik (PolicyID + AssetNameHex) dari NFT yang akan dibuat. Frontend perlu menyimpan ini sementara untuk dikirim kembali saat konfirmasi.',
+      'The unique Asset ID (PolicyID + AssetNameHex) of the NFT to be created. The frontend needs to temporarily store this to send back during confirmation.',
     example:
       '401c967008d42885400991f9225715e1c3a8e43757b1fd36a1328195496e7370656374696f6e4e4654',
   })
-  nftAssetId: string;
+  nftAssetId: string; // Represents the NFT Asset ID as a string.
 }
