@@ -17,6 +17,8 @@
     "noImplicitAny": false,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": false,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
     "paths": {
       "@cardano-backend/auth": ["libs/auth/src"],
       "@cardano-backend/auth/*": ["libs/auth/src/*"],

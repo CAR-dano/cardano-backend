@@ -58,6 +58,9 @@ import {
 } from '@nestjs/swagger';
 import { AddMultiplePhotosDto } from 'src/photos/dto/add-multiple-photos.dto';
 import { AddSinglePhotoDto } from 'src/inspections/dto/add-single-photo.dto';
+import { BuildMintTxResponseDto } from '../blockchain/dto/build-mint-tx-response.dto';
+import { BuildMintRequestDto } from './dto/build-mint-request.dto';
+import { ConfirmMintDto } from './dto/confirm-mint.dto';
 import { Request, Response } from 'express';
 // Import Guards for authentication and authorization
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -949,6 +952,57 @@ export class InspectionsController {
     const inspection = await this.inspectionsService.processToArchive(
       id,
       userId,
+    );
+    return new InspectionResponseDto(inspection);
+  }
+
+  /**
+   * Tahap 1: Membangun unsigned transaction untuk di-sign oleh frontend.
+   * @param id ID inspeksi.
+   * @param body Berisi 'adminAddress' dari dompet yang terhubung di frontend.
+   */
+  @Post(':id/build-archive-tx')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Tahap 1 - Membangun Unsigned Archive Transaction' })
+  @ApiBody({ type: BuildMintRequestDto })
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  @ApiResponse({ status: 201, type: BuildMintTxResponseDto })
+  async buildArchiveTransaction(
+    @Param('id') id: string,
+    @Body() buildMintRequestDto: BuildMintRequestDto,
+  ): Promise<BuildMintTxResponseDto> {
+    if (!buildMintRequestDto.adminAddress) {
+      throw new BadRequestException(
+        'adminAddress diperlukan dalam body request.',
+      );
+    }
+    return this.inspectionsService.buildArchiveTransaction(
+      id,
+      buildMintRequestDto.adminAddress,
+    );
+  }
+
+  /**
+   * Tahap 2: Menerima konfirmasi dari frontend setelah transaksi berhasil dikirim.
+   * @param id ID inspeksi.
+   * @param confirmDto Berisi 'txHash' dan 'nftAssetId'.
+   */
+  @Post(':id/confirm-archive')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Tahap 2 - Konfirmasi dan Simpan Hasil Minting' })
+  @ApiResponse({ status: 200, type: InspectionResponseDto })
+  async confirmArchive(
+    @Param('id') id: string,
+    @Body() confirmDto: ConfirmMintDto,
+  ): Promise<InspectionResponseDto> {
+    const inspection = await this.inspectionsService.confirmArchive(
+      id,
+      confirmDto,
     );
     return new InspectionResponseDto(inspection);
   }

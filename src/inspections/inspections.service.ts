@@ -24,6 +24,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service'; // Service for Prisma client interaction
 import { CreateInspectionDto } from './dto/create-inspection.dto'; // DTO for incoming creation data
 import { UpdateInspectionDto } from './dto/update-inspection.dto';
+import { BuildMintTxDto } from '../blockchain/dto/build-mint-tx.dto';
+import { ConfirmMintDto } from './dto/confirm-mint.dto';
 import {
   Inspection,
   InspectionStatus,
@@ -1017,7 +1019,7 @@ export class InspectionsService {
 
     const frontendReportUrl = `${this.config.getOrThrow<string>(
       'CLIENT_BASE_URL_PDF',
-    )}/dashboard/preview/${inspection.id}`;
+    )}/data/${inspection.id}`;
     let pdfBuffer: Buffer;
     let pdfCid: string;
     let pdfHashString: string | null = null;
@@ -1880,5 +1882,87 @@ export class InspectionsService {
         'Could not export inspection data to CSV.',
       );
     }
+  }
+
+  /**
+   * Tahap 1: Mempersiapkan data dan membangun unsigned transaction.
+   * Fungsi ini dipanggil oleh frontend untuk mendapatkan transaksi yang siap ditandatangani.
+   * @param inspectionId ID dari inspeksi yang akan di-mint.
+   * @param adminAddress Alamat admin yang akan menandatangani, didapat dari frontend.
+   * @returns Objek yang berisi unsignedTx dan nftAssetId.
+   */
+  async buildArchiveTransaction(inspectionId: string, adminAddress: string) {
+    this.logger.log(
+      `Memulai pembangunan transaksi untuk inspeksi: ${inspectionId}`,
+    );
+
+    // 1. Lakukan validasi bisnis yang sama seperti di processToArchive
+    const inspection = await this.prisma.inspection.findUnique({
+      where: { id: inspectionId },
+    });
+    if (!inspection)
+      throw new NotFoundException(`Inspeksi ${inspectionId} tidak ditemukan.`);
+    if (inspection.status !== InspectionStatus.APPROVED) {
+      throw new BadRequestException(
+        `Inspeksi ${inspectionId} tidak bisa di-mint. Status: ${inspection.status}`,
+      );
+    }
+    if (
+      !inspection.vehiclePlateNumber ||
+      !inspection.ipfsPdf ||
+      !inspection.pdfFileHash
+    ) {
+      throw new BadRequestException(
+        `Data inspeksi ${inspectionId} tidak lengkap untuk minting.`,
+      );
+    }
+
+    // 2. Siapkan data untuk dikirim ke blockchain service
+    const buildDto: BuildMintTxDto = {
+      adminAddress: adminAddress,
+      inspectionData: {
+        vehicleNumber: inspection.vehiclePlateNumber,
+        pdfHash: inspection.pdfFileHash,
+        nftDisplayName: `Car Inspection ${inspection.vehiclePlateNumber}`,
+      },
+    };
+
+    // 3. Delegasikan pembangunan transaksi ke BlockchainService
+    return this.blockchainService.buildAikenMintTransaction(buildDto);
+  }
+
+  /**
+   * Tahap 2: Menyimpan hasil minting setelah frontend berhasil mengirimkan transaksi.
+   * @param inspectionId ID dari inspeksi yang di-update.
+   * @param confirmDto Data konfirmasi dari frontend (txHash dan nftAssetId).
+   * @returns Record inspeksi yang sudah terupdate.
+   */
+  async confirmArchive(
+    inspectionId: string,
+    confirmDto: ConfirmMintDto,
+  ): Promise<Inspection> {
+    this.logger.log(
+      `Konfirmasi minting untuk inspeksi ${inspectionId} dengan TxHash: ${confirmDto.txHash}`,
+    );
+
+    // Pastikan inspeksi ada
+    const inspection = await this.prisma.inspection.findUnique({
+      where: { id: inspectionId },
+    });
+    if (!inspection)
+      throw new NotFoundException(
+        `Inspeksi ${inspectionId} tidak ditemukan untuk konfirmasi.`,
+      );
+
+    // Update database dengan hasil dari blockchain
+    return this.prisma.inspection.update({
+      where: { id: inspectionId },
+      data: {
+        status: InspectionStatus.ARCHIVED,
+        nftAssetId: confirmDto.nftAssetId,
+        blockchainTxHash: confirmDto.txHash,
+        archivedAt: new Date(),
+      },
+    });
   }
 }

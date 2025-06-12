@@ -24,10 +24,16 @@ import {
   ForgeScript,
   resolveScriptHash,
   stringToHex,
+  mConStr,
+  type Data,
 } from '@meshsdk/core';
+import { applyParamsToScript } from '@meshsdk/core-cst';
 import { TransactionMetadataResponseDto } from './dto/transaction-metadata-response.dto';
 import { NftDataResponseDto } from './dto/nft-data-response.dto';
-
+import { BuildMintTxDto } from './dto/build-mint-tx.dto';
+import { BuildMintTxResponseDto } from './dto/build-mint-tx-response.dto';
+import * as blueprint from './plutus.json';
+import { PlutusBlueprint, PlutusValidator } from './types/blueprint.type';
 /**
  * Defines the structure for inspection NFT metadata, aligning with desired on-chain data.
  */
@@ -35,6 +41,14 @@ export interface InspectionNftMetadata {
   vehicleNumber: string;
   pdfUrl: string;
   pdfHash: string;
+}
+interface Script {
+  code: string;
+  version: 'V3';
+}
+interface InspectionPolicy {
+  policy: Script;
+  policyId: string;
 }
 
 @Injectable()
@@ -54,45 +68,16 @@ export class BlockchainService {
    */
   constructor(private configService: ConfigService) {
     // Determine Blockfrost environment and base URL
-    const blockfrostEnv =
-      this.configService.getOrThrow<string>('BLOCKFROST_ENV');
-    switch (blockfrostEnv) {
-      case 'preprod':
-        this.blockfrostBaseUrl = 'https://cardano-preprod.blockfrost.io/api/v0';
-        break;
-      case 'preview':
-        this.blockfrostBaseUrl = 'https://cardano-preview.blockfrost.io/api/v0';
-        break;
-      case 'mainnet':
-        this.blockfrostBaseUrl = 'https://cardano-mainnet.blockfrost.io/api/v0';
-        break;
-      default:
-        throw new Error(`Unsupported BLOCKFROST_ENV: ${blockfrostEnv}`);
-    }
+    const blockfrostEnv = this.configService.getOrThrow<
+      'preview' | 'preprod' | 'mainnet'
+    >('BLOCKFROST_ENV');
+    this.blockfrostBaseUrl = `https://cardano-${blockfrostEnv}.blockfrost.io/api/v0`;
     this.logger.log(`Using Blockfrost environment: ${blockfrostEnv}`);
 
     // Initialize Blockfrost Provider
-    switch (blockfrostEnv) {
-      case 'preview':
-        this.apiKey = this.configService.getOrThrow<string>(
-          'BLOCKFROST_API_KEY_PREVIEW',
-        );
-        break;
-      case 'preprod':
-        this.apiKey = this.configService.getOrThrow<string>(
-          'BLOCKFROST_API_KEY_PREPROD',
-        );
-        break;
-      case 'mainnet':
-        this.apiKey = this.configService.getOrThrow<string>(
-          'BLOCKFROST_API_KEY_MAINNET',
-        );
-        break;
-      default:
-        throw new Error(
-          `Unsupported BLOCKFROST_ENV: ${blockfrostEnv as string}`,
-        );
-    }
+    this.apiKey = this.configService.getOrThrow<string>(
+      `BLOCKFROST_API_KEY_${blockfrostEnv.toUpperCase()}`,
+    );
     this.blockfrostProvider = new BlockfrostProvider(this.apiKey);
     this.logger.log('BlockfrostProvider Initialized.');
 
@@ -106,7 +91,7 @@ export class BlockchainService {
         secretKey = this.configService.get<string>('WALLET_SECRET_KEY_TESTNET');
         break;
       case 'mainnet':
-        secretKey = this.configService.get<string>('WALLET_SECRET_KEY_MAINNET');
+        secretKey = this.configService.get<string>('WALLET_SECRET_KEY_mainnet');
         break;
       default:
         throw new Error(
@@ -121,7 +106,7 @@ export class BlockchainService {
     }
 
     this.wallet = new MeshWallet({
-      networkId: blockfrostEnv === 'mainnet' ? 1 : 0, // 0 for Preprod/Preview, 1 for Mainnet
+      networkId: blockfrostEnv === 'mainnet' ? 1 : 0, // 0 for preprod/preview, 1 for mainnet
       fetcher: this.blockfrostProvider,
       submitter: this.blockfrostProvider,
       key: {
@@ -414,5 +399,172 @@ export class BlockchainService {
         `Failed to retrieve asset data: ${errorMessage}`,
       );
     }
+  }
+
+  /**
+   * Membangun unsigned transaction untuk minting NFT menggunakan Aiken Smart Contract.
+   * Fungsi ini tidak menandatangani atau mengirimkan transaksi.
+   * @param buildMintTxDto Data yang berisi alamat admin dan detail inspeksi.
+   * @returns Promise yang resolve ke unsigned transaction CBOR dan asset ID NFT.
+   */
+  async buildAikenMintTransaction(
+    buildMintTxDto: BuildMintTxDto,
+  ): Promise<BuildMintTxResponseDto> {
+    const { adminAddress, inspectionData } = buildMintTxDto;
+
+    this.logger.log(
+      `Mulai membangun transaksi Aiken untuk admin: ${adminAddress}`,
+    );
+
+    try {
+      // 1. Dapatkan UTXO milik admin dari Blockfrost
+      // Di arsitektur baru, frontend sebaiknya mengirimkan UTXO yang akan digunakan
+      // Namun untuk saat ini, kita akan fetch di backend.
+      const utxos =
+        await this.blockfrostProvider.fetchAddressUTxOs(adminAddress);
+      if (utxos.length === 0) {
+        throw new NotFoundException(
+          'Tidak ada UTXO yang tersedia di alamat admin.',
+        );
+      }
+      const refUtxo = utxos[0];
+
+      // 2. Persiapkan policy dan redeemer menggunakan logika Aiken
+      const { policy, policyId } = this.getParameterizedPolicy(
+        refUtxo.input.txHash,
+        refUtxo.input.outputIndex,
+      );
+      const mintRedeemer = this.constructMintRedeemer();
+
+      // 3. Siapkan metadata dan nama aset
+      const assetName = inspectionData.nftDisplayName;
+      const assetNameHex = stringToHex(assetName);
+      const nftAssetId = `${policyId}${assetNameHex}`;
+      const imageForDisplay = `ipfs://QmY65h6y6zUoJjN3ripc4J2PzEvzL2VkiVXz3sCZboqPJw`; // CAR-dano's Logo
+
+      const metadata = {
+        '721': {
+          [policyId]: {
+            [assetName]: {
+              name: assetName,
+              image: imageForDisplay,
+              mediaType: 'image/png',
+              description: 'NFT Proof of Vehicle Inspection',
+              vehicleNumber: inspectionData.vehicleNumber,
+              hash_pdf: inspectionData.pdfHash,
+            },
+          },
+        },
+      };
+
+      // 4. Inisialisasi MeshTxBuilder
+      const txBuilder = this.getTxBuilder();
+
+      // Untuk collateral, kita perlu UTXO yang berbeda dari refUtxo
+      const collateralUtxo = utxos.find(
+        (u) => u.input.txHash !== refUtxo.input.txHash,
+      );
+      if (!collateralUtxo) {
+        throw new BadRequestException(
+          'Membutuhkan setidaknya 2 UTXO di alamat admin (untuk input dan collateral).',
+        );
+      }
+
+      // 5. Bangun transaksi
+      const unsignedTx = await txBuilder
+        .txIn(
+          refUtxo.input.txHash,
+          refUtxo.input.outputIndex,
+          refUtxo.output.amount,
+          refUtxo.output.address,
+        )
+        .mintPlutusScriptV3()
+        .mint('1', policyId, assetNameHex)
+        .mintingScript(policy.code)
+        .mintRedeemerValue(mintRedeemer)
+        .metadataValue('721', metadata['721'])
+        .txOut(adminAddress, [{ unit: nftAssetId, quantity: '1' }])
+        .txInCollateral(
+          collateralUtxo.input.txHash,
+          collateralUtxo.input.outputIndex,
+          collateralUtxo.output.amount,
+          collateralUtxo.output.address,
+        )
+        .changeAddress(adminAddress)
+        .selectUtxosFrom(utxos)
+        .complete();
+
+      this.logger.log(
+        `Unsigned transaction (Aiken) berhasil dibuat. Asset ID: ${nftAssetId}`,
+      );
+
+      return { unsignedTx, nftAssetId };
+    } catch (error: unknown) {
+      this.logger.error(
+        'Gagal membangun transaksi minting Aiken. Menampilkan detail error:',
+      );
+      if (error instanceof Error) {
+        this.logger.error(`Pesan Error: ${error.message}`);
+        this.logger.error(`Stack Trace: ${error.stack}`);
+      } else if (typeof error === 'object' && error !== null) {
+        if ('info' in error) {
+          this.logger.error('Error Info:', (error as { info: any }).info);
+        }
+        if ('message' in error) {
+          this.logger.error(
+            'Error Message:',
+            (error as { message: any }).message,
+          );
+        }
+        this.logger.error(
+          'Objek Error Lengkap (JSON):',
+          JSON.stringify(error, null, 2),
+        );
+      } else {
+        this.logger.error('Error tidak dikenal:', error);
+      }
+
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Gagal memproses permintaan minting dengan Aiken.',
+      );
+    }
+  }
+
+  private getParameterizedPolicy(
+    txHash: string,
+    outputIndex: number,
+  ): InspectionPolicy {
+    const validator = this.getAikenValidator();
+    const utxoRefAsData = mConStr(0, [txHash, BigInt(outputIndex)]);
+    const parameterizedScriptCbor = applyParamsToScript(
+      validator.compiledCode,
+      [utxoRefAsData],
+    );
+    const policy: Script = { code: parameterizedScriptCbor, version: 'V3' };
+    const policyId = resolveScriptHash(parameterizedScriptCbor, 'V3');
+    return { policy, policyId };
+  }
+
+  private constructMintRedeemer(): Data {
+    return mConStr(0, []);
+  }
+
+  private getAikenValidator(): PlutusValidator {
+    const typedBlueprint = blueprint as PlutusBlueprint;
+    const validator = typedBlueprint.validators.find(
+      (v) => v.title === 'inspection_policy.inspection_policy.mint',
+    );
+    if (!validator) {
+      throw new InternalServerErrorException(
+        'Validator "inspection_policy.inspection_policy.mint" tidak ditemukan di plutus.json.',
+      );
+    }
+    return validator;
   }
 }
