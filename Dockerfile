@@ -2,7 +2,7 @@
 
 # --- Stage 1: Builder ---
 # Use a Node.js version that matches your development environment
-FROM node:20-alpine AS builder
+FROM node:20-alpine3.21 AS builder
 
 # Set working directory inside the image
 WORKDIR /usr/src/app
@@ -34,14 +34,16 @@ RUN npm prune --production
 
 # --- Stage 2: Runner ---
 # Use a smaller Node.js image for the final application
-FROM node:20-alpine
+FROM node:20-alpine3.21
 
 # Set working directory
 WORKDIR /usr/src/app
 
+RUN apk add --no-cache openssl postgresql-libs
+
 # Install OS dependencies needed *at runtime* for Prisma/PostgreSQL Client (like openssl)
 # If you encounter runtime errors related to shared libraries, add them here.
-RUN apk add --no-cache openssl libpq # libpq is needed for postgresql connection
+RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev libpq-dev
 
 # Copy necessary files from the builder stage
 COPY --from=builder /usr/src/app/node_modules ./node_modules

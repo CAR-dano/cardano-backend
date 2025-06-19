@@ -892,6 +892,7 @@ export class InspectionsController {
   }
 
   /**
+   * [Old minting method]
    * Initiates the archiving process for an approved inspection.
    * [PUT /inspections/:id/archive]
    * Initiates the archiving process for an approved inspection by fetching a URL and converting it to PDF.
@@ -957,25 +958,54 @@ export class InspectionsController {
   }
 
   /**
-   * Tahap 1: Membangun unsigned transaction untuk di-sign oleh frontend.
-   * @param id ID inspeksi.
-   * @param body Berisi 'adminAddress' dari dompet yang terhubung di frontend.
+   * Builds an unsigned transaction for archiving an inspection.
+   * This transaction is intended to be signed by the frontend wallet.
+   *
+   * @param id The ID of the inspection to archive.
+   * @param buildMintRequestDto DTO containing the admin's wallet address.
+   * @returns A promise that resolves to the unsigned transaction details.
+   * @throws BadRequestException if adminAddress is not provided in the request body.
    */
   @Post(':id/build-archive-tx')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Tahap 1 - Membangun Unsigned Archive Transaction' })
+  @ApiOperation({ summary: 'Step 1 - Build Unsigned Archive Transaction' })
   @ApiBody({ type: BuildMintRequestDto })
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  @ApiResponse({ status: 201, type: BuildMintTxResponseDto })
+  @ApiResponse({
+    status: 201,
+    description: 'The unsigned transaction details for archiving.',
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    type: BuildMintTxResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description:
+      'Bad Request (e.g., invalid input data, missing adminAddress).',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Inspection not found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal Server Error.',
+  })
   async buildArchiveTransaction(
     @Param('id') id: string,
     @Body() buildMintRequestDto: BuildMintRequestDto,
   ): Promise<BuildMintTxResponseDto> {
     if (!buildMintRequestDto.adminAddress) {
       throw new BadRequestException(
-        'adminAddress diperlukan dalam body request.',
+        'adminAddress is required in the request body.',
       );
     }
     return this.inspectionsService.buildArchiveTransaction(
@@ -985,17 +1015,45 @@ export class InspectionsController {
   }
 
   /**
-   * Tahap 2: Menerima konfirmasi dari frontend setelah transaksi berhasil dikirim.
-   * @param id ID inspeksi.
-   * @param confirmDto Berisi 'txHash' dan 'nftAssetId'.
+   * Confirms the archiving process after the transaction is successfully sent from the frontend.
+   * Saves the transaction hash and NFT asset ID.
+   *
+   * @param id The ID of the inspection being archived.
+   * @param confirmDto DTO containing the transaction hash and NFT asset ID.
+   * @returns A promise that resolves to the updated inspection record summary.
    */
   @Post(':id/confirm-archive')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Tahap 2 - Konfirmasi dan Simpan Hasil Minting' })
-  @ApiResponse({ status: 200, type: InspectionResponseDto })
+  @ApiOperation({ summary: 'Step 2 - Confirm and Save Minting Results' })
+  @ApiResponse({
+    status: 200,
+    description:
+      'The updated inspection record summary after confirming archive.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Bad Request (e.g., invalid input data).',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Inspection not found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal Server Error.',
+  })
   async confirmArchive(
     @Param('id') id: string,
     @Body() confirmDto: ConfirmMintDto,
