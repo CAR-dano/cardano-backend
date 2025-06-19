@@ -32,8 +32,10 @@ import {
   Query,
   NotFoundException,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
+import { GetUser } from '../auth/decorators/get-user.decorator';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
 import { UpdateInspectionDto } from './dto/update-inspection.dto';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express'; // NestJS interceptor for handling multiple file fields
@@ -52,14 +54,19 @@ import {
   ApiQuery,
   ApiResponse,
   ApiTags,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AddMultiplePhotosDto } from 'src/photos/dto/add-multiple-photos.dto';
 import { AddSinglePhotoDto } from 'src/inspections/dto/add-single-photo.dto';
+import { BuildMintTxResponseDto } from '../blockchain/dto/build-mint-tx-response.dto';
+import { BuildMintRequestDto } from './dto/build-mint-request.dto';
+import { ConfirmMintDto } from './dto/confirm-mint.dto';
 import { Request, Response } from 'express';
-// Import Guards if/when needed for authentication and authorization
-// import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-// import { RolesGuard } from '../auth/guards/roles.guard';
-// import { Roles } from '../auth/decorators/roles.decorator';
+// Import Guards for authentication and authorization
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Req } from '@nestjs/common'; // Import Req decorator
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
 // import { GetUser } from '../auth/decorators/get-user.decorator';
 // import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface'; // Define or import this
 
@@ -72,7 +79,6 @@ interface PhotoMetadata {
 // --- Multer Configuration ---
 const MAX_PHOTOS_PER_REQUEST = 10; // Max files per batch upload request
 const UPLOAD_PATH = './uploads/inspection-photos';
-const DUMMY_USER_ID = '15aedb80-e428-4d84-9a84-eae47ebe84c1'; // Temporary placeholder for user ID
 
 /**
  * Multer disk storage configuration for uploaded inspection photos.
@@ -160,10 +166,8 @@ export class InspectionsController {
     status: 400,
     description: 'Bad Request (e.g., invalid input data).',
   })
-  // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async create(
     @Body() createInspectionDto: CreateInspectionDto,
-    // @GetUser('id') userId: string, // Get authenticated user ID later
   ): Promise<{ id: string }> {
     const newInspection =
       await this.inspectionsService.create(createInspectionDto);
@@ -181,8 +185,9 @@ export class InspectionsController {
    */
   @Put(':id')
   @HttpCode(HttpStatus.OK)
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR) // Adjust roles as needed
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Update an existing inspection record',
     description:
@@ -196,12 +201,12 @@ export class InspectionsController {
   })
   @ApiBody({ type: UpdateInspectionDto })
   @ApiResponse({
-    status: 201,
-    description: 'The ID of the newly created inspection.',
+    status: 200,
+    description: 'Message indicating changes have been logged.',
     schema: {
       type: 'object',
       properties: {
-        id: { type: 'string', format: 'uuid' },
+        message: { type: 'string' },
       },
     },
   })
@@ -210,25 +215,28 @@ export class InspectionsController {
     description: 'Bad Request (e.g., invalid input data).',
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async update(
     @Param('id') id: string,
     @Body() updateInspectionDto: UpdateInspectionDto,
-    // @GetUser('id') userId: string, // Get authenticated user ID later
-    // @GetUser('role') userRole: Role // Get role later
-  ): Promise<InspectionResponseDto> {
-    const dummyUserId = DUMMY_USER_ID; // Temporary
-    const dummyUserRole = Role.ADMIN; // Temporary
-    this.logger.warn(
-      `Using DUMMY user context for PATCH /inspections/${id}: User=${dummyUserId}, Role=${dummyUserRole}`,
-    );
-    const updatedInspection = await this.inspectionsService.update(
+    @GetUser('id') userId: string,
+    @GetUser('role') userRole: Role,
+  ): Promise<{ message: string }> {
+    const result = await this.inspectionsService.update(
       id,
       updateInspectionDto,
-      dummyUserId,
-      dummyUserRole,
+      userId,
+      userRole,
     );
-    return new InspectionResponseDto(updatedInspection);
+    return result;
   }
 
   // --- Photo Batch Upload Endpoints ---
@@ -310,12 +318,10 @@ export class InspectionsController {
     );
     if (!files || files.length === 0)
       throw new BadRequestException('No photo files provided.');
-    const dummyUserId = DUMMY_USER_ID;
     const newPhotos = await this.photosService.addMultiplePhotos(
       id,
       files,
       addBatchDto.metadata,
-      dummyUserId,
     );
     return newPhotos.map((p) => new PhotoResponseDto(p));
   }
@@ -336,9 +342,7 @@ export class InspectionsController {
       storage: photoStorageConfig,
       fileFilter: imageFileFilter,
     }),
-  ) // Handle single file upload
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
+  )
   @ApiOperation({
     summary: 'Upload a single photo for an inspection',
     description:
@@ -372,7 +376,6 @@ export class InspectionsController {
     @Param('id') id: string,
     @Body() addSingleDto: AddSinglePhotoDto,
     @UploadedFile() file: Express.Multer.File,
-    // @GetUser('id') userId: string,
   ): Promise<PhotoResponseDto> {
     this.logger.log(
       `[POST /inspections/${id}/photos/single] Received file: ${file?.filename}`,
@@ -404,12 +407,10 @@ export class InspectionsController {
       throw new BadRequestException(errorMessage);
     }
 
-    const dummyUserId = DUMMY_USER_ID;
     const newPhoto = await this.photosService.addPhoto(
       id,
       file,
-      parsedMetadata, // Pass parsed metadata
-      dummyUserId,
+      parsedMetadata,
     );
     return new PhotoResponseDto(newPhoto);
   }
@@ -424,7 +425,9 @@ export class InspectionsController {
    * @returns A promise that resolves to an array of photo record summaries.
    */
   @Get(':id/photos')
-  // @UseGuards(JwtAuthGuard) // Add later if needed
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve all photos for an inspection',
     description:
@@ -442,6 +445,14 @@ export class InspectionsController {
     type: [PhotoResponseDto],
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async getPhotosForInspection(
     @Param('id') id: string,
@@ -470,8 +481,9 @@ export class InspectionsController {
       fileFilter: imageFileFilter,
     }),
   ) // Handle single optional file
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR) // Define who can update
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Update a specific photo',
     description:
@@ -505,18 +517,22 @@ export class InspectionsController {
     description: 'Bad Request (e.g., invalid input, invalid file type).',
   })
   @ApiResponse({ status: 404, description: 'Inspection or Photo not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async updatePhoto(
     @Param('id') inspectionId: string,
     @Param('photoId', ParseUUIDPipe) photoId: string,
     @Body() updatePhotoDto: UpdatePhotoDto, // Contains optional label/needAttention
+    @GetUser('id') userId: string,
     @UploadedFile() newFile?: Express.Multer.File, // Optional new file
-    // @GetUser('id') userId: string,
   ): Promise<PhotoResponseDto> {
-    const dummyUserId = DUMMY_USER_ID;
-    this.logger.log(
-      `[PUT /inspections/${inspectionId}/photos/${photoId}] Request received by user ${dummyUserId}`,
-    );
     this.logger.debug('Update DTO:', updatePhotoDto);
     this.logger.debug('New file:', newFile?.filename);
 
@@ -528,7 +544,8 @@ export class InspectionsController {
       inspectionId,
       photoId,
       updatePhotoDto,
-      fileToPass /*, userId*/,
+      fileToPass,
+      userId,
     );
     return new PhotoResponseDto(updatedPhoto);
   }
@@ -543,8 +560,9 @@ export class InspectionsController {
    */
   @Delete(':id/photos/:photoId')
   @HttpCode(HttpStatus.NO_CONTENT) // Standard for successful DELETE with no body
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR) // Define who can delete
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Delete a specific photo',
     description:
@@ -567,17 +585,21 @@ export class InspectionsController {
     description: 'Photo deleted successfully (No Content).',
   })
   @ApiResponse({ status: 404, description: 'Photo not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async deletePhoto(
     @Param('id', ParseUUIDPipe) inspectionId: string, // Included for path consistency, might not be needed by service
     @Param('photoId', ParseUUIDPipe) photoId: string,
-    // @GetUser('id') userId: string,
+    @GetUser('id') userId: string,
   ): Promise<void> {
-    const dummyUserId = DUMMY_USER_ID;
-    this.logger.log(
-      `[DELETE /inspections/${inspectionId}/photos/${photoId}] Request received by user ${dummyUserId}`,
-    );
-    await this.photosService.deletePhoto(photoId, dummyUserId);
+    await this.photosService.deletePhoto(photoId, userId);
     // No return body for 204
   }
 
@@ -635,7 +657,9 @@ export class InspectionsController {
    * Filters results based on the requesting user's role (passed via query).
    */
   @Get()
-  // @UseGuards(JwtAuthGuard) // Add later if needed
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve all inspection records with pagination',
     description:
@@ -650,8 +674,8 @@ export class InspectionsController {
   @ApiQuery({
     name: 'status',
     required: false,
-    enum: InspectionStatus,
-    description: 'Filter inspections by inspection status.',
+    isArray: true, // Indicate that multiple values are allowed
+    description: 'Filter inspections by inspection status (can be multiple).',
   })
   @ApiQuery({
     name: 'page',
@@ -687,10 +711,18 @@ export class InspectionsController {
       },
     },
   })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findAll(
     @Query('role') userRole?: Role,
-    @Query('status') status?: InspectionStatus,
+    @Query('status') status?: string | string[], // Accept as string or string array
     @Query('page') page = 1,
     @Query('pageSize') pageSize = 10,
     /* @GetUser('role') realUserRole: Role */
@@ -698,17 +730,43 @@ export class InspectionsController {
     data: InspectionResponseDto[];
     meta: { total: number; page: number; pageSize: number; totalPages: number };
   }> {
-    const roleToFilter = userRole || Role.ADMIN; // Temporary filter logic
     const pageNumber =
       parseInt(page as any, 10) > 0 ? parseInt(page as any, 10) : 1;
     const pageSizeNumber =
       parseInt(pageSize as any, 10) > 0 ? parseInt(pageSize as any, 10) : 10;
+
+    let parsedStatus: InspectionStatus[] | undefined;
+
+    if (typeof status === 'string') {
+      // If it's a comma-separated string, split it
+      parsedStatus = status.split(',').map((s) => {
+        const trimmedStatus = s.trim();
+        if (!(trimmedStatus in InspectionStatus)) {
+          throw new BadRequestException(
+            `Invalid InspectionStatus: ${trimmedStatus}`,
+          );
+        }
+        return trimmedStatus as InspectionStatus;
+      });
+    } else if (Array.isArray(status)) {
+      // If it's already an array (e.g., from development environment or direct array input)
+      parsedStatus = status.map((s) => {
+        const trimmedStatus = s.trim();
+        if (!(trimmedStatus in InspectionStatus)) {
+          throw new BadRequestException(
+            `Invalid InspectionStatus: ${trimmedStatus}`,
+          );
+        }
+        return trimmedStatus as InspectionStatus;
+      });
+    }
+
     this.logger.warn(
-      `[GET /inspections] Applying filter for DUMMY role: ${roleToFilter}, page: ${page}, pageSize: ${pageSize}`,
+      `[GET /inspections] Applying filter for DUMMY role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${parsedStatus ? parsedStatus.join(',') : 'undefined'}`,
     );
     const result = await this.inspectionsService.findAll(
-      roleToFilter,
-      status,
+      userRole,
+      parsedStatus,
       pageNumber,
       pageSizeNumber,
     );
@@ -729,7 +787,9 @@ export class InspectionsController {
    * @returns A promise that resolves to the inspection record summary.
    */
   @Get(':id')
-  // @UseGuards(JwtAuthGuard) // Add later if needed
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve a specific inspection by ID',
     description:
@@ -753,17 +813,20 @@ export class InspectionsController {
     type: InspectionResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findOne(
     @Param('id') id: string,
-    @Query('role') userRole?: Role, // Temporary filter logic
-    // @GetUser('role') realUserRole: Role // Get role later
+    @GetUser('role') realUserRole: Role,
   ): Promise<InspectionResponseDto> {
-    const roleToFilter = userRole || Role.ADMIN; // Temporary filter logic
-    this.logger.warn(
-      `[GET /inspections/${id}] Applying filter for DUMMY role: ${roleToFilter}`,
-    );
-    const inspection = await this.inspectionsService.findOne(id, roleToFilter);
+    const inspection = await this.inspectionsService.findOne(id, realUserRole);
     return new InspectionResponseDto(inspection);
   }
 
@@ -778,8 +841,9 @@ export class InspectionsController {
    */
   @Patch(':id/approve')
   @HttpCode(HttpStatus.OK)
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.ADMIN, Role.REVIEWER)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Approve a submitted inspection',
     description:
@@ -802,23 +866,33 @@ export class InspectionsController {
       'Bad Request (e.g., inspection not in a state to be approved).',
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async approveInspection(
     @Param('id') id: string,
-    // @GetUser('id') reviewerId: string,
+    @GetUser('id') reviewerId: string,
+    @Req() req: Request, // Inject Request object
   ): Promise<InspectionResponseDto> {
-    const dummyReviewerId = DUMMY_USER_ID; // Temporary
-    this.logger.warn(
-      `Using DUMMY reviewer ID: ${dummyReviewerId} for PATCH /approve`,
-    );
+    const authHeader = req.headers.authorization;
+    const token = authHeader ? authHeader.split(' ')[1] : null; // Extract token
+
     const inspection = await this.inspectionsService.approveInspection(
       id,
-      dummyReviewerId,
+      reviewerId,
+      token, // Pass the token to the service
     );
     return new InspectionResponseDto(inspection);
   }
 
   /**
+   * [Old minting method]
    * Initiates the archiving process for an approved inspection.
    * [PUT /inspections/:id/archive]
    * Initiates the archiving process for an approved inspection by fetching a URL and converting it to PDF.
@@ -829,6 +903,9 @@ export class InspectionsController {
    */
   @Put(':id/archive')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
   @ApiOperation({
     summary:
       'Archive an approved inspection by providing a URL to convert to PDF',
@@ -851,19 +928,139 @@ export class InspectionsController {
     status: 400,
     description: 'Bad Request (e.g., invalid URL, inspection not approved).',
   })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
-  // @UseGuards(JwtAuthGuard, RolesGuard) // Add guards later
-  // @Roles(Role.ADMIN, Role.REVIEWER)    // Define allowed roles later
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
   async processToArchive(
     @Param('id') id: string,
-    // @GetUser('id') userId: string,
+    @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
-    const dummyUserId = DUMMY_USER_ID;
-    this.logger.warn(`Using DUMMY user ID for archive action: ${dummyUserId}`);
     // Service will handle fetching URL, converting to PDF, saving PDF, hash, blockchain sim, update status
     const inspection = await this.inspectionsService.processToArchive(
       id,
-      dummyUserId,
+      userId,
+    );
+    return new InspectionResponseDto(inspection);
+  }
+
+  /**
+   * Builds an unsigned transaction for archiving an inspection.
+   * This transaction is intended to be signed by the frontend wallet.
+   *
+   * @param id The ID of the inspection to archive.
+   * @param buildMintRequestDto DTO containing the admin's wallet address.
+   * @returns A promise that resolves to the unsigned transaction details.
+   * @throws BadRequestException if adminAddress is not provided in the request body.
+   */
+  @Post(':id/build-archive-tx')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Step 1 - Build Unsigned Archive Transaction' })
+  @ApiBody({ type: BuildMintRequestDto })
+  @ApiResponse({
+    status: 201,
+    description: 'The unsigned transaction details for archiving.',
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    type: BuildMintTxResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description:
+      'Bad Request (e.g., invalid input data, missing adminAddress).',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Inspection not found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal Server Error.',
+  })
+  async buildArchiveTransaction(
+    @Param('id') id: string,
+    @Body() buildMintRequestDto: BuildMintRequestDto,
+  ): Promise<BuildMintTxResponseDto> {
+    if (!buildMintRequestDto.adminAddress) {
+      throw new BadRequestException(
+        'adminAddress is required in the request body.',
+      );
+    }
+    return this.inspectionsService.buildArchiveTransaction(
+      id,
+      buildMintRequestDto.adminAddress,
+    );
+  }
+
+  /**
+   * Confirms the archiving process after the transaction is successfully sent from the frontend.
+   * Saves the transaction hash and NFT asset ID.
+   *
+   * @param id The ID of the inspection being archived.
+   * @param confirmDto DTO containing the transaction hash and NFT asset ID.
+   * @returns A promise that resolves to the updated inspection record summary.
+   */
+  @Post(':id/confirm-archive')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Step 2 - Confirm and Save Minting Results' })
+  @ApiResponse({
+    status: 200,
+    description:
+      'The updated inspection record summary after confirming archive.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Bad Request (e.g., invalid input data).',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Inspection not found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal Server Error.',
+  })
+  async confirmArchive(
+    @Param('id') id: string,
+    @Body() confirmDto: ConfirmMintDto,
+  ): Promise<InspectionResponseDto> {
+    const inspection = await this.inspectionsService.confirmArchive(
+      id,
+      confirmDto,
     );
     return new InspectionResponseDto(inspection);
   }
@@ -877,8 +1074,9 @@ export class InspectionsController {
    */
   @Patch(':id/deactivate')
   @HttpCode(HttpStatus.OK)
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Deactivate an archived inspection',
     description: 'Deactivates an archived inspection. Requires Admin role.',
@@ -900,18 +1098,22 @@ export class InspectionsController {
       'Bad Request (e.g., inspection not in a state to be deactivated).',
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async deactivateArchive(
     @Param('id') id: string,
-    // @GetUser('id') userId: string,
+    @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
-    const dummyUserId = DUMMY_USER_ID; // Temporary
-    this.logger.warn(
-      `Using DUMMY user ID for deactivate action: ${dummyUserId}`,
-    );
     const inspection = await this.inspectionsService.deactivateArchive(
       id,
-      dummyUserId,
+      userId,
     );
     return new InspectionResponseDto(inspection);
   }
@@ -925,8 +1127,9 @@ export class InspectionsController {
    */
   @Patch(':id/activate')
   @HttpCode(HttpStatus.OK)
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.ADMIN)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Activate a deactivated inspection',
     description: 'Reactivates a deactivated inspection. Requires Admin role.',
@@ -948,16 +1151,22 @@ export class InspectionsController {
       'Bad Request (e.g., inspection not in a state to be activated).',
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async activateArchive(
     @Param('id') id: string,
-    // @GetUser('id') userId: string,
+    @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
-    const dummyUserId = DUMMY_USER_ID; // Temporary
-    this.logger.warn(`Using DUMMY user ID for activate action: ${dummyUserId}`);
     const inspection = await this.inspectionsService.activateArchive(
       id,
-      dummyUserId,
+      userId,
     );
     return new InspectionResponseDto(inspection);
   }
@@ -970,8 +1179,9 @@ export class InspectionsController {
    */
   @Get('export/csv')
   @HttpCode(HttpStatus.OK)
-  // @UseGuards(JwtAuthGuard, RolesGuard) // Add guards later if needed
-  // @Roles(Role.ADMIN, Role.REVIEWER) // Define allowed roles later
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Export all inspection data to CSV',
     description:
@@ -993,6 +1203,14 @@ export class InspectionsController {
   @ApiResponse({
     status: 500,
     description: 'Internal Server Error (e.g., failed to generate CSV).',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
   })
   async exportCsv(@Res() res: Response): Promise<void> {
     // This will be implemented in the service

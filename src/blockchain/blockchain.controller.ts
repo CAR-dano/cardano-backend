@@ -10,16 +10,18 @@
  * --------------------------------------------------------------------------
  */
 
+// NestJS common modules
 import { Controller, Get, Param, Logger, HttpStatus } from '@nestjs/common';
+
+// Local services
 import { BlockchainService } from './blockchain.service';
+
+// DTOs (Data Transfer Objects)
 import { TransactionMetadataResponseDto } from './dto/transaction-metadata-response.dto';
 import { NftDataResponseDto } from './dto/nft-data-response.dto';
+
+// Swagger API documentation
 import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
-// Import Guards if protection is needed
-// import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-// import { RolesGuard } from '../auth/guards/roles.guard';
-// import { Roles } from '../auth/decorators/roles.decorator';
-// import { Role } from '@prisma/client';
 
 @ApiTags('Blockchain Operations')
 @Controller('blockchain') // Base path: /api/v1/blockchain
@@ -38,7 +40,6 @@ export class BlockchainController {
    * @throws InternalServerErrorException for Blockfrost API or other errors.
    */
   @Get('metadata/tx/:txHash')
-  // @UseGuards(JwtAuthGuard) // Example protection
   @ApiOperation({
     summary: 'Get Transaction Metadata by Hash',
     description:
@@ -83,7 +84,6 @@ export class BlockchainController {
    * @throws InternalServerErrorException for Blockfrost API or other errors.
    */
   @Get('nft/:assetId')
-  // @UseGuards(JwtAuthGuard) // Example protection
   @ApiOperation({
     summary: 'Get NFT Data by Asset ID',
     description:

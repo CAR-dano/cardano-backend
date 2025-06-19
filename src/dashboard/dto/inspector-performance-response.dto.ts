@@ -13,22 +13,26 @@ export class InspectorPerformanceItemDto {
   @ApiProperty({ description: 'Inspector name', example: 'John Doe' })
   inspector: string;
 
-  @ApiProperty({ description: 'Number of inspections performed', example: 50 })
-  inspections: number;
+  @ApiProperty({
+    description:
+      'Total number of inspections performed by the inspector within the specified date range',
+    example: 75, // Updated example
+  })
+  totalInspections: number;
 }
 
 export class InspectorPerformanceResponseDto {
   @ApiProperty({
     type: [InspectorPerformanceItemDto],
-    description: 'Inspector performance',
+    description: 'Inspector performance statistics',
     example: [
       {
         inspector: 'John Doe',
-        inspections: 50,
+        totalInspections: 75, // Updated example
       },
       {
         inspector: 'Jane Smith',
-        inspections: 45,
+        totalInspections: 60, // Updated example
       },
     ],
   })

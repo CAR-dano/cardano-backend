@@ -8,6 +8,7 @@
  * Contains the transaction hash and asset ID of the minted NFT.
  * --------------------------------------------------------------------------
  */
+// Library imports
 import { ApiProperty } from '@nestjs/swagger';
 
 /**

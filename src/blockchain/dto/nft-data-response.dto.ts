@@ -9,6 +9,8 @@
  * and potentially legacy metadata.
  * --------------------------------------------------------------------------
  */
+
+// Library imports
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
@@ -50,8 +52,11 @@ class NftOnchainMetadataDto {
 
   // --- CAR-dano Specific Metadata (Example) ---
   // Add specific properties that YOU include in the metadata during minting
+  /**
+   * Original Inspection Record ID.
+   */
   @ApiPropertyOptional({
-    description: 'Original Inspection Record ID',
+    description: 'Original Inspection Record ID.',
     format: 'uuid',
   })
   inspectionId?: string;
@@ -59,50 +64,50 @@ class NftOnchainMetadataDto {
   /**
    * Vehicle Plate Number.
    */
-  @ApiPropertyOptional({ description: 'Vehicle Plate Number' })
+  @ApiPropertyOptional({ description: 'Vehicle Plate Number.' })
   vehicleNumber?: string;
 
   /**
    * Date of Inspection in ISO String format.
    */
-  @ApiPropertyOptional({ description: 'Date of Inspection (ISO String)' })
+  @ApiPropertyOptional({ description: 'Date of Inspection (ISO String).' })
   inspectionDate?: string;
 
   /**
    * Brand of the Vehicle.
    */
-  @ApiPropertyOptional({ description: 'Brand of the Vehicle' })
+  @ApiPropertyOptional({ description: 'Brand of the Vehicle.' })
   vehicleBrand?: string;
 
   /**
    * Model of the Vehicle.
    */
-  @ApiPropertyOptional({ description: 'Model of the Vehicle' })
+  @ApiPropertyOptional({ description: 'Model of the Vehicle.' })
   vehicleModel?: string;
 
   /**
    * Overall Rating given during the inspection.
    */
-  @ApiPropertyOptional({ description: 'Overall Rating given' })
+  @ApiPropertyOptional({ description: 'Overall Rating given.' })
   overallRating?: string;
 
   /**
    * URL to the off-chain PDF report.
    */
-  @ApiPropertyOptional({ description: 'URL to the off-chain PDF report' })
+  @ApiPropertyOptional({ description: 'URL to the off-chain PDF report.' })
   pdfUrl?: string;
 
   /**
    * SHA-256 Hash of the PDF report.
    */
-  @ApiPropertyOptional({ description: 'SHA-256 Hash of the PDF report' })
+  @ApiPropertyOptional({ description: 'SHA-256 Hash of the PDF report.' })
   pdfHash?: string;
 
   /**
    * ID of the inspector user.
    */
   @ApiPropertyOptional({
-    description: 'ID of the inspector user',
+    description: 'ID of the inspector user.',
     format: 'uuid',
   })
   inspectorId?: string;
@@ -120,7 +125,7 @@ export class NftDataResponseDto {
    * @example "f0f0f0...4d7941737365744e616d65"
    */
   @ApiProperty({
-    description: 'Concatenated Policy ID and Hex-encoded Asset Name',
+    description: 'Concatenated Policy ID and Hex-encoded Asset Name.',
     example: 'f0f0f0...4d7941737365744e616d65',
   })
   asset: string;
@@ -128,39 +133,39 @@ export class NftDataResponseDto {
   /**
    * The Policy ID of the asset's minting policy.
    */
-  @ApiProperty({ description: 'Policy ID of the minting policy' })
+  @ApiProperty({ description: 'Policy ID of the minting policy.' })
   policy_id: string;
 
   /**
    * The Asset Name in hexadecimal encoding.
    */
-  @ApiProperty({ description: 'Hex-encoded Asset Name' })
+  @ApiProperty({ description: 'Hex-encoded Asset Name.' })
   asset_name: string | null; // Can be null for the ADA asset itself
 
   /**
    * The CIP-14 asset fingerprint.
    */
-  @ApiProperty({ description: 'CIP-14 asset fingerprint' })
+  @ApiProperty({ description: 'CIP-14 asset fingerprint.' })
   fingerprint: string;
 
   /**
    * Current circulating quantity of the asset. Should be "1" for a standard NFT.
    */
   @ApiProperty({
-    description: 'Current circulating quantity (usually "1" for NFTs)',
+    description: 'Current circulating quantity (usually "1" for NFTs).',
   })
   quantity: string;
 
   /**
    * The transaction hash of the initial minting event.
    */
-  @ApiProperty({ description: 'Transaction hash of the initial mint' })
+  @ApiProperty({ description: 'Transaction hash of the initial mint.' })
   initial_mint_tx_hash: string;
 
   /**
    * The total number of minting and burning transactions for this asset.
    */
-  @ApiProperty({ description: 'Total number of mint and burn transactions' })
+  @ApiProperty({ description: 'Total number of mint and burn transactions.' })
   mint_or_burn_count: number;
 
   /**
@@ -169,7 +174,7 @@ export class NftDataResponseDto {
    */
   @ApiPropertyOptional({
     type: NftOnchainMetadataDto,
-    description: 'Standard on-chain metadata (CIP-25/CIP-68)',
+    description: 'Standard on-chain metadata (CIP-25/CIP-68).',
     nullable: true,
   })
   onchain_metadata?: NftOnchainMetadataDto | null;
@@ -180,7 +185,7 @@ export class NftDataResponseDto {
    */
   @ApiPropertyOptional({
     type: 'object',
-    description: 'Legacy or non-standard on-chain metadata',
+    description: 'Legacy or non-standard on-chain metadata.',
     nullable: true,
     additionalProperties: true,
   })

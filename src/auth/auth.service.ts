@@ -24,6 +24,7 @@ import { User, Role } from '@prisma/client'; // User type from Prisma
 import { JwtPayload } from './interfaces/jwt-payload.interface'; // JWT payload structure
 import { Profile } from 'passport-google-oauth20'; // Google profile type
 import * as bcrypt from 'bcrypt'; // For password comparison
+import { PrismaService } from '../prisma/prisma.service'; // Import PrismaService
 
 @Injectable()
 export class AuthService {
@@ -33,6 +34,7 @@ export class AuthService {
     private readonly usersService: UsersService, // Service to interact with user data
     private readonly jwtService: JwtService, // Service to create JWTs
     private readonly configService: ConfigService, // Service to access environment variables
+    private readonly prisma: PrismaService, // Inject PrismaService
   ) {}
 
   /**
@@ -107,6 +109,7 @@ export class AuthService {
    */
   async validateWalletUser(
     walletAddress: string,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     signatureData: any, // signatureData is currently unused as signature verification is not implemented.
   ): Promise<Omit<User, 'password' | 'googleId'> | null> {
     this.logger.verbose(`Attempting to validate wallet user: ${walletAddress}`);
@@ -181,8 +184,8 @@ export class AuthService {
     } catch (error) {
       // Log the specific error from findOrCreate
       this.logger.error(
-        `Failed to validate Google profile ${profile.id}: ${error.message}`,
-        error.stack,
+        `Failed to validate Google profile ${profile.id}: ${(error as Error).message}`,
+        (error as Error).stack,
       );
       // Throw a generic error to the strategy
       throw new InternalServerErrorException(
@@ -201,13 +204,15 @@ export class AuthService {
    * @returns A promise that resolves to an object containing the generated JWT access token.
    * @throws InternalServerErrorException if the user object is invalid or if JWT signing fails.
    */
-  async login(user: {
+  login(user: {
+    // Removed async
     id: string;
     email: string | null;
     role: Role;
     name?: string | null;
     username?: string | null;
-  }): Promise<{ accessToken: string }> {
+  }): { accessToken: string } {
+    // Removed Promise
     if (!user || !user.id || !user.role) {
       this.logger.error(
         'Login function called without valid user object (missing id or role).',
@@ -246,8 +251,8 @@ export class AuthService {
       return { accessToken };
     } catch (error) {
       this.logger.error(
-        `Failed to sign JWT for user ID ${user.id}: ${error.message}`,
-        error.stack,
+        `Failed to sign JWT for user ID ${user.id}: ${(error as Error).message}`,
+        (error as Error).stack,
       );
       throw new InternalServerErrorException(
         'Failed to generate access token.',
@@ -255,6 +260,59 @@ export class AuthService {
     }
   }
 
-  // Optional: Server-side logout logic (e.g., token blacklisting) could go here
-  // async logout(token: string): Promise<void> { ... }
+  /**
+   * Blacklists a given JWT token by storing it in the database.
+   * This prevents the token from being used for future authentication requests.
+   *
+   * @param token The JWT string to blacklist.
+   * @param expiresAt The expiration date of the token.
+   */
+  /**
+   * Checks if a given token is present in the blacklist.
+   *
+   * @param token The JWT string to check.
+   * @returns A promise that resolves to true if the token is blacklisted, false otherwise.
+   */
+  async isTokenBlacklisted(token: string): Promise<boolean> {
+    this.logger.verbose(`Checking if token is blacklisted.`);
+    try {
+      const blacklisted = await this.prisma.blacklistedToken.findUnique({
+        where: { token },
+      });
+      return !!blacklisted; // Returns true if found, false otherwise
+    } catch (error) {
+      this.logger.error(
+        `Error checking blacklist for token: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+      // Decide how to handle this error. For security, it might be safer to
+      // treat an error as if the token IS blacklisted to prevent accidental access.
+      // Or re-throw if it's a critical DB error. For now, re-throwing.
+      throw new InternalServerErrorException(
+        'Failed to check token blacklist.',
+      );
+    }
+  }
+
+  async blacklistToken(token: string, expiresAt: Date): Promise<void> {
+    this.logger.log(
+      `Blacklisting token that expires at: ${expiresAt.toISOString()}`,
+    );
+    try {
+      await this.prisma.blacklistedToken.create({
+        data: {
+          token,
+          expiresAt,
+        },
+      });
+      this.logger.log('Token successfully blacklisted.');
+    } catch (error) {
+      this.logger.error(
+        `Failed to blacklist token: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+      // Depending on error handling strategy, you might re-throw or handle gracefully
+      throw new InternalServerErrorException('Failed to blacklist token.');
+    }
+  }
 }

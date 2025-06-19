@@ -24,7 +24,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { Photo, Prisma } from '@prisma/client';
 import { AddPhotoDto } from './dto/add-photo.dto';
-import { UpdatePhotoDto } from './dto/update-photo.dto'; // Removed AddMultiplePhotosDto
+import { UpdatePhotoDto } from './dto/update-photo.dto';
 // Import file system operations if deleting local files
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -76,11 +76,7 @@ export class PhotosService {
     inspectionId: string,
     file: Express.Multer.File,
     dto: AddPhotoDto,
-    userId?: string,
   ): Promise<Photo> {
-    this.logger.log(
-      `User ${userId || 'N/A'} adding photo (label: ${dto.label}) for inspection ${inspectionId}`,
-    );
     await this.ensureInspectionExists(inspectionId);
 
     // Parse boolean strings to boolean
@@ -92,18 +88,22 @@ export class PhotosService {
         data: {
           inspection: { connect: { id: inspectionId } },
           path: file.filename,
-          label: dto.label,
+          // eslint-disable-next-line prettier/prettier
+          label:
+            dto.label === '' || dto.label === undefined ? undefined : dto.label,
           category: dto.category, // Add category
           isMandatory: isMandatory, // Add isMandatory
           originalLabel: null,
           needAttention: needAttention,
-          // submittedByUserId: userId,
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
-        `Failed to save photo record for inspection ${inspectionId}: ${(error as any).message}`,
-        (error as any).stack,
+        `Failed to save photo record for inspection ${inspectionId}: ${errorMessage}`,
+        errorStack,
       );
       throw new InternalServerErrorException(
         'Could not save photo information.',
@@ -127,10 +127,13 @@ export class PhotosService {
         where: { inspectionId: inspectionId },
         orderBy: { createdAt: 'asc' }, // Order by creation time
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
-        `Failed to retrieve photos for inspection ${inspectionId}: ${(error as any).message}`,
-        (error as any).stack,
+        `Failed to retrieve photos for inspection ${inspectionId}: ${errorMessage}`,
+        errorStack,
       );
       throw new InternalServerErrorException('Could not retrieve photos.');
     }
@@ -181,9 +184,10 @@ export class PhotosService {
 
       // 3. Handle Metadata Update
       if (updatePhotoDto.label !== undefined) {
-        dataToUpdate.label = updatePhotoDto.label;
+        dataToUpdate.label =
+          updatePhotoDto.label === '' ? undefined : updatePhotoDto.label;
         this.logger.verbose(
-          `Updating label for photo ${photoId} to "${updatePhotoDto.label}"`,
+          `Updating label for photo ${photoId} to "${dataToUpdate.label}"`,
         );
       }
 
@@ -192,6 +196,14 @@ export class PhotosService {
         dataToUpdate.needAttention = needAttentionBool;
         this.logger.verbose(
           `Updating needAttention for photo ${photoId} to ${needAttentionBool}`,
+        );
+      }
+
+      if (updatePhotoDto.displayInPdf !== undefined) {
+        const displayInPdfBool = updatePhotoDto.displayInPdf === 'true';
+        dataToUpdate.displayInPdf = displayInPdfBool;
+        this.logger.verbose(
+          `Updating displayInPdf for photo ${photoId} to ${displayInPdfBool}`,
         );
       }
 
@@ -233,18 +245,20 @@ export class PhotosService {
         try {
           await fs.unlink(fullOldPath);
           this.logger.log(`Successfully deleted old file: ${fullOldPath}`);
-        } catch (fileError: any) {
+        } catch (fileError: unknown) {
           // Log the error, but don't fail the overall operation since DB is updated
+          const errorStack =
+            fileError instanceof Error ? fileError.stack : undefined;
           this.logger.error(
             `Failed to delete old photo file ${fullOldPath} after updating record ${photoId}`,
-            (fileError as any).stack,
+            errorStack,
           );
           // TODO: Consider adding a mechanism to retry deletion or flag orphaned files
         }
       }
 
       return updatedPhoto;
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2025'
@@ -254,10 +268,15 @@ export class PhotosService {
           `Photo with ID "${photoId}" not found for inspection "${inspectionId}".`,
         );
       }
-      if (error instanceof BadRequestException) throw error; // Re-throw validation errors
+      if (error instanceof BadRequestException) {
+        throw error; // Re-throw validation errors
+      }
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
-        `Failed to update photo ${photoId}: ${(error as any).message}`,
-        (error as any).stack,
+        `Failed to update photo ${photoId}: ${errorMessage}`,
+        errorStack,
       );
       throw new InternalServerErrorException(
         `Could not update photo ${photoId}.`,
@@ -297,17 +316,19 @@ export class PhotosService {
       try {
         await fs.unlink(filePath);
         this.logger.log(`Successfully deleted photo file: ${filePath}`);
-      } catch (fileError: any) {
+      } catch (fileError: unknown) {
         // Log the error but maybe don't fail the whole operation if DB record deleted?
+        const errorStack =
+          fileError instanceof Error ? fileError.stack : undefined;
         this.logger.error(
           `Failed to delete photo file ${filePath} after deleting DB record ${photoId}`,
-          (fileError as any).stack,
+          errorStack,
         );
       }
       // --- End File Deletion ---
 
       this.logger.log(`Successfully deleted photo record ID: ${photoId}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2025'
@@ -315,9 +336,12 @@ export class PhotosService {
         // Record to delete not found
         throw new NotFoundException(`Photo with ID "${photoId}" not found.`);
       }
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
-        `Failed to delete photo ${photoId}: ${(error as any).message}`,
-        (error as any).stack,
+        `Failed to delete photo ${photoId}: ${errorMessage}`,
+        errorStack,
       );
       throw new InternalServerErrorException(
         `Could not delete photo ${photoId}.`,
@@ -343,26 +367,32 @@ export class PhotosService {
     inspectionId: string,
     files: Express.Multer.File[],
     metadataJsonString: string,
-    userId?: string,
   ): Promise<Photo[]> {
-    this.logger.log(
-      `User ${userId || 'N/A'} adding BATCH of ${files?.length} photos to inspection ${inspectionId}`,
-    );
-    if (!files || files.length === 0)
+    if (!files || files.length === 0) {
       throw new BadRequestException('No photo files provided.');
-    if (!metadataJsonString)
+    }
+    if (!metadataJsonString) {
       throw new BadRequestException('Missing metadata JSON string.');
+    }
 
     let parsedMetadata: {
-      label: string;
+      label?: string;
       needAttention?: boolean;
       category?: string;
       isMandatory?: boolean;
-    }[]; // Use a simple type for metadata
+    }[];
+
     try {
-      parsedMetadata = JSON.parse(metadataJsonString);
-      if (!Array.isArray(parsedMetadata))
+      parsedMetadata = JSON.parse(metadataJsonString) as {
+        label?: string;
+        needAttention?: boolean;
+        category?: string;
+        isMandatory?: boolean;
+      }[];
+
+      if (!Array.isArray(parsedMetadata)) {
         throw new Error('Metadata is not a valid JSON array.');
+      }
       if (parsedMetadata.length !== files.length) {
         throw new BadRequestException(
           `Metadata count (${parsedMetadata.length}) does not match photo count (${files.length}).`,
@@ -370,33 +400,39 @@ export class PhotosService {
       }
       // Optional: More detailed validation of each metadata object
       parsedMetadata.forEach((meta, i) => {
-        if (!meta || typeof meta.label !== 'string' || meta.label.trim() === '')
+        // Label is optional. If provided, it must be a string.
+        // Empty string is allowed here and will be handled by data preparation to use the default.
+        if (meta.label !== undefined && typeof meta.label !== 'string') {
           throw new BadRequestException(
-            `Invalid label at metadata index ${i}.`,
+            `Invalid label type at metadata index ${i}: if provided, must be a string.`,
           );
+        }
         if (
           meta.needAttention !== undefined &&
           typeof meta.needAttention !== 'boolean'
-        )
+        ) {
           throw new BadRequestException(
             `Invalid needAttention at metadata index ${i}.`,
           );
-        if (meta.category !== undefined && typeof meta.category !== 'string')
+        }
+        if (meta.category !== undefined && typeof meta.category !== 'string') {
           throw new BadRequestException(
             `Invalid category at metadata index ${i}.`,
           );
+        }
         if (
           meta.isMandatory !== undefined &&
           typeof meta.isMandatory !== 'boolean'
-        )
+        ) {
           throw new BadRequestException(
             `Invalid isMandatory at metadata index ${i}.`,
           );
+        }
       });
-    } catch (error: any) {
-      throw new BadRequestException(
-        `Invalid metadata format: ${(error as any).message}`,
-      );
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      throw new BadRequestException(`Invalid metadata format: ${errorMessage}`);
     }
 
     await this.ensureInspectionExists(inspectionId); // Ensure inspection exists
@@ -408,12 +444,14 @@ export class PhotosService {
         return {
           inspectionId: inspectionId, // Link each photo to the inspection
           path: file.filename,
-          label: meta.label,
+          label:
+            meta.label === '' || meta.label === undefined
+              ? undefined
+              : meta.label,
           category: meta.category, // Add category
           isMandatory: meta.isMandatory ?? false, // Add isMandatory
           originalLabel: null,
           needAttention: meta.needAttention ?? false,
-          // submittedByUserId: userId, // Add if tracking
         };
       },
     );
@@ -446,10 +484,13 @@ export class PhotosService {
         },
         orderBy: { createdAt: 'asc' },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      const errorStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
-        `Failed to batch create photos for inspection ${inspectionId}: ${(error as any).message}`,
-        (error as any).stack,
+        `Failed to batch create photos for inspection ${inspectionId}: ${errorMessage}`,
+        errorStack,
       );
       // TODO: Consider cleanup of successfully uploaded files if DB operation fails? Complex.
       throw new InternalServerErrorException(

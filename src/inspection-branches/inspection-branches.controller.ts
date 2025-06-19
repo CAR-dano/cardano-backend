@@ -19,6 +19,8 @@ import {
   Put,
   Param,
   Delete,
+  UseGuards,
+  HttpStatus,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -26,7 +28,12 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 import { InspectionBranchesService } from './inspection-branches.service';
 import { CreateInspectionBranchCityDto } from './dto/create-inspection-branch-city.dto';
 import { UpdateInspectionBranchCityDto } from './dto/update-inspection-branch-city.dto';
@@ -41,19 +48,37 @@ export class InspectionBranchesController {
 
   /**
    * Creates a new inspection branch city.
+   * Restricted to ADMIN role only.
    *
    * @param createInspectionBranchCityDto The data for creating the inspection branch city.
    * @returns A promise that resolves to the created InspectionBranchCityResponseDto.
+   * @throws BadRequestException if the input data is invalid.
+   * @throws UnauthorizedException if the user is not authenticated.
+   * @throws ForbiddenException if the user does not have the required role.
    */
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new inspection branch city' })
   @ApiBody({ type: CreateInspectionBranchCityDto })
   @ApiResponse({
-    status: 201,
+    status: HttpStatus.CREATED,
     description: 'The inspection branch city has been successfully created.',
     type: InspectionBranchCityResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Invalid input.' })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input data.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
   async create(
     @Body() createInspectionBranchCityDto: CreateInspectionBranchCityDto,
   ) {
@@ -107,13 +132,20 @@ export class InspectionBranchesController {
 
   /**
    * Updates an existing inspection branch city by its ID.
+   * Restricted to ADMIN role only.
    *
    * @param id The ID of the inspection branch city to update.
    * @param updateInspectionBranchCityDto The data for updating the inspection branch city.
    * @returns A promise that resolves to the updated InspectionBranchCityResponseDto.
+   * @throws BadRequestException if the input data is invalid.
+   * @throws UnauthorizedException if the user is not authenticated.
+   * @throws ForbiddenException if the user does not have the required role.
    * @throws NotFoundException if the inspection branch city is not found.
    */
   @Put(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Update an inspection branch city by ID' })
   @ApiParam({
     name: 'id',
@@ -122,13 +154,24 @@ export class InspectionBranchesController {
   })
   @ApiBody({ type: UpdateInspectionBranchCityDto })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'The inspection branch city has been successfully updated.',
     type: InspectionBranchCityResponseDto,
   })
-  @ApiResponse({ status: 400, description: 'Invalid input.' })
   @ApiResponse({
-    status: 404,
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid input data.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
     description: 'Inspection branch city not found.',
   })
   async update(
@@ -143,12 +186,18 @@ export class InspectionBranchesController {
 
   /**
    * Deletes an inspection branch city by its ID.
+   * Restricted to ADMIN role only.
    *
    * @param id The ID of the inspection branch city to delete.
    * @returns A promise that resolves to the deleted InspectionBranchCity.
+   * @throws UnauthorizedException if the user is not authenticated.
+   * @throws ForbiddenException if the user does not have the required role.
    * @throws NotFoundException if the inspection branch city is not found.
    */
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete an inspection branch city by ID' })
   @ApiParam({
     name: 'id',
@@ -156,11 +205,19 @@ export class InspectionBranchesController {
     description: 'Inspection branch city ID',
   })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'The inspection branch city has been successfully deleted.',
   })
   @ApiResponse({
-    status: 404,
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
     description: 'Inspection branch city not found.',
   })
   async remove(@Param('id') id: string) {

@@ -46,5 +46,51 @@ export class UpdatePhotoDto {
   @IsBooleanString()
   needAttention?: string;
 
+  /**
+   * Category of the photo.
+   * Sent as a text field. Optional, defaults to "general".
+   */
+  @ApiPropertyOptional({
+    description: 'Category of the photo',
+    required: false,
+    example: 'exterior',
+    default: 'general',
+  })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  /**
+   * Flag indicating if this photo is mandatory.
+   * Sent as a string ("true" or "false") in form-data, or omitted for false.
+   * Optional field.
+   */
+  @ApiPropertyOptional({
+    description:
+      'Flag if photo is mandatory (send "true" or "false" string, or omit for false)',
+    required: false,
+    example: 'true',
+    default: 'false',
+  })
+  @IsOptional()
+  @IsBooleanString()
+  isMandatory?: string;
+
+  /**
+   * Indicates if the photo should be displayed in the PDF report.
+   * Sent as a string ("true" or "false") in form-data, or omitted for true.
+   * Optional field.
+   */
+  @ApiPropertyOptional({
+    description:
+      'Indicates if the photo should be displayed in the PDF report (send "true" or "false" string, or omit for true)',
+    required: false,
+    example: 'true',
+    default: 'true',
+  })
+  @IsOptional()
+  @IsBooleanString()
+  displayInPdf?: string;
+
   // The 'photo' file itself is handled by the FileInterceptor, not defined here.
 }

@@ -8,7 +8,7 @@
  * Defines the structure for inspector, customer, and branch city information.
  * --------------------------------------------------------------------------
  */
-import { IsString, IsUUID } from 'class-validator';
+import { IsOptional, IsString, IsUUID } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
@@ -23,6 +23,7 @@ export class IdentityDetailsDto {
     example: 'ac5ae369-a422-426f-b01e-fad5476edda5',
     description: 'The UUID of the inspector.',
   })
+  @IsOptional()
   @IsUUID()
   namaInspektor: string; // This will hold the inspectorId UUID
 
@@ -45,6 +46,7 @@ export class IdentityDetailsDto {
     example: 'ac5ae369-a422-426f-b01e-fad5476edda5',
     description: 'The UUID of the inspection branch city.',
   })
+  @IsOptional()
   @IsUUID()
   cabangInspeksi: string; // This will hold the branchCityId UUID
 }

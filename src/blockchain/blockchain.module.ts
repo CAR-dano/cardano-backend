@@ -9,18 +9,22 @@
  * Declares BlockchainController and provides/exports BlockchainService.
  * --------------------------------------------------------------------------
  */
+// NestJS libraries
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+
+// Local application files
 import { BlockchainController } from './blockchain.controller';
-import { ConfigModule } from '@nestjs/config'; // Required to inject ConfigService
-// Import Controller if you create one here
-// import { BlockchainController } from './blockchain.controller';
 import { BlockchainService } from './blockchain.service';
 
 @Module({
   imports: [ConfigModule], // Import ConfigModule to use ConfigService
-  // controllers: [BlockchainController], // Add controller if endpoints are defined here
   providers: [BlockchainService],
   exports: [BlockchainService],
   controllers: [BlockchainController], // Export service to be used by other modules (e.g., InspectionsService)
 })
+/**
+ * NestJS module for blockchain-related functionalities.
+ * Configures and provides the BlockchainService and BlockchainController.
+ */
 export class BlockchainModule {}

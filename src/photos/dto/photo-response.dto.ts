@@ -21,8 +21,12 @@ export class PhotoResponseDto {
   @ApiProperty({ description: 'Relative path or filename in storage' })
   path: string;
 
-  @ApiProperty({ description: 'Label associated with the photo' })
-  label: string;
+  @ApiProperty({
+    description: 'Label associated with the photo',
+    nullable: true,
+    required: false,
+  })
+  label: string | null;
 
   @ApiProperty({
     description: 'Original predefined label (for FIXED type)',
@@ -45,7 +49,7 @@ export class PhotoResponseDto {
     this.id = photo.id;
     // this.inspectionId = photo.inspectionId;
     this.path = photo.path;
-    this.label = photo.label;
+    this.label = photo.label ?? 'Tambahan'; // Provide default if null
     this.originalLabel = photo.originalLabel;
     this.needAttention = photo.needAttention || false;
     this.createdAt = photo.createdAt;

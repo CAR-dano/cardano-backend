@@ -1,0 +1,91 @@
+{
+  "preamble": {
+    "title": "car-dano/inspection-nft",
+    "description": "Aiken contracts for project 'car-dano/inspection-nft'",
+    "version": "0.0.0",
+    "plutusVersion": "v3",
+    "compiler": {
+      "name": "Aiken",
+      "version": "v1.1.15+f03633e"
+    },
+    "license": "Apache-2.0"
+  },
+  "validators": [
+    {
+      "title": "inspection_policy.inspection_policy.mint",
+      "redeemer": {
+        "title": "redeemer",
+        "schema": {
+          "$ref": "#/definitions/inspection_policy~1Action"
+        }
+      },
+      "parameters": [
+        {
+          "title": "utxo_ref",
+          "schema": {
+            "$ref": "#/definitions/cardano~1transaction~1OutputReference"
+          }
+        }
+      ],
+      "compiledCode": "590143010100229800aba2aba1aba0aab9faab9eaab9dab9a488888896600264646644b30013370e900018031baa0018992cc004cdc3a4000600e6ea800e2b30013008375400713232598009807000c56600264660020026eb0c03800c896600200314a115980099baf300f300c3754601e00202514a313300200230100014028806a266e1cdd698051806800a400514a080422c8058c96600266e1d20023009375400314bd6f7b63044dd5980698051baa001402064660020026eacc034c038c038c038c038008896600200314c0103d87a8000899192cc004cdc8803000c56600266e3c018006266e9520003300f300d0024bd7045300103d87a8000402d1330040043011003402c6eb8c02c004c03800500c18041baa300b0058b20128b200c375c6014600e6ea80062c8028c020004c020c024004c020004c00cdd5004452689b2b20021",
+      "hash": "ee4fd8b1a0186760640a12a5ac4919f42a0dd2130688665c2053c430"
+    },
+    {
+      "title": "inspection_policy.inspection_policy.else",
+      "redeemer": {
+        "schema": {}
+      },
+      "parameters": [
+        {
+          "title": "utxo_ref",
+          "schema": {
+            "$ref": "#/definitions/cardano~1transaction~1OutputReference"
+          }
+        }
+      ],
+      "compiledCode": "590143010100229800aba2aba1aba0aab9faab9eaab9dab9a488888896600264646644b30013370e900018031baa0018992cc004cdc3a4000600e6ea800e2b30013008375400713232598009807000c56600264660020026eb0c03800c896600200314a115980099baf300f300c3754601e00202514a313300200230100014028806a266e1cdd698051806800a400514a080422c8058c96600266e1d20023009375400314bd6f7b63044dd5980698051baa001402064660020026eacc034c038c038c038c038008896600200314c0103d87a8000899192cc004cdc8803000c56600266e3c018006266e9520003300f300d0024bd7045300103d87a8000402d1330040043011003402c6eb8c02c004c03800500c18041baa300b0058b20128b200c375c6014600e6ea80062c8028c020004c020c024004c020004c00cdd5004452689b2b20021",
+      "hash": "ee4fd8b1a0186760640a12a5ac4919f42a0dd2130688665c2053c430"
+    }
+  ],
+  "definitions": {
+    "ByteArray": {
+      "title": "ByteArray",
+      "dataType": "bytes"
+    },
+    "Int": {
+      "dataType": "integer"
+    },
+    "cardano/transaction/OutputReference": {
+      "title": "OutputReference",
+      "description": "An `OutputReference` is a unique reference to an output on-chain. The `output_index`\n corresponds to the position in the output list of the transaction (identified by its id)\n that produced that output",
+      "anyOf": [
+        {
+          "title": "OutputReference",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": [
+            {
+              "title": "transaction_id",
+              "$ref": "#/definitions/ByteArray"
+            },
+            {
+              "title": "output_index",
+              "$ref": "#/definitions/Int"
+            }
+          ]
+        }
+      ]
+    },
+    "inspection_policy/Action": {
+      "title": "Action",
+      "anyOf": [
+        {
+          "title": "Mint",
+          "dataType": "constructor",
+          "index": 0,
+          "fields": []
+        }
+      ]
+    }
+  }
+}

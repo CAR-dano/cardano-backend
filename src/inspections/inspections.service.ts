@@ -24,6 +24,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service'; // Service for Prisma client interaction
 import { CreateInspectionDto } from './dto/create-inspection.dto'; // DTO for incoming creation data
 import { UpdateInspectionDto } from './dto/update-inspection.dto';
+import { BuildMintTxDto } from '../blockchain/dto/build-mint-tx.dto';
+import { ConfirmMintDto } from './dto/confirm-mint.dto';
 import {
   Inspection,
   InspectionStatus,
@@ -35,15 +37,24 @@ import * as fs from 'fs/promises'; // Use promise-based fs for async file operat
 import * as path from 'path'; // For constructing file paths
 import * as crypto from 'crypto'; // For generating PDF hash
 import { format } from 'date-fns'; // for date formating
-import { BlockchainService } from '../blockchain/blockchain.service';
+import {
+  BlockchainService,
+  InspectionNftMetadata,
+} from '../blockchain/blockchain.service';
+import { IpfsService } from '../ipfs/ipfs.service';
 import puppeteer, { Browser } from 'puppeteer'; // Import puppeteer and Browser type
 import { ConfigService } from '@nestjs/config';
 import * as Papa from 'papaparse';
-
 // Define path for archived PDFs (ensure this exists or is created by deployment script/manually)
 const PDF_ARCHIVE_PATH = './pdfarchived';
 // Define public base URL for accessing archived PDFs (should come from config in real app)
 const PDF_PUBLIC_BASE_URL = process.env.PDF_PUBLIC_BASE_URL || '/pdfarchived'; // Example: /pdfarchived if served by Nginx
+
+interface NftMetadata {
+  vehicleNumber: string | null;
+  pdfUrl: string | null;
+  pdfHash: string | null;
+}
 
 /**
  * Service responsible for handling business logic related to inspections.
@@ -61,6 +72,7 @@ export class InspectionsService {
     private prisma: PrismaService,
     private blockchainService: BlockchainService,
     private config: ConfigService,
+    private readonly ipfsService: IpfsService,
   ) {
     // Ensure the PDF archive directory exists on startup
     this.ensureDirectoryExists(PDF_ARCHIVE_PATH);
@@ -192,7 +204,7 @@ export class InspectionsService {
       const errorMessage =
         e instanceof Error ? e.message : 'An unknown error occurred';
       const errorStack =
-        e instanceof Error ? e.stack : 'No stack trace available';
+        e instanceof Error && e.stack ? e.stack : 'No stack trace available';
       this.logger.error(
         `Failed to fetch inspector or branch city details: ${errorMessage}`,
         errorStack,
@@ -285,7 +297,9 @@ export class InspectionsService {
               ? error.message
               : 'An unknown error occurred';
           const errorStack =
-            error instanceof Error ? error.stack : 'No stack trace available';
+            error instanceof Error && error.stack
+              ? error.stack
+              : 'No stack trace available';
           this.logger.error(
             `Failed to create inspection with custom ID ${customId}: ${errorMessage}`,
             errorStack,
@@ -457,7 +471,7 @@ export class InspectionsService {
    * @param {UpdateInspectionDto} updateInspectionDto - DTO containing the potential changes.
    * @param {string} userId - ID of the user performing the action (reviewer/admin).
    * @param {Role} userRole - Role of the user (for logging or future auth).
-   * @returns {Promise<Inspection>} The existing (unchanged) inspection record.
+   * @returns {Promise<{ message: string }>} The existing (unchanged) inspection record.
    * @throws {NotFoundException} If the inspection with the given ID is not found.
    * @throws {BadRequestException} If trying to update an already approved inspection.
    * @throws {InternalServerErrorException} For database errors during logging.
@@ -467,7 +481,7 @@ export class InspectionsService {
     updateInspectionDto: UpdateInspectionDto,
     userId: string,
     userRole: Role, // Included for context, though not used for auth in this specific method
-  ): Promise<Inspection> {
+  ): Promise<{ message: string }> {
     this.logger.log(
       `User ${userId} (Role: ${userRole}) attempting to log/stage changes for inspection ID: ${id}`,
     );
@@ -497,15 +511,12 @@ export class InspectionsService {
       );
     }
 
-    // 2. Initialize array to store change log entries and update data for the inspection record
+    // 2. Initialize array to store change log entries
     const changesToLog: Prisma.InspectionChangeLogCreateManyInput[] = [];
-    const updateData: Prisma.InspectionUpdateInput = {};
 
     // Handle changes to inspectorId and branchCityId and update identityDetails immediately
-    let identityDetailsUpdated = false;
     const currentIdentityDetails =
       (existingInspection.identityDetails as Prisma.JsonObject) ?? {};
-    const newIdentityDetails = { ...currentIdentityDetails }; // Start with existing details
 
     if (
       updateInspectionDto.inspectorId !== undefined &&
@@ -533,13 +544,20 @@ export class InspectionsService {
       this.logger.log(
         `Logged change for identityDetails.namaInspektor to "${newInspector.name}"`,
       );
-      // Update identityDetails in the updateData
-      newIdentityDetails.namaInspektor = newInspector.name;
-      identityDetailsUpdated = true;
-      // Also update the inspectorId directly in the inspection record
-      updateData.inspector = {
-        connect: { id: updateInspectionDto.inspectorId },
-      };
+
+      // Log change for inspectorId
+      changesToLog.push({
+        inspectionId: id,
+        changedByUserId: userId,
+        fieldName: 'inspector',
+        subFieldName: null,
+        subsubfieldname: null,
+        oldValue: existingInspection?.inspectorId ?? Prisma.JsonNull, // Safer access
+        newValue: updateInspectionDto.inspectorId ?? Prisma.JsonNull,
+      });
+      this.logger.log(
+        `Logged change for inspectorId "${updateInspectionDto.inspectorId}"`,
+      );
     }
 
     if (
@@ -568,18 +586,42 @@ export class InspectionsService {
       this.logger.log(
         `Logged change for identityDetails.cabangInspeksi to "${newBranchCity.city}"`,
       );
-      // Update identityDetails in the updateData
-      newIdentityDetails.cabangInspeksi = newBranchCity.city;
-      identityDetailsUpdated = true;
-      // Also update the branchCityId directly in the inspection record
-      updateData.branchCity = {
-        connect: { id: updateInspectionDto.branchCityId },
-      };
+
+      // Log change for branchCityId
+      changesToLog.push({
+        inspectionId: id,
+        changedByUserId: userId,
+        fieldName: 'branchCity',
+        subFieldName: null,
+        subsubfieldname: null,
+        oldValue: existingInspection?.branchCityId ?? Prisma.JsonNull, // Safer access
+        newValue: updateInspectionDto.branchCityId ?? Prisma.JsonNull,
+      });
+      this.logger.log(
+        `Logged change for branchCityId "${updateInspectionDto.branchCityId}"`,
+      );
     }
 
-    // If identityDetails was updated due to ID changes, add it to the updateData
-    if (identityDetailsUpdated) {
-      updateData.identityDetails = newIdentityDetails;
+    // Handle changes to namaCustomer in identityDetails
+    if (
+      updateInspectionDto.identityDetails?.namaCustomer !== undefined &&
+      updateInspectionDto.identityDetails.namaCustomer !==
+        currentIdentityDetails?.namaCustomer
+    ) {
+      const newCustomerName = updateInspectionDto.identityDetails.namaCustomer;
+      // Log change for identityDetails.namaCustomer
+      changesToLog.push({
+        inspectionId: id,
+        changedByUserId: userId,
+        fieldName: 'identityDetails',
+        subFieldName: 'namaCustomer',
+        subsubfieldname: null,
+        oldValue: currentIdentityDetails?.namaCustomer ?? Prisma.JsonNull, // Safer access
+        newValue: newCustomerName ?? Prisma.JsonNull,
+      });
+      this.logger.log(
+        `Logged change for identityDetails.namaCustomer to "${newCustomerName}"`,
+      );
     }
 
     // Define which top-level fields in Inspection are JSON and should be deep compared
@@ -606,8 +648,13 @@ export class InspectionsService {
       ]; // Current value from DB
 
       if (newValue === undefined) continue; // Skip if DTO field is undefined (not meant to be updated)
-      // Skip inspectorId and branchCityId as they are handled above
-      if (dtoKey === 'inspectorId' || dtoKey === 'branchCityId') continue;
+      // Skip inspectorId, branchCityId, and identityDetails as they are handled separately/specifically
+      if (
+        dtoKey === 'inspectorId' ||
+        dtoKey === 'branchCityId' ||
+        dtoKey === 'identityDetails'
+      )
+        continue;
 
       // Convert Date objects to ISO strings before logging/comparing
       const processedNewValue =
@@ -628,8 +675,6 @@ export class InspectionsService {
           userId,
           [], // Start with an empty path for the top-level JSON field
         );
-        // Add the JSON field to the updateData
-        updateData[dtoKey] = processedNewValue;
       } else {
         // Handle non-JSON, top-level fields (e.g., vehiclePlateNumber, overallRating)
         const oldValToLog =
@@ -651,7 +696,6 @@ export class InspectionsService {
           }
         }
         // Add similar checks for other non-JSON fields if they have length constraints
-
         if (JSON.stringify(oldValToLog) !== JSON.stringify(newValToLog)) {
           this.logger.verbose(
             `Logging change for top-level non-JSON field: ${dtoKey}`,
@@ -665,15 +709,6 @@ export class InspectionsService {
             oldValue: oldValToLog,
             newValue: newValToLog,
           });
-          // Add the non-JSON field to the updateData
-          // Ensure newValue is not an object before assigning to non-JSON fields
-          if (typeof newValue !== 'object' || newValue === null) {
-            updateData[dtoKey] = newValue;
-          } else {
-            this.logger.warn(
-              `Attempted to assign object to non-JSON field: ${dtoKey}. Ignoring.`,
-            );
-          }
         }
       }
     }
@@ -691,7 +726,9 @@ export class InspectionsService {
         const errorMessage =
           error instanceof Error ? error.message : 'An unknown error occurred';
         const errorStack =
-          error instanceof Error ? error.stack : 'No stack trace available';
+          error instanceof Error && error.stack
+            ? error.stack
+            : 'No stack trace available';
         this.logger.error(
           `Failed to log changes for inspection ID ${id}: ${errorMessage}`,
           errorStack,
@@ -706,30 +743,557 @@ export class InspectionsService {
       );
     }
 
-    // 4. Update the Inspection record in the database with all collected changes
-    if (Object.keys(updateData).length > 0) {
-      try {
-        const updatedInspection = await this.prisma.inspection.update({
-          where: { id },
-          data: updateData,
-        });
-        this.logger.log(`Inspection ${id} updated successfully.`);
-        return updatedInspection;
-      } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : 'An unknown error occurred';
-        const errorStack =
-          error instanceof Error ? error.stack : 'No stack trace available';
-        this.logger.error(
-          `Failed to update inspection ID ${id}: ${errorMessage}`,
-          errorStack,
+    // 4. Do NOT update the Inspection record in this method.
+    // Changes are logged and will be applied during the 'approveInspection' process.
+    if (changesToLog.length > 0) {
+      this.logger.log(
+        `Changes logged for inspection ID: ${id}. Awaiting approval to apply.`,
+      );
+      return {
+        message: `${changesToLog.length} changes have been logged for inspection ID "${id}". Please approve the inspection to apply these changes.`,
+      };
+    } else {
+      this.logger.log(
+        `No significant changes detected to log or apply for inspection ID: ${id}.`,
+      );
+      return {
+        message: `No significant changes detected for inspection ID "${id}".`,
+      };
+    }
+  }
+
+  /**
+   * Retrieves all inspection records, ordered by creation date descending.
+   * Filters results based on the requesting user's role and optionally by status.
+   * Admins/Reviewers see all by default. Customers/Developers/Inspectors only see ARCHIVED by default (if no status is specified).
+   * If `status` is 'DATABASE', returns all inspections except those with status NEED_REVIEW, overriding role-based filtering.
+   * Includes pagination and metadata.
+   *
+   * @param {Role | undefined} userRole - The role of the user making the request.
+   * @param {InspectionStatus[] | 'DATABASE' | undefined} [status] - Optional filter by inspection status. Can be a single status, an array of statuses, or 'DATABASE' to retrieve all statuses except NEED_REVIEW, regardless of user role.
+   * @param {number} page - The page number (1-based).
+   * @param {number} pageSize - The number of items per page.
+   * @returns {Promise<{ data: Inspection[], meta: { total: number, page: number, pageSize: number, totalPages: number } }>} An object containing an array of inspection records and pagination metadata.
+   */
+  async findAll(
+    userRole: Role | undefined,
+    status?: string | InspectionStatus[], // Accept string or array
+    page: number = 1,
+    pageSize: number = 10,
+  ): Promise<{
+    data: Inspection[];
+    meta: { total: number; page: number; pageSize: number; totalPages: number };
+  }> {
+    this.logger.log(
+      `Retrieving inspections for user role: ${userRole ?? 'N/A'}, status: ${Array.isArray(status) ? status.join(',') : (status ?? 'ALL (default)')}, page: ${page}, pageSize: ${pageSize}`,
+    );
+
+    // Initialize whereClause
+    const whereClause: Prisma.InspectionWhereInput = {};
+
+    let parsedStatus: InspectionStatus[] | 'DATABASE' | undefined;
+
+    if (status === 'DATABASE') {
+      parsedStatus = 'DATABASE';
+    } else if (typeof status === 'string') {
+      // If it's a comma-separated string (e.g., "ARCHIVED,NEED_REVIEW"), split it
+      parsedStatus = status.split(',').map((s) => {
+        const trimmedStatus = s.trim();
+        if (!(trimmedStatus in InspectionStatus)) {
+          // Log a warning or throw an error if an invalid status is provided
+          this.logger.warn(
+            `Invalid InspectionStatus provided: ${trimmedStatus}`,
+          );
+          throw new BadRequestException(
+            `Invalid InspectionStatus: ${trimmedStatus}`,
+          );
+        }
+        return trimmedStatus as InspectionStatus;
+      });
+    } else if (Array.isArray(status)) {
+      // If it's already an array, use it directly after validation
+      parsedStatus = status.map((s) => {
+        const trimmedStatus = s.trim();
+        if (!(trimmedStatus in InspectionStatus)) {
+          this.logger.warn(
+            `Invalid InspectionStatus provided: ${trimmedStatus}`,
+          );
+          throw new BadRequestException(
+            `Invalid InspectionStatus: ${trimmedStatus}`,
+          );
+        }
+        return trimmedStatus as InspectionStatus;
+      });
+    }
+
+    // Apply status filter based on parsedStatus
+    if (parsedStatus) {
+      if (parsedStatus === 'DATABASE') {
+        whereClause.status = { not: InspectionStatus.NEED_REVIEW };
+        this.logger.log(
+          `Applying filter: status = DATABASE (excluding NEED_REVIEW)`,
         );
-        throw new InternalServerErrorException('Could not update inspection.');
+      } else {
+        whereClause.status = { in: parsedStatus };
+        this.logger.log(
+          `Applying filter: status in [${parsedStatus.join(',')}]`,
+        );
       }
     } else {
-      this.logger.log(`No data to update for inspection ID: ${id}.`);
-      // Return the existing inspection if no updates were made
-      return existingInspection;
+      // Handle default status based on role ONLY IF no explicit status is provided
+      if (
+        userRole === Role.CUSTOMER ||
+        userRole === Role.DEVELOPER ||
+        userRole === Role.INSPECTOR
+      ) {
+        whereClause.status = InspectionStatus.ARCHIVED;
+        this.logger.log(
+          `Applying default filter for role ${userRole}: status = ARCHIVED (no specific status requested)`,
+        );
+      }
+      // If Admin/Reviewer and no status is provided, whereClause.status remains empty (meaning they see all)
+    }
+
+    const skip = (page - 1) * pageSize;
+    if (skip < 0) {
+      this.logger.warn(
+        `Invalid page number requested: ${page}. Page number must be positive.`,
+      );
+      throw new BadRequestException('Page number must be positive.');
+    }
+
+    try {
+      const total = await this.prisma.inspection.count({ where: whereClause });
+      const inspections = await this.prisma.inspection.findMany({
+        where: whereClause,
+        orderBy: {
+          createdAt: 'desc', // Order by newest first
+        },
+        skip: skip,
+        take: pageSize,
+        include: { photos: true }, // Include related photos
+        // include: { inspector: { select: {id: true, name: true}}, reviewer: { select: {id: true, name: true}} } // Example include
+      });
+
+      this.logger.log(
+        `Retrieved ${inspections.length} inspections of ${total} total for role ${userRole ?? 'N/A'}.`,
+      );
+
+      const totalPages = Math.ceil(total / pageSize);
+      return {
+        data: inspections,
+        meta: {
+          total,
+          page,
+          pageSize,
+          totalPages,
+        },
+      };
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace available';
+      this.logger.error(
+        `Failed to retrieve inspections for role ${userRole ?? 'N/A'}: ${errorMessage}`,
+        errorStack,
+      );
+      throw new InternalServerErrorException(
+        'Could not retrieve inspection data.',
+      );
+    }
+  }
+
+  /**
+   * Retrieves a single inspection by ID.
+   * Applies status-based filtering for non-admin/reviewer roles.
+   *
+   * @param {string} id - The UUID of the inspection.
+   * @param {Role} userRole - The role of the requesting user.
+   * @returns {Promise<Inspection>} The found inspection record.
+   * @throws {NotFoundException} If inspection not found.
+   * @throws {ForbiddenException} If user role doesn't have permission to view the inspection in its current status.
+   */
+  async findOne(id: string, userRole: Role): Promise<Inspection> {
+    this.logger.log(
+      `Retrieving inspection ID: ${id} for user role: ${userRole}`,
+    );
+    try {
+      const inspection = await this.prisma.inspection.findUniqueOrThrow({
+        where: { id: id },
+        include: { photos: true }, // Include related photos
+        // include: { inspector: true, reviewer: true } // Include related users if needed
+      });
+
+      // Check authorization based on role and status
+      if (userRole === Role.ADMIN || userRole === Role.REVIEWER) {
+        this.logger.log(`Admin/Reviewer access granted for inspection ${id}`);
+        return inspection; // Admins/Reviewers can see all statuses
+      } else if (inspection.status === InspectionStatus.ARCHIVED) {
+        // TODO: Potentially check deactivatedAt here too?
+        // if (inspection.deactivatedAt !== null) { throw new ForbiddenException(...); }
+        this.logger.log(
+          `Public/Inspector access granted for ARCHIVED inspection ${id}`,
+        );
+        return inspection; // Others can only see ARCHIVED
+      } else {
+        // If found but not ARCHIVED, and user is not Admin/Reviewer
+        this.logger.warn(
+          `Access denied for user role ${userRole} on inspection ${id} with status ${inspection.status}`,
+        );
+        throw new ForbiddenException(
+          `You do not have permission to view this inspection in its current status (${inspection.status}).`,
+        );
+      }
+    } catch (error: unknown) {
+      // Use unknown
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException(`Inspection with ID "${id}" not found.`);
+      }
+      if (error instanceof ForbiddenException) {
+        // Re-throw ForbiddenException
+        throw error;
+      }
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace available';
+      this.logger.error(
+        `Failed to retrieve inspection ID ${id}: ${errorMessage}`,
+        errorStack,
+      );
+      throw new InternalServerErrorException(
+        `Could not retrieve inspection ${id}.`,
+      );
+    }
+  }
+
+  /**
+   * Approves an inspection, applies the latest logged change for each field,
+   * generates and stores the PDF, calculates its hash, and changes status to APPROVED.
+   * Fetches the latest changes from InspectionChangeLog and updates the Inspection record.
+   * Records the reviewer ID and optionally clears applied change logs.
+   *
+   * @param {string} inspectionId - The UUID of the inspection to approve.
+   * @param {string} reviewerId - The UUID of the user (REVIEWER/ADMIN) approving.
+   * @param {string | null} token - The JWT token of the reviewer.
+   * @returns {Promise<Inspection>} The updated inspection record.
+   * @throws {NotFoundException} If inspection not found.
+   * @throws {BadRequestException} If inspection is not in NEED_REVIEW or FAIL_ARCHIVE state.
+   * @throws {InternalServerErrorException} For database errors or PDF generation issues.
+   */
+  async approveInspection(
+    inspectionId: string,
+    reviewerId: string,
+    token: string | null, // Accept the token
+  ): Promise<Inspection> {
+    this.logger.log(
+      `Reviewer ${reviewerId} attempting to approve inspection ${inspectionId}`,
+    );
+    this.logger.debug(
+      `Received token for approval: ${token ? 'Exists' : 'Null'}`,
+    ); // Log token presence
+
+    // 1. Find the inspection and validate status
+    const inspection = await this.prisma.inspection.findUnique({
+      where: { id: inspectionId },
+    });
+
+    if (!inspection) {
+      throw new NotFoundException(
+        `Inspection with ID "${inspectionId}" not found for approval.`,
+      );
+    }
+
+    if (
+      inspection.status !== InspectionStatus.NEED_REVIEW &&
+      inspection.status !== InspectionStatus.FAIL_ARCHIVE
+    ) {
+      throw new BadRequestException(
+        `Inspection ${inspectionId} cannot be approved. Current status is '${inspection.status}'. Required: '${InspectionStatus.NEED_REVIEW}' or '${InspectionStatus.FAIL_ARCHIVE}'.`,
+      );
+    }
+
+    const frontendReportUrl = `${this.config.getOrThrow<string>(
+      'CLIENT_BASE_URL_PDF',
+    )}/data/${inspection.id}`;
+    let pdfBuffer: Buffer;
+    let pdfCid: string;
+    let pdfHashString: string | null = null;
+    const pdfFileName = `${inspection.pretty_id}-${Date.now()}.pdf`; // Nama file unik
+    const pdfFilePath = path.join(PDF_ARCHIVE_PATH, pdfFileName);
+    const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${pdfFileName}`; // URL publik
+
+    try {
+      // Generate PDF from URL, passing the token
+      pdfBuffer = await this.generatePdfFromUrl(frontendReportUrl, token);
+      pdfCid = await this.ipfsService.add(pdfBuffer);
+      // Save PDF to Disc
+      await fs.writeFile(pdfFilePath, pdfBuffer);
+      this.logger.log(`PDF report saved to: ${pdfFilePath}`);
+
+      // Calculate PDF Hash
+      const hash = crypto.createHash('sha256');
+      hash.update(pdfBuffer);
+      pdfHashString = hash.digest('hex');
+      this.logger.log(`PDF hash calculated: ${pdfHashString}`);
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace available';
+      this.logger.error(
+        `Failed to generate or save PDF for inspection ${inspectionId}: ${errorMessage}`,
+        errorStack,
+      );
+      throw new InternalServerErrorException(
+        `Could not generate PDF report from URL: ${errorMessage}`,
+      );
+    }
+
+    try {
+      return this.prisma.$transaction(async (tx) => {
+        // 2. Fetch all change logs for this inspection
+        const allChanges = await tx.inspectionChangeLog.findMany({
+          where: { inspectionId: inspectionId },
+          orderBy: { changedAt: 'desc' }, // Order by latest first for easier processing
+        });
+
+        // Group changes by field key and get the latest change for each field
+        const latestChanges = new Map<string, InspectionChangeLog>();
+
+        for (const log of allChanges) {
+          // Create a unique key for each field path
+          let key = log.fieldName;
+          if (log.subFieldName) {
+            key += `.${log.subFieldName}`;
+            if (log.subsubfieldname) {
+              key += `.${log.subsubfieldname}`;
+            }
+          }
+
+          // Only store if we haven't seen this field key before (since we're processing latest first)
+          if (!latestChanges.has(key)) {
+            latestChanges.set(key, log);
+          }
+        }
+
+        // 3. Apply the latest changes to the inspection data
+        // Start with a partial update object
+        const updateData: Prisma.InspectionUpdateInput = {
+          status: InspectionStatus.APPROVED,
+          // Correctly update the reviewer relationship
+          reviewer: {
+            connect: { id: reviewerId },
+          },
+          urlPdf: pdfPublicUrl,
+          pdfFileHash: pdfHashString,
+          ipfsPdf: `ipfs://${pdfCid}`,
+        };
+
+        // Define which top-level fields in Inspection are JSON and can be updated via change log
+        const jsonUpdatableFields: (keyof Inspection)[] = [
+          'identityDetails',
+          'vehicleData',
+          'equipmentChecklist',
+          'inspectionSummary',
+          'detailedAssessment',
+          'bodyPaintThickness',
+        ];
+
+        // Process each latest change
+        for (const [fieldKey, changeLog] of latestChanges) {
+          const value = changeLog.newValue;
+          const parts = fieldKey.split('.'); // Split key into parts
+          const fieldName = parts[0] as keyof Inspection; // Assert fieldName type
+
+          this.logger.debug(
+            `Applying change: fieldKey=${fieldKey}, value=${JSON.stringify(value)}, fieldName=${fieldName}`,
+          );
+
+          if (parts.length === 1) {
+            this.logger.debug(
+              `Processing top-level field from changelog. fieldName: "${fieldName}", value: "${JSON.stringify(value)}"`,
+            ); // KILOCODE DEBUG LOG
+            // Handle top-level fields (fieldName only)
+            // Only attempt to update if the field exists in the original inspection object
+            // KILOCODE FIX: Use parts[0] for 'inspector' and 'branchCity' checks to avoid TS error
+            if (
+              parts[0] === 'inspector' &&
+              value !== null &&
+              typeof value === 'string'
+            ) {
+              this.logger.debug(
+                `Condition for 'inspector' (from parts[0]) met. Applying change.`,
+              );
+              updateData.inspector = { connect: { id: value.toString() } };
+              this.logger.debug(
+                `Applied inspector change using connect: ${value}`,
+              );
+            } else if (
+              parts[0] === 'branchCity' &&
+              value !== null &&
+              typeof value === 'string'
+            ) {
+              this.logger.debug(
+                `Condition for 'branchCity' (from parts[0]) met. Applying change.`,
+              );
+              updateData.branchCity = { connect: { id: value.toString() } };
+              this.logger.debug(
+                `Applied branchCity change using connect: ${value}`,
+              );
+            }
+            // KILOCODE FIX: Fallback to check actual properties on inspection object using fieldName (keyof Inspection)
+            else if (
+              Object.prototype.hasOwnProperty.call(inspection, fieldName)
+            ) {
+              // Handle specific top-level fields with proper type conversion
+              if (
+                fieldName === 'vehiclePlateNumber' &&
+                typeof value === 'string'
+              ) {
+                updateData.vehiclePlateNumber = value;
+              } else if (
+                fieldName === 'inspectionDate' &&
+                typeof value === 'string'
+              ) {
+                updateData.inspectionDate = new Date(value); // Convert ISO string back to Date
+              } else if (
+                fieldName === 'overallRating' &&
+                typeof value === 'string'
+              ) {
+                updateData.overallRating = value;
+              }
+              // Add other top-level fields here as needed with appropriate type checks and assignments
+              else {
+                // Fallback for other top-level fields, might still need refinement
+                // updateData[fieldName as keyof Prisma.InspectionUpdateInput] = value as any; // Removed generic assignment
+              }
+            } else {
+              this.logger.warn(
+                `Top-level field "${parts[0]}" from changelog (key: ${fieldKey}) did not match any specific update logic. Value: ${JSON.stringify(value)}. 'inspector' check: ${parts[0] === 'inspector'}. 'branchCity' check: ${parts[0] === 'branchCity'}. HasOwnProperty on inspection for fieldName: ${Object.prototype.hasOwnProperty.call(inspection, fieldName)}. Ignoring.`, // KILOCODE DEBUG LOG MODIFIED with parts[0]
+              );
+            }
+          } else {
+            // Handle nested fields (subFieldName or subsubfieldname)
+            // Only apply nested changes if the fieldName is one of the designated JSON updatable fields
+            if ((jsonUpdatableFields as string[]).includes(fieldName)) {
+              // Ensure the top-level JSON field exists in updateData, initializing if necessary
+              if (
+                !updateData[fieldName as keyof Prisma.InspectionUpdateInput] ||
+                typeof updateData[
+                  fieldName as keyof Prisma.InspectionUpdateInput
+                ] !== 'object' ||
+                updateData[fieldName as keyof Prisma.InspectionUpdateInput] ===
+                  null
+              ) {
+                // Initialize with the existing value from the inspection, or an empty object if existing is null/undefined
+                (updateData[
+                  fieldName as keyof Prisma.InspectionUpdateInput
+                ] as Record<string, Prisma.JsonValue>) =
+                  inspection[fieldName] &&
+                  typeof inspection[fieldName] === 'object' &&
+                  inspection[fieldName] !== null
+                    ? {
+                        ...(inspection[fieldName] as Record<
+                          string,
+                          Prisma.JsonValue
+                        >),
+                      }
+                    : {};
+              }
+
+              if (parts.length === 2) {
+                // Handle subFieldName (one level deep)
+                const subFieldName = parts[1];
+                // Use type assertion to allow indexed access and assignment
+                (
+                  updateData[
+                    fieldName as keyof Prisma.InspectionUpdateInput
+                  ] as Record<string, Prisma.JsonValue>
+                )[subFieldName] = value;
+              } else if (parts.length === 3) {
+                // Handle subsubfieldname (two levels deep)
+                const subFieldName = parts[1];
+                const subsubfieldname = parts[2];
+
+                // Ensure the sub-field object exists, initializing if necessary
+                const currentField = updateData[
+                  fieldName as keyof Prisma.InspectionUpdateInput
+                ] as Record<string, Prisma.JsonValue>;
+
+                if (
+                  !currentField[subFieldName] ||
+                  typeof currentField[subFieldName] !== 'object' ||
+                  currentField[subFieldName] === null
+                ) {
+                  // Initialize with the existing value from the inspection, or an empty object
+                  const existingParentField = inspection[fieldName];
+                  currentField[subFieldName] =
+                    existingParentField &&
+                    typeof existingParentField === 'object' &&
+                    existingParentField !== null &&
+                    (existingParentField as Record<string, Prisma.JsonValue>)[
+                      subFieldName
+                    ] &&
+                    typeof (
+                      existingParentField as Record<string, Prisma.JsonValue>
+                    )[subFieldName] === 'object' &&
+                    (existingParentField as Record<string, Prisma.JsonValue>)[
+                      subFieldName
+                    ] !== null
+                      ? {
+                          ...((
+                            existingParentField as Record<
+                              string,
+                              Prisma.JsonValue
+                            >
+                          )[subFieldName] as Record<string, Prisma.JsonValue>),
+                        }
+                      : {};
+                }
+
+                // Use type assertion to allow indexed access and assignment
+                (
+                  currentField[subFieldName] as Record<string, Prisma.JsonValue>
+                )[subsubfieldname] = value;
+              }
+              // Ignore parts.length > 3 for now, as logging is limited to 3 levels
+            } else {
+              this.logger.warn(
+                `Attempted to apply nested change log for non-JSON field: ${fieldKey}. Ignoring.`,
+              );
+              // Optionally, log a warning or handle this case differently
+            }
+          }
+        }
+
+        // 4. Update the Inspection record in the database
+        const updatedInspection = await tx.inspection.update({
+          where: { id: inspectionId },
+          data: updateData, // Use the prepared updateData object
+        });
+
+        this.logger.log(
+          `Inspection ${inspectionId} approved and updated with latest logged changes by reviewer ${reviewerId}`,
+        );
+        return updatedInspection;
+      });
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace available';
+      this.logger.error(
+        `Failed to generate or save PDF for inspection ${inspectionId}: ${errorMessage}`,
+        errorStack,
+      );
+      throw new InternalServerErrorException(
+        `Could not generate PDF report from URL: ${errorMessage}`,
+      );
     }
   }
 
@@ -1215,9 +1779,13 @@ export class InspectionsService {
   /**
    * Generates PDF from a frontend URL using Puppeteer.
    * @param url The URL of the frontend page to render.
+   * @param token Optional JWT token to include in headers.
    * @returns A Buffer containing the generated PDF data.
    */
-  private async generatePdfFromUrl(url: string): Promise<Buffer> {
+  private async generatePdfFromUrl(
+    url: string,
+    token: string | null, // Accept the token
+  ): Promise<Buffer> {
     let browser: Browser | null = null;
     this.logger.log(`Generating PDF from URL: ${url}`);
     try {
@@ -1234,9 +1802,21 @@ export class InspectionsService {
         // executablePath: '/usr/bin/google-chrome-stable',
       });
       const page = await browser.newPage();
+
+      if (token) {
+        const headers: Record<string, string> = {
+          Authorization: `Bearer ${token}`,
+        };
+        await page.setExtraHTTPHeaders(headers);
+        this.logger.debug(
+          'Added Authorization header to Puppeteer navigation.',
+        );
+      }
+
       await page.goto(url, {
-        waitUntil: 'networkidle0', // Tunggu network tenang
-        timeout: 60000, // Tambahkan timeout (misal 60 detik)
+        waitUntil: 'networkidle0',
+        timeout: 360000,
+        // headers are set using page.setExtraHTTPHeaders() before goto
       });
 
       // Opsional: Tunggu selector spesifik jika networkidle0 tidak cukup
@@ -1299,17 +1879,45 @@ export class InspectionsService {
       );
     }
 
+    // Ensure required metadata fields are present for minting
+    if (!inspection.vehiclePlateNumber) {
+      this.logger.error(
+        `Missing vehiclePlateNumber for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+      throw new BadRequestException(
+        `Missing vehicle plate number for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+    }
+    if (!inspection.ipfsPdf && !inspection.urlPdf) {
+      this.logger.error(
+        `Missing PDF URL (ipfsPdf or urlPdf) for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+      throw new BadRequestException(
+        `Missing PDF URL for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+    }
+    if (!inspection.pdfFileHash) {
+      this.logger.error(
+        `Missing PDF file hash for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+      throw new BadRequestException(
+        `Missing PDF file hash for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+    }
+
     try {
       // 2. Minting
       let blockchainResult: { txHash: string; assetId: string } | null = null;
       let blockchainSuccess: boolean = false;
 
       try {
-        const metadataForNft: any = {
+        // Now that we've checked for null, we can safely assert these are strings for the metadata type
+        const metadataForNft: NftMetadata = {
           vehicleNumber: inspection.vehiclePlateNumber,
+          pdfUrl: inspection.ipfsPdf ? inspection.ipfsPdf : inspection.urlPdf,
           pdfHash: inspection.pdfFileHash,
         };
-        // Hapus field null/undefined dari metadata jika perlu
+        // Hapus field null/undefined dari metadata jika perlu (This step might be redundant now with checks above, but kept for safety)
         Object.keys(metadataForNft).forEach((key) =>
           metadataForNft[key] === undefined || metadataForNft[key] === null
             ? delete metadataForNft[key]
@@ -1319,14 +1927,15 @@ export class InspectionsService {
         this.logger.log(
           `Calling blockchainService.mintInspectionNft for inspection ${inspectionId}`,
         );
-        blockchainResult =
-          await this.blockchainService.mintInspectionNft(metadataForNft); // Panggil service minting
+        // Cast to InspectionNftMetadata as we've ensured non-nullability
+        blockchainResult = await this.blockchainService.mintInspectionNft(
+          metadataForNft as InspectionNftMetadata,
+        ); // Panggil service minting
         blockchainSuccess = true;
         this.logger.log(
           `Blockchain interaction SUCCESS for inspection ${inspectionId}`,
         );
       } catch (blockchainError: unknown) {
-        // Explicitly type error as any for now
         const errorMessage =
           blockchainError instanceof Error
             ? blockchainError.message
@@ -1554,53 +2163,59 @@ export class InspectionsService {
    * @returns The flattened object.
    */
   private flattenObject(
-    obj: any,
+    obj: any, // Keeping 'any' for simplicity in this helper, but ideally would use a more specific type or handle recursively with known types
     parentKey = '',
-    result: Record<string, any> = {},
+    result: Record<string, any> = {}, // Keeping 'any' for simplicity
   ): Record<string, any> {
     if (obj === null || (typeof obj !== 'object' && !Array.isArray(obj))) {
       result[parentKey || 'value'] = obj; // Name 'value' if parentKey is empty at root level primitive
       return result;
     }
 
-    for (const key in obj) {
-      if (obj.hasOwnProperty(key)) {
-        const newKey = parentKey ? `${parentKey}_${key}` : key;
-        const value = obj[key];
+    // Use Object.keys for safer iteration than 'for...in'
+    Object.keys(obj).forEach((key) => {
+      const newKey = parentKey ? `${parentKey}_${key}` : key;
+      const value = obj[key];
 
+      if (
+        typeof value === 'object' &&
+        value !== null &&
+        !Array.isArray(value)
+      ) {
+        this.flattenObject(value, newKey, result);
+      } else if (Array.isArray(value)) {
         if (
-          typeof value === 'object' &&
-          value !== null &&
-          !Array.isArray(value)
+          newKey.endsWith('estimasiPerbaikan') &&
+          value.length > 0 &&
+          typeof value[0] === 'object' &&
+          value[0] !== null // Ensure the object is not null
         ) {
-          this.flattenObject(value, newKey, result);
-        } else if (Array.isArray(value)) {
-          if (
-            newKey.endsWith('estimasiPerbaikan') &&
-            value.length > 0 &&
-            typeof value[0] === 'object'
-          ) {
-            result[newKey] = value
-              .map((item) => `${item.namaPart || 'N/A'}:${item.harga || 'N/A'}`)
-              .join(' | ');
-          } else if (
-            value.every(
+          // Safely access properties with optional chaining or checks
+          result[newKey] = value
+            .map(
               (item) =>
-                typeof item === 'string' ||
-                typeof item === 'number' ||
-                typeof item === 'boolean',
-            )
-          ) {
-            result[newKey] = value.join('|');
-          } else {
-            // For other arrays of objects or mixed arrays, stringify as fallback
-            result[newKey] = JSON.stringify(value);
-          }
+                `${(item as any)?.namaPart || 'N/A'}:${(item as any)?.harga || 'N/A'}`,
+            ) // Use any for item for simplicity, or define a type
+            .join(' | ');
+        } else if (
+          value.every(
+            (item) =>
+              typeof item === 'string' ||
+              typeof item === 'number' ||
+              typeof item === 'boolean' ||
+              item === null, // Allow null in arrays
+          )
+        ) {
+          result[newKey] = value.join('|');
         } else {
-          result[newKey] = value;
+          // For other arrays of objects or mixed arrays, stringify as fallback
+          result[newKey] = JSON.stringify(value);
         }
+      } else {
+        result[newKey] = value;
       }
-    }
+    });
+
     return result;
   }
 
@@ -1746,5 +2361,87 @@ export class InspectionsService {
         'Could not export inspection data to CSV.',
       );
     }
+  }
+
+  /**
+   * Tahap 1: Mempersiapkan data dan membangun unsigned transaction.
+   * Fungsi ini dipanggil oleh frontend untuk mendapatkan transaksi yang siap ditandatangani.
+   * @param inspectionId ID dari inspeksi yang akan di-mint.
+   * @param adminAddress Alamat admin yang akan menandatangani, didapat dari frontend.
+   * @returns Objek yang berisi unsignedTx dan nftAssetId.
+   */
+  async buildArchiveTransaction(inspectionId: string, adminAddress: string) {
+    this.logger.log(
+      `Memulai pembangunan transaksi untuk inspeksi: ${inspectionId}`,
+    );
+
+    // 1. Lakukan validasi bisnis yang sama seperti di processToArchive
+    const inspection = await this.prisma.inspection.findUnique({
+      where: { id: inspectionId },
+    });
+    if (!inspection)
+      throw new NotFoundException(`Inspeksi ${inspectionId} tidak ditemukan.`);
+    if (inspection.status !== InspectionStatus.APPROVED) {
+      throw new BadRequestException(
+        `Inspeksi ${inspectionId} tidak bisa di-mint. Status: ${inspection.status}`,
+      );
+    }
+    if (
+      !inspection.vehiclePlateNumber ||
+      !inspection.ipfsPdf ||
+      !inspection.pdfFileHash
+    ) {
+      throw new BadRequestException(
+        `Data inspeksi ${inspectionId} tidak lengkap untuk minting.`,
+      );
+    }
+
+    // 2. Siapkan data untuk dikirim ke blockchain service
+    const buildDto: BuildMintTxDto = {
+      adminAddress: adminAddress,
+      inspectionData: {
+        vehicleNumber: inspection.vehiclePlateNumber,
+        pdfHash: inspection.pdfFileHash,
+        nftDisplayName: `Car Inspection ${inspection.vehiclePlateNumber}`,
+      },
+    };
+
+    // 3. Delegasikan pembangunan transaksi ke BlockchainService
+    return this.blockchainService.buildAikenMintTransaction(buildDto);
+  }
+
+  /**
+   * Tahap 2: Menyimpan hasil minting setelah frontend berhasil mengirimkan transaksi.
+   * @param inspectionId ID dari inspeksi yang di-update.
+   * @param confirmDto Data konfirmasi dari frontend (txHash dan nftAssetId).
+   * @returns Record inspeksi yang sudah terupdate.
+   */
+  async confirmArchive(
+    inspectionId: string,
+    confirmDto: ConfirmMintDto,
+  ): Promise<Inspection> {
+    this.logger.log(
+      `Konfirmasi minting untuk inspeksi ${inspectionId} dengan TxHash: ${confirmDto.txHash}`,
+    );
+
+    // Pastikan inspeksi ada
+    const inspection = await this.prisma.inspection.findUnique({
+      where: { id: inspectionId },
+    });
+    if (!inspection)
+      throw new NotFoundException(
+        `Inspeksi ${inspectionId} tidak ditemukan untuk konfirmasi.`,
+      );
+
+    // Update database dengan hasil dari blockchain
+    return this.prisma.inspection.update({
+      where: { id: inspectionId },
+      data: {
+        status: InspectionStatus.ARCHIVED,
+        nftAssetId: confirmDto.nftAssetId,
+        blockchainTxHash: confirmDto.txHash,
+        archivedAt: new Date(),
+      },
+    });
   }
 }
