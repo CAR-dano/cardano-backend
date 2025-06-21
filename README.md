@@ -68,13 +68,7 @@ This repository contains the source code for the CAR-dano backend service, built
     cd cardano-backend
     ```
 
-2.  **Install dependencies:**
-
-    ```bash
-    npm install
-    ```
-
-3.  **Set up environment variables:**
+2.  **Set up environment variables:**
     Copy the `.env.example` file to `.env` and fill in the required values based on the comments in `.env.example`.
 
     ```bash
@@ -84,40 +78,18 @@ This repository contains the source code for the CAR-dano backend service, built
     Key variables include:
 
     - `NODE_ENV`, `PORT`, `URL`
+    - `IPFS_API_HOST`, `IPFS_API_PORT`
     - `DATABASE_URL` (or `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`)
     - `JWT_SECRET`, `JWT_EXPIRATION_TIME`
     - `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_CALLBACK_URL`
-    - `CLIENT_BASE_URL`
+    - `CLIENT_BASE_URL`, `CLIENT_BASE_URL_PDF`
     - `PDF_PUBLIC_BASE_URL`
     - `BLOCKFROST_ENV`, `BLOCKFROST_API_KEY_PREVIEW`, `BLOCKFROST_API_KEY_PREPROD`, `BLOCKFROST_API_KEY_MAINNET`
     - `WALLET_SECRET_KEY_TESTNET`, `WALLET_ADDRESS_TESTNET`
     - `WALLET_SECRET_KEY_MAINNET`, `WALLET_ADDRESS_MAINNET`
-    - `DUMMY_USER_ID`
-
-4.  **Run Prisma migrations:**
-    Ensure your PostgreSQL database is running.
-
-    ```bash
-    npx prisma migrate dev --name init # Replace 'init' with an appropriate migration name if not the first time
-    ```
-
-5.  **Generate Prisma Client:**
-    ```bash
-    npx prisma generate
-    ```
 
 ## Running the Application
 
 ```bash
-# Development mode (with hot-reload)
-$ npm run start:dev
-
-# Production mode
-# First, build the application:
-$ npm run build
-# Then run from the dist directory:
-$ npm run start:prod
-
-# Running with Docker (see docker-compose.yml)
-# $ docker-compose up -d
+$ docker-compose up -d --build
 ```

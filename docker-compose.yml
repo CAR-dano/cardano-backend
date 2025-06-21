@@ -1,18 +1,63 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:latest
-    container_name: postgres
+  app:
+    build: .
+    container_name: nest_app
+    restart: unless-stopped
     ports:
-      - '5432:5432'
+      - '3010:3010'
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ipfs:
+        condition: service_started
+    volumes:
+      - app_uploads_data:/usr/src/app/uploads
+      - app_pdfarchived_data:/usr/src/app/pdfarchived
+    networks:
+      - cardano-backend
+
+  # Layanan untuk database PostgreSQL
+  postgres:
+    image: postgres:17-alpine
+    container_name: postgres_db
     environment:
-      POSTGRES_USER: $POSTGRES_USER
-      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
-      POSTGRES_DB: $POSTGRES_DB
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      # Port host diubah ke 5433 untuk menghindari konflik dengan PostgreSQL lokal
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cardano-backend
+
+  ipfs:
+    image: ipfs/kubo:latest
+    container_name: ipfs_node
+    ports:
+      - '8080:8080'
+      - '5001:5001'
+    volumes:
+      - ipfs_data:/data/ipfs
+    networks:
+      - cardano-backend
 
 volumes:
   postgres_data:
+  ipfs_data:
+  app_uploads_data:
+  app_pdfarchived_data:
+
+networks:
+  cardano-backend:
+    driver: bridge

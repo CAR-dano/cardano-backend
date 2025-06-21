@@ -35,16 +35,21 @@ export class IpfsService implements OnModuleInit {
    * Throws an error if the IPFS API URL is not found.
    */
   onModuleInit() {
-    // Get IPFS API URL from configuration
-    const ipfsApiUrl = this.configService.get<string>('IPFS_API_URL');
-    // Check if IPFS API URL is configured
-    if (!ipfsApiUrl) {
-      throw new Error('IPFS_API_URL not found in configuration.');
+    const host = this.configService.get<string>('IPFS_API_HOST');
+    const port = this.configService.get<number>('IPFS_API_PORT');
+
+    if (!host) {
+      throw new Error('IPFS_API_HOST not found in configuration.');
     }
-    // Create IPFS client instance
-    this.ipfs = create({ url: ipfsApiUrl });
-    // Log successful connection
-    this.logger.log(`Connected to IPFS node at: ${ipfsApiUrl}`);
+    if (!port) {
+      throw new Error('IPFS_API_PORT not found in configuration.');
+    }
+
+    const apiUrl = `http://${host}:${port}`;
+
+    this.ipfs = create({ url: apiUrl });
+
+    console.log(`Connecting to IPFS API at: ${apiUrl}`);
   }
 
   /**
