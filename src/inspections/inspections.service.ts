@@ -1315,12 +1315,10 @@ export class InspectionsService {
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
-          // Tambahkan argumen lain jika perlu (misal proxy, ignore https errors)
-          '--disable-dev-shm-usage', // Penting di beberapa environment Docker/terbatas
-          '--disable-gpu', // Kadang membantu di server tanpa GPU
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
         ],
-        // Tentukan executablePath jika puppeteer tidak bisa menemukannya otomatis di server
-        // executablePath: '/usr/bin/google-chrome-stable',
+        executablePath: '/usr/bin/chromium-browser',
       });
       const page = await browser.newPage();
 
@@ -1335,12 +1333,17 @@ export class InspectionsService {
       }
 
       this.logger.log(`Navigating to ${url}`);
-      await page.goto(url, {
-        waitUntil: 'domcontentloaded',
-      });
+      // await page.goto(url, {
+      //   waitUntil: 'domcontentloaded',
+      // });
 
-      await page.waitForSelector('#glosarium', {
-        visible: true,
+      // await page.waitForSelector('#glosarium', {
+      //   visible: true,
+      //   timeout: 360000,
+      // });
+
+      await page.goto(url, {
+        waitUntil: 'networkidle0',
         timeout: 360000,
       });
 
