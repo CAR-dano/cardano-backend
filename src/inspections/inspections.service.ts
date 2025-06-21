@@ -1334,15 +1334,17 @@ export class InspectionsService {
         );
       }
 
+      this.logger.log(`Navigating to ${url}`);
       await page.goto(url, {
-        waitUntil: 'networkidle0',
-        timeout: 360000,
-        // headers are set using page.setExtraHTTPHeaders() before goto
+        waitUntil: 'domcontentloaded',
       });
 
-      // Opsional: Tunggu selector spesifik jika networkidle0 tidak cukup
-      // await page.waitForSelector('#report-ready-indicator', { timeout: 30000 });
+      await page.waitForSelector('#glosarium', {
+        visible: true,
+        timeout: 360000,
+      });
 
+      this.logger.log(`Element is visible. Generating PDF...`);
       const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
       this.logger.log(`PDF buffer generated successfully from ${url}`);
       return Buffer.from(pdfBuffer);
