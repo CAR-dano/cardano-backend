@@ -1,6 +1,17 @@
 # STAGE 1: Build Stage
 FROM node:22-alpine AS builder
 
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    gcompat \
+    udev \
+    xvfb
+
 WORKDIR /usr/src/app
 
 COPY package*.json ./
