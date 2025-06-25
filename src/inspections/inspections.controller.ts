@@ -652,6 +652,47 @@ export class InspectionsController {
   }
 
   /**
+   * [GET /inspections/search/keyword]
+   * Retrieves a list of inspections matching a general keyword.
+   *
+   * @param {string} q - The general keyword to search for.
+   * @returns {Promise<InspectionResponseDto[]>} A list of found inspection summaries.
+   */
+  @Get('search/keyword')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Search for inspections by a general keyword',
+    description:
+      'Retrieves inspections that match a keyword in fields like plate number, vehicle make, model, etc.',
+  })
+  @ApiQuery({
+    name: 'q',
+    required: true,
+    type: String,
+    description:
+      'The keyword to search for (e.g., "Avanza", "AB 1234 CD", "pending").',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      'A list of found inspection records. Returns an empty array if no matches are found.',
+    type: [InspectionResponseDto], // Menandakan bahwa ini adalah array dari DTO
+  })
+  async searchByKeyword(
+    @Query('q') keyword: string,
+  ): Promise<InspectionResponseDto[]> {
+    this.logger.log(
+      `[GET /inspections/search/keyword] Searching for keyword: ${keyword}`,
+    );
+
+    const inspections = await this.inspectionsService.searchByKeyword(keyword);
+
+    return inspections.map(
+      (inspection) => new InspectionResponseDto(inspection),
+    );
+  }
+
+  /**
    * [GET /inspections]
    * Retrieves all inspection records with pagination and metadata.
    * Filters results based on the requesting user's role (passed via query).

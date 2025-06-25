@@ -462,6 +462,94 @@ export class InspectionsService {
   }
 
   /**
+   * Finds inspections matching a keyword across multiple fields.
+   *
+   * @param {string} keyword - The keyword to search for.
+   * @returns {Promise<Inspection[]>} A list of found inspection records.
+   */
+  async searchByKeyword(keyword: string): Promise<Inspection[]> {
+    this.logger.log(`Searching for inspections with keyword: ${keyword}`);
+
+    // If the keyword is empty, return an empty array to avoid scanning the entire table.
+    if (!keyword || keyword.trim() === '') {
+      return [];
+    }
+
+    try {
+      // Using Prisma's findMany API for safe and type-safe searching.
+      // 'contains' will perform a LIKE '%keyword%' search.
+      // 'mode: 'insensitive'' will make the search case-insensitive (e.g., 'Avanza' will match 'avanza').
+      const inspections = await this.prisma.inspection.findMany({
+        where: {
+          OR: [
+            { pretty_id: { contains: keyword, mode: 'insensitive' } },
+            { vehiclePlateNumber: { contains: keyword, mode: 'insensitive' } },
+            {
+              vehicleData: {
+                path: ['merekKendaraan'],
+                string_contains: keyword,
+                mode: 'insensitive',
+              },
+            },
+            {
+              vehicleData: {
+                path: ['tipeKendaraan'],
+                string_contains: keyword,
+                mode: 'insensitive',
+              },
+            },
+            {
+              identityDetails: {
+                path: ['namaCustomer'],
+                string_contains: keyword,
+                mode: 'insensitive',
+              },
+            },
+            {
+              identityDetails: {
+                path: ['namaInspektor'],
+                string_contains: keyword,
+                mode: 'insensitive',
+              },
+            },
+            {
+              identityDetails: {
+                path: ['cabangInspeksi'],
+                string_contains: keyword,
+                mode: 'insensitive',
+              },
+            },
+          ],
+        },
+        include: {
+          photos: true,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: 50, // Limit the number of results for performance
+      });
+
+      this.logger.log(
+        `Found ${inspections.length} inspections for keyword: ${keyword}`,
+      );
+      return inspections;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace available';
+      this.logger.error(
+        `Failed to search inspections by keyword "${keyword}": ${errorMessage}`,
+        errorStack,
+      );
+      throw new InternalServerErrorException(
+        'Could not search inspection data.',
+      );
+    }
+  }
+
+  /**
    * Logs changes made to an inspection record by a reviewer/admin.
    * Changes are recorded in the InspectionChangeLog table.
    * The actual Inspection record is NOT updated by this method itself;
@@ -1333,17 +1421,17 @@ export class InspectionsService {
       }
 
       this.logger.log(`Navigating to ${url}`);
-      // await page.goto(url, {
-      //   waitUntil: 'domcontentloaded',
-      // });
-
-      // await page.waitForSelector('#glosarium', {
-      //   visible: true,
-      //   timeout: 360000,
-      // });
-
       await page.goto(url, {
         waitUntil: 'networkidle0',
+        timeout: 360000,
+      });
+
+      await page.goto(url, {
+        waitUntil: 'domcontentloaded',
+      });
+
+      await page.waitForSelector('#glosarium', {
+        visible: true,
         timeout: 360000,
       });
 
