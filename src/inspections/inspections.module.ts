@@ -27,5 +27,6 @@ import { IpfsModule } from '../ipfs/ipfs.module';
   imports: [PrismaModule, PhotosModule, BlockchainModule, IpfsModule],
   controllers: [InspectionsController],
   providers: [InspectionsService],
+  exports: [InspectionsService],
 })
 export class InspectionsModule {}

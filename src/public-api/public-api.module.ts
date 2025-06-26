@@ -12,9 +12,10 @@
 import { Module } from '@nestjs/common';
 import { PublicUsersController } from './public-users.controller';
 import { UsersModule } from '../users/users.module';
+import { InspectionsModule } from '../inspections/inspections.module';
 
 @Module({
-  imports: [UsersModule],
+  imports: [UsersModule, InspectionsModule],
   controllers: [PublicUsersController],
   providers: [],
 })
