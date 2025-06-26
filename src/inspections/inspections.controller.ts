@@ -616,6 +616,8 @@ export class InspectionsController {
    */
   @Get('search')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Search for an inspection by vehicle plate number',
     description:
@@ -660,6 +662,9 @@ export class InspectionsController {
    */
   @Get('search/keyword')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Search for inspections by a general keyword',
     description:
