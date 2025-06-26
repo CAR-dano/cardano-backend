@@ -33,7 +33,6 @@ import {
   NotFoundException,
   Res,
   UseGuards,
-  InternalServerErrorException, // Import InternalServerErrorException
 } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -68,7 +67,6 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Req } from '@nestjs/common'; // Import Req decorator
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { LatestArchivedInspectionResponseDto } from './dto/latest-archived-inspection-response.dto'; // Import the new DTO
 // import { GetUser } from '../auth/decorators/get-user.decorator';
 // import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface'; // Define or import this
 
@@ -1267,54 +1265,5 @@ export class InspectionsController {
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
     res.send(csvData);
-  }
-
-  /**
-   * [GET /inspections/latest-archived]
-   * Retrieves the 5 most recent inspections with status ARCHIVED,
-   * including one photo with the label "Tampak Depan", vehiclePlateNumber,
-   * vehicleData.merekKendaraan, and vehicleData.tipeKendaraan.
-   * This endpoint is publicly accessible.
-   *
-   * @returns {Promise<LatestArchivedInspectionResponseDto[]>} An array of the latest archived inspection summaries.
-   */
-  @Get('latest-archived')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Retrieve 5 latest ARCHIVED inspections with specific details',
-    description:
-      'Retrieves the 5 most recent inspections with status ARCHIVED, including one photo with the label "Tampak Depan", vehicle plate number, vehicle brand, and vehicle type.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Array of the latest archived inspection summaries.',
-    type: [LatestArchivedInspectionResponseDto],
-  })
-  @ApiResponse({
-    status: 500,
-    description: 'Internal Server Error (e.g., database error).',
-  })
-  async getLatestArchivedInspections(): Promise<
-    LatestArchivedInspectionResponseDto[]
-  > {
-    this.logger.log('[GET /inspections/latest-archived] Request received');
-    const inspections =
-      await this.inspectionsService.findLatestArchivedInspections();
-
-    // Map the results to the DTO, handling the potential error if 'Tampak Depan' photo is missing
-    return inspections.map((inspection) => {
-      try {
-        return new LatestArchivedInspectionResponseDto(inspection);
-      } catch (error) {
-        this.logger.error(
-          `Failed to map inspection ${inspection.id} to DTO: ${error.message}`,
-        );
-        // Depending on desired behavior, you might skip this inspection or return a partial/error response
-        // For now, re-throwing to indicate a critical data inconsistency for this specific inspection.
-        throw new InternalServerErrorException(
-          `Data inconsistency for inspection ${inspection.id}: ${error.message}`,
-        );
-      }
-    });
   }
 } // End Controller
