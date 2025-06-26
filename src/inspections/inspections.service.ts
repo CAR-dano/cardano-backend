@@ -32,6 +32,7 @@ import {
   Prisma,
   Role,
   InspectionChangeLog,
+  Photo, // Import Photo
 } from '@prisma/client'; // Prisma generated types (Inspection model, Prisma namespace)
 import * as fs from 'fs/promises'; // Use promise-based fs for async file operations
 import * as path from 'path'; // For constructing file paths
@@ -2057,5 +2058,69 @@ export class InspectionsService {
         archivedAt: new Date(),
       },
     });
+  }
+
+  /**
+   * Retrieves the 5 most recent inspections with status ARCHIVED,
+   * including one photo with the label "Tampak Depan", vehiclePlateNumber,
+   * vehicleData.merekKendaraan, and vehicleData.tipeKendaraan.
+   *
+   * @returns {Promise<Array<Inspection & { photos: Photo[] }>>} An array of inspection records
+   *          with the required photo and vehicle data.
+   */
+  async findLatestArchivedInspections(): Promise<
+    Array<Inspection & { photos: Photo[] }>
+  > {
+    this.logger.log(
+      'Retrieving 5 latest ARCHIVED inspections with "Tampak Depan" photo.',
+    );
+
+    try {
+      const inspections = await this.prisma.inspection.findMany({
+        where: {
+          status: InspectionStatus.ARCHIVED,
+          photos: {
+            some: {
+              label: 'Tampak Depan',
+            },
+          },
+        },
+        orderBy: {
+          archivedAt: 'desc', // Order by archived date to get the latest
+        },
+        take: 5, // Limit to 5 inspections
+        include: {
+          photos: {
+            where: {
+              label: 'Tampak Depan', // Only include the "Tampak Depan" photo
+            },
+            take: 1, // Ensure only one photo is returned if multiple "Tampak Depan" exist (shouldn't happen if data is clean)
+          },
+        },
+      });
+
+      // Filter out any inspections that somehow ended up without a 'Tampak Depan' photo
+      // (though the 'where' clause above should prevent this)
+      const filteredInspections = inspections.filter(
+        (inspection) => inspection.photos.length > 0,
+      );
+
+      this.logger.log(
+        `Found ${filteredInspections.length} latest ARCHIVED inspections.`,
+      );
+      return filteredInspections;
+    } catch (error: unknown) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace available';
+      this.logger.error(
+        `Failed to retrieve latest archived inspections: ${errorMessage}`,
+        errorStack,
+      );
+      throw new InternalServerErrorException(
+        'Could not retrieve latest archived inspection data.',
+      );
+    }
   }
 }
