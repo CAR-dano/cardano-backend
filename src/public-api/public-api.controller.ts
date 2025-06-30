@@ -80,9 +80,21 @@ export class PublicApiController {
       'Fetches a list of all user accounts specifically designated as inspectors. This endpoint is publicly accessible.',
   })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'List of inspector users.',
     type: [UserResponseDto],
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Bad Request.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Not Found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal Server Error.',
   })
   async findAllInspectors(): Promise<UserResponseDto[]> {
     // Log the incoming public request
@@ -110,12 +122,20 @@ export class PublicApiController {
       'Retrieves the 5 most recent inspections with status ARCHIVED, including one photo with the label "Front View", vehicle plate number, vehicle brand, and vehicle type.',
   })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'Array of the latest archived inspection summaries.',
     type: [LatestArchivedInspectionResponseDto],
   })
   @ApiResponse({
-    status: 500,
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Bad Request.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Not Found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
     description: 'Internal Server Error (e.g., database error).',
   })
   async getLatestArchivedInspections(): Promise<
@@ -166,11 +186,22 @@ export class PublicApiController {
     description: 'The UUID of the inspection to retrieve.',
   })
   @ApiResponse({
-    status: 200,
+    status: HttpStatus.OK,
     description: 'The inspection record summary.',
     type: InspectionResponseDto,
   })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Bad Request.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Inspection not found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal Server Error.',
+  })
   async findOne(@Param('id') id: string): Promise<InspectionResponseDto> {
     // Retrieve the inspection using the PublicApiService
     const inspection = await this.publicApiService.findOne(id);
@@ -206,6 +237,14 @@ export class PublicApiController {
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Inspection not found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Bad Request.',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Internal Server Error.',
   })
   async findChangesByInspectionId(
     @Param('id') inspectionId: string,
