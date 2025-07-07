@@ -18,6 +18,7 @@ import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder, OpenAPIObject } from '@nestjs/swagger';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { json, urlencoded } from 'express';
 
 let openApiDocument: OpenAPIObject | null = null;
 
@@ -38,6 +39,10 @@ async function bootstrap() {
   app.use(helmet());
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap - ApiGateway'); // Create a logger instance
+
+  // Set payload limits
+  app.use(json({ limit: '5mb' }));
+  app.use(urlencoded({ extended: true, limit: '5mb' }));
 
   // Set Global Prefix
   app.setGlobalPrefix('api/v1');
