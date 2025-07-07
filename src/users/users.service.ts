@@ -39,6 +39,30 @@ export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   /**
+   * Normalizes an email address to a standard format.
+   * This involves removing dots and sub-address extensions (e.g., '+alias')
+   * from the local part of the email for providers like Gmail.
+   *
+   * @param {string} email - The email address to normalize.
+   * @returns {string} The normalized email address.
+   */
+  private normalizeEmail(email: string): string {
+    if (!email) return '';
+    const lowercasedEmail = email.toLowerCase();
+    const [localPart, domain] = lowercasedEmail.split('@');
+
+    if (!localPart || !domain) {
+      // Return the original lowercased email if it's not a valid format
+      return lowercasedEmail;
+    }
+
+    // Remove sub-addressing (e.g., "+test") and dots from the local part
+    const normalizedLocalPart = localPart.split('+')[0].replace(/\./g, '');
+
+    return `${normalizedLocalPart}@${domain}`;
+  }
+
+  /**
    * Finds a single user by their unique email address.
    *
    * @param {string} email - The email address to search for.
@@ -47,10 +71,11 @@ export class UsersService {
    */
   async findByEmail(email: string): Promise<User | null> {
     if (!email) return null; // Return null if email is empty or null
-    this.logger.log(`Finding user by email: ${email}`);
+    const normalizedEmail = this.normalizeEmail(email);
+    this.logger.log(`Finding user by normalized email: ${normalizedEmail}`);
     try {
       return await this.prisma.user.findUnique({
-        where: { email: email.toLowerCase() }, // Store and search emails in lowercase
+        where: { email: normalizedEmail }, // Store and search emails in lowercase
       });
     } catch (error) {
       if (error instanceof Error) {
@@ -203,15 +228,16 @@ export class UsersService {
    * @throws {InternalServerErrorException} For hashing or database errors.
    */
   async createLocalUser(registerDto: RegisterUserDto): Promise<User> {
+    const normalizedEmail = this.normalizeEmail(registerDto.email);
     this.logger.log(
-      `Attempting to register local user with email: ${registerDto.email} and username: ${registerDto.username}`,
+      `Attempting to register local user with normalized email: ${normalizedEmail} and username: ${registerDto.username}`,
     );
 
     // 1. Check for existing email or username (case-insensitive recommended for email)
-    const existingByEmail = await this.findByEmail(registerDto.email);
+    const existingByEmail = await this.findByEmail(normalizedEmail);
     if (existingByEmail) {
       this.logger.warn(
-        `Registration failed: Email ${registerDto.email} already exists.`,
+        `Registration failed: Email ${normalizedEmail} already exists.`,
       );
       throw new ConflictException('Email address is already registered.');
     }
@@ -249,7 +275,7 @@ export class UsersService {
       const newUser = await this.prisma.user.create({
         data: {
           id: uuidv4(), // Generate a UUID for the new user
-          email: registerDto.email.toLowerCase(), // Store email in lowercase
+          email: normalizedEmail, // Store normalized email
           username: registerDto.username,
           password: hashedPassword, // Store the HASHED password
           name: registerDto.name, // Optional name from DTO
@@ -321,7 +347,7 @@ export class UsersService {
     displayName?: string;
   }): Promise<User> {
     const googleId = profile.id;
-    const email = profile.emails?.[0]?.value?.toLowerCase(); // Ensure lowercase email
+    const email = profile.emails?.[0]?.value; // Ensure lowercase email
     const name = profile.displayName;
 
     if (!email) {
@@ -331,13 +357,15 @@ export class UsersService {
       );
     }
 
+    const normalizedEmail = this.normalizeEmail(email);
+
     this.logger.log(
-      `Attempting find/create user for Google profile ID: ${googleId}, email: ${email}`,
+      `Attempting find/create user for Google profile ID: ${googleId}, normalized email: ${normalizedEmail}`,
     );
     try {
       // Upsert: Find by email. If found, update googleId. If not found, create new user.
       const user = await this.prisma.user.upsert({
-        where: { email: email },
+        where: { email: normalizedEmail },
         update: {
           googleId: googleId, // Add googleId if user already exists via email/username
           // Optionally update name if provided by Google and different/missing locally
@@ -345,7 +373,7 @@ export class UsersService {
         },
         create: {
           id: uuidv4(), // Generate a UUID for the new user
-          email: email,
+          email: normalizedEmail,
           googleId: googleId,
           name: name || `User_${googleId.substring(0, 6)}`, // Provide a default name if missing
           // username and password will be null
@@ -527,10 +555,11 @@ export class UsersService {
     //    (Prevents linking a Google account with a different email than the user's main one)
     if (
       userToUpdate.email &&
-      userToUpdate.email.toLowerCase() !== googleEmail.toLowerCase()
+      this.normalizeEmail(userToUpdate.email) !==
+        this.normalizeEmail(googleEmail)
     ) {
       this.logger.warn(
-        `Google email (${googleEmail}) does not match user's primary email (${userToUpdate.email}) for user ${userId}.`,
+        `Normalized Google email (${this.normalizeEmail(googleEmail)}) does not match user's primary email (${this.normalizeEmail(userToUpdate.email)}) for user ${userId}.`,
       );
       // Decide whether to throw an error or allow linking anyway (potential security risk?)
       throw new BadRequestException(
