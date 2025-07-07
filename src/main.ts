@@ -13,6 +13,7 @@
  */
 
 import { NestFactory } from '@nestjs/core';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder, OpenAPIObject } from '@nestjs/swagger';
 import { Logger, ValidationPipe } from '@nestjs/common';
@@ -34,6 +35,7 @@ export function getOpenApiDocument(): OpenAPIObject | null {
  */
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.use(helmet());
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap - ApiGateway'); // Create a logger instance
 
