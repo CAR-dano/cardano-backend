@@ -70,4 +70,23 @@ export class UpdateUserDto {
   @IsOptional()
   @IsString()
   walletAddress?: string;
+
+  @ApiProperty({
+    description: 'Optional PIN for the user (6 digits)',
+    example: '654321',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  pin?: string;
+
+  @ApiProperty({
+    description: 'Optional refresh token for the user',
+    example: 'some_refresh_token',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  refreshToken?: string;
 }

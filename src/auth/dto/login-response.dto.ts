@@ -25,6 +25,15 @@ export class LoginResponseDto {
   accessToken: string;
 
   /**
+   * The JSON Web Token (JWT) used for refreshing the access token.
+   */
+  @ApiProperty({
+    description: 'JWT refresh token for refreshing the access token',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+  })
+  refreshToken: string;
+
+  /**
    * Details of the authenticated user (excluding sensitive information).
    */
   @ApiProperty({

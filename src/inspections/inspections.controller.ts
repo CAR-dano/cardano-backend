@@ -151,28 +151,40 @@ export class InspectionsController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  // @UseGuards(JwtAuthGuard, RolesGuard) // Apply guards later
-  // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR) // Define allowed roles later
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.INSPECTOR)
+  @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Create a new inspection record',
+    summary: 'Create a new inspection record (Inspector only)',
     description:
-      'Creates the initial inspection record containing text and JSON data. This is the first step before uploading photos or archiving.',
+      'Creates the initial inspection record containing text and JSON data. This is the first step before uploading photos or archiving. Only accessible by users with the INSPECTOR role.',
   })
   @ApiBody({ type: CreateInspectionDto })
   @ApiResponse({
-    status: 201,
+    status: HttpStatus.CREATED,
     description: 'The newly created inspection record summary.',
     type: InspectionResponseDto,
   })
   @ApiResponse({
-    status: 400,
+    status: HttpStatus.BAD_REQUEST,
     description: 'Bad Request (e.g., invalid input data).',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized. User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Forbidden. User does not have the INSPECTOR role.',
   })
   async create(
     @Body() createInspectionDto: CreateInspectionDto,
+    @GetUser('id') inspectorId: string,
   ): Promise<{ id: string }> {
-    const newInspection =
-      await this.inspectionsService.create(createInspectionDto);
+    const newInspection = await this.inspectionsService.create(
+      createInspectionDto,
+      inspectorId,
+    );
     return newInspection;
   }
 
