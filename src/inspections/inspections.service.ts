@@ -157,14 +157,14 @@ export class InspectionsService {
    */
   async create(
     createInspectionDto: CreateInspectionDto,
+    inspectorId: string,
   ): Promise<{ id: string }> {
     this.logger.log(
-      `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'}`,
+      `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'} by inspector ${inspectorId}`,
     );
 
     const { identityDetails } = createInspectionDto;
-    const inspectorUuid = identityDetails.namaInspektor; // This is now the UUID
-    const branchCityUuid = identityDetails.cabangInspeksi; // This is now the UUID
+    const branchCityUuid = identityDetails.cabangInspeksi;
     const customerName = identityDetails.namaCustomer;
 
     // 1. Fetch Inspector and Branch City records using UUIDs
@@ -174,12 +174,12 @@ export class InspectionsService {
 
     try {
       const inspector = await this.prisma.user.findUnique({
-        where: { id: inspectorUuid },
+        where: { id: inspectorId },
         select: { name: true },
       });
       if (!inspector) {
         throw new BadRequestException(
-          `Inspector with ID "${inspectorUuid}" not found.`,
+          `Inspector with ID "${inspectorId}" not found.`,
         );
       }
       inspectorName = inspector.name;
@@ -236,7 +236,7 @@ export class InspectionsService {
         const dataToCreate: Prisma.InspectionCreateInput = {
           pretty_id: customId,
           // Store the UUIDs in the dedicated ID fields
-          inspector: { connect: { id: inspectorUuid } }, // Connect using the UUID
+          inspector: { connect: { id: inspectorId } }, // Connect using the UUID
           branchCity: { connect: { id: branchCityUuid } }, // Connect using the UUID
 
           vehiclePlateNumber: createInspectionDto.vehiclePlateNumber,

@@ -16,6 +16,7 @@ import {
   Injectable,
   Logger,
   InternalServerErrorException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service'; // To find users
@@ -204,15 +205,13 @@ export class AuthService {
    * @returns A promise that resolves to an object containing the generated JWT access token.
    * @throws InternalServerErrorException if the user object is invalid or if JWT signing fails.
    */
-  login(user: {
-    // Removed async
+  async login(user: {
     id: string;
     email: string | null;
     role: Role;
     name?: string | null;
     username?: string | null;
-  }): { accessToken: string } {
-    // Removed Promise
+  }): Promise<{ accessToken: string; refreshToken: string }> {
     if (!user || !user.id || !user.role) {
       this.logger.error(
         'Login function called without valid user object (missing id or role).',
@@ -223,32 +222,38 @@ export class AuthService {
     }
     this.logger.log(`Generating JWT for user ID: ${user.id}`);
 
-    // Construct JWT payload - only include non-null/undefined optional fields
     const payload: JwtPayload = {
       sub: user.id,
-      // Email might be null if user logged in via Wallet initially and didn't link email
-      email: user.email ?? undefined, // Use ?? undefined to explicitly exclude null from payload if needed
+      email: user.email ?? undefined,
       role: user.role,
-      // Only include name/username if they exist
       ...(user.name && { name: user.name }),
       ...(user.username && { username: user.username }),
     };
-    this.logger.verbose(
-      `JWT Payload created for user ${user.id}: ${JSON.stringify(payload)}`,
-    );
 
     try {
-      // Retrieve secret and expiration from config
       const secret = this.configService.getOrThrow<string>('JWT_SECRET');
       const expiresIn = this.configService.getOrThrow<string>(
         'JWT_EXPIRATION_TIME',
       );
+      const refreshTokenSecret =
+        this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
+      const refreshTokenExpiresIn = this.configService.getOrThrow<string>(
+        'JWT_REFRESH_EXPIRATION_TIME',
+      );
 
-      // Sign the payload
       const accessToken = this.jwtService.sign(payload, { secret, expiresIn });
+      const refreshToken = this.jwtService.sign(payload, {
+        secret: refreshTokenSecret,
+        expiresIn: refreshTokenExpiresIn,
+      });
+
+      const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+      await this.usersService.updateUser(user.id, {
+        refreshToken: hashedRefreshToken,
+      });
 
       this.logger.log(`JWT generated successfully for user ID: ${user.id}`);
-      return { accessToken };
+      return { accessToken, refreshToken };
     } catch (error) {
       this.logger.error(
         `Failed to sign JWT for user ID ${user.id}: ${(error as Error).message}`,
@@ -314,5 +319,33 @@ export class AuthService {
       // Depending on error handling strategy, you might re-throw or handle gracefully
       throw new InternalServerErrorException('Failed to blacklist token.');
     }
+  }
+
+  async validateInspectorByPin(
+    pin: string,
+  ): Promise<Omit<User, 'password' | 'googleId' | 'pin'> | null> {
+    this.logger.verbose(`Attempting to validate inspector by PIN`);
+
+    const user = await this.usersService.findByPin(pin);
+
+    if (user && user.role === Role.INSPECTOR) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password, googleId, pin, ...result } = user;
+      return result;
+    }
+
+    this.logger.warn(
+      `Inspector validation failed: Invalid PIN or user is not an inspector`,
+    );
+    return null;
+  }
+
+  async refreshTokens(userId: string) {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('Access Denied');
+    }
+    // The login method already handles creating new tokens and saving the new refresh token
+    return this.login(user);
   }
 }

@@ -73,4 +73,14 @@ export class CreateInspectorDto {
   @IsOptional()
   @IsString()
   walletAddress?: string;
+
+  @ApiProperty({
+    description: 'Optional PIN for the inspector (6 digits)',
+    example: '123456',
+    required: false,
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(6)
+  pin?: string;
 }

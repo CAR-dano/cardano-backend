@@ -740,7 +740,30 @@ export class UsersService {
       }
     }
 
-    // 2. Create the user in the database with the INSPECTOR role
+    // 2. Hash the PIN
+    let hashedPin: string | undefined;
+    if (createInspectorDto.pin) {
+      try {
+        hashedPin = await bcrypt.hash(createInspectorDto.pin, this.saltRounds);
+        this.logger.verbose(
+          `PIN hashed successfully for username: ${createInspectorDto.username}`,
+        );
+      } catch (hashError) {
+        if (hashError instanceof Error) {
+          this.logger.error(
+            `PIN hashing failed for username ${createInspectorDto.username}: ${hashError.message}`,
+            hashError.stack,
+          );
+        } else {
+          this.logger.error(
+            `Unknown PIN hashing error for username ${createInspectorDto.username}: ${String(hashError)}`,
+          );
+        }
+        throw new InternalServerErrorException('Failed to secure PIN.');
+      }
+    }
+
+    // 3. Create the user in the database with the INSPECTOR role
     try {
       const newUser = await this.prisma.user.create({
         data: {
@@ -750,8 +773,7 @@ export class UsersService {
           name: createInspectorDto.name,
           walletAddress: createInspectorDto.walletAddress,
           role: Role.INSPECTOR, // Set the role to INSPECTOR
-          // password: hashedPassword, // Include if password hashing is added
-          // googleId will be null by default
+          pin: hashedPin,
         },
       });
       this.logger.log(
@@ -845,16 +867,23 @@ export class UsersService {
    */
   async updateUser(id: string, updateUserDto: UpdateUserDto): Promise<User> {
     this.logger.log(`Attempting to update user ID: ${id}`);
+
+    const data: Prisma.UserUpdateInput = {
+      email: updateUserDto.email?.toLowerCase(),
+      username: updateUserDto.username,
+      name: updateUserDto.name,
+      walletAddress: updateUserDto.walletAddress,
+      refreshToken: updateUserDto.refreshToken,
+    };
+
+    if (updateUserDto.pin) {
+      data.pin = await bcrypt.hash(updateUserDto.pin, this.saltRounds);
+    }
+
     try {
       const updatedUser = await this.prisma.user.update({
         where: { id: id },
-        data: {
-          email: updateUserDto.email?.toLowerCase(), // Store email in lowercase
-          username: updateUserDto.username,
-          name: updateUserDto.name,
-          walletAddress: updateUserDto.walletAddress,
-          // Role update is handled by updateRole method
-        },
+        data,
       });
       this.logger.log(`Successfully updated user ID: ${id}`);
       return updatedUser;
@@ -946,5 +975,35 @@ export class UsersService {
       }
       throw new InternalServerErrorException(`Could not delete user ID ${id}.`);
     }
+  }
+
+  /**
+   * Finds an inspector by their PIN.
+   * This method fetches all inspectors and then uses bcrypt.compare to find the matching PIN.
+   * Note: This approach is not performant for a large number of inspectors.
+   *
+   * @param {string} pin - The PIN to search for.
+   * @returns {Promise<User | null>} The found inspector or null.
+   */
+  async findByPin(pin: string): Promise<User | null> {
+    const inspectors = await this.findAllInspectors();
+
+    for (const inspector of inspectors) {
+      if (inspector.pin) {
+        const isMatch = await bcrypt.compare(pin, inspector.pin);
+        this.logger.log(`PIN for ${inspector.username} is a match: ${isMatch}`);
+        if (isMatch) {
+          this.logger.log(`Successfully found inspector with matching PIN.`);
+          return inspector;
+        }
+      } else {
+        this.logger.warn(
+          `Inspector ${inspector.username} (ID: ${inspector.id}) has no PIN set.`,
+        );
+      }
+    }
+
+    this.logger.warn(`No inspector found with a matching PIN.`);
+    return null;
   }
 }

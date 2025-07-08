@@ -50,6 +50,8 @@ model User {
   email         String?   @unique // Optional: Required for Google/Email login, can be null for Wallet Login? (Needs to be validated in logic)
   username      String?   @unique // Optional: Required for Username/Password login? Can be null for Google/Wallet.
   password      String?   // Optional: Only exists (as HASH) if user registers/logins via Username/Email + Password. Null for Google/Wallet.
+  pin           String?   // PIN for inspector login
+  refreshToken  String?   @unique
   walletAddress String?   @unique // Optional: Only present if user login/link via Wallet. Must be unique if present.
   googleId      String?   @unique // Optional: Only present if the user logged in/linked via Google. Must be unique if present.
   role          Role      @default(CUSTOMER)

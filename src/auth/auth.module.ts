@@ -29,6 +29,9 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { WalletAuthGuard } from './guards/wallet-auth.guard';
+import { ManualPinGuard } from './guards/manual-pin.guard';
+import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
+import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 
 /**
  * NestJS module responsible for managing authentication.
@@ -66,10 +69,13 @@ import { WalletAuthGuard } from './guards/wallet-auth.guard';
     JwtStrategy, // Register JWT Strategy
     WalletStrategy, // Register Wallet Strategy
     LocalStrategy, // Register Local Strategy
+    JwtRefreshStrategy, // Register JWT Refresh Strategy
     JwtAuthGuard, // Register JWT Guard as a provider so that it can be injected if necessary
     RolesGuard, // Register Roles Guard as a provider
     LocalAuthGuard, // Register Local Auth (username, email, password) Guard as a provider
     WalletAuthGuard, // Register Wallet Auth Guard as a provider
+    ManualPinGuard,
+    JwtRefreshGuard, // Register JWT Refresh Guard as a provider
   ],
   /**
    * Exports services and guards to be used by other modules.
