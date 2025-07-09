@@ -158,6 +158,15 @@ export class AuthController {
     };
   }
 
+  /**
+   * Handles inspector login using a PIN.
+   * Uses ManualPinGuard to validate the PIN.
+   * If successful, the guard attaches the user object to req.user.
+   * Calls AuthService.login to generate JWT.
+   *
+   * @param req - The request object with user attached by ManualPinGuard.
+   * @returns {Promise<LoginResponseDto>} JWT access token, refresh token, and user details.
+   */
   @Post('login/inspector')
   @UseGuards(ManualPinGuard)
   @HttpCode(HttpStatus.OK)
@@ -190,6 +199,14 @@ export class AuthController {
     };
   }
 
+  /**
+   * Generates a new access token using a valid refresh token.
+   * Uses JwtRefreshGuard to validate the refresh token.
+   * If successful, the guard attaches the user payload to req.user.
+   *
+   * @param req - The request object with user payload attached by JwtRefreshGuard.
+   * @returns {Promise<{ accessToken: string, refreshToken: string }>} A new pair of access and refresh tokens.
+   */
   @Post('refresh')
   @UseGuards(JwtRefreshGuard)
   @HttpCode(HttpStatus.OK)
