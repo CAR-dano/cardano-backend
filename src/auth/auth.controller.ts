@@ -158,6 +158,60 @@ export class AuthController {
     };
   }
 
+  @Post('login/inspector')
+  @UseGuards(ManualPinGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login for inspectors with PIN' })
+  @ApiBody({ type: LoginInspectorDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Login successful, JWT returned.',
+    type: LoginResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid PIN.',
+  })
+  async loginInspector(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<LoginResponseDto> {
+    if (!req.user) {
+      this.logger.error('LocalPinAuthGuard succeeded but req.user is missing!');
+      throw new InternalServerErrorException('Authentication flow error.');
+    }
+    this.logger.log(`Inspector logged in`);
+    const { accessToken, refreshToken } = await this.authService.login(
+      req.user as any,
+    );
+    return {
+      accessToken,
+      refreshToken,
+      user: new UserResponseDto(req.user as any),
+    };
+  }
+
+  @Post('refresh')
+  @UseGuards(JwtRefreshGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Obtain a new access token using a refresh token' })
+  @ApiBearerAuth('jwt-refresh') // Specify the auth scheme for Swagger
+  @ApiResponse({
+    status: 200,
+    description: 'New tokens generated successfully.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized (Invalid or expired refresh token).',
+  })
+  async refreshTokens(@Req() req: AuthenticatedRequest) {
+    if (!req.user) {
+      this.logger.error('JwtRefreshGuard succeeded but req.user is missing!');
+      throw new InternalServerErrorException('Authentication flow error.');
+    }
+    const userId = req.user.id;
+    return this.authService.refreshTokens(userId);
+  }
+
   /**
    * Handles inspector login using a PIN.
    * Uses ManualPinGuard to validate the PIN.

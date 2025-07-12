@@ -328,7 +328,7 @@ export class AuthService {
     }
   }
 
-  /**
+/**
    * Validates an inspector user based on their unique PIN.
    * This method is designed for specific scenarios like PIN-based logins on shared devices.
    * It checks if a user with the given PIN exists and has the 'INSPECTOR' role.
