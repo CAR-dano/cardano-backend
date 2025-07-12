@@ -336,21 +336,22 @@ export class AuthService {
    * @param pin The PIN provided by the inspector.
    * @returns A promise that resolves to the user object without sensitive fields if validation succeeds, otherwise null.
    */
-  async validateInspectorByPin(
+  async validateInspector(
     pin: string,
+    email: string,
   ): Promise<Omit<User, 'password' | 'googleId' | 'pin'> | null> {
-    this.logger.verbose(`Attempting to validate inspector by PIN`);
+    this.logger.verbose(`Attempting to validate inspector by PIN and email`);
 
     const user = await this.usersService.findByPin(pin);
 
-    if (user && user.role === Role.INSPECTOR) {
+    if (user && user.email === email && user.role === Role.INSPECTOR) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password, googleId, pin, ...result } = user;
       return result;
     }
 
     this.logger.warn(
-      `Inspector validation failed: Invalid PIN or user is not an inspector`,
+      `Inspector validation failed: Invalid PIN, email, or user is not an inspector`,
     );
     return null;
   }

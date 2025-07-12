@@ -48,7 +48,7 @@ import { UserResponseDto } from '../users/dto/user-response.dto'; // DTO for pro
 import { GetUser } from './decorators/get-user.decorator'; // Custom decorator to get user
 import { JwtService } from '@nestjs/jwt'; // Import JwtService
 import { ExtractJwt } from 'passport-jwt'; // Import ExtractJwt
-import { ManualPinGuard } from './guards/manual-pin.guard';
+import { InspectorGuard } from './guards/inspector.guard';
 import { LoginInspectorDto } from './dto/login-inspector.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 
@@ -168,7 +168,7 @@ export class AuthController {
    * @returns {Promise<LoginResponseDto>} JWT access token, refresh token, and user details.
    */
   @Post('login/inspector')
-  @UseGuards(ManualPinGuard)
+  @UseGuards(InspectorGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login for inspectors with PIN' })
   @ApiBody({ type: LoginInspectorDto })

@@ -8,26 +8,28 @@ import {
 import { AuthService } from '../auth.service';
 
 @Injectable()
-export class ManualPinGuard implements CanActivate {
-  private readonly logger = new Logger(ManualPinGuard.name);
+export class InspectorGuard implements CanActivate {
+  private readonly logger = new Logger(InspectorGuard.name);
 
   constructor(private readonly authService: AuthService) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const { pin } = request.body;
+    const { pin, email } = request.body;
 
-    if (!pin) {
+    if (!pin || !email) {
       this.logger.error(
-        'ManualPinGuard failed: No PIN provided in request body.',
+        'InspectorGuard failed: PIN or email not provided in request body.',
       );
-      throw new UnauthorizedException('PIN is required.');
+      throw new UnauthorizedException('PIN and email are required.');
     }
 
-    const user = await this.authService.validateInspectorByPin(pin);
+    const user = await this.authService.validateInspector(pin, email);
 
     if (!user) {
-      this.logger.warn('ManualPinGuard validation failed: Invalid PIN.');
+      this.logger.warn(
+        'InspectorGuard validation failed: Invalid credentials.',
+      );
       throw new UnauthorizedException('Invalid credentials.');
     }
     request.user = user; // Attach user to the request object

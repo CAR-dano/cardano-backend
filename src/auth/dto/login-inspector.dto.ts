@@ -4,11 +4,11 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: DTO for inspector login requests using a PIN.
+ * Description: DTO for inspector login requests using a PIN and email.
  * --------------------------------------------------------------------------
  */
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, Length } from 'class-validator';
+import { IsString, IsNotEmpty, Length, IsEmail } from 'class-validator';
 
 export class LoginInspectorDto {
   @ApiProperty({
@@ -20,4 +20,13 @@ export class LoginInspectorDto {
   @IsNotEmpty()
   @Length(6, 6, { message: 'PIN must be exactly 6 digits' })
   pin: string;
+
+  @ApiProperty({
+    description: "Inspector's email address",
+    example: 'inspector@example.com',
+    required: true,
+  })
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
 }
