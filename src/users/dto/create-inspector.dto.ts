@@ -13,8 +13,10 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   IsEmail,
   IsNotEmpty,
+  IsNumberString,
   IsOptional,
   IsString,
+  Length,
   MinLength,
 } from 'class-validator';
 
@@ -74,13 +76,13 @@ export class CreateInspectorDto {
   @IsString()
   walletAddress?: string;
 
-  @ApiProperty({
-    description: 'Optional PIN for the inspector (6 digits)',
+ @ApiProperty({
+    description: 'Optional PIN for the inspector (6 digits number)',
     example: '123456',
     required: false,
   })
   @IsOptional()
-  @IsString()
-  @MinLength(6)
+  @IsNumberString()
+  @Length(6, 6, { message: 'PIN must be a 6-digit number' })
   pin?: string;
 }

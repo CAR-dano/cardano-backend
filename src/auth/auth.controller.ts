@@ -48,7 +48,7 @@ import { UserResponseDto } from '../users/dto/user-response.dto'; // DTO for pro
 import { GetUser } from './decorators/get-user.decorator'; // Custom decorator to get user
 import { JwtService } from '@nestjs/jwt'; // Import JwtService
 import { ExtractJwt } from 'passport-jwt'; // Import ExtractJwt
-import { ManualPinGuard } from './guards/manual-pin.guard';
+import { InspectorGuard } from './guards/inspector.guard';
 import { LoginInspectorDto } from './dto/login-inspector.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 
@@ -190,6 +190,77 @@ export class AuthController {
     };
   }
 
+  @Post('refresh')
+  @UseGuards(JwtRefreshGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Obtain a new access token using a refresh token' })
+  @ApiBearerAuth('jwt-refresh') // Specify the auth scheme for Swagger
+  @ApiResponse({
+    status: 200,
+    description: 'New tokens generated successfully.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized (Invalid or expired refresh token).',
+  })
+  async refreshTokens(@Req() req: AuthenticatedRequest) {
+    if (!req.user) {
+      this.logger.error('JwtRefreshGuard succeeded but req.user is missing!');
+      throw new InternalServerErrorException('Authentication flow error.');
+    }
+    const userId = req.user.id;
+    return this.authService.refreshTokens(userId);
+  }
+
+  /**
+   * Handles inspector login using a PIN.
+   * Uses ManualPinGuard to validate the PIN.
+   * If successful, the guard attaches the user object to req.user.
+   * Calls AuthService.login to generate JWT.
+   *
+   * @param req - The request object with user attached by ManualPinGuard.
+   * @returns {Promise<LoginResponseDto>} JWT access token, refresh token, and user details.
+   */
+  @Post('login/inspector')
+  @UseGuards(InspectorGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login for inspectors with PIN' })
+  @ApiBody({ type: LoginInspectorDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Login successful, JWT returned.',
+    type: LoginResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid PIN.',
+  })
+  async loginInspector(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<LoginResponseDto> {
+    if (!req.user) {
+      this.logger.error('LocalPinAuthGuard succeeded but req.user is missing!');
+      throw new InternalServerErrorException('Authentication flow error.');
+    }
+    this.logger.log(`Inspector logged in`);
+    const { accessToken, refreshToken } = await this.authService.login(
+      req.user as any,
+    );
+    return {
+      accessToken,
+      refreshToken,
+      user: new UserResponseDto(req.user as any),
+    };
+  }
+
+  /**
+   * Generates a new access token using a valid refresh token.
+   * Uses JwtRefreshGuard to validate the refresh token.
+   * If successful, the guard attaches the user payload to req.user.
+   *
+   * @param req - The request object with user payload attached by JwtRefreshGuard.
+   * @returns {Promise<{ accessToken: string, refreshToken: string }>} A new pair of access and refresh tokens.
+   */
   @Post('refresh')
   @UseGuards(JwtRefreshGuard)
   @HttpCode(HttpStatus.OK)

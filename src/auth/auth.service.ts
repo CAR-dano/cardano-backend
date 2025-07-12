@@ -299,6 +299,13 @@ export class AuthService {
     }
   }
 
+  /**
+   * Blacklists a given JWT token by storing it in the database.
+   * This prevents the token from being used for future authentication requests.
+   *
+   * @param token The JWT string to blacklist.
+   * @param expiresAt The expiration date of the token.
+   */
   async blacklistToken(token: string, expiresAt: Date): Promise<void> {
     this.logger.log(
       `Blacklisting token that expires at: ${expiresAt.toISOString()}`,
@@ -321,25 +328,43 @@ export class AuthService {
     }
   }
 
-  async validateInspectorByPin(
+/**
+   * Validates an inspector user based on their unique PIN.
+   * This method is designed for specific scenarios like PIN-based logins on shared devices.
+   * It checks if a user with the given PIN exists and has the 'INSPECTOR' role.
+   *
+   * @param pin The PIN provided by the inspector.
+   * @returns A promise that resolves to the user object without sensitive fields if validation succeeds, otherwise null.
+   */
+  async validateInspector(
     pin: string,
+    email: string,
   ): Promise<Omit<User, 'password' | 'googleId' | 'pin'> | null> {
-    this.logger.verbose(`Attempting to validate inspector by PIN`);
+    this.logger.verbose(`Attempting to validate inspector by PIN and email`);
 
     const user = await this.usersService.findByPin(pin);
 
-    if (user && user.role === Role.INSPECTOR) {
+    if (user && user.email === email && user.role === Role.INSPECTOR) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password, googleId, pin, ...result } = user;
       return result;
     }
 
     this.logger.warn(
-      `Inspector validation failed: Invalid PIN or user is not an inspector`,
+      `Inspector validation failed: Invalid PIN, email, or user is not an inspector`,
     );
     return null;
   }
 
+  /**
+   * Generates a new pair of access and refresh tokens for a user.
+   * This method is used to refresh an expired access token using a valid refresh token.
+   * It finds the user by their ID and then calls the main login method to issue new tokens.
+   *
+   * @param userId The ID of the user for whom to refresh the tokens.
+   * @returns A promise that resolves to an object containing the new accessToken and refreshToken.
+   * @throws UnauthorizedException if no user is found with the given ID.
+   */
   async refreshTokens(userId: string) {
     const user = await this.usersService.findById(userId);
     if (!user) {
