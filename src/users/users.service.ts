@@ -77,6 +77,7 @@ export class UsersService {
     try {
       return await this.prisma.user.findUnique({
         where: { email: normalizedEmail }, // Store and search emails in lowercase
+        include: { inspectionBranchCity: true },
       });
     } catch (error) {
       if (error instanceof Error) {
@@ -111,6 +112,7 @@ export class UsersService {
       // You might need findFirst with insensitive mode if needed
       return await this.prisma.user.findUnique({
         where: { username },
+        include: { inspectionBranchCity: true },
         // Alternative for case-insensitive:
         // return await this.prisma.user.findFirst({
         //     where: { username: { equals: username, mode: 'insensitive' } }
@@ -175,7 +177,10 @@ export class UsersService {
     if (!id) return null;
     this.logger.verbose(`Finding user by ID: ${id}`);
     try {
-      return await this.prisma.user.findUnique({ where: { id } });
+      return await this.prisma.user.findUnique({
+        where: { id },
+        include: { inspectionBranchCity: true },
+      });
     } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
@@ -202,7 +207,9 @@ export class UsersService {
   async findAll(): Promise<User[]> {
     this.logger.log('Finding all users');
     try {
-      return await this.prisma.user.findMany();
+      return await this.prisma.user.findMany({
+        include: { inspectionBranchCity: true },
+      });
     } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
@@ -743,6 +750,16 @@ export class UsersService {
       }
     }
 
+    // 1.5 Validate inspectionBranchCityId
+    const branchCity = await this.prisma.inspectionBranchCity.findUnique({
+      where: { id: createInspectorDto.inspectionBranchCityId },
+    });
+    if (!branchCity) {
+      throw new BadRequestException(
+        `Inspection branch city with ID "${createInspectorDto.inspectionBranchCityId}" not found.`,
+      );
+    }
+
     // 2. Generate a unique PIN
     let plainPin: string;
     let isPinUnique = false;
@@ -792,8 +809,13 @@ export class UsersService {
           username: createInspectorDto.username,
           name: createInspectorDto.name,
           walletAddress: createInspectorDto.walletAddress,
+          whatsappNumber: createInspectorDto.whatsappNumber,
           role: Role.INSPECTOR, // Set the role to INSPECTOR
           pin: hashedPin,
+          inspectionBranchCityId: createInspectorDto.inspectionBranchCityId,
+        },
+        include: {
+          inspectionBranchCity: true,
         },
       });
       this.logger.log(
@@ -853,6 +875,7 @@ export class UsersService {
     try {
       return await this.prisma.user.findMany({
         where: { role: Role.INSPECTOR },
+        include: { inspectionBranchCity: true },
       });
     } catch (error) {
       if (error instanceof Error) {
@@ -984,12 +1007,30 @@ export class UsersService {
       email: updateInspectorDto.email?.toLowerCase(),
       username: updateInspectorDto.username,
       walletAddress: updateInspectorDto.walletAddress,
+      whatsappNumber: updateInspectorDto.whatsappNumber,
     };
+
+    if (updateInspectorDto.inspectionBranchCityId) {
+      const branchCity = await this.prisma.inspectionBranchCity.findUnique({
+        where: { id: updateInspectorDto.inspectionBranchCityId },
+      });
+      if (!branchCity) {
+        throw new BadRequestException(
+          `Inspection branch city with ID "${updateInspectorDto.inspectionBranchCityId}" not found.`,
+        );
+      }
+      data.inspectionBranchCity = {
+        connect: { id: updateInspectorDto.inspectionBranchCityId },
+      };
+    }
 
     try {
       const updatedUser = await this.prisma.user.update({
         where: { id: id },
         data,
+        include: {
+          inspectionBranchCity: true,
+        },
       });
       this.logger.log(`Successfully updated inspector ID: ${id}`);
       return updatedUser;

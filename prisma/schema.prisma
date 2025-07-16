@@ -52,6 +52,7 @@ model User {
   password      String?   // Optional: Only exists (as HASH) if user registers/logins via Username/Email + Password. Null for Google/Wallet.
   pin           String?   @unique // PIN for inspector login
   refreshToken  String?   @unique
+  whatsappNumber String?   @map("whatsapp_number")
   walletAddress String?   @unique // Optional: Only present if user login/link via Wallet. Must be unique if present.
   googleId      String?   @unique // Optional: Only present if the user logged in/linked via Google. Must be unique if present.
   role          Role      @default(CUSTOMER)
@@ -65,6 +66,8 @@ model User {
 
   inspectionChangeLogs InspectionChangeLog[] // Relation to InspectionChangeLog records created by this user
 
+  inspectionBranchCityId String?               @map("inspection_branch_city_id")
+  inspectionBranchCity   InspectionBranchCity? @relation(fields: [inspectionBranchCityId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   @@map("users") // Explicit table name
 }
 
@@ -187,6 +190,7 @@ model InspectionBranchCity {
   updatedAt DateTime @updatedAt
 
   inspections Inspection[] @relation("InspectionBranchRelation") // Relation to inspections in this branch city
+  users       User[]       // Relation to users (inspectors) in this branch city
 
   @@map("inspection_branch_city")
 }

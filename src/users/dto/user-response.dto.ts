@@ -11,7 +11,8 @@
  */
 
 import { ApiProperty } from '@nestjs/swagger';
-import { Role, User } from '@prisma/client';
+import { InspectionBranchCity, Role, User } from '@prisma/client';
+import { InspectionBranchCityResponseDto } from './inspection-branch-city-response.dto';
 
 /**
  * DTO representing the public-facing user data.
@@ -55,6 +56,12 @@ export class UserResponseDto {
   walletAddress: string | null;
 
   /**
+   * The user's WhatsApp number. Can be null if not provided.
+   */
+  @ApiProperty({ description: "User's WhatsApp number", nullable: true })
+  whatsappNumber: string | null;
+
+  /**
    * The user's assigned role, determining their permissions.
    */
   @ApiProperty({ enum: Role, description: 'User role' })
@@ -73,19 +80,35 @@ export class UserResponseDto {
   updatedAt: Date;
 
   /**
+   * The inspection branch city the user is associated with. Can be null.
+   */
+  @ApiProperty({
+    description: 'The inspection branch city the user is associated with',
+    nullable: true,
+    type: () => InspectionBranchCityResponseDto,
+  })
+  inspectionBranchCity: InspectionBranchCityResponseDto | null;
+
+  /**
    * Constructor to map from a Prisma User entity to this DTO.
    * Explicitly selects fields to include and excludes sensitive ones.
    * @param user The Prisma User entity.
    */
-  constructor(user: User) {
+  constructor(
+    user: User & { inspectionBranchCity?: InspectionBranchCity | null }
+  ) {
     this.id = user.id;
     this.email = user.email;
     this.username = user.username;
     this.name = user.name;
     this.walletAddress = user.walletAddress;
+    this.whatsappNumber = user.whatsappNumber;
     this.role = user.role;
     this.createdAt = user.createdAt;
     this.updatedAt = user.updatedAt;
+    this.inspectionBranchCity = user.inspectionBranchCity
+      ? new InspectionBranchCityResponseDto(user.inspectionBranchCity)
+      : null;
     // Explicitly excluded: password, googleId
   }
 }
