@@ -45,6 +45,7 @@ import { UserResponseDto } from './dto/user-response.dto'; // DTO for API respon
 import { UpdateUserRoleDto } from './dto/update-user-role.dto'; // DTO for updating role
 import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
 import { InspectorResponseDto } from './dto/inspector-response.dto';
+import { GeneratePinResponseDto } from './dto/generate-pin-response.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 import { UpdateInspectorDto } from './dto/update-inspector.dto';
 
@@ -498,6 +499,54 @@ export class UsersController {
       updateInspectorDto,
     );
     return new UserResponseDto(updatedUser);
+  }
+
+  /**
+   * Generates a new PIN for a specific inspector.
+   * Requires ADMIN role.
+   *
+   * @param id The UUID of the inspector.
+   * @returns A promise that resolves to the inspector's data and the new PIN.
+   * @throws NotFoundException if the user with the specified ID is not found or is not an inspector.
+   */
+  @Post('inspector/:id/generate-pin')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Generate a new PIN for an inspector (Admin Only)',
+    description:
+      'Generates a new unique PIN for an existing inspector account. This endpoint is restricted to users with the ADMIN role.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'User UUID',
+    type: String,
+    format: 'uuid',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'PIN generated successfully.',
+    type: GeneratePinResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized. Authentication token is missing or invalid.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the necessary ADMIN role.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Inspector with the specified ID not found.',
+  })
+  async generatePin(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<GeneratePinResponseDto> {
+    this.logger.log(`Admin request: generatePin for inspector ID: ${id}`);
+    const { plainPin, ...user } = await this.usersService.generatePin(id);
+    return new GeneratePinResponseDto(user, plainPin);
   }
 
   /**

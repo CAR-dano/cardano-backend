@@ -1030,6 +1030,106 @@ export class UsersService {
   }
 
   /**
+   * Generates a new PIN for a specific inspector.
+   * Requires ADMIN role.
+   *
+   * @param {string} id - The UUID of the inspector.
+   * @returns {Promise<User & { plainPin: string }>} The updated user with the new plain text PIN.
+   * @throws {NotFoundException} If the inspector is not found or user is not an inspector.
+   * @throws {InternalServerErrorException} For database or hashing errors.
+   */
+  async generatePin(id: string): Promise<User & { plainPin: string }> {
+    this.logger.log(`Attempting to generate PIN for inspector ID: ${id}`);
+
+    const user = await this.findById(id);
+    if (!user || user.role !== Role.INSPECTOR) {
+      throw new NotFoundException(
+        `Inspector with ID "${id}" not found or user is not an inspector.`,
+      );
+    }
+
+    if (user.pin) {
+      this.logger.warn(`Overwriting existing PIN for inspector ID: ${id}`);
+    }
+
+    // Generate a unique PIN
+    let plainPin: string;
+    let isPinUnique = false;
+    do {
+      plainPin = Math.floor(100000 + Math.random() * 900000).toString();
+      const existingUserWithPin = await this.findByPin(plainPin);
+      if (!existingUserWithPin) {
+        isPinUnique = true;
+      } else {
+        this.logger.warn(
+          `Generated PIN ${plainPin} already exists. Retrying...`,
+        );
+      }
+    } while (!isPinUnique);
+
+    this.logger.log(`Generated unique PIN: ${plainPin} for ${user.username}`);
+
+    // Hash the unique PIN
+    let hashedPin: string;
+    try {
+      hashedPin = await bcrypt.hash(plainPin, this.saltRounds);
+      this.logger.verbose(
+        `PIN hashed successfully for username: ${user.username}`,
+      );
+    } catch (hashError) {
+      if (hashError instanceof Error) {
+        this.logger.error(
+          `PIN hashing failed for username ${user.username}: ${hashError.message}`,
+          hashError.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown PIN hashing error for username ${user.username}: ${String(hashError)}`,
+        );
+      }
+      throw new InternalServerErrorException('Failed to secure PIN.');
+    }
+
+    // Update the user in the database with the new PIN
+    try {
+      const updatedUser = await this.prisma.user.update({
+        where: { id: id },
+        data: { pin: hashedPin },
+      });
+      this.logger.log(
+        `Successfully generated and saved PIN for inspector: ${updatedUser.id} (${updatedUser.username})`,
+      );
+      return { ...updatedUser, plainPin };
+    } catch (error) {
+      // Catch potential race condition for unique constraints
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        this.logger.warn(
+          `Unique constraint violation during PIN generation for inspector (pin): ${String(error.meta?.target)}`,
+        );
+        throw new InternalServerErrorException(
+          'Failed to generate a unique PIN. Please try again.',
+        );
+      }
+      if (error instanceof Error) {
+        this.logger.error(
+          `Database error during PIN generation for inspector ${user.username}: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown database error during PIN generation for inspector ${user.username}: ${String(error)}`,
+        );
+      }
+      throw new InternalServerErrorException(
+        'Could not generate PIN for inspector.',
+      );
+    }
+  }
+
+  /**
    * Deletes a user by their unique ID (UUID). Requires ADMIN privileges (checked in Controller).
    *
    * @param {string} id - The UUID of the user to delete.
