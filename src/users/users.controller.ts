@@ -44,7 +44,10 @@ import {
 import { UserResponseDto } from './dto/user-response.dto'; // DTO for API responses
 import { UpdateUserRoleDto } from './dto/update-user-role.dto'; // DTO for updating role
 import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
+import { InspectorResponseDto } from './dto/inspector-response.dto';
+import { GeneratePinResponseDto } from './dto/generate-pin-response.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
+import { UpdateInspectorDto } from './dto/update-inspector.dto';
 
 @ApiTags('User Management (Admin)') // Tag for documentation
 @ApiBearerAuth('JwtAuthGuard') // Indicate JWT is needed for all endpoints here
@@ -331,52 +334,44 @@ export class UsersController {
   }
 
   /**
-   * Creates a new inspector user.
-   * Requires ADMIN role.
+   * Creates a new user with the 'INSPECTOR' role.
+   * This endpoint is restricted to users with the 'ADMIN' role.
    *
-   * @param createInspectorDto The DTO containing details for the new inspector user.
-   * @returns A promise that resolves to the created UserResponseDto.
-   * @throws ConflictException if a user with the provided email, username, or wallet address already exists.
+   * @param createInspectorDto - DTO containing the new inspector's details.
+   * @returns {Promise<InspectorResponseDto>} The created inspector's profile, including the generated PIN.
    */
-  @Post('inspector') // Specific endpoint for creating inspectors
-  @Roles(Role.ADMIN)
-  @ApiOperation({
-    summary: 'Create a new inspector user (Admin Only)',
-    description:
-      'Creates a new user account with the INSPECTOR role. This endpoint is restricted to users with the ADMIN role.',
-  })
+  @Post('inspector')
+  @Roles(Role.ADMIN) // Only ADMINs can access this
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new inspector user (Admin only)' })
   @ApiBody({
     type: CreateInspectorDto,
     description: 'Details for the new inspector user.',
   })
   @ApiResponse({
     status: 201,
-    description: 'The inspector user has been successfully created.',
-    type: UserResponseDto,
+    description:
+      'The inspector has been successfully created, including the generated PIN.',
+    type: InspectorResponseDto,
   })
   @ApiResponse({
     status: 400,
     description: 'Invalid input data provided for the new inspector.',
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized. Authentication token is missing or invalid.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. User does not have the necessary ADMIN role.',
-  })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({
     status: 409,
-    description:
-      'A user with the provided email, username, or wallet address already exists.',
+    description: 'Conflict (email/username exists).',
   })
   async createInspector(
     @Body() createInspectorDto: CreateInspectorDto,
-  ): Promise<UserResponseDto> {
-    this.logger.log(`Admin request: createInspector user`);
-    const newUser = await this.usersService.createInspector(createInspectorDto);
-    return new UserResponseDto(newUser);
+  ): Promise<InspectorResponseDto> {
+    this.logger.log(
+      `Admin request to create inspector: ${createInspectorDto.username}`,
+    );
+    const { plainPin, ...newUser } =
+      await this.usersService.createInspector(createInspectorDto);
+    return new InspectorResponseDto(newUser, plainPin);
   }
 
   /**
@@ -438,6 +433,120 @@ export class UsersController {
     this.logger.log(`Admin request: updateUser ID: ${id}`);
     const updatedUser = await this.usersService.updateUser(id, updateUserDto);
     return new UserResponseDto(updatedUser);
+  }
+
+  /**
+   * Updates details for a specific inspector.
+   * Requires ADMIN role.
+   *
+   * @param id The UUID of the user to update.
+   * @param updateInspectorDto The DTO containing the updated inspector details.
+   * @returns A promise that resolves to the updated UserResponseDto.
+   * @throws NotFoundException if the user with the specified ID is not found or is not an inspector.
+   * @throws ConflictException if a user with the provided email or username already exists.
+   */
+  @Put('inspector/:id')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update inspector details (Admin Only)',
+    description:
+      'Updates the details of an existing inspector account using their unique UUID. This endpoint is restricted to users with the ADMIN role.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'User UUID',
+    type: String,
+    format: 'uuid',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
+  })
+  @ApiBody({
+    type: UpdateInspectorDto,
+    description: 'The updated inspector details.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Inspector details updated.',
+    type: UserResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input data provided for the inspector update.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized. Authentication token is missing or invalid.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the necessary ADMIN role.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Inspector with the specified ID not found.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'A user with the provided email or username already exists.',
+  })
+  async updateInspector(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateInspectorDto: UpdateInspectorDto,
+  ): Promise<UserResponseDto> {
+    this.logger.log(`Admin request: updateInspector ID: ${id}`);
+    const updatedUser = await this.usersService.updateInspector(
+      id,
+      updateInspectorDto,
+    );
+    return new UserResponseDto(updatedUser);
+  }
+
+  /**
+   * Generates a new PIN for a specific inspector.
+   * Requires ADMIN role.
+   *
+   * @param id The UUID of the inspector.
+   * @returns A promise that resolves to the inspector's data and the new PIN.
+   * @throws NotFoundException if the user with the specified ID is not found or is not an inspector.
+   */
+  @Post('inspector/:id/generate-pin')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Generate a new PIN for an inspector (Admin Only)',
+    description:
+      'Generates a new unique PIN for an existing inspector account. This endpoint is restricted to users with the ADMIN role.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'User UUID',
+    type: String,
+    format: 'uuid',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'PIN generated successfully.',
+    type: GeneratePinResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized. Authentication token is missing or invalid.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the necessary ADMIN role.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Inspector with the specified ID not found.',
+  })
+  async generatePin(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<GeneratePinResponseDto> {
+    this.logger.log(`Admin request: generatePin for inspector ID: ${id}`);
+    const { plainPin, ...user } = await this.usersService.generatePin(id);
+    return new GeneratePinResponseDto(user, plainPin);
   }
 
   /**
