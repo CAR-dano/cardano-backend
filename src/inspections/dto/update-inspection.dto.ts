@@ -11,6 +11,7 @@
  */
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateInspectionDto } from './create-inspection.dto';
+import { IsString, IsUUID } from 'class-validator';
 // Import additional validators if needed for specific update logic
 // import { IsEnum, IsOptional } from 'class-validator';
 // import { InspectionStatus } from '@prisma/client';
@@ -37,11 +38,15 @@ export class UpdateInspectionDto extends PartialType(CreateInspectionDto) {
    * The UUID of the inspector.
    * @example "ac5ae369-a422-426f-b01e-fad5476edda5"
    */
+  @IsString()
+  @IsUUID()
   inspectorId?: string;
 
   /**
    * The UUID of the inspection branch city.
    * @example "ac5ae369-a422-426f-b01e-fad5476edda5"
    */
+  @IsString()
+  @IsUUID()
   branchCityId?: string;
 }
