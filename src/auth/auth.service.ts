@@ -328,7 +328,7 @@ export class AuthService {
     }
   }
 
-/**
+  /**
    * Validates an inspector user based on their unique PIN.
    * This method is designed for specific scenarios like PIN-based logins on shared devices.
    * It checks if a user with the given PIN exists and has the 'INSPECTOR' role.
@@ -340,20 +340,35 @@ export class AuthService {
     pin: string,
     email: string,
   ): Promise<Omit<User, 'password' | 'googleId' | 'pin'> | null> {
-    this.logger.verbose(`Attempting to validate inspector by PIN and email`);
+    this.logger.verbose(`Attempting to validate inspector by email: ${email}`);
 
-    const user = await this.usersService.findByPin(pin);
+    // 1. Find user by email first for efficiency
+    const user = await this.usersService.findByEmail(email);
 
-    if (user && user.email === email && user.role === Role.INSPECTOR) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password, googleId, pin, ...result } = user;
-      return result;
+    // 2. Check if user exists, is an inspector, and has a PIN
+    if (!user || user.role !== Role.INSPECTOR || !user.pin) {
+      this.logger.warn(
+        `Inspector validation failed for email ${email}: User not found, not an inspector, or no PIN set.`,
+      );
+      return null;
     }
 
-    this.logger.warn(
-      `Inspector validation failed: Invalid PIN, email, or user is not an inspector`,
-    );
-    return null;
+    // 3. Compare the provided PIN with the stored hash
+    const isPinMatching = await bcrypt.compare(pin, user.pin);
+
+    if (isPinMatching) {
+      this.logger.log(
+        `Inspector validated successfully: ${email} (ID: ${user.id})`,
+      );
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password, googleId, pin: userPin, ...result } = user;
+      return result;
+    } else {
+      this.logger.warn(
+        `Inspector validation failed: Incorrect PIN for ${email}`,
+      );
+      return null;
+    }
   }
 
   /**

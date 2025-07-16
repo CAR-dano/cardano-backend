@@ -44,6 +44,7 @@ import {
 import { UserResponseDto } from './dto/user-response.dto'; // DTO for API responses
 import { UpdateUserRoleDto } from './dto/update-user-role.dto'; // DTO for updating role
 import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
+import { InspectorResponseDto } from './dto/inspector-response.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 
 @ApiTags('User Management (Admin)') // Tag for documentation
@@ -331,52 +332,44 @@ export class UsersController {
   }
 
   /**
-   * Creates a new inspector user.
-   * Requires ADMIN role.
+   * Creates a new user with the 'INSPECTOR' role.
+   * This endpoint is restricted to users with the 'ADMIN' role.
    *
-   * @param createInspectorDto The DTO containing details for the new inspector user.
-   * @returns A promise that resolves to the created UserResponseDto.
-   * @throws ConflictException if a user with the provided email, username, or wallet address already exists.
+   * @param createInspectorDto - DTO containing the new inspector's details.
+   * @returns {Promise<InspectorResponseDto>} The created inspector's profile, including the generated PIN.
    */
-  @Post('inspector') // Specific endpoint for creating inspectors
-  @Roles(Role.ADMIN)
-  @ApiOperation({
-    summary: 'Create a new inspector user (Admin Only)',
-    description:
-      'Creates a new user account with the INSPECTOR role. This endpoint is restricted to users with the ADMIN role.',
-  })
+  @Post('inspector')
+  @Roles(Role.ADMIN) // Only ADMINs can access this
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a new inspector user (Admin only)' })
   @ApiBody({
     type: CreateInspectorDto,
     description: 'Details for the new inspector user.',
   })
   @ApiResponse({
     status: 201,
-    description: 'The inspector user has been successfully created.',
-    type: UserResponseDto,
+    description:
+      'The inspector has been successfully created, including the generated PIN.',
+    type: InspectorResponseDto,
   })
   @ApiResponse({
     status: 400,
     description: 'Invalid input data provided for the new inspector.',
   })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized. Authentication token is missing or invalid.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. User does not have the necessary ADMIN role.',
-  })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
   @ApiResponse({
     status: 409,
-    description:
-      'A user with the provided email, username, or wallet address already exists.',
+    description: 'Conflict (email/username exists).',
   })
   async createInspector(
     @Body() createInspectorDto: CreateInspectorDto,
-  ): Promise<UserResponseDto> {
-    this.logger.log(`Admin request: createInspector user`);
-    const newUser = await this.usersService.createInspector(createInspectorDto);
-    return new UserResponseDto(newUser);
+  ): Promise<InspectorResponseDto> {
+    this.logger.log(
+      `Admin request to create inspector: ${createInspectorDto.username}`,
+    );
+    const { plainPin, ...newUser } =
+      await this.usersService.createInspector(createInspectorDto);
+    return new InspectorResponseDto(newUser, plainPin);
   }
 
   /**
