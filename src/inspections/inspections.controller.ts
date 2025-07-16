@@ -32,8 +32,7 @@ import {
   Query,
   NotFoundException,
   Res,
-  UseGuards,
-  InternalServerErrorException, // Import InternalServerErrorException
+  UseGuards, // Import InternalServerErrorException
 } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -68,9 +67,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Req } from '@nestjs/common'; // Import Req decorator
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { LatestArchivedInspectionResponseDto } from './dto/latest-archived-inspection-response.dto'; // Import the new DTO
-// import { GetUser } from '../auth/decorators/get-user.decorator';
-// import { AuthenticatedRequest } from '../auth/interfaces/authenticated-request.interface'; // Define or import this
+import { FileValidationPipe } from './pipes/file-validation.pipe';
 
 // Define an interface for the expected photo metadata structure
 interface PhotoMetadata {
@@ -98,26 +95,6 @@ const photoStorageConfig = diskStorage({
     callback(null, `${safeOriginalName}-${uniqueSuffix}${extension}`);
   },
 });
-
-/**
- * Multer file filter to allow only common image file types.
- */
-const imageFileFilter = (
-  req: Request,
-  file: Express.Multer.File,
-  callback: (error: Error | null, acceptFile: boolean) => void,
-) => {
-  // Check the file's mimetype against allowed image types
-  if (!file.mimetype.match(/^image\/(jpg|jpeg|png|gif)$/)) {
-    return callback(
-      new BadRequestException(
-        'Only image files (jpg, jpeg, png, gif) are allowed!',
-      ),
-      false,
-    );
-  }
-  callback(null, true);
-};
 
 /**
  * Controller managing all HTTP requests related to vehicle inspections.
@@ -266,10 +243,11 @@ export class InspectionsController {
    */
   @Post(':id/photos/multiple') // Renamed endpoint
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.INSPECTOR)
   @UseInterceptors(
     FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST, {
       storage: photoStorageConfig,
-      fileFilter: imageFileFilter,
     }),
   )
   // @UseGuards(JwtAuthGuard, RolesGuard)
@@ -324,7 +302,8 @@ export class InspectionsController {
   async addMultiplePhotos(
     @Param('id') id: string,
     @Body() addBatchDto: AddMultiplePhotosDto,
-    @UploadedFiles() files: Array<Express.Multer.File>,
+    @UploadedFiles(new FileValidationPipe())
+    files: Array<Express.Multer.File>,
     // @GetUser('id') userId: string,
   ): Promise<PhotoResponseDto[]> {
     this.logger.log(
@@ -351,10 +330,11 @@ export class InspectionsController {
    */
   @Post(':id/photos/single')
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.INSPECTOR)
   @UseInterceptors(
     FileInterceptor('photo', {
       storage: photoStorageConfig,
-      fileFilter: imageFileFilter,
     }),
   )
   @ApiOperation({
@@ -389,7 +369,7 @@ export class InspectionsController {
   async addSinglePhoto(
     @Param('id') id: string,
     @Body() addSingleDto: AddSinglePhotoDto,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile(new FileValidationPipe()) file: Express.Multer.File,
   ): Promise<PhotoResponseDto> {
     this.logger.log(
       `[POST /inspections/${id}/photos/single] Received file: ${file?.filename}`,
@@ -492,7 +472,6 @@ export class InspectionsController {
   @UseInterceptors(
     FileInterceptor('photo', {
       storage: photoStorageConfig,
-      fileFilter: imageFileFilter,
     }),
   ) // Handle single optional file
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -545,7 +524,7 @@ export class InspectionsController {
     @Param('photoId', ParseUUIDPipe) photoId: string,
     @Body() updatePhotoDto: UpdatePhotoDto, // Contains optional label/needAttention
     @GetUser('id') userId: string,
-    @UploadedFile() newFile?: Express.Multer.File, // Optional new file
+    @UploadedFile(new FileValidationPipe()) newFile?: Express.Multer.File, // Optional new file
   ): Promise<PhotoResponseDto> {
     this.logger.debug('Update DTO:', updatePhotoDto);
     this.logger.debug('New file:', newFile?.filename);
@@ -1035,7 +1014,6 @@ export class InspectionsController {
   @ApiResponse({
     status: 201,
     description: 'The unsigned transaction details for archiving.',
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     type: BuildMintTxResponseDto,
   })
   @ApiResponse({
