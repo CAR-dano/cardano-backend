@@ -50,12 +50,12 @@ async function bootstrap() {
   // Apply Global Validation Pipe
   app.useGlobalPipes(
     new ValidationPipe({
-      // whitelist: true, // Ignore properties that are not in the DTO
+      whitelist: true, // Ignore properties that are not in the DTO
       transform: true, // Automatically transform the payload to a DTO instance
       transformOptions: {
         enableImplicitConversion: true, // Helps implicit type conversion (e.g. string to number in query)
       },
-      // forbidNonWhitelisted: true, // Reject the request if any property is not listed in the DTO
+      forbidNonWhitelisted: true, // Reject the request if any property is not listed in the DTO
       disableErrorMessages: false, // Show validation error messages (set true in production if necessary)
     }),
   );

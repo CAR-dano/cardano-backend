@@ -250,11 +250,21 @@ export class InspectionsService {
             cabangInspeksi: branchCityName, // Store the fetched name
           },
 
-          vehicleData: createInspectionDto.vehicleData,
-          equipmentChecklist: createInspectionDto.equipmentChecklist,
-          inspectionSummary: createInspectionDto.inspectionSummary,
-          detailedAssessment: createInspectionDto.detailedAssessment,
-          bodyPaintThickness: createInspectionDto.bodyPaintThickness,
+          vehicleData: JSON.parse(
+            JSON.stringify(createInspectionDto.vehicleData),
+          ),
+          equipmentChecklist: JSON.parse(
+            JSON.stringify(createInspectionDto.equipmentChecklist),
+          ),
+          inspectionSummary: JSON.parse(
+            JSON.stringify(createInspectionDto.inspectionSummary),
+          ),
+          detailedAssessment: JSON.parse(
+            JSON.stringify(createInspectionDto.detailedAssessment),
+          ),
+          bodyPaintThickness: JSON.parse(
+            JSON.stringify(createInspectionDto.bodyPaintThickness),
+          ),
           notesFontSizes: createInspectionDto.notesFontSizes ?? {
             // Use provided font sizes or default
             inspectionSummary_interiorNotes: 12,
