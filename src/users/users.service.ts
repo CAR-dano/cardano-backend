@@ -25,6 +25,7 @@ import { RegisterUserDto } from '../auth/dto/register-user.dto'; // Import DTO f
 import * as bcrypt from 'bcrypt'; // Import bcrypt for hashing
 import { v4 as uuidv4 } from 'uuid'; // Import uuid for generating unique IDs
 import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
+import { UpdateInspectorDto } from './dto/update-inspector.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 
 @Injectable()
@@ -951,6 +952,80 @@ export class UsersService {
         );
       }
       throw new InternalServerErrorException(`Could not update user ID ${id}.`);
+    }
+  }
+
+  /**
+   * Updates details for a specific inspector. Requires ADMIN privileges.
+   * Allows updating username, email, walletAddress, and PIN.
+   *
+   * @param {string} id - The UUID of the inspector.
+   * @param {UpdateInspectorDto} updateInspectorDto - DTO containing update data.
+   * @returns {Promise<User>} The updated user.
+   * @throws {NotFoundException} If the inspector is not found or user is not an inspector.
+   * @throws {ConflictException} If updated email, username, or walletAddress already exists.
+   * @throws {InternalServerErrorException} For database errors.
+   */
+  async updateInspector(
+    id: string,
+    updateInspectorDto: UpdateInspectorDto,
+  ): Promise<User> {
+    this.logger.log(`Attempting to update inspector ID: ${id}`);
+
+    const user = await this.findById(id);
+    if (!user || user.role !== Role.INSPECTOR) {
+      throw new NotFoundException(
+        `Inspector with ID "${id}" not found or user is not an inspector.`,
+      );
+    }
+
+    const data: Prisma.UserUpdateInput = {
+      name: updateInspectorDto.name,
+      email: updateInspectorDto.email?.toLowerCase(),
+      username: updateInspectorDto.username,
+      walletAddress: updateInspectorDto.walletAddress,
+    };
+
+    try {
+      const updatedUser = await this.prisma.user.update({
+        where: { id: id },
+        data,
+      });
+      this.logger.log(`Successfully updated inspector ID: ${id}`);
+      return updatedUser;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        this.logger.warn(
+          `Unique constraint violation during inspector update for ID ${id}: ${String(error.meta?.target)}`,
+        );
+        const target = (error.meta?.target as string[]) || [];
+        if (target.includes('email')) {
+          throw new ConflictException('Email address is already registered.');
+        }
+        if (target.includes('username')) {
+          throw new ConflictException('Username is already taken.');
+        }
+        if (target.includes('walletAddress')) {
+          throw new ConflictException('Wallet address is already registered.');
+        }
+        throw new ConflictException('A unique identifier is already in use.');
+      }
+      if (error instanceof Error) {
+        this.logger.error(
+          `Error updating inspector ID ${id}: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown error updating inspector ID ${id}: ${String(error)}`,
+        );
+      }
+      throw new InternalServerErrorException(
+        `Could not update inspector ID ${id}.`,
+      );
     }
   }
 

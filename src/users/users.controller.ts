@@ -46,6 +46,7 @@ import { UpdateUserRoleDto } from './dto/update-user-role.dto'; // DTO for updat
 import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
 import { InspectorResponseDto } from './dto/inspector-response.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
+import { UpdateInspectorDto } from './dto/update-inspector.dto';
 
 @ApiTags('User Management (Admin)') // Tag for documentation
 @ApiBearerAuth('JwtAuthGuard') // Indicate JWT is needed for all endpoints here
@@ -430,6 +431,72 @@ export class UsersController {
   ): Promise<UserResponseDto> {
     this.logger.log(`Admin request: updateUser ID: ${id}`);
     const updatedUser = await this.usersService.updateUser(id, updateUserDto);
+    return new UserResponseDto(updatedUser);
+  }
+
+  /**
+   * Updates details for a specific inspector.
+   * Requires ADMIN role.
+   *
+   * @param id The UUID of the user to update.
+   * @param updateInspectorDto The DTO containing the updated inspector details.
+   * @returns A promise that resolves to the updated UserResponseDto.
+   * @throws NotFoundException if the user with the specified ID is not found or is not an inspector.
+   * @throws ConflictException if a user with the provided email or username already exists.
+   */
+  @Put('inspector/:id')
+  @Roles(Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update inspector details (Admin Only)',
+    description:
+      'Updates the details of an existing inspector account using their unique UUID. This endpoint is restricted to users with the ADMIN role.',
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'User UUID',
+    type: String,
+    format: 'uuid',
+    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
+  })
+  @ApiBody({
+    type: UpdateInspectorDto,
+    description: 'The updated inspector details.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Inspector details updated.',
+    type: UserResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input data provided for the inspector update.',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized. Authentication token is missing or invalid.',
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden. User does not have the necessary ADMIN role.',
+  })
+  @ApiResponse({
+    status: 404,
+    description: 'Inspector with the specified ID not found.',
+  })
+  @ApiResponse({
+    status: 409,
+    description: 'A user with the provided email or username already exists.',
+  })
+  async updateInspector(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() updateInspectorDto: UpdateInspectorDto,
+  ): Promise<UserResponseDto> {
+    this.logger.log(`Admin request: updateInspector ID: ${id}`);
+    const updatedUser = await this.usersService.updateInspector(
+      id,
+      updateInspectorDto,
+    );
     return new UserResponseDto(updatedUser);
   }
 
