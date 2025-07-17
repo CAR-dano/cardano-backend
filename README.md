@@ -30,7 +30,6 @@ This repository contains the source code for the CAR-dano backend service, built
 - Authentication & Authorization: Secure login system with user roles (Admin, Inspector, Reviewer, User).
 - User Management: User account and role administration.
 - Public API: Provides API endpoints for external developer access.
-- Data Export: Functionality to export inspection data (e.g., to CSV).
 - File Storage: Manages uploads of inspection report PDF files and related photos.
 
 ## Technology Stack

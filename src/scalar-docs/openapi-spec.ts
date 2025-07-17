@@ -1488,46 +1488,6 @@ export const openApiDocument = {
         tags: ['Inspection Data'],
       },
     },
-    '/api/v1/inspections/export/csv': {
-      get: {
-        description:
-          'Retrieves all inspection data and exports it as a CSV file, excluding photo data.',
-        operationId: 'InspectionsController_exportCsv',
-        parameters: [],
-        responses: {
-          '200': {
-            description:
-              'A CSV file containing all inspection data is downloaded.',
-            content: {
-              'text/csv': {
-                schema: {
-                  type: 'string',
-                  example:
-                    'id,pretty_id,vehiclePlateNumber,inspectionDate,overallRating,status,...\n...',
-                },
-              },
-            },
-          },
-          '401': {
-            description: 'User is not authenticated.',
-          },
-          '403': {
-            description: 'User does not have the required permissions.',
-          },
-          '500': {
-            description:
-              'Internal Server Error (e.g., failed to generate CSV).',
-          },
-        },
-        security: [
-          {
-            bearer: [],
-          },
-        ],
-        summary: 'Export all inspection data to CSV',
-        tags: ['Inspection Data'],
-      },
-    },
     '/api/v1/inspections/{inspectionId}/changelog': {
       get: {
         description:
@@ -2152,7 +2112,8 @@ export const openApiDocument = {
             example: 'newuser123',
             minLength: 3,
             maxLength: 20,
-            pattern: '^[a-zA-Z0-9_]+$',
+            pattern: '^[a-zA-Z0-9_]+
+,
           },
           password: {
             type: 'string',
