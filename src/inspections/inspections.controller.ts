@@ -244,8 +244,9 @@ export class InspectionsController {
    */
   @Post(':id/photos/multiple') // Renamed endpoint
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.INSPECTOR)
+  // comment for milestone 2 only
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(Role.INSPECTOR)
   @UseInterceptors(
     FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST, {
       storage: photoStorageConfig,
@@ -331,8 +332,9 @@ export class InspectionsController {
    */
   @Post(':id/photos/single')
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.INSPECTOR)
+  // comment for milestone 2 only
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(Role.INSPECTOR)
   @UseInterceptors(
     FileInterceptor('photo', {
       storage: photoStorageConfig,
