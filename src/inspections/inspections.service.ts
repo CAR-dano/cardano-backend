@@ -156,13 +156,14 @@ export class InspectionsService {
    */
   async create(
     createInspectionDto: CreateInspectionDto,
-    inspectorId: string,
+    // inspectorId: string,
   ): Promise<{ id: string }> {
-    this.logger.log(
-      `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'} by inspector ${inspectorId}`,
-    );
+    // this.logger.log(
+    //   `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'} by inspector ${inspectorId}`,
+    // );
 
     const { identityDetails } = createInspectionDto;
+    const inspectorUuid = identityDetails.namaInspektor;
     const branchCityUuid = identityDetails.cabangInspeksi;
     const customerName = identityDetails.namaCustomer;
 
@@ -173,12 +174,12 @@ export class InspectionsService {
 
     try {
       const inspector = await this.prisma.user.findUnique({
-        where: { id: inspectorId },
+        where: { id: inspectorUuid },
         select: { name: true },
       });
       if (!inspector) {
         throw new BadRequestException(
-          `Inspector with ID "${inspectorId}" not found.`,
+          `Inspector with ID "${inspectorUuid}" not found.`,
         );
       }
       inspectorName = inspector.name;
@@ -235,7 +236,7 @@ export class InspectionsService {
         const dataToCreate: Prisma.InspectionCreateInput = {
           pretty_id: customId,
           // Store the UUIDs in the dedicated ID fields
-          inspector: { connect: { id: inspectorId } }, // Connect using the UUID
+          inspector: { connect: { id: inspectorUuid } }, // Connect using the UUID
           branchCity: { connect: { id: branchCityUuid } }, // Connect using the UUID
 
           vehiclePlateNumber: createInspectionDto.vehiclePlateNumber,
@@ -1777,10 +1778,6 @@ export class InspectionsService {
       );
     }
   }
-
-
-
-
 
   /**
    * Tahap 1: Mempersiapkan data dan membangun unsigned transaction.

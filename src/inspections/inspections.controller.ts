@@ -128,9 +128,10 @@ export class InspectionsController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.INSPECTOR)
-  @ApiBearerAuth()
+  // comment for milestone 2 only
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(Role.INSPECTOR)
+  // @ApiBearerAuth()
   @ApiOperation({
     summary: 'Create a new inspection record (Inspector only)',
     description:
@@ -156,11 +157,11 @@ export class InspectionsController {
   })
   async create(
     @Body() createInspectionDto: CreateInspectionDto,
-    @GetUser('id') inspectorId: string,
+    // @GetUser('id') inspectorId: string,
   ): Promise<{ id: string }> {
     const newInspection = await this.inspectionsService.create(
       createInspectionDto,
-      inspectorId,
+      // inspectorId,
     );
     return newInspection;
   }
