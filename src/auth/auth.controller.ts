@@ -185,7 +185,7 @@ export class AuthController {
         'Google OAuth callback error: req.user is missing after guard execution.',
       );
       // Redirect to a generic error page or login page on the frontend
-      return res.redirect(`${clientUrl}/login?error=AuthenticationFailed`);
+      return res.redirect(`${clientUrl}/auth?error=AuthenticationFailed`);
     }
 
     try {
@@ -197,7 +197,7 @@ export class AuthController {
         `Successfully generated JWT for Google user: ${req.user.email}`,
       );
       // Redirect to a specific callback page on the frontend with the token
-      res.redirect(`${clientUrl}/auth/callback?token=${accessToken}`);
+      res.redirect(`${clientUrl}/auth?token=${accessToken}`);
     } catch (error) {
       this.logger.error(
         `Failed to log in user after Google OAuth callback: ${
@@ -206,7 +206,7 @@ export class AuthController {
         (error as Error).stack,
       );
       // Redirect to an error page on the frontend
-      res.redirect(`${clientUrl}/login?error=LoginFailed`);
+      res.redirect(`${clientUrl}/auth?error=LoginFailed`);
     }
   }
 
