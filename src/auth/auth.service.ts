@@ -198,21 +198,18 @@ export class AuthService {
    * Generates a JWT access token for a successfully validated user.
    * This method accepts a user object and creates a JWT payload containing essential user information.
    * It signs the payload using the configured JWT secret and expiration time.
-   * Although marked as async, this method currently performs synchronous operations.
    *
    * @param user The validated user object (must include id, email, and role; name and username are optional).
    * @returns A promise that resolves to an object containing the generated JWT access token.
    * @throws InternalServerErrorException if the user object is invalid or if JWT signing fails.
    */
-  login(user: {
-    // Removed async
+  async login(user: {
     id: string;
     email: string | null;
     role: Role;
     name?: string | null;
     username?: string | null;
-  }): { accessToken: string } {
-    // Removed Promise
+  }): Promise<{ accessToken: string }> {
     if (!user || !user.id || !user.role) {
       this.logger.error(
         'Login function called without valid user object (missing id or role).',

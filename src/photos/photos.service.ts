@@ -88,7 +88,7 @@ export class PhotosService {
         data: {
           inspection: { connect: { id: inspectionId } },
           path: file.filename,
-          // eslint-disable-next-line prettier/prettier
+
           label:
             dto.label === '' || dto.label === undefined ? undefined : dto.label,
           category: dto.category, // Add category

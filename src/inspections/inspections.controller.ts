@@ -1023,7 +1023,7 @@ export class InspectionsController {
   @ApiResponse({
     status: 201,
     description: 'The unsigned transaction details for archiving.',
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+
     type: BuildMintTxResponseDto,
   })
   @ApiResponse({

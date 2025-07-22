@@ -170,27 +170,45 @@ export class AuthController {
    * GoogleStrategy validates the profile and attaches user info to req.user.
    * Generates JWT and redirects back to the frontend.
    */
-  // @Get('google/callback')
-  // @UseGuards(AuthGuard('google'))
-  // @ApiExcludeEndpoint() // Typically hidden from public API docs
-  // async googleAuthRedirect(
-  //   @Req() req: AuthenticatedRequest,
-  //   @Res() res: Response,
-  // ) {
-  //   // ... (Kode googleAuthRedirect tetap sama seperti sebelumnya, menggunakan req.user) ...
-  //   this.logger.log('Received Google OAuth callback.');
-  //   if (!req.user) {
-  //     /* ... handle error redirect ... */ return res.redirect(/*...*/);
-  //   }
-  //   try {
-  //     const { accessToken } = await this.authService.login(req.user);
-  //     const clientUrl =
-  //       this.configService.getOrThrow<string>('CLIENT_BASE_URL');
-  //     res.redirect(`${clientUrl}/auth/callback?token=${accessToken}`); // Redirect with token
-  //   } catch (error) {
-  //     /* ... handle error redirect ... */ res.redirect(/*...*/);
-  //   }
-  // }
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  @ApiExcludeEndpoint() // Typically hidden from public API docs
+  async googleAuthRedirect(
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response,
+  ) {
+    this.logger.log('Received Google OAuth callback.');
+    const clientUrl = this.configService.getOrThrow<string>('CLIENT_BASE_URL');
+
+    if (!req.user) {
+      this.logger.error(
+        'Google OAuth callback error: req.user is missing after guard execution.',
+      );
+      // Redirect to a generic error page or login page on the frontend
+      return res.redirect(`${clientUrl}/login?error=AuthenticationFailed`);
+    }
+
+    try {
+      this.logger.log(
+        `User authenticated via Google: ${req.user.email}. Logging in.`,
+      );
+      const { accessToken } = await this.authService.login(req.user);
+      this.logger.log(
+        `Successfully generated JWT for Google user: ${req.user.email}`,
+      );
+      // Redirect to a specific callback page on the frontend with the token
+      res.redirect(`${clientUrl}/auth/callback?token=${accessToken}`);
+    } catch (error) {
+      this.logger.error(
+        `Failed to log in user after Google OAuth callback: ${
+          (error as Error).message
+        }`,
+        (error as Error).stack,
+      );
+      // Redirect to an error page on the frontend
+      res.redirect(`${clientUrl}/login?error=LoginFailed`);
+    }
+  }
 
   /**
    * Logs out the user (primarily client-side for stateless JWT).
@@ -221,7 +239,7 @@ export class AuthController {
 
     try {
       // Decode the token to get its expiration time
-      const decodedToken = this.jwtService.decode(token) as { exp: number };
+      const decodedToken = this.jwtService.decode(token);
       if (!decodedToken || !decodedToken.exp) {
         this.logger.warn(
           'Logout failed: Invalid token format (missing expiration).',

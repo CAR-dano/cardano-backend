@@ -150,12 +150,10 @@ describe('AuthController', () => {
   /**
    * Test suite for the GET /auth/google/callback endpoint.
    * This endpoint handles the redirect back from Google after successful authentication.
-   * NOTE: This test suite is commented out because the corresponding method
-   * in auth.controller.ts is currently commented out.
    */
-  /*
   describe('googleAuthRedirect', () => {
-    const mockUser: UserResponseDto = { // Use UserResponseDto structure
+    const mockUser: UserResponseDto = {
+      // Use UserResponseDto structure
       id: 'user-123',
       email: 'test@example.com',
       name: 'Test User',
@@ -184,8 +182,10 @@ describe('AuthController', () => {
       );
 
       // Assert
-      expect(authService.login).toHaveBeenCalledWith(mockUser);
-      expect(configService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
+      expect(mockAuthService.login).toHaveBeenCalledWith(mockUser);
+      expect(mockConfigService.getOrThrow).toHaveBeenCalledWith(
+        'CLIENT_BASE_URL',
+      );
       expect(mockResponse.redirect).toHaveBeenCalledWith(
         `${mockClientUrl}/auth/callback?token=${mockAccessToken.accessToken}`,
       );
@@ -196,15 +196,19 @@ describe('AuthController', () => {
     // It should redirect back to the frontend login page with an error query parameter.
     it('should redirect to frontend login with error if req.user is missing', async () => {
       // Arrange
-      const mockRequestWithoutUser = { ...mockRequest } as AuthenticatedRequest; // Simulate missing user
+      const mockRequestWithoutUser = {
+        ...mockRequest,
+      } as AuthenticatedRequest; // Simulate missing user
       mockConfigService.getOrThrow.mockReturnValue(mockClientUrl);
 
       // Act
       await controller.googleAuthRedirect(mockRequestWithoutUser, mockResponse);
 
       // Assert
-      expect(authService.login).not.toHaveBeenCalled(); // Login should not be called
-      expect(configService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
+      expect(mockAuthService.login).not.toHaveBeenCalled(); // Login should not be called
+      expect(mockConfigService.getOrThrow).toHaveBeenCalledWith(
+        'CLIENT_BASE_URL',
+      );
       expect(mockResponse.redirect).toHaveBeenCalledWith(
         `${mockClientUrl}/login?error=AuthenticationFailed`,
       );
@@ -223,10 +227,12 @@ describe('AuthController', () => {
       await controller.googleAuthRedirect(reqWithUser, mockResponse);
 
       // Assert
-      expect(authService.login).toHaveBeenCalledWith(mockUser);
-      expect(configService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
+      expect(mockAuthService.login).toHaveBeenCalledWith(mockUser);
+      expect(mockConfigService.getOrThrow).toHaveBeenCalledWith(
+        'CLIENT_BASE_URL',
+      );
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        `${mockClientUrl}/auth/callback?token=${mockAccessToken.accessToken}`,
+        `${mockClientUrl}/login?error=LoginFailed`,
       );
     });
 
@@ -265,7 +271,6 @@ describe('AuthController', () => {
         expect(mockResponse.redirect).toHaveBeenCalledWith(`${mockClientUrl}/dashboard`);
     });
     */
-  /*
   });
   */
 
