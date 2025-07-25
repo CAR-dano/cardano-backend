@@ -23,7 +23,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; // Service for Prisma client interaction
 import { CreateInspectionDto } from './dto/create-inspection.dto'; // DTO for incoming creation data
-import { UpdateInspectionDto } from './dto/update-inspection.dto';
+import { UpdateInspectionDto } from './dto/update-inspection/update-inspection.dto';
 import { BuildMintTxDto } from '../blockchain/dto/build-mint-tx.dto';
 import { ConfirmMintDto } from './dto/confirm-mint.dto';
 import {
@@ -394,6 +394,15 @@ export class InspectionsService {
     // We only care about what the user *intends* to change or set.
     // Use Object.keys and then check existence on oldObj.
     for (const key of Object.keys(newObj)) {
+      const newValue = newObj[key];
+
+      // If the new value is undefined or null, it's considered not present in the
+      // partial update payload (as per user feedback on transformation artifacts).
+      // We skip it to avoid logging unintentional changes from a real value to null.
+      if (newValue === undefined || newValue === null) {
+        continue;
+      }
+
       // Check if the key exists in the old object before recursing to avoid errors on new keys
       // This check is not strictly necessary for the logic but can prevent errors if oldObj is null/undefined
       // However, the isObject check above should handle the null/undefined case.
@@ -402,7 +411,7 @@ export class InspectionsService {
       this.logJsonChangesRecursive(
         fieldName, // Keep passing the top-level fieldName
         oldObj[key], // Value from existing DB record (can be undefined if key doesn't exist)
-        newObj[key], // Value from the update DTO
+        newValue, // Value from the update DTO
         changes,
         inspectionId,
         userId,
@@ -1777,10 +1786,6 @@ export class InspectionsService {
       );
     }
   }
-
-
-
-
 
   /**
    * Tahap 1: Mempersiapkan data dan membangun unsigned transaction.
