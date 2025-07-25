@@ -85,8 +85,8 @@ export class AuthController {
    * @returns {Promise<UserResponseDto>} The newly created user profile (excluding sensitive data).
    */
   @Post('register')
-  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @ApiOperation({ summary: 'Register a new user locally' })
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @ApiBody({ type: RegisterUserDto })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -123,8 +123,8 @@ export class AuthController {
    * @returns {Promise<LoginResponseDto>} JWT access token and user details.
    */
   @Post('login')
-  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @UseGuards(LocalAuthGuard) // Apply LocalAuthGuard to trigger LocalStrategy validation
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @HttpCode(HttpStatus.OK) // Return 200 OK on successful login
   @ApiOperation({
     summary: 'Login with local credentials (email/username + password)',
@@ -172,8 +172,8 @@ export class AuthController {
    * @returns {Promise<LoginResponseDto>} JWT access token, refresh token, and user details.
    */
   @Post('login/inspector')
-  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @UseGuards(InspectorGuard)
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login for inspectors with PIN' })
   @ApiBody({ type: LoginInspectorDto })
@@ -214,6 +214,7 @@ export class AuthController {
    */
   @Post('refresh')
   @UseGuards(JwtRefreshGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Obtain a new access token using a refresh token' })
   @ApiBearerAuth('jwt-refresh') // Specify the auth scheme for Swagger
@@ -240,6 +241,7 @@ export class AuthController {
    */
   @Get('google')
   @UseGuards(AuthGuard('google')) // Trigger GoogleStrategy
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiOperation({ summary: 'Initiate Google OAuth login' })
   @ApiResponse({ status: 302, description: 'Redirecting to Google.' })
   async googleAuth(@Req() req: Request) {
@@ -299,6 +301,7 @@ export class AuthController {
    */
   @Post('logout')
   @UseGuards(JwtAuthGuard) // Protect this endpoint
+  @Throttle({ default: { limit: 2, ttl: 60000 } })
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout user' })
@@ -356,7 +359,7 @@ export class AuthController {
    */
   @Get('profile')
   @UseGuards(JwtAuthGuard) // Protect with JWT
-  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @ApiOperation({ summary: 'Get logged-in user profile' })
   @ApiResponse({

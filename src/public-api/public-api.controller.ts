@@ -40,6 +40,7 @@ import { InspectionChangeLogResponseDto } from 'src/inspection-change-log/dto/in
 
 // Prisma types
 import { InspectionChangeLog } from '@prisma/client';
+import { Throttle } from '@nestjs/throttler';
 
 /**
  * @class PublicApiController
@@ -74,6 +75,7 @@ export class PublicApiController {
    * @returns {Promise<UserResponseDto[]>} A promise that resolves to an array of UserResponseDto objects representing inspector users.
    */
   @Get('users/inspectors') // Defines the GET endpoint for retrieving all inspectors
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({
     summary: 'Retrieve all inspector users (Public)',
     description:
@@ -115,6 +117,7 @@ export class PublicApiController {
    * @throws {InternalServerErrorException} If there is a data inconsistency or an internal server error during mapping.
    */
   @Get('latest-archived') // Defines the GET endpoint for retrieving latest archived inspections
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @HttpCode(HttpStatus.OK) // Sets the HTTP status code for successful responses to 200 OK
   @ApiOperation({
     summary: 'Retrieve 5 latest ARCHIVED inspections with specific details',
@@ -174,6 +177,7 @@ export class PublicApiController {
    * @throws {NotFoundException} If the inspection with the given ID is not found.
    */
   @Get('inspections/:id') // Defines the GET endpoint for retrieving a single inspection by ID
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({
     summary: 'Retrieve a specific inspection by ID',
     description:
@@ -220,6 +224,7 @@ export class PublicApiController {
    * @throws {NotFoundException} If the inspection is not found.
    */
   @Get('inspections/:id/changelog') // Defines the GET endpoint for retrieving inspection change logs
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({
     summary: 'Get inspection change log',
     description: 'Retrieves the change log entries for a specific inspection.',

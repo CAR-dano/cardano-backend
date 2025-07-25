@@ -32,6 +32,8 @@ import { InspectionChangeLogModule } from './inspection-change-log/inspection-ch
 import { DashboardModule } from './dashboard/dashboard.module';
 import { IpfsModule } from './ipfs/ipfs.module';
 
+import { APP_GUARD } from '@nestjs/core';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -84,5 +86,11 @@ import { IpfsModule } from './ipfs/ipfs.module';
     IpfsModule,
   ],
   controllers: [],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}
