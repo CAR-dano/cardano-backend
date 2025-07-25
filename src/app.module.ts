@@ -32,6 +32,8 @@ import { InspectionChangeLogModule } from './inspection-change-log/inspection-ch
 import { DashboardModule } from './dashboard/dashboard.module';
 import { IpfsModule } from './ipfs/ipfs.module';
 
+import { APP_GUARD } from '@nestjs/core';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -41,7 +43,7 @@ import { IpfsModule } from './ipfs/ipfs.module';
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 10,
+        limit: 20,
       },
     ]),
     // --- ServeStaticModule Configuration ---
@@ -86,7 +88,7 @@ import { IpfsModule } from './ipfs/ipfs.module';
   controllers: [],
   providers: [
     {
-      provide: 'APP_GUARD',
+      provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
   ],

@@ -48,10 +48,12 @@ import { InspectorResponseDto } from './dto/inspector-response.dto';
 import { GeneratePinResponseDto } from './dto/generate-pin-response.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 import { UpdateInspectorDto } from './dto/update-inspector.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('User Management (Admin)') // Tag for documentation
 @ApiBearerAuth('JwtAuthGuard') // Indicate JWT is needed for all endpoints here
 @UseGuards(JwtAuthGuard, RolesGuard) // Apply both guards at the controller level
+@Throttle({ default: { limit: 10, ttl: 60000 } })
 @Controller('admin/users') // Base path: /api/v1/admin/users
 export class UsersController {
   private readonly logger = new Logger(UsersController.name);

@@ -12,6 +12,7 @@
 
 // NestJS common modules
 import { Controller, Get, Param, Logger, HttpStatus } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 
 // Local services
 import { BlockchainService } from './blockchain.service';
@@ -40,6 +41,7 @@ export class BlockchainController {
    * @throws InternalServerErrorException for Blockfrost API or other errors.
    */
   @Get('metadata/tx/:txHash')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({
     summary: 'Get Transaction Metadata by Hash',
     description:
@@ -84,6 +86,7 @@ export class BlockchainController {
    * @throws InternalServerErrorException for Blockfrost API or other errors.
    */
   @Get('nft/:assetId')
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiOperation({
     summary: 'Get NFT Data by Asset ID',
     description:

@@ -38,6 +38,7 @@ import { InspectionBranchesService } from './inspection-branches.service';
 import { CreateInspectionBranchCityDto } from './dto/create-inspection-branch-city.dto';
 import { UpdateInspectionBranchCityDto } from './dto/update-inspection-branch-city.dto';
 import { InspectionBranchCityResponseDto } from './dto/inspection-branch-city-response.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @ApiTags('Inspection Branches')
 @Controller('inspection-branches')
@@ -59,6 +60,7 @@ export class InspectionBranchesController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new inspection branch city' })
   @ApiBody({ type: CreateInspectionBranchCityDto })
@@ -93,6 +95,7 @@ export class InspectionBranchesController {
    * @returns A promise that resolves to an array of InspectionBranchCityResponseDto.
    */
   @Get()
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Get all inspection branch cities' })
   @ApiResponse({
     status: 200,
@@ -111,6 +114,7 @@ export class InspectionBranchesController {
    * @throws NotFoundException if the inspection branch city is not found.
    */
   @Get(':id')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Get an inspection branch city by ID' })
   @ApiParam({
     name: 'id',
@@ -145,6 +149,7 @@ export class InspectionBranchesController {
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update an inspection branch city by ID' })
   @ApiParam({
@@ -197,6 +202,7 @@ export class InspectionBranchesController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete an inspection branch city by ID' })
   @ApiParam({

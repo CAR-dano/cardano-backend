@@ -37,7 +37,7 @@ import {
 import { InspectionsService } from './inspections.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
-import { UpdateInspectionDto } from './dto/update-inspection/update-inspection.dto';
+import { UpdateInspectionDto } from './dto/update-inspection.dto';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express'; // NestJS interceptor for handling multiple file fields
 import { diskStorage } from 'multer'; // Storage engine for Multer (file uploads)
 import { extname } from 'path'; // Node.js utility for handling file extensions
@@ -68,6 +68,7 @@ import { Req } from '@nestjs/common'; // Import Req decorator
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { FileValidationPipe } from './pipes/file-validation.pipe';
+import { Throttle } from '@nestjs/throttler';
 
 // Define an interface for the expected photo metadata structure
 interface PhotoMetadata {
@@ -130,6 +131,7 @@ export class InspectionsController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.INSPECTOR)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Create a new inspection record (Inspector only)',
@@ -245,6 +247,7 @@ export class InspectionsController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.INSPECTOR)
+  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @UseInterceptors(
     FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST, {
       storage: photoStorageConfig,
@@ -332,6 +335,7 @@ export class InspectionsController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.INSPECTOR)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseInterceptors(
     FileInterceptor('photo', {
       storage: photoStorageConfig,
@@ -421,6 +425,7 @@ export class InspectionsController {
   @Get(':id/photos')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve all photos for an inspection',
@@ -610,6 +615,7 @@ export class InspectionsController {
   @Get('search')
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Search for an inspection by vehicle plate number',
@@ -657,6 +663,7 @@ export class InspectionsController {
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Search for inspections by a general keyword',
@@ -698,6 +705,7 @@ export class InspectionsController {
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve all inspection records with pagination',
@@ -828,6 +836,7 @@ export class InspectionsController {
   @Get(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve a specific inspection by ID',
