@@ -255,11 +255,14 @@ export class AuthController {
     @Res() res: Response,
   ) {
     this.logger.log('Received Google OAuth callback.');
+    const clientUrl = this.configService.getOrThrow<string>(
+      'CLIENT_BASE_URL_GOOGLE',
+    );
     if (!req.user) {
       this.logger.error(
         'Google OAuth callback error: req.user is missing after guard execution.',
       );
-      const clientErrorUrl = `${this.configService.getOrThrow<string>('CLIENT_BASE_URL_GOOGLE')}/auth?error=authentication-failed`;
+      const clientErrorUrl = `${clientUrl}/auth?error=authentication-failed`;
       return res.redirect(clientErrorUrl);
     }
 
@@ -270,9 +273,6 @@ export class AuthController {
       );
 
       // Successful login, redirect to frontend with tokens
-      const clientUrl = this.configService.getOrThrow<string>(
-        'CLIENT_BASE_URL_GOOGLE',
-      );
       // It's generally safer to pass tokens in a query parameter for a one-time read
       res.redirect(
         `${clientUrl}/auth?accessToken=${accessToken}&refreshToken=${refreshToken}`,
@@ -283,7 +283,7 @@ export class AuthController {
         (error as Error).stack,
       );
       // Redirect to an error page on the client
-      const clientErrorUrl = `${this.configService.getOrThrow<string>('CLIENT_BASE_URL_GOOGLE')}/auth?error=authentication-failed`;
+      const clientErrorUrl = `${clientUrl}/auth?error=authentication-failed`;
       res.redirect(clientErrorUrl);
     }
   }
