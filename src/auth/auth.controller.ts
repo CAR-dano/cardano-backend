@@ -51,6 +51,7 @@ import { ExtractJwt } from 'passport-jwt'; // Import ExtractJwt
 import { InspectorGuard } from './guards/inspector.guard';
 import { LoginInspectorDto } from './dto/login-inspector.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 // Define interface for request object after JWT or Local auth guard runs
 interface AuthenticatedRequest extends Request {
@@ -59,6 +60,7 @@ interface AuthenticatedRequest extends Request {
 
 @ApiTags('Auth (UI Users)')
 @Controller('auth') // Base path: /api/v1/auth
+@UseGuards(ThrottlerGuard)
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 
@@ -83,6 +85,7 @@ export class AuthController {
    * @returns {Promise<UserResponseDto>} The newly created user profile (excluding sensitive data).
    */
   @Post('register')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @ApiOperation({ summary: 'Register a new user locally' })
   @ApiBody({ type: RegisterUserDto })
   @ApiResponse({
@@ -120,6 +123,7 @@ export class AuthController {
    * @returns {Promise<LoginResponseDto>} JWT access token and user details.
    */
   @Post('login')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @UseGuards(LocalAuthGuard) // Apply LocalAuthGuard to trigger LocalStrategy validation
   @HttpCode(HttpStatus.OK) // Return 200 OK on successful login
   @ApiOperation({
@@ -168,6 +172,7 @@ export class AuthController {
    * @returns {Promise<LoginResponseDto>} JWT access token, refresh token, and user details.
    */
   @Post('login/inspector')
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @UseGuards(InspectorGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login for inspectors with PIN' })
@@ -351,6 +356,7 @@ export class AuthController {
    */
   @Get('profile')
   @UseGuards(JwtAuthGuard) // Protect with JWT
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @ApiOperation({ summary: 'Get logged-in user profile' })
   @ApiResponse({

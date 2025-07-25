@@ -41,7 +41,7 @@ import { IpfsModule } from './ipfs/ipfs.module';
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 10,
+        limit: 20,
       },
     ]),
     // --- ServeStaticModule Configuration ---
@@ -84,11 +84,5 @@ import { IpfsModule } from './ipfs/ipfs.module';
     IpfsModule,
   ],
   controllers: [],
-  providers: [
-    {
-      provide: 'APP_GUARD',
-      useClass: ThrottlerGuard,
-    },
-  ],
 })
 export class AppModule {}
