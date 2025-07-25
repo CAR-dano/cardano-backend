@@ -247,27 +247,46 @@ export class AuthController {
    * GoogleStrategy validates the profile and attaches user info to req.user.
    * Generates JWT and redirects back to the frontend.
    */
-  // @Get('google/callback')
-  // @UseGuards(AuthGuard('google'))
-  // @ApiExcludeEndpoint() // Typically hidden from public API docs
-  // async googleAuthRedirect(
-  //   @Req() req: AuthenticatedRequest,
-  //   @Res() res: Response,
-  // ) {
-  //   // ... (Kode googleAuthRedirect tetap sama seperti sebelumnya, menggunakan req.user) ...
-  //   this.logger.log('Received Google OAuth callback.');
-  //   if (!req.user) {
-  //     /* ... handle error redirect ... */ return res.redirect(/*...*/);
-  //   }
-  //   try {
-  //     const { accessToken } = await this.authService.login(req.user);
-  //     const clientUrl =
-  //       this.configService.getOrThrow<string>('CLIENT_BASE_URL');
-  //     res.redirect(`${clientUrl}/auth/callback?token=${accessToken}`); // Redirect with token
-  //   } catch (error) {
-  //     /* ... handle error redirect ... */ res.redirect(/*...*/);
-  //   }
-  // }
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  @ApiExcludeEndpoint() // Typically hidden from public API docs
+  async googleAuthRedirect(
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response,
+  ) {
+    this.logger.log('Received Google OAuth callback.');
+    const clientUrl = this.configService.getOrThrow<string>(
+      'CLIENT_BASE_URL_GOOGLE',
+    );
+    if (!req.user) {
+      this.logger.error(
+        'Google OAuth callback error: req.user is missing after guard execution.',
+      );
+      const clientErrorUrl = `${clientUrl}/auth?error=authentication-failed`;
+      return res.redirect(clientErrorUrl);
+    }
+
+    try {
+      // The user object from GoogleStrategy.validate is in req.user
+      const { accessToken, refreshToken } = await this.authService.login(
+        req.user as any,
+      );
+
+      // Successful login, redirect to frontend with tokens
+      // It's generally safer to pass tokens in a query parameter for a one-time read
+      res.redirect(
+        `${clientUrl}/auth?accessToken=${accessToken}&refreshToken=${refreshToken}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error during Google authentication post-processing: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+      // Redirect to an error page on the client
+      const clientErrorUrl = `${clientUrl}/auth?error=authentication-failed`;
+      res.redirect(clientErrorUrl);
+    }
+  }
 
   /**
    * Logs out the user (primarily client-side for stateless JWT).
