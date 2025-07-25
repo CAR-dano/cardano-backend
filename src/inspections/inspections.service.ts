@@ -52,7 +52,6 @@ const PDF_PUBLIC_BASE_URL = process.env.PDF_PUBLIC_BASE_URL || '/pdfarchived'; /
 
 interface NftMetadata {
   vehicleNumber: string | null;
-  pdfUrl: string | null;
   pdfHash: string | null;
 }
 
@@ -1547,7 +1546,6 @@ export class InspectionsService {
         // Now that we've checked for null, we can safely assert these are strings for the metadata type
         const metadataForNft: NftMetadata = {
           vehicleNumber: inspection.vehiclePlateNumber,
-          pdfUrl: inspection.ipfsPdf ? inspection.ipfsPdf : inspection.urlPdf,
           pdfHash: inspection.pdfFileHash,
         };
         // Hapus field null/undefined dari metadata jika perlu (This step might be redundant now with checks above, but kept for safety)
