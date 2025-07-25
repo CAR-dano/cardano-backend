@@ -37,7 +37,7 @@ import {
 import { InspectionsService } from './inspections.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
-import { UpdateInspectionDto } from './dto/update-inspection.dto';
+import { UpdateInspectionDto } from './dto/update-inspection/update-inspection.dto';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express'; // NestJS interceptor for handling multiple file fields
 import { diskStorage } from 'multer'; // Storage engine for Multer (file uploads)
 import { extname } from 'path'; // Node.js utility for handling file extensions
