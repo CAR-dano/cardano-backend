@@ -214,6 +214,42 @@ export class PublicApiController {
   }
 
   /**
+   * Retrieves a specific inspection by its ID, excluding photos with sensitive document labels.
+   * This endpoint is for public consumption where STNK/BPKB photos should not be visible.
+   *
+   * @param {string} id The UUID of the inspection to retrieve.
+   * @returns {Promise<InspectionResponseDto>} A promise that resolves to the inspection record summary without sensitive documents.
+   */
+  @Get('inspections/:id/no-docs')
+  @Throttle({ default: { limit: 120, ttl: 60000 } })
+  @ApiOperation({
+    summary: 'Retrieve an inspection by ID without sensitive documents',
+    description:
+      'Retrieves a specific inspection by ID, but excludes photos labeled as "STNK" or "BPKB" for public viewing.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'The UUID of the inspection to retrieve.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'The inspection record summary without sensitive documents.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Inspection not found.',
+  })
+  async findOneWithoutDocuments(
+    @Param('id') id: string,
+  ): Promise<InspectionResponseDto> {
+    const inspection = await this.publicApiService.findOneWithoutDocuments(id);
+    return new InspectionResponseDto(inspection);
+  }
+
+  /**
    * Retrieves change logs for a specific inspection.
    * This endpoint is restricted to ADMIN and REVIEWER roles only.
    *
