@@ -53,8 +53,8 @@ import { PlutusBlueprint, PlutusValidator } from './types/blueprint.type';
  */
 export interface InspectionNftMetadata {
   vehicleNumber: string;
-  pdfUrl: string;
   pdfHash: string;
+  pdfHashNonConfidential: string;
 }
 interface Script {
   code: string;
@@ -469,6 +469,7 @@ export class BlockchainService {
               description: 'NFT Proof of Vehicle Inspection',
               vehicleNumber: inspectionData.vehicleNumber,
               hash_pdf: inspectionData.pdfHash,
+              hash_pdf_non_confidential: inspectionData.pdfHashNonConfidential,
             },
           },
         },

@@ -53,6 +53,7 @@ const PDF_PUBLIC_BASE_URL = process.env.PDF_PUBLIC_BASE_URL || '/pdfarchived'; /
 interface NftMetadata {
   vehicleNumber: string | null;
   pdfHash: string | null;
+  pdfHashNonConfidential: string | null;
 }
 
 /**
@@ -908,7 +909,9 @@ export class InspectionsService {
     meta: { total: number; page: number; pageSize: number; totalPages: number };
   }> {
     this.logger.log(
-      `Retrieving inspections for user role: ${userRole ?? 'N/A'}, status: ${Array.isArray(status) ? status.join(',') : (status ?? 'ALL (default)')}, page: ${page}, pageSize: ${pageSize}`,
+      `Retrieving inspections for user role: ${userRole ?? 'N/A'}, status: ${
+        Array.isArray(status) ? status.join(',') : (status ?? 'ALL (default)')
+      }, page: ${page}, pageSize: ${pageSize}`,
     );
 
     // Initialize whereClause
@@ -999,7 +1002,9 @@ export class InspectionsService {
       });
 
       this.logger.log(
-        `Retrieved ${inspections.length} inspections of ${total} total for role ${userRole ?? 'N/A'}.`,
+        `Retrieved ${
+          inspections.length
+        } inspections of ${total} total for role ${userRole ?? 'N/A'}.`,
       );
 
       const totalPages = Math.ceil(total / pageSize);
@@ -1018,7 +1023,9 @@ export class InspectionsService {
       const errorStack =
         error instanceof Error ? error.stack : 'No stack trace available';
       this.logger.error(
-        `Failed to retrieve inspections for role ${userRole ?? 'N/A'}: ${errorMessage}`,
+        `Failed to retrieve inspections for role ${
+          userRole ?? 'N/A'
+        }: ${errorMessage}`,
         errorStack,
       );
       throw new InternalServerErrorException(
@@ -1095,6 +1102,37 @@ export class InspectionsService {
   }
 
   /**
+   * Generates, saves, and hashes a PDF from a given URL.
+   * This is a helper function for `approveInspection`.
+   * @param url The URL to generate the PDF from.
+   * @param baseFileName The unique filename for the PDF.
+   * @param token The JWT token for authentication.
+   * @returns An object with the public URL, IPFS CID, and hash of the PDF.
+   */
+  private async _generateAndSavePdf(
+    url: string,
+    baseFileName: string,
+    token: string | null,
+  ): Promise<{ pdfPublicUrl: string; pdfCid: string; pdfHashString: string }> {
+    const pdfBuffer = await this.generatePdfFromUrl(url, token);
+    const pdfCid = await this.ipfsService.add(pdfBuffer);
+    const pdfFilePath = path.join(PDF_ARCHIVE_PATH, baseFileName);
+    await fs.writeFile(pdfFilePath, pdfBuffer);
+    this.logger.log(`PDF report saved to: ${pdfFilePath}`);
+
+    const hash = crypto.createHash('sha256');
+    hash.update(pdfBuffer);
+    const pdfHashString = hash.digest('hex');
+    this.logger.log(
+      `PDF hash calculated for ${baseFileName}: ${pdfHashString}`,
+    );
+
+    const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${baseFileName}`;
+
+    return { pdfPublicUrl, pdfCid, pdfHashString };
+  }
+
+  /**
    * Approves an inspection, applies the latest logged change for each field,
    * generates and stores the PDF, calculates its hash, and changes status to APPROVED.
    * Fetches the latest changes from InspectionChangeLog and updates the Inspection record.
@@ -1140,44 +1178,29 @@ export class InspectionsService {
       );
     }
 
-    const frontendReportUrl = `${this.config.getOrThrow<string>(
+    // --- PDF Generation (Parallel) ---
+    const timestamp = Date.now();
+    const basePrettyId = inspection.pretty_id;
+
+    // Define URLs and filenames
+    const fullPdfUrl = `${this.config.getOrThrow<string>(
       'CLIENT_BASE_URL_PDF',
     )}/data/${inspection.id}`;
-    let pdfBuffer: Buffer;
-    let pdfCid: string;
-    let pdfHashString: string | null = null;
-    const pdfFileName = `${inspection.pretty_id}-${Date.now()}.pdf`; // Nama file unik
-    const pdfFilePath = path.join(PDF_ARCHIVE_PATH, pdfFileName);
-    const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${pdfFileName}`; // URL publik
+    const noDocsPdfUrl = `${this.config.getOrThrow<string>(
+      'CLIENT_BASE_URL_PDF',
+    )}/pdf/${inspection.id}`;
+
+    const fullPdfFileName = `${basePrettyId}-${timestamp}.pdf`;
+    const noDocsPdfFileName = `${basePrettyId}-no-confidential-${timestamp}.pdf`;
 
     try {
-      // Generate PDF from URL, passing the token
-      pdfBuffer = await this.generatePdfFromUrl(frontendReportUrl, token);
-      pdfCid = await this.ipfsService.add(pdfBuffer);
-      // Save PDF to Disc
-      await fs.writeFile(pdfFilePath, pdfBuffer);
-      this.logger.log(`PDF report saved to: ${pdfFilePath}`);
+      // Run PDF generation in parallel
+      const [fullPdfResult, noDocsPdfResult] = await Promise.all([
+        this._generateAndSavePdf(fullPdfUrl, fullPdfFileName, token),
+        this._generateAndSavePdf(noDocsPdfUrl, noDocsPdfFileName, token),
+      ]);
 
-      // Calculate PDF Hash
-      const hash = crypto.createHash('sha256');
-      hash.update(pdfBuffer);
-      pdfHashString = hash.digest('hex');
-      this.logger.log(`PDF hash calculated: ${pdfHashString}`);
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'An unknown error occurred';
-      const errorStack =
-        error instanceof Error ? error.stack : 'No stack trace available';
-      this.logger.error(
-        `Failed to generate or save PDF for inspection ${inspectionId}: ${errorMessage}`,
-        errorStack,
-      );
-      throw new InternalServerErrorException(
-        `Could not generate PDF report from URL: ${errorMessage}`,
-      );
-    }
-
-    try {
+      // --- Transactional Database Update ---
       return this.prisma.$transaction(async (tx) => {
         // 2. Fetch all change logs for this inspection
         const allChanges = await tx.inspectionChangeLog.findMany({
@@ -1212,9 +1235,14 @@ export class InspectionsService {
           reviewer: {
             connect: { id: reviewerId },
           },
-          urlPdf: pdfPublicUrl,
-          pdfFileHash: pdfHashString,
-          ipfsPdf: `ipfs://${pdfCid}`,
+          // Full PDF data
+          urlPdf: fullPdfResult.pdfPublicUrl,
+          pdfFileHash: fullPdfResult.pdfHashString,
+          ipfsPdf: `ipfs://${fullPdfResult.pdfCid}`,
+          // No-Docs PDF data
+          urlPdfNoDocs: noDocsPdfResult.pdfPublicUrl,
+          pdfFileHashNoDocs: noDocsPdfResult.pdfHashString,
+          ipfsPdfNoDocs: `ipfs://${noDocsPdfResult.pdfCid}`,
         };
 
         // Define which top-level fields in Inspection are JSON and can be updated via change log
@@ -1234,16 +1262,17 @@ export class InspectionsService {
           const fieldName = parts[0] as keyof Inspection; // Assert fieldName type
 
           this.logger.debug(
-            `Applying change: fieldKey=${fieldKey}, value=${JSON.stringify(value)}, fieldName=${fieldName}`,
+            `Applying change: fieldKey=${fieldKey}, value=${JSON.stringify(
+              value,
+            )}, fieldName=${fieldName}`,
           );
 
           if (parts.length === 1) {
             this.logger.debug(
-              `Processing top-level field from changelog. fieldName: "${fieldName}", value: "${JSON.stringify(value)}"`,
-            ); // KILOCODE DEBUG LOG
-            // Handle top-level fields (fieldName only)
-            // Only attempt to update if the field exists in the original inspection object
-            // KILOCODE FIX: Use parts[0] for 'inspector' and 'branchCity' checks to avoid TS error
+              `Processing top-level field from changelog. fieldName: "${fieldName}", value: "${JSON.stringify(
+                value,
+              )}"`,
+            );
             if (
               parts[0] === 'inspector' &&
               value !== null &&
@@ -1268,9 +1297,7 @@ export class InspectionsService {
               this.logger.debug(
                 `Applied branchCity change using connect: ${value}`,
               );
-            }
-            // KILOCODE FIX: Fallback to check actual properties on inspection object using fieldName (keyof Inspection)
-            else if (
+            } else if (
               Object.prototype.hasOwnProperty.call(inspection, fieldName)
             ) {
               // Handle specific top-level fields with proper type conversion
@@ -1297,7 +1324,18 @@ export class InspectionsService {
               }
             } else {
               this.logger.warn(
-                `Top-level field "${parts[0]}" from changelog (key: ${fieldKey}) did not match any specific update logic. Value: ${JSON.stringify(value)}. 'inspector' check: ${parts[0] === 'inspector'}. 'branchCity' check: ${parts[0] === 'branchCity'}. HasOwnProperty on inspection for fieldName: ${Object.prototype.hasOwnProperty.call(inspection, fieldName)}. Ignoring.`, // KILOCODE DEBUG LOG MODIFIED with parts[0]
+                `Top-level field "${
+                  parts[0]
+                }" from changelog (key: ${fieldKey}) did not match any specific update logic. Value: ${JSON.stringify(
+                  value,
+                )}. 'inspector' check: ${
+                  parts[0] === 'inspector'
+                }. 'branchCity' check: ${
+                  parts[0] === 'branchCity'
+                }. HasOwnProperty on inspection for fieldName: ${Object.prototype.hasOwnProperty.call(
+                  inspection,
+                  fieldName,
+                )}. Ignoring.`,
               );
             }
           } else {
@@ -1537,14 +1575,6 @@ export class InspectionsService {
         `Missing vehicle plate number for inspection ${inspectionId}. Cannot mint NFT.`,
       );
     }
-    if (!inspection.ipfsPdf && !inspection.urlPdf) {
-      this.logger.error(
-        `Missing PDF URL (ipfsPdf or urlPdf) for inspection ${inspectionId}. Cannot mint NFT.`,
-      );
-      throw new BadRequestException(
-        `Missing PDF URL for inspection ${inspectionId}. Cannot mint NFT.`,
-      );
-    }
     if (!inspection.pdfFileHash) {
       this.logger.error(
         `Missing PDF file hash for inspection ${inspectionId}. Cannot mint NFT.`,
@@ -1553,17 +1583,26 @@ export class InspectionsService {
         `Missing PDF file hash for inspection ${inspectionId}. Cannot mint NFT.`,
       );
     }
+    if (!inspection.pdfFileHashNoDocs) {
+      this.logger.error(
+        `Missing PDF file hash no docs for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+      throw new BadRequestException(
+        `Missing PDF file hash no docs for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+    }
 
     try {
       // 2. Minting
       let blockchainResult: { txHash: string; assetId: string } | null = null;
-      let blockchainSuccess: boolean = false;
+      let blockchainSuccess = false;
 
       try {
         // Now that we've checked for null, we can safely assert these are strings for the metadata type
         const metadataForNft: NftMetadata = {
           vehicleNumber: inspection.vehiclePlateNumber,
           pdfHash: inspection.pdfFileHash,
+          pdfHashNonConfidential: inspection.pdfFileHashNoDocs,
         };
         // Hapus field null/undefined dari metadata jika perlu (This step might be redundant now with checks above, but kept for safety)
         Object.keys(metadataForNft).forEach((key) =>
@@ -1577,7 +1616,7 @@ export class InspectionsService {
         );
         // Cast to InspectionNftMetadata as we've ensured non-nullability
         blockchainResult = await this.blockchainService.mintInspectionNft(
-          metadataForNft as InspectionNftMetadata,
+          metadataForNft as unknown as InspectionNftMetadata,
         ); // Panggil service minting
         blockchainSuccess = true;
         this.logger.log(
@@ -1827,8 +1866,8 @@ export class InspectionsService {
     }
     if (
       !inspection.vehiclePlateNumber ||
-      !inspection.ipfsPdf ||
-      !inspection.pdfFileHash
+      !inspection.pdfFileHash ||
+      !inspection.pdfFileHashNoDocs
     ) {
       throw new BadRequestException(
         `Data inspeksi ${inspectionId} tidak lengkap untuk minting.`,
@@ -1841,6 +1880,7 @@ export class InspectionsService {
       inspectionData: {
         vehicleNumber: inspection.vehiclePlateNumber,
         pdfHash: inspection.pdfFileHash,
+        pdfHashNonConfidential: inspection.pdfFileHashNoDocs,
         nftDisplayName: `Car Inspection ${inspection.vehiclePlateNumber}`,
       },
     };
