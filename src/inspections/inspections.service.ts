@@ -158,12 +158,29 @@ export class InspectionsService {
     inspectorId: string,
   ): Promise<{ id: string }> {
     this.logger.log(
-      `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'} by inspector ${inspectorId}`,
+      `Creating inspection for plate: ${
+        createInspectionDto.vehiclePlateNumber ?? 'N/A'
+      } by inspector ${inspectorId}`,
     );
 
     const { identityDetails } = createInspectionDto;
     const branchCityUuid = identityDetails.cabangInspeksi;
     const customerName = identityDetails.namaCustomer;
+
+    // Determine the effective inspector ID. Use the one from the DTO as a fallback if auth is disabled.
+    let effectiveInspectorId = inspectorId;
+    if (!effectiveInspectorId) {
+      this.logger.warn(
+        'No inspectorId from auth. Falling back to ID from createInspectionDto.identityDetails.namaInspektor.',
+      );
+      effectiveInspectorId = identityDetails.namaInspektor; // Assuming this field holds the UUID
+    }
+
+    if (!effectiveInspectorId) {
+      throw new BadRequestException(
+        'Inspector ID is missing. It must be provided either via an authenticated user or in the request body.',
+      );
+    }
 
     // 1. Fetch Inspector and Branch City records using UUIDs
     let inspectorName: string | null = null;
@@ -172,12 +189,12 @@ export class InspectionsService {
 
     try {
       const inspector = await this.prisma.user.findUnique({
-        where: { id: inspectorId },
+        where: { id: effectiveInspectorId },
         select: { name: true },
       });
       if (!inspector) {
         throw new BadRequestException(
-          `Inspector with ID "${inspectorId}" not found.`,
+          `Inspector with ID "${effectiveInspectorId}" not found.`,
         );
       }
       inspectorName = inspector.name;
@@ -234,7 +251,7 @@ export class InspectionsService {
         const dataToCreate: Prisma.InspectionCreateInput = {
           pretty_id: customId,
           // Store the UUIDs in the dedicated ID fields
-          inspector: { connect: { id: inspectorId } }, // Connect using the UUID
+          inspector: { connect: { id: effectiveInspectorId } }, // Connect using the effective UUID
           branchCity: { connect: { id: branchCityUuid } }, // Connect using the UUID
 
           vehiclePlateNumber: createInspectionDto.vehiclePlateNumber,
