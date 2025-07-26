@@ -1120,7 +1120,7 @@ export class InspectionsService {
     await fs.writeFile(pdfFilePath, pdfBuffer);
     this.logger.log(`PDF report saved to: ${pdfFilePath}`);
 
-    const hash = crypto.createHash('sha256');
+    const hash = crypto.createHash('sha512');
     hash.update(pdfBuffer);
     const pdfHashString = hash.digest('hex');
     this.logger.log(

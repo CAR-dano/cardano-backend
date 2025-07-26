@@ -2318,7 +2318,7 @@ export const openApiDocument = {
                   vehicleModel: 'Camry',
                   overallRating: 'Excellent',
                   pdfUrl: 'https://example.com/report.pdf',
-                  pdfHash: 'sha256...',
+                  pdfHash: 'sha512...',
                   inspectorId: 'inspector-uuid...',
                 },
               },

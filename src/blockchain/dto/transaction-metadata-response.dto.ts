@@ -50,7 +50,7 @@ export class TransactionMetadataResponseDto {
           mediaType: 'image/png',
           description: 'NFT Proof of Vehicle Inspection',
           vehicleNumber: 'XYZ123', // Example vehicle number
-          pdfHash: 'sha256...', // Example PDF hash
+          pdfHash: 'sha512...', // Example PDF hash
         },
       },
     },
