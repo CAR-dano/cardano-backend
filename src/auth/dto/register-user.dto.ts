@@ -34,6 +34,7 @@ export class RegisterUserDto {
   })
   @IsEmail() // Validates if the string is an email
   @IsNotEmpty() // Ensures the field is not empty
+  @MaxLength(255)
   email: string;
 
   /**
@@ -78,6 +79,7 @@ export class RegisterUserDto {
   @IsString()
   @IsNotEmpty()
   @MinLength(8) // Enforce minimum password length
+  @MaxLength(255)
   // Add more complex password rules here if needed (e.g., using @Matches)
   password: string;
 
@@ -93,6 +95,7 @@ export class RegisterUserDto {
   @IsOptional() // Decorator indicating the field can be omitted
   @IsString()
   @IsNotEmpty({ message: 'Name cannot be an empty string if provided' }) // Prevent empty string if sent
+  @MaxLength(255)
   name?: string;
 
   /**
@@ -106,6 +109,7 @@ export class RegisterUserDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   // Add specific Cardano address validation if available/needed
   walletAddress?: string;
 }

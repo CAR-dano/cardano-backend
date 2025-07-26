@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsArray,
   IsOptional,
+  MaxLength,
 } from 'class-validator';
 
 export class HasilInspeksiEksteriorDto {
@@ -161,6 +162,7 @@ export class HasilInspeksiEksteriorDto {
   @ApiProperty()
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(1000, { each: true })
   @IsOptional()
   catatan: string[];
 }

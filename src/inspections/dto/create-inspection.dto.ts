@@ -16,8 +16,10 @@ import {
   IsString,
   IsDateString,
   IsObject,
-  IsOptional,
   ValidateNested,
+  MaxLength,
+  IsNotEmpty,
+  IsOptional,
 } from 'class-validator';
 
 import { ApiProperty } from '@nestjs/swagger';
@@ -42,6 +44,8 @@ export class CreateInspectionDto {
     description: 'The license plate number of the inspected vehicle.',
   })
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(20)
   vehiclePlateNumber: string;
 
   /**
@@ -55,6 +59,7 @@ export class CreateInspectionDto {
       'The date and time when the inspection was performed. Expected as an ISO 8601 format string.',
   })
   @IsDateString()
+  @IsNotEmpty()
   inspectionDate: string;
 
   /**
@@ -67,7 +72,9 @@ export class CreateInspectionDto {
       'The overall rating assigned to the vehicle based on the inspection.',
   })
   @IsString()
-  overallRating?: string;
+  @IsNotEmpty()
+  @MaxLength(10)
+  overallRating: string;
 
   /**
    * Object containing details from the "Identitas" section of the inspection form.

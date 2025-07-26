@@ -14,6 +14,7 @@ import {
   IsOptional,
   IsBooleanString,
   IsNotEmpty,
+  MaxLength,
 } from 'class-validator';
 
 export class UpdatePhotoDto {
@@ -29,6 +30,7 @@ export class UpdatePhotoDto {
   @IsOptional()
   @IsString()
   @IsNotEmpty({ message: 'Label cannot be empty if provided' })
+  @MaxLength(255)
   label?: string;
 
   /**
@@ -58,6 +60,7 @@ export class UpdatePhotoDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   category?: string;
 
   /**

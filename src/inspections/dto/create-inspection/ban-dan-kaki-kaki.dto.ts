@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsArray,
   IsOptional,
+  MaxLength,
 } from 'class-validator';
 
 export class BanDanKakiKakiDto {
@@ -96,6 +97,7 @@ export class BanDanKakiKakiDto {
   @ApiProperty()
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(1000, { each: true })
   @IsOptional()
   catatan: string[];
 }

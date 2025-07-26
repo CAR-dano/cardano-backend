@@ -7,7 +7,7 @@
  * Description: DTO for partially updating identity details.
  * --------------------------------------------------------------------------
  */
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 /**
@@ -36,6 +36,7 @@ export class UpdateIdentityDetailsDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   namaCustomer?: string;
 
   /**
