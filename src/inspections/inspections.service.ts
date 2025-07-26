@@ -53,6 +53,7 @@ const PDF_PUBLIC_BASE_URL = process.env.PDF_PUBLIC_BASE_URL || '/pdfarchived'; /
 interface NftMetadata {
   vehicleNumber: string | null;
   pdfHash: string | null;
+  pdfHashNonConfidential: string | null;
 }
 
 /**
@@ -1574,14 +1575,6 @@ export class InspectionsService {
         `Missing vehicle plate number for inspection ${inspectionId}. Cannot mint NFT.`,
       );
     }
-    if (!inspection.ipfsPdf && !inspection.urlPdf) {
-      this.logger.error(
-        `Missing PDF URL (ipfsPdf or urlPdf) for inspection ${inspectionId}. Cannot mint NFT.`,
-      );
-      throw new BadRequestException(
-        `Missing PDF URL for inspection ${inspectionId}. Cannot mint NFT.`,
-      );
-    }
     if (!inspection.pdfFileHash) {
       this.logger.error(
         `Missing PDF file hash for inspection ${inspectionId}. Cannot mint NFT.`,
@@ -1590,17 +1583,26 @@ export class InspectionsService {
         `Missing PDF file hash for inspection ${inspectionId}. Cannot mint NFT.`,
       );
     }
+    if (!inspection.pdfFileHashNoDocs) {
+      this.logger.error(
+        `Missing PDF file hash no docs for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+      throw new BadRequestException(
+        `Missing PDF file hash no docs for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+    }
 
     try {
       // 2. Minting
       let blockchainResult: { txHash: string; assetId: string } | null = null;
-      let blockchainSuccess: boolean = false;
+      let blockchainSuccess = false;
 
       try {
         // Now that we've checked for null, we can safely assert these are strings for the metadata type
         const metadataForNft: NftMetadata = {
           vehicleNumber: inspection.vehiclePlateNumber,
           pdfHash: inspection.pdfFileHash,
+          pdfHashNonConfidential: inspection.pdfFileHashNoDocs,
         };
         // Hapus field null/undefined dari metadata jika perlu (This step might be redundant now with checks above, but kept for safety)
         Object.keys(metadataForNft).forEach((key) =>
@@ -1614,7 +1616,7 @@ export class InspectionsService {
         );
         // Cast to InspectionNftMetadata as we've ensured non-nullability
         blockchainResult = await this.blockchainService.mintInspectionNft(
-          metadataForNft as InspectionNftMetadata,
+          metadataForNft as unknown as InspectionNftMetadata,
         ); // Panggil service minting
         blockchainSuccess = true;
         this.logger.log(
@@ -1864,8 +1866,8 @@ export class InspectionsService {
     }
     if (
       !inspection.vehiclePlateNumber ||
-      !inspection.ipfsPdf ||
-      !inspection.pdfFileHash
+      !inspection.pdfFileHash ||
+      !inspection.pdfFileHashNoDocs
     ) {
       throw new BadRequestException(
         `Data inspeksi ${inspectionId} tidak lengkap untuk minting.`,
@@ -1878,6 +1880,7 @@ export class InspectionsService {
       inspectionData: {
         vehicleNumber: inspection.vehiclePlateNumber,
         pdfHash: inspection.pdfFileHash,
+        pdfHashNonConfidential: inspection.pdfFileHashNoDocs,
         nftDisplayName: `Car Inspection ${inspection.vehiclePlateNumber}`,
       },
     };
