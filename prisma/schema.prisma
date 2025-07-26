@@ -135,6 +135,10 @@ model Inspection {
   // Cryptographic hash (e.g., SHA-256) of the generated PDF file. Optional. Explicit mapping. Max length 255.
   pdfFileHash        String?        @map("pdf_file_hash") @db.VarChar(255)
 
+  urlPdfNoDocs       String?        @map("url_pdf_no_docs") @db.VarChar(255)
+  ipfsPdfNoDocs      String?        @map("ipfs_pdf_no_docs") @db.VarChar(255)
+  pdfFileHashNoDocs  String?        @map("pdf_file_hash_no_docs") @db.VarChar(255)
+
   // --- Timestamps ---
   // Automatically set when the record is created.
   createdAt DateTime @default(now())
