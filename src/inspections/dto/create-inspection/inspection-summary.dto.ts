@@ -7,6 +7,7 @@ import {
   ValidateNested,
   IsNotEmpty,
   IsOptional,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { EstimasiPerbaikanDto } from './estimasi-perbaikan.dto';
@@ -20,6 +21,7 @@ export class InspectionSummaryDto {
   @ApiProperty({ required: false })
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(1000, { each: true })
   @IsOptional()
   interiorNotes?: string[];
 
@@ -31,6 +33,7 @@ export class InspectionSummaryDto {
   @ApiProperty({ required: false })
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(1000, { each: true })
   @IsOptional()
   eksteriorNotes?: string[];
 
@@ -42,6 +45,7 @@ export class InspectionSummaryDto {
   @ApiProperty({ required: false })
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(1000, { each: true })
   @IsOptional()
   kakiKakiNotes?: string[];
 
@@ -53,6 +57,7 @@ export class InspectionSummaryDto {
   @ApiProperty({ required: false })
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(1000, { each: true })
   @IsOptional()
   mesinNotes?: string[];
 
@@ -64,6 +69,7 @@ export class InspectionSummaryDto {
   @ApiProperty({ required: false })
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(2000, { each: true })
   @IsOptional()
   deskripsiKeseluruhan?: string[];
 
@@ -85,21 +91,25 @@ export class InspectionSummaryDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   posisiBan: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   merkban: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   tipeVelg: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   ketebalanBan: string;
 
   @ApiProperty({ type: [EstimasiPerbaikanDto], required: false })

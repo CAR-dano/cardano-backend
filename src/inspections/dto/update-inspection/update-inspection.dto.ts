@@ -14,6 +14,7 @@ import {
   IsOptional,
   ValidateNested,
   IsUUID,
+  MaxLength,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -31,6 +32,7 @@ export class UpdateInspectionDto {
   @ApiPropertyOptional({ example: 'AB 1 DQ' })
   @IsOptional()
   @IsString()
+  @MaxLength(20)
   vehiclePlateNumber?: string;
 
   @ApiPropertyOptional({ example: '2025-07-05T14:30:00Z' })
@@ -41,6 +43,7 @@ export class UpdateInspectionDto {
   @ApiPropertyOptional({ example: '8' })
   @IsOptional()
   @IsString()
+  @MaxLength(10)
   overallRating?: string;
 
   @ApiPropertyOptional({ type: UpdateIdentityDetailsDto })

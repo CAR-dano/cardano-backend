@@ -1,5 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNumber, IsString, IsArray, IsOptional } from 'class-validator';
+import {
+  IsNumber,
+  IsString,
+  IsArray,
+  IsOptional,
+  MaxLength,
+} from 'class-validator';
 
 export class UpdateFiturDto {
   @ApiPropertyOptional()
@@ -41,6 +47,7 @@ export class UpdateFiturDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(1000, { each: true })
   catatan?: string[];
 
   @ApiPropertyOptional()
