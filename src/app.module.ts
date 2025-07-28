@@ -71,6 +71,10 @@ import { APP_GUARD } from '@nestjs/core';
       //   },
       // },
     }),
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'public'),
+      serveRoot: '/api/v1', // Serve public files under the /api/v1 prefix
+    }),
     AuthModule,
     BlockchainModule,
     ExternalAuthModule,
