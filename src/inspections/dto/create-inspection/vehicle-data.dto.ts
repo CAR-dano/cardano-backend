@@ -54,7 +54,7 @@ export class VehicleDataDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  @MaxLength(20)
+  @MaxLength(255)
   platNomor: string;
 
   @ApiProperty()

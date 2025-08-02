@@ -32,7 +32,7 @@ export class UpdateInspectionDto {
   @ApiPropertyOptional({ example: 'AB 1 DQ' })
   @IsOptional()
   @IsString()
-  @MaxLength(20)
+  @MaxLength(255)
   vehiclePlateNumber?: string;
 
   @ApiPropertyOptional({ example: '2025-07-05T14:30:00Z' })
@@ -43,7 +43,7 @@ export class UpdateInspectionDto {
   @ApiPropertyOptional({ example: '8' })
   @IsOptional()
   @IsString()
-  @MaxLength(10)
+  @MaxLength(255)
   overallRating?: string;
 
   @ApiPropertyOptional({ type: UpdateIdentityDetailsDto })

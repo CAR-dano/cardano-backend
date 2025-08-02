@@ -45,7 +45,7 @@ export class CreateInspectionDto {
   })
   @IsString()
   @IsNotEmpty()
-  @MaxLength(15)
+  @MaxLength(255)
   vehiclePlateNumber: string;
 
   /**
@@ -73,7 +73,7 @@ export class CreateInspectionDto {
   })
   @IsString()
   @IsNotEmpty()
-  @MaxLength(10)
+  @MaxLength(255)
   overallRating: string;
 
   /**

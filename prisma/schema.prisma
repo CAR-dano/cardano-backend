@@ -100,7 +100,7 @@ model Inspection {
 
   // --- Basic Inspection Data ---
   // Vehicle's license plate number. VarChar(15) for potential length limit. Optional.
-  vehiclePlateNumber String?   @db.VarChar(15)
+  vehiclePlateNumber String?   @db.VarChar(255)
   // Date and time of the inspection. Optional.
   inspectionDate     DateTime?
   // Overall rating string (e.g., "Excellent", "Good"). Optional.
