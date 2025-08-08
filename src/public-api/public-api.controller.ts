@@ -40,7 +40,7 @@ import { InspectionChangeLogResponseDto } from 'src/inspection-change-log/dto/in
 
 // Prisma types
 import { InspectionChangeLog } from '@prisma/client';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle } from '@nestjs/throttler';
 
 /**
  * @class PublicApiController
@@ -48,6 +48,7 @@ import { Throttle } from '@nestjs/throttler';
  * Handles requests for publicly accessible data such as inspector lists and inspection summaries.
  */
 @ApiTags('Public API') // Tag for Swagger documentation, categorizing endpoints under 'Public API'
+@SkipThrottle()
 @Controller('public') // Base path for all routes defined in this controller
 export class PublicApiController {
   // Logger instance for logging messages within this controller
@@ -75,7 +76,6 @@ export class PublicApiController {
    * @returns {Promise<UserResponseDto[]>} A promise that resolves to an array of UserResponseDto objects representing inspector users.
    */
   @Get('users/inspectors') // Defines the GET endpoint for retrieving all inspectors
-  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiOperation({
     summary: 'Retrieve all inspector users (Public)',
     description:
@@ -117,7 +117,6 @@ export class PublicApiController {
    * @throws {InternalServerErrorException} If there is a data inconsistency or an internal server error during mapping.
    */
   @Get('latest-archived') // Defines the GET endpoint for retrieving latest archived inspections
-  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @HttpCode(HttpStatus.OK) // Sets the HTTP status code for successful responses to 200 OK
   @ApiOperation({
     summary: 'Retrieve 5 latest ARCHIVED inspections with specific details',
@@ -177,7 +176,6 @@ export class PublicApiController {
    * @throws {NotFoundException} If the inspection with the given ID is not found.
    */
   @Get('inspections/:id') // Defines the GET endpoint for retrieving a single inspection by ID
-  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({
     summary: 'Retrieve a specific inspection by ID',
     description:
@@ -221,7 +219,6 @@ export class PublicApiController {
    * @returns {Promise<InspectionResponseDto>} A promise that resolves to the inspection record summary without sensitive documents.
    */
   @Get('inspections/:id/no-docs')
-  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({
     summary: 'Retrieve an inspection by ID without sensitive documents',
     description:
@@ -260,7 +257,6 @@ export class PublicApiController {
    * @throws {NotFoundException} If the inspection is not found.
    */
   @Get('inspections/:id/changelog') // Defines the GET endpoint for retrieving inspection change logs
-  @Throttle({ default: { limit: 120, ttl: 60000 } })
   @ApiOperation({
     summary: 'Get inspection change log',
     description: 'Retrieves the change log entries for a specific inspection.',

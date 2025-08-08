@@ -38,7 +38,7 @@ import { InspectionBranchesService } from './inspection-branches.service';
 import { CreateInspectionBranchCityDto } from './dto/create-inspection-branch-city.dto';
 import { UpdateInspectionBranchCityDto } from './dto/update-inspection-branch-city.dto';
 import { InspectionBranchCityResponseDto } from './dto/inspection-branch-city-response.dto';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 @ApiTags('Inspection Branches')
 @Controller('inspection-branches')
@@ -58,9 +58,10 @@ export class InspectionBranchesController {
    * @throws ForbiddenException if the user does not have the required role.
    */
   @Post()
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new inspection branch city' })
   @ApiBody({ type: CreateInspectionBranchCityDto })
@@ -95,7 +96,7 @@ export class InspectionBranchesController {
    * @returns A promise that resolves to an array of InspectionBranchCityResponseDto.
    */
   @Get()
-  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @SkipThrottle()
   @ApiOperation({ summary: 'Get all inspection branch cities' })
   @ApiResponse({
     status: 200,
@@ -115,6 +116,7 @@ export class InspectionBranchesController {
    */
   @Get(':id')
   @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @ApiOperation({ summary: 'Get an inspection branch city by ID' })
   @ApiParam({
     name: 'id',
@@ -147,9 +149,10 @@ export class InspectionBranchesController {
    * @throws NotFoundException if the inspection branch city is not found.
    */
   @Put(':id')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update an inspection branch city by ID' })
   @ApiParam({
@@ -200,9 +203,10 @@ export class InspectionBranchesController {
    * @throws NotFoundException if the inspection branch city is not found.
    */
   @Delete(':id')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN)
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete an inspection branch city by ID' })
   @ApiParam({

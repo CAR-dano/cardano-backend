@@ -15,7 +15,7 @@
 
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
 import { ExternalAuthModule } from './external-auth/external-auth.module';
@@ -32,8 +32,6 @@ import { InspectionChangeLogModule } from './inspection-change-log/inspection-ch
 import { DashboardModule } from './dashboard/dashboard.module';
 import { IpfsModule } from './ipfs/ipfs.module';
 
-import { APP_GUARD } from '@nestjs/core';
-
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -43,7 +41,7 @@ import { APP_GUARD } from '@nestjs/core';
     ThrottlerModule.forRoot([
       {
         ttl: 60000,
-        limit: 20,
+        limit: 200,
       },
     ]),
     // --- ServeStaticModule Configuration ---
@@ -90,11 +88,5 @@ import { APP_GUARD } from '@nestjs/core';
     IpfsModule,
   ],
   controllers: [],
-  providers: [
-    {
-      provide: APP_GUARD,
-      useClass: ThrottlerGuard,
-    },
-  ],
 })
 export class AppModule {}

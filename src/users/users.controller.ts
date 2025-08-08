@@ -48,12 +48,11 @@ import { InspectorResponseDto } from './dto/inspector-response.dto';
 import { GeneratePinResponseDto } from './dto/generate-pin-response.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 import { UpdateInspectorDto } from './dto/update-inspector.dto';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 @ApiTags('User Management (Admin)') // Tag for documentation
 @ApiBearerAuth('JwtAuthGuard') // Indicate JWT is needed for all endpoints here
 @UseGuards(JwtAuthGuard, RolesGuard) // Apply both guards at the controller level
-@Throttle({ default: { limit: 10, ttl: 60000 } })
 @Controller('admin/users') // Base path: /api/v1/admin/users
 export class UsersController {
   private readonly logger = new Logger(UsersController.name);
@@ -69,6 +68,8 @@ export class UsersController {
    * @returns A promise that resolves to an array of UserResponseDto.
    */
   @Get()
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @Roles(Role.ADMIN) // Only ADMINs can access this
   @ApiOperation({
     summary: 'Retrieve all users (Admin Only)',
@@ -101,6 +102,8 @@ export class UsersController {
    * @returns A promise that resolves to an array of UserResponseDto.
    */
   @Get('inspectors') // Specific endpoint for finding all inspectors
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @Roles(Role.ADMIN) // Only ADMINs can access this
   @ApiOperation({
     summary: 'Retrieve all inspector users',
@@ -131,6 +134,8 @@ export class UsersController {
    * @throws NotFoundException if the user with the specified ID is not found.
    */
   @Get(':id')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @Roles(Role.ADMIN)
   @ApiOperation({
     summary: 'Retrieve user by ID (Admin Only)',
@@ -183,6 +188,8 @@ export class UsersController {
    * @throws NotFoundException if the user with the specified ID is not found.
    */
   @Put(':id/role') // Using PUT as role is a specific resource attribute being replaced
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -247,6 +254,7 @@ export class UsersController {
    * @throws NotFoundException if the user with the specified ID is not found.
    */
   @Put(':id/disable') // Using PUT to set a specific state
+  @SkipThrottle()
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -296,6 +304,7 @@ export class UsersController {
    * @throws NotFoundException if the user with the specified ID is not found.
    */
   @Put(':id/enable') // Using PUT to set a specific state
+  @SkipThrottle()
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -343,6 +352,8 @@ export class UsersController {
    * @returns {Promise<InspectorResponseDto>} The created inspector's profile, including the generated PIN.
    */
   @Post('inspector')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @Roles(Role.ADMIN) // Only ADMINs can access this
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new inspector user (Admin only)' })
@@ -387,6 +398,8 @@ export class UsersController {
    * @throws ConflictException if a user with the provided email, username, or wallet address already exists.
    */
   @Put(':id') // General PUT endpoint for user updates
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -448,6 +461,8 @@ export class UsersController {
    * @throws ConflictException if a user with the provided email or username already exists.
    */
   @Put('inspector/:id')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -512,6 +527,8 @@ export class UsersController {
    * @throws NotFoundException if the user with the specified ID is not found or is not an inspector.
    */
   @Post('inspector/:id/generate-pin')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -560,6 +577,8 @@ export class UsersController {
    * @throws NotFoundException if the user with the specified ID is not found.
    */
   @Delete(':id') // DELETE endpoint for deleting users
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @Roles(Role.ADMIN)
   @HttpCode(HttpStatus.NO_CONTENT) // 204 No Content for successful DELETE
   @ApiOperation({

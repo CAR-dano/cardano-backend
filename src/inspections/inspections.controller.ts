@@ -68,7 +68,8 @@ import { Req } from '@nestjs/common'; // Import Req decorator
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { FileValidationPipe } from './pipes/file-validation.pipe';
-import { Throttle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { skip } from 'rxjs';
 
 // Define an interface for the expected photo metadata structure
 interface PhotoMetadata {
@@ -131,7 +132,8 @@ export class InspectionsController {
   @HttpCode(HttpStatus.CREATED)
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.INSPECTOR)
-  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   // @ApiBearerAuth()
   @ApiOperation({
     summary: 'Create a new inspection record (Inspector only)',
@@ -177,6 +179,7 @@ export class InspectionsController {
    * @returns A promise that resolves to the updated inspection record summary.
    */
   @Put(':id')
+  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
@@ -244,10 +247,10 @@ export class InspectionsController {
    * @returns {Promise<PhotoResponseDto[]>} Array of created photo record summaries.
    */
   @Post(':id/photos/multiple') // Renamed endpoint
+  @SkipThrottle()
   @HttpCode(HttpStatus.CREATED)
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.INSPECTOR)
-  @Throttle({ default: { limit: 40, ttl: 60000 } })
   @UseInterceptors(
     FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST, {
       storage: photoStorageConfig,
@@ -332,10 +335,10 @@ export class InspectionsController {
    * @returns A promise that resolves to the created photo record summary.
    */
   @Post(':id/photos/single')
+  @SkipThrottle()
   @HttpCode(HttpStatus.CREATED)
   // @UseGuards(JwtAuthGuard, RolesGuard)
   // @Roles(Role.INSPECTOR)
-  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseInterceptors(
     FileInterceptor('photo', {
       storage: photoStorageConfig,
@@ -423,9 +426,10 @@ export class InspectionsController {
    * @returns A promise that resolves to an array of photo record summaries.
    */
   @Get(':id/photos')
+  @SkipThrottle()
+  @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
-  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve all photos for an inspection',
@@ -473,6 +477,8 @@ export class InspectionsController {
    * @returns A promise that resolves to the updated photo record summary.
    */
   @Put(':id/photos/:photoId')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(
     FileInterceptor('photo', {
@@ -557,6 +563,7 @@ export class InspectionsController {
    * @returns A promise that resolves when the photo is deleted.
    */
   @Delete(':id/photos/:photoId')
+  @SkipThrottle()
   @HttpCode(HttpStatus.NO_CONTENT) // Standard for successful DELETE with no body
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
@@ -613,9 +620,9 @@ export class InspectionsController {
    * @throws {NotFoundException} If inspection not found.
    */
   @Get('search')
+  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
-  @Throttle({ default: { limit: 30, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Search for an inspection by vehicle plate number',
@@ -660,10 +667,10 @@ export class InspectionsController {
    * @returns {Promise<InspectionResponseDto[]>} A list of found inspection summaries.
    */
   @Get('search/keyword')
+  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
-  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Search for inspections by a general keyword',
@@ -704,8 +711,8 @@ export class InspectionsController {
    */
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @SkipThrottle()
   @Roles(Role.ADMIN, Role.REVIEWER)
-  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve all inspection records with pagination',
@@ -834,9 +841,9 @@ export class InspectionsController {
    * @returns A promise that resolves to the inspection record summary.
    */
   @Get(':id')
+  @SkipThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
-  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve a specific inspection by ID',
@@ -888,6 +895,8 @@ export class InspectionsController {
    * @returns {Promise<InspectionResponseDto>} The approved inspection record summary.
    */
   @Patch(':id/approve')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
@@ -950,6 +959,8 @@ export class InspectionsController {
    * @returns {Promise<InspectionResponseDto>} The archived inspection record summary.
    */
   @Put(':id/archive')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
@@ -1015,6 +1026,8 @@ export class InspectionsController {
    * @throws BadRequestException if adminAddress is not provided in the request body.
    */
   @Post(':id/build-archive-tx')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
   @ApiBearerAuth()
@@ -1070,6 +1083,8 @@ export class InspectionsController {
    * @returns A promise that resolves to the updated inspection record summary.
    */
   @Post(':id/confirm-archive')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
@@ -1120,6 +1135,7 @@ export class InspectionsController {
    * @returns {Promise<InspectionResponseDto>} The deactivated inspection record summary.
    */
   @Patch(':id/deactivate')
+  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
@@ -1173,6 +1189,7 @@ export class InspectionsController {
    * @returns {Promise<InspectionResponseDto>} The activated inspection record summary.
    */
   @Patch(':id/activate')
+  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER)
