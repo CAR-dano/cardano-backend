@@ -282,7 +282,7 @@ export class AuthController {
       // Successful login, redirect to frontend with tokens
       // It's generally safer to pass tokens in a query parameter for a one-time read
       res.redirect(
-        `${clientUrl}/auth?accessToken=${accessToken}&refreshToken=${refreshToken}`,
+        `${clientUrl}/auth?token=${accessToken}&refreshToken=${refreshToken}`,
       );
     } catch (error) {
       this.logger.error(

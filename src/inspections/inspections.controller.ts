@@ -809,7 +809,7 @@ export class InspectionsController {
     }
 
     this.logger.warn(
-      `[GET /inspections] Applying filter for DUMMY role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${parsedStatus ? parsedStatus.join(',') : 'undefined'}`,
+      `[GET /inspections] Applying filter for role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${parsedStatus ? parsedStatus.join(',') : 'undefined'}`,
     );
     const result = await this.inspectionsService.findAll(
       userRole,
