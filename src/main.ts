@@ -55,7 +55,7 @@ async function bootstrap() {
       transformOptions: {
         enableImplicitConversion: true, // Helps implicit type conversion (e.g. string to number in query)
       },
-      forbidNonWhitelisted: true, // Reject the request if any property is not listed in the DTO
+      // forbidNonWhitelisted: true, // Reject the request if any property is not listed in the DTO
       disableErrorMessages: false, // Show validation error messages (set true in production if necessary)
     }),
   );

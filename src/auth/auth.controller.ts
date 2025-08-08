@@ -86,7 +86,7 @@ export class AuthController {
    */
   @Post('register')
   @ApiOperation({ summary: 'Register a new user locally' })
-  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
   @ApiBody({ type: RegisterUserDto })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -124,7 +124,7 @@ export class AuthController {
    */
   @Post('login')
   @UseGuards(LocalAuthGuard) // Apply LocalAuthGuard to trigger LocalStrategy validation
-  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @Throttle({ default: { limit: 8, ttl: 60000 } })
   @HttpCode(HttpStatus.OK) // Return 200 OK on successful login
   @ApiOperation({
     summary: 'Login with local credentials (email/username + password)',
@@ -173,7 +173,7 @@ export class AuthController {
    */
   @Post('login/inspector')
   @UseGuards(InspectorGuard)
-  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @Throttle({ default: { limit: 8, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login for inspectors with PIN' })
   @ApiBody({ type: LoginInspectorDto })
@@ -359,7 +359,6 @@ export class AuthController {
    */
   @Get('profile')
   @UseGuards(JwtAuthGuard) // Protect with JWT
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @ApiOperation({ summary: 'Get logged-in user profile' })
   @ApiResponse({
