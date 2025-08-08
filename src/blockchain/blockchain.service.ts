@@ -161,6 +161,22 @@ export class BlockchainService {
     );
 
     try {
+      const balance = await this.wallet.getBalance();
+      const lovelaceBalance =
+        balance.find((asset) => asset.unit === 'lovelace')?.quantity ?? '0';
+      const lovelaceAmount = parseInt(lovelaceBalance, 10);
+      const balanceInAda = lovelaceAmount / 1000000;
+
+      // 5 ADA = 5,000,000 lovelace
+      if (lovelaceAmount < 5000000) {
+        throw new BadRequestException(
+          `Wallet has not enough funds or the balance is insufficient. Current balance: ${balanceInAda.toFixed(
+            6,
+          )} ADA.`,
+        );
+      }
+      this.logger.debug(`Current balance: ${balanceInAda.toFixed(6)} ADA.`);
+
       const utxos = await this.wallet.getUtxos();
       if (!utxos || utxos.length === 0) {
         throw new InternalServerErrorException(
