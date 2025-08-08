@@ -53,7 +53,6 @@ const PDF_PUBLIC_BASE_URL = process.env.PDF_PUBLIC_BASE_URL || '/pdfarchived'; /
 interface NftMetadata {
   vehicleNumber: string | null;
   pdfHash: string | null;
-  pdfHashNonConfidential: string | null;
 }
 
 /**
@@ -1120,7 +1119,7 @@ export class InspectionsService {
     await fs.writeFile(pdfFilePath, pdfBuffer);
     this.logger.log(`PDF report saved to: ${pdfFilePath}`);
 
-    const hash = crypto.createHash('sha512');
+    const hash = crypto.createHash('sha256');
     hash.update(pdfBuffer);
     const pdfHashString = hash.digest('hex');
     this.logger.log(
@@ -1601,8 +1600,7 @@ export class InspectionsService {
         // Now that we've checked for null, we can safely assert these are strings for the metadata type
         const metadataForNft: NftMetadata = {
           vehicleNumber: inspection.vehiclePlateNumber,
-          pdfHash: inspection.pdfFileHash,
-          pdfHashNonConfidential: inspection.pdfFileHashNoDocs,
+          pdfHash: inspection.pdfFileHashNoDocs,
         };
         // Hapus field null/undefined dari metadata jika perlu (This step might be redundant now with checks above, but kept for safety)
         Object.keys(metadataForNft).forEach((key) =>
