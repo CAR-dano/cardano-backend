@@ -70,6 +70,7 @@ export class BlockchainService {
   private readonly blockfrostProvider: BlockfrostProvider;
   private readonly wallet: MeshWallet; // Use AppWallet type for better type safety
   private readonly apiKey: string;
+  private readonly secretKey: string;
   private readonly blockfrostBaseUrl: string;
 
   /**
@@ -97,22 +98,11 @@ export class BlockchainService {
     // Initialize Wallet - Ensure WALLET_SECRET_KEY is set securely in .env
     // WARNING: Storing secret keys directly like this is NOT recommended for production.
     // Consider using secure key management solutions or backend wallets like Nami/Eternl with connector approach.
-    let secretKey: string | undefined;
-    switch (blockfrostEnv) {
-      case 'preview':
-      case 'preprod':
-        secretKey = this.configService.get<string>('WALLET_SECRET_KEY_TESTNET');
-        break;
-      case 'mainnet':
-        secretKey = this.configService.get<string>('WALLET_SECRET_KEY_mainnet');
-        break;
-      default:
-        throw new Error(
-          `Unsupported BLOCKFROST_ENV for wallet: ${blockfrostEnv as string}`,
-        );
-    }
+    this.secretKey = this.configService.getOrThrow<string>(
+      `WALLET_SECRET_KEY_${blockfrostEnv.toUpperCase()}`,
+    );
 
-    if (!secretKey) {
+    if (!this.secretKey) {
       throw new Error(
         `WALLET_SECRET_KEY for environment ${blockfrostEnv} is not set!`,
       );
@@ -124,7 +114,7 @@ export class BlockchainService {
       submitter: this.blockfrostProvider,
       key: {
         type: 'root', // Assuming root key from bech32 string
-        bech32: secretKey,
+        bech32: this.secretKey,
       },
       // Parameters can be added here if needed globally
     });
