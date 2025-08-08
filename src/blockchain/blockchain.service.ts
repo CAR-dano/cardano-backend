@@ -54,7 +54,6 @@ import { PlutusBlueprint, PlutusValidator } from './types/blueprint.type';
 export interface InspectionNftMetadata {
   vehicleNumber: string;
   pdfHash: string;
-  pdfHashNonConfidential: string;
 }
 interface Script {
   code: string;
