@@ -30,6 +30,7 @@ enum Role {
   INSPECTOR // User who performs the vehicle inspection and submits data
   CUSTOMER // General user who views inspection reports (potentially)
   DEVELOPER // External developer using the public API
+  SUPERADMIN // Super Administrator with elevated privileges
 }
 
 // Defines the possible statuses for an inspection record.
