@@ -182,7 +182,7 @@ export class InspectionsController {
   @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Update an existing inspection record',
@@ -429,7 +429,7 @@ export class InspectionsController {
   @SkipThrottle()
   @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve all photos for an inspection',
@@ -486,7 +486,7 @@ export class InspectionsController {
     }),
   ) // Handle single optional file
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Update a specific photo',
@@ -566,7 +566,7 @@ export class InspectionsController {
   @SkipThrottle()
   @HttpCode(HttpStatus.NO_CONTENT) // Standard for successful DELETE with no body
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Delete a specific photo',
@@ -670,7 +670,7 @@ export class InspectionsController {
   @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Search for inspections by a general keyword',
@@ -712,7 +712,7 @@ export class InspectionsController {
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @SkipThrottle()
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve all inspection records with pagination',
@@ -843,7 +843,7 @@ export class InspectionsController {
   @Get(':id')
   @SkipThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve a specific inspection by ID',
@@ -899,7 +899,7 @@ export class InspectionsController {
   @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Approve a submitted inspection',
@@ -963,7 +963,7 @@ export class InspectionsController {
   @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -1029,7 +1029,7 @@ export class InspectionsController {
   @Throttle({ default: { limit: 20, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Step 1 - Build Unsigned Archive Transaction' })
   @ApiBody({ type: BuildMintRequestDto })
@@ -1087,7 +1087,7 @@ export class InspectionsController {
   @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Step 2 - Confirm and Save Minting Results' })
   @ApiResponse({
@@ -1138,7 +1138,7 @@ export class InspectionsController {
   @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Deactivate an archived inspection',
@@ -1192,7 +1192,7 @@ export class InspectionsController {
   @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Activate a deactivated inspection',

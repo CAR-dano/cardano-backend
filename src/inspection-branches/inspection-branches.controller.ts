@@ -61,7 +61,7 @@ export class InspectionBranchesController {
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new inspection branch city' })
   @ApiBody({ type: CreateInspectionBranchCityDto })
@@ -152,7 +152,7 @@ export class InspectionBranchesController {
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update an inspection branch city by ID' })
   @ApiParam({
@@ -206,7 +206,7 @@ export class InspectionBranchesController {
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete an inspection branch city by ID' })
   @ApiParam({

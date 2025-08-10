@@ -46,7 +46,7 @@ export class DashboardController {
    * @returns A promise that resolves to the main statistics data.
    */
   @Get('main-stats')
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Get main order statistics' })
   @ApiResponse({
     status: 200,
@@ -67,7 +67,7 @@ export class DashboardController {
    * @returns A promise that resolves to the order trend data.
    */
   @Get('order-trend')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Get order trend data' })
   @ApiResponse({
     status: 200,
@@ -88,7 +88,7 @@ export class DashboardController {
    * @returns A promise that resolves to the branch distribution data.
    */
   @Get('branch-distribution')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiOperation({
     summary: 'Get order distribution by branch',
   })
@@ -111,7 +111,7 @@ export class DashboardController {
    * @returns A promise that resolves to the inspector performance data.
    */
   @Get('inspector-performance')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Get inspector performance' })
   @ApiResponse({
     status: 200,

@@ -70,7 +70,7 @@ export class UsersController {
   @Get()
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
-  @Roles(Role.ADMIN) // Only ADMINs can access this
+  @Roles(Role.ADMIN, Role.SUPERADMIN) // Only ADMINs can access this
   @ApiOperation({
     summary: 'Retrieve all users (Admin Only)',
     description:
@@ -104,7 +104,7 @@ export class UsersController {
   @Get('inspectors') // Specific endpoint for finding all inspectors
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
-  @Roles(Role.ADMIN) // Only ADMINs can access this
+  @Roles(Role.ADMIN, Role.SUPERADMIN) // Only ADMINs can access this
   @ApiOperation({
     summary: 'Retrieve all inspector users',
     description:
@@ -136,7 +136,7 @@ export class UsersController {
   @Get(':id')
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiOperation({
     summary: 'Retrieve user by ID (Admin Only)',
     description:
@@ -190,7 +190,7 @@ export class UsersController {
   @Put(':id/role') // Using PUT as role is a specific resource attribute being replaced
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Update user role (Admin Only)',
@@ -255,7 +255,7 @@ export class UsersController {
    */
   @Put(':id/disable') // Using PUT to set a specific state
   @SkipThrottle()
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Disable user account (Admin Only)',
@@ -305,7 +305,7 @@ export class UsersController {
    */
   @Put(':id/enable') // Using PUT to set a specific state
   @SkipThrottle()
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Enable user account (Admin Only)',
@@ -354,7 +354,7 @@ export class UsersController {
   @Post('inspector')
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
-  @Roles(Role.ADMIN) // Only ADMINs can access this
+  @Roles(Role.ADMIN, Role.SUPERADMIN) // Only ADMINs can access this
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new inspector user (Admin only)' })
   @ApiBody({
@@ -400,7 +400,7 @@ export class UsersController {
   @Put(':id') // General PUT endpoint for user updates
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Update user details (Admin Only)',
@@ -463,7 +463,7 @@ export class UsersController {
   @Put('inspector/:id')
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Update inspector details (Admin Only)',
@@ -529,7 +529,7 @@ export class UsersController {
   @Post('inspector/:id/generate-pin')
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Generate a new PIN for an inspector (Admin Only)',
@@ -579,7 +579,7 @@ export class UsersController {
   @Delete(':id') // DELETE endpoint for deleting users
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @HttpCode(HttpStatus.NO_CONTENT) // 204 No Content for successful DELETE
   @ApiOperation({
     summary: 'Delete a user (Admin Only) - Use with caution!',
