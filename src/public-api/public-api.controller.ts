@@ -29,14 +29,15 @@ import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 
 // Services
 import { UsersService } from '../users/users.service';
-import { InspectionsService } from 'src/inspections/inspections.service';
+// Use relative imports instead of root-based paths for better Jest compatibility
+import { InspectionsService } from '../inspections/inspections.service';
 import { PublicApiService } from './public-api.service';
 
 // DTOs (Data Transfer Objects)
 import { UserResponseDto } from '../users/dto/user-response.dto';
-import { LatestArchivedInspectionResponseDto } from 'src/inspections/dto/latest-archived-inspection-response.dto';
-import { InspectionResponseDto } from 'src/inspections/dto/inspection-response.dto';
-import { InspectionChangeLogResponseDto } from 'src/inspection-change-log/dto/inspection-change-log-response.dto';
+import { LatestArchivedInspectionResponseDto } from '../inspections/dto/latest-archived-inspection-response.dto';
+import { InspectionResponseDto } from '../inspections/dto/inspection-response.dto';
+import { InspectionChangeLogResponseDto } from '../inspection-change-log/dto/inspection-change-log-response.dto';
 
 // Prisma types
 import { InspectionChangeLog } from '@prisma/client';

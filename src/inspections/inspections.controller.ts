@@ -56,8 +56,9 @@ import {
   ApiTags,
   ApiBearerAuth,
 } from '@nestjs/swagger';
-import { AddMultiplePhotosDto } from 'src/photos/dto/add-multiple-photos.dto';
-import { AddSinglePhotoDto } from 'src/inspections/dto/add-single-photo.dto';
+// Use relative imports to avoid module resolution issues in tests and runtime
+import { AddMultiplePhotosDto } from '../photos/dto/add-multiple-photos.dto';
+import { AddSinglePhotoDto } from './dto/add-single-photo.dto';
 import { BuildMintTxResponseDto } from '../blockchain/dto/build-mint-tx-response.dto';
 import { BuildMintRequestDto } from './dto/build-mint-request.dto';
 import { ConfirmMintDto } from './dto/confirm-mint.dto';
