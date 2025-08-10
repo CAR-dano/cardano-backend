@@ -24,6 +24,7 @@ import {
   HttpCode,
   HttpStatus,
   NotFoundException,
+  ForbiddenException,
   Logger,
   Delete, // Add Delete
   Post, // Import Post
@@ -33,6 +34,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // JWT authenticat
 import { RolesGuard } from '../auth/guards/roles.guard'; // Role-based authorization
 import { Roles } from '../auth/decorators/roles.decorator'; // Decorator to specify allowed roles
 import { Role } from '@prisma/client'; // Role enum
+import { GetUser } from '../auth/decorators/get-user.decorator';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -232,10 +234,19 @@ export class UsersController {
   async updateUserRole(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserRoleDto: UpdateUserRoleDto,
+    @GetUser('id') adminId: string,
   ): Promise<UserResponseDto> {
     this.logger.log(
       `Admin request: update role for user ${id} to ${updateUserRoleDto.role}`,
     );
+    // Prevent admins from changing their own role
+    if (id === adminId) {
+      this.logger.warn(
+        `Admin ${adminId} attempted to change their own role to ${updateUserRoleDto.role}`,
+      );
+      throw new ForbiddenException('Admins cannot change their own role.');
+    }
+
     // Service handles NotFoundException if user doesn't exist
     const updatedUser = await this.usersService.updateRole(
       id,

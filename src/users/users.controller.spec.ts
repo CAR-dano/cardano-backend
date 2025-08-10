@@ -243,6 +243,10 @@ describe('UsersController', () => {
     };
     const mockUpdatedResponse = new UserResponseDto(mockUpdatedUser);
 
+    beforeEach(() => {
+      jest.clearAllMocks();
+    });
+
     /**
      * Tests successful role update.
      * Expects usersService.updateRole to be called with ID and new role from DTO,
@@ -253,7 +257,11 @@ describe('UsersController', () => {
       mockUsersService.updateRole.mockResolvedValue(mockUpdatedUser);
 
       // Act
-      const result = await controller.updateUserRole(testId, updateDto);
+      const result = await controller.updateUserRole(
+        testId,
+        updateDto,
+        'admin-uuid',
+      );
 
       // Assert
       expect(usersService.updateRole).toHaveBeenCalledWith(
@@ -278,7 +286,7 @@ describe('UsersController', () => {
 
       // Act & Assert
       await expect(
-        controller.updateUserRole(testId, updateDto),
+        controller.updateUserRole(testId, updateDto, 'admin-uuid'),
       ).rejects.toThrow(NotFoundException);
       expect(usersService.updateRole).toHaveBeenCalledWith(
         testId,
@@ -296,12 +304,23 @@ describe('UsersController', () => {
 
       // Act & Assert
       await expect(
-        controller.updateUserRole(testId, updateDto),
+        controller.updateUserRole(testId, updateDto, 'admin-uuid'),
       ).rejects.toThrow(InternalServerErrorException);
       expect(usersService.updateRole).toHaveBeenCalledWith(
         testId,
         updateDto.role,
       );
+    });
+
+    /**
+     * Tests that an admin cannot change their own role.
+     */
+    it('should throw ForbiddenException if admin tries to change own role', async () => {
+      const adminId = 'admin-uuid';
+      await expect(
+        controller.updateUserRole(adminId, updateDto, adminId),
+      ).rejects.toThrow(ForbiddenException);
+      expect(usersService.updateRole).not.toHaveBeenCalled();
     });
   });
 
