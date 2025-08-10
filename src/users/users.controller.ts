@@ -48,7 +48,10 @@ import { InspectorResponseDto } from './dto/inspector-response.dto';
 import { GeneratePinResponseDto } from './dto/generate-pin-response.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 import { UpdateInspectorDto } from './dto/update-inspector.dto';
+
+import { CreateAdminDto } from './dto/create-admin.dto'; // Import CreateAdminDto
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+
 
 @ApiTags('User Management (Admin)') // Tag for documentation
 @ApiBearerAuth('JwtAuthGuard') // Indicate JWT is needed for all endpoints here
@@ -123,6 +126,77 @@ export class UsersController {
     this.logger.log(`findAllInspectors users`);
     const users = await this.usersService.findAllInspectors();
     return users.map((user) => new UserResponseDto(user)); // Map to safe DTO
+  }
+
+  /**
+   * Retrieves a list of all admin and superadmin users.
+   * Requires SUPERADMIN role.
+   *
+   * @returns A promise that resolves to an array of UserResponseDto.
+   */
+  @Get('admins')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @Roles(Role.SUPERADMIN)
+  @ApiOperation({
+    summary: 'Retrieve all admin and superadmin users (Superadmin Only)',
+    description:
+      'Fetches a list of all user accounts with ADMIN or SUPERADMIN roles.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of admin and superadmin users.',
+    type: [UserResponseDto],
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async findAllAdminsAndSuperAdmins(): Promise<UserResponseDto[]> {
+    this.logger.log(`Superadmin request: findAllAdminsAndSuperAdmins`);
+    const users = await this.usersService.findAllAdminsAndSuperAdmins();
+    return users.map((user) => new UserResponseDto(user));
+  }
+
+  /**
+   * Creates a new user with the 'ADMIN' or 'SUPERADMIN' role.
+   * This endpoint is restricted to users with the 'SUPERADMIN' role.
+   *
+   * @param createAdminDto - DTO containing the new admin's details.
+   * @returns {Promise<UserResponseDto>} The created user's profile.
+   */
+  @Post('admin-user')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @Roles(Role.SUPERADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create a new admin/superadmin user (Superadmin only)',
+  })
+  @ApiBody({
+    type: CreateAdminDto,
+    description: 'Details for the new admin or superadmin user.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'The user has been successfully created.',
+    type: UserResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input data provided.',
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict (email/username exists).',
+  })
+  async createAdminOrSuperAdmin(
+    @Body() createAdminDto: CreateAdminDto,
+  ): Promise<UserResponseDto> {
+    this.logger.log(
+      `Superadmin request to create admin/superadmin: ${createAdminDto.username}`,
+    );
+    const newUser =
+      await this.usersService.createAdminOrSuperAdmin(createAdminDto);
+    return new UserResponseDto(newUser);
   }
 
   /**
