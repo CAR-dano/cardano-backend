@@ -1234,4 +1234,50 @@ export class InspectionsController {
     );
     return new InspectionResponseDto(inspection);
   }
+
+  /**
+   * Handles the permanent deletion of an inspection and all associated data.
+   * [DELETE /inspections/:id/permanently]
+   * This is a destructive action and can only be performed by a SUPERADMIN.
+   * It deletes the inspection record, all related photo records, and all associated files (images and PDFs) from the disk.
+   * @param {string} id - The UUID of the inspection to delete permanently.
+   * @returns {Promise<void>} A promise that resolves when the deletion is complete.
+   */
+  @Delete(':id/permanently')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Permanently delete an inspection (Superadmin Only)',
+    description:
+      'Deletes an inspection, its photos, its change logs, and all associated files from the disk. This action is irreversible.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'The UUID of the inspection to delete permanently.',
+  })
+  @ApiResponse({
+    status: 204,
+    description: 'Inspection deleted successfully.',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the SUPERADMIN role.',
+  })
+  async deleteInspectionPermanently(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    this.logger.warn(
+      `[SUPERADMIN] Received request to permanently delete inspection ${id}`,
+    );
+    await this.inspectionsService.deleteInspectionPermanently(id);
+  }
 } // End Controller

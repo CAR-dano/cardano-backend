@@ -1985,4 +1985,114 @@ export class InspectionsService {
       );
     }
   }
+
+  /**
+   * Permanently deletes an inspection, its related photos, change logs, and all associated files from disk.
+   * This is a destructive operation intended only for SUPERADMIN use.
+   *
+   * @param {string} id - The UUID of the inspection to delete.
+   * @returns {Promise<void>}
+   * @throws {NotFoundException} If the inspection with the given ID is not found.
+   * @throws {InternalServerErrorException} If any part of the deletion process fails.
+   */
+  async deleteInspectionPermanently(id: string): Promise<void> {
+    this.logger.warn(
+      `[SUPERADMIN] Initiating permanent deletion for inspection ID: ${id}`,
+    );
+
+    // 1. Fetch the inspection and its related photos to get file paths
+    const inspection = await this.prisma.inspection.findUnique({
+      where: { id },
+      include: { photos: true },
+    });
+
+    if (!inspection) {
+      this.logger.error(
+        `Inspection with ID "${id}" not found for permanent deletion.`,
+      );
+      throw new NotFoundException(`Inspection with ID "${id}" not found.`);
+    }
+
+    // 2. Correctly construct file paths based on user's clarification
+    const filePathsToDelete: string[] = [];
+    const UPLOAD_PATH = './uploads/inspection-photos';
+    const PDF_ARCHIVE_PATH = './pdfarchived';
+
+    inspection.photos.forEach((photo) => {
+      if (photo.path) {
+        // photo.url is just the filename, join it with the upload path
+        filePathsToDelete.push(path.join(UPLOAD_PATH, photo.path));
+      }
+    });
+    if (inspection.urlPdf) {
+      // inspection.urlPdf is /pdfarchived/filename.pdf, get basename and join with archive path
+      filePathsToDelete.push(
+        path.join(PDF_ARCHIVE_PATH, path.basename(inspection.urlPdf)),
+      );
+    }
+    if (inspection.urlPdfNoDocs) {
+      // inspection.urlPdfNoDocs is /pdfarchived/filename-no-docs.pdf, get basename and join
+      filePathsToDelete.push(
+        path.join(PDF_ARCHIVE_PATH, path.basename(inspection.urlPdfNoDocs)),
+      );
+    }
+
+    this.logger.log(
+      `Found ${filePathsToDelete.length} files to delete for inspection ${id}.`,
+    );
+    this.logger.debug(`Files to delete: ${JSON.stringify(filePathsToDelete)}`);
+
+    // 3. Delete files from the disk
+    for (const filePath of filePathsToDelete) {
+      try {
+        await fs.unlink(filePath);
+        this.logger.log(`Successfully deleted file: ${filePath}`);
+      } catch (error) {
+        if (error.code === 'ENOENT') {
+          this.logger.warn(`File not found, skipping deletion: ${filePath}`);
+        } else {
+          this.logger.error(
+            `Error deleting file ${filePath}: ${error.message}`,
+            error.stack,
+          );
+          // Decide if you want to stop the whole process if one file fails to delete.
+          // For now, we log the error and continue.
+        }
+      }
+    }
+
+    // 4. Delete database records within a transaction
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        this.logger.log(`Starting DB transaction to delete inspection ${id}`);
+
+        await tx.inspectionChangeLog.deleteMany({
+          where: { inspectionId: id },
+        });
+        this.logger.log(`Deleted change logs for inspection ${id}.`);
+
+        await tx.photo.deleteMany({
+          where: { inspectionId: id },
+        });
+        this.logger.log(`Deleted photo records for inspection ${id}.`);
+
+        await tx.inspection.delete({
+          where: { id },
+        });
+        this.logger.log(`Deleted inspection record ${id}.`);
+      });
+
+      this.logger.warn(
+        `[SUPERADMIN] Successfully and permanently deleted inspection ID: ${id}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Database transaction failed for permanent deletion of inspection ${id}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to permanently delete inspection data for ID ${id}.`,
+      );
+    }
+  }
 }
