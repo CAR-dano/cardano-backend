@@ -186,7 +186,7 @@ export class AuthController {
   })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
-    description: 'Invalid PIN.',
+    description: 'Invalid PIN or inactive account.',
   })
   async loginInspector(
     @Req() req: AuthenticatedRequest,
@@ -195,7 +195,19 @@ export class AuthController {
       this.logger.error('LocalPinAuthGuard succeeded but req.user is missing!');
       throw new InternalServerErrorException('Authentication flow error.');
     }
-    this.logger.log(`Inspector logged in`);
+
+    const inspector = req.user as unknown as User;
+
+    if (inspector.isActive === false) {
+      this.logger.warn(
+        `Login attempt from inactive inspector account: ${inspector.id}`,
+      );
+      throw new UnauthorizedException(
+        'Inspector account is inactive. Please contact an administrator.',
+      );
+    }
+
+    this.logger.log(`Inspector logged in: ${inspector.id}`);
     const { accessToken, refreshToken } = await this.authService.login(
       req.user as any,
     );
