@@ -18,6 +18,7 @@ import {
   ConflictException, // For handling unique constraint errors
   Logger,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; // Adjust path if needed
 import { User, Role, Prisma } from '@prisma/client';
@@ -27,6 +28,7 @@ import { v4 as uuidv4 } from 'uuid'; // Import uuid for generating unique IDs
 import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
 import { UpdateInspectorDto } from './dto/update-inspector.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
+import { CreateAdminDto } from './dto/create-admin.dto'; // Import CreateAdminDto
 
 @Injectable()
 export class UsersService {
@@ -425,19 +427,42 @@ export class UsersService {
 
   /**
    * Updates the role of a specific user. Requires ADMIN privileges (checked in Controller).
+   * Prevents an admin from changing their own role.
    *
-   * @param {string} id - The UUID of the user.
+   * @param {string} id - The UUID of the user to update.
    * @param {Role} newRole - The new role to assign.
+   * @param {string} actingUserId - The ID of the user performing the action.
    * @returns {Promise<User>} The updated user.
    * @throws {NotFoundException} If the user with the given ID is not found.
+   * @throws {BadRequestException} If a user tries to change their own role.
    * @throws {InternalServerErrorException} If a database error occurs.
    */
-  async updateRole(id: string, newRole: Role): Promise<User> {
+  async updateRole(
+    id: string,
+    newRole: Role,
+    actingUserId: string,
+    actingUserRole: Role,
+  ): Promise<User> {
     this.logger.log(
-      `Attempting to update role for user ID: ${id} to ${newRole}`,
+      `User ${actingUserId} (${actingUserRole}) attempting to update role for user ID: ${id} to ${newRole}`,
     );
+
+    if (id === actingUserId) {
+      throw new BadRequestException('An admin cannot change their own role.');
+    }
+
+    const targetUser = await this.findById(id);
+    if (!targetUser) {
+      throw new NotFoundException(`User with ID "${id}" not found.`);
+    }
+
+    if (actingUserRole === Role.ADMIN && targetUser.role === Role.SUPERADMIN) {
+      throw new ForbiddenException(
+        'Admins cannot change the role of a superadmin.',
+      );
+    }
+
     try {
-      // Use update - it implicitly checks if the user exists first
       const updatedUser = await this.prisma.user.update({
         where: { id: id },
         data: { role: newRole },
@@ -445,7 +470,6 @@ export class UsersService {
       this.logger.log(`Successfully updated role for user ID: ${id}`);
       return updatedUser;
     } catch (error) {
-      // Check if the error is because the record to update wasn't found
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2025'
@@ -455,16 +479,10 @@ export class UsersService {
           `User with ID "${id}" not found for role update.`,
         );
       }
-      if (error instanceof Error) {
-        this.logger.error(
-          `Error updating role for user ID ${id}: ${error.message}`,
-          error.stack,
-        );
-      } else {
-        this.logger.error(
-          `Unknown error updating role for user ID ${id}: ${String(error)}`,
-        );
-      }
+      this.logger.error(
+        `Error updating role for user ID ${id}: ${error.message}`,
+        error.stack,
+      );
       throw new InternalServerErrorException(
         `Could not update role for user ID ${id}.`,
       );
@@ -1237,5 +1255,102 @@ export class UsersService {
 
     this.logger.warn(`No inspector found with a matching PIN.`);
     return null;
+  }
+
+  /**
+   * Creates a new user with the 'ADMIN' or 'SUPERADMIN' role.
+   * Accessible only by SUPERADMIN.
+   *
+   * @param {CreateAdminDto} createAdminDto - DTO containing admin data.
+   * @returns {Promise<User>} The newly created user object.
+   * @throws {ConflictException} If email or username already exists.
+   * @throws {InternalServerErrorException} For database or hashing errors.
+   */
+  async createAdminOrSuperAdmin(createAdminDto: CreateAdminDto): Promise<User> {
+    this.logger.log(
+      `Attempting to create admin/superadmin user with email: ${createAdminDto.email} and username: ${createAdminDto.username}`,
+    );
+
+    // 1. Check for existing email or username
+    const existingByEmail = await this.findByEmail(createAdminDto.email);
+    if (existingByEmail) {
+      throw new ConflictException('Email address is already registered.');
+    }
+    const existingByUsername = await this.findByUsername(
+      createAdminDto.username,
+    );
+    if (existingByUsername) {
+      throw new ConflictException('Username is already taken.');
+    }
+
+    // 2. Hash the password
+    const hashedPassword = await bcrypt.hash(
+      createAdminDto.password,
+      this.saltRounds,
+    );
+
+    // 3. Create the user in the database
+    try {
+      const newUser = await this.prisma.user.create({
+        data: {
+          id: uuidv4(),
+          email: createAdminDto.email.toLowerCase(),
+          username: createAdminDto.username,
+          password: hashedPassword,
+          role: createAdminDto.role, // Assign role from DTO
+        },
+      });
+      this.logger.log(
+        `Successfully created ${createAdminDto.role} user: ${newUser.id} (${newUser.username})`,
+      );
+      return newUser;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const target = (error.meta?.target as string[]) || [];
+        if (target.includes('email')) {
+          throw new ConflictException('Email address is already registered.');
+        }
+        if (target.includes('username')) {
+          throw new ConflictException('Username is already taken.');
+        }
+        throw new ConflictException('A unique identifier is already in use.');
+      }
+      this.logger.error(
+        `Database error during admin user creation for ${createAdminDto.username}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException('Could not create admin user.');
+    }
+  }
+
+  /**
+   * Finds all users with the 'ADMIN' or 'SUPERADMIN' role.
+   *
+   * @returns {Promise<User[]>} Array of admin and superadmin users.
+   * @throws {InternalServerErrorException} If a database error occurs.
+   */
+  async findAllAdminsAndSuperAdmins(): Promise<User[]> {
+    this.logger.log('Finding all admin and superadmin users');
+    try {
+      return await this.prisma.user.findMany({
+        where: {
+          role: {
+            in: [Role.ADMIN, Role.SUPERADMIN],
+          },
+        },
+        include: { inspectionBranchCity: true },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Error finding all admin/superadmin users: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        'Database error while retrieving admin users.',
+      );
+    }
   }
 }
