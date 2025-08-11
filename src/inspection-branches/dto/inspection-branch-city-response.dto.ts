@@ -34,6 +34,13 @@ export class InspectionBranchCityResponseDto {
   city: string;
 
   /**
+   * The status of the inspection branch city.
+   * @example true
+   */
+  @ApiProperty({ example: true, description: 'Status of the city' })
+  isActive: boolean;
+
+  /**
    * The code or name of the inspection branch.
    * @example 'Main Branch'
    */
