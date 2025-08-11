@@ -426,17 +426,29 @@ export class UsersService {
 
   /**
    * Updates the role of a specific user. Requires ADMIN privileges (checked in Controller).
+   * Prevents an admin from changing their own role.
    *
-   * @param {string} id - The UUID of the user.
+   * @param {string} id - The UUID of the user to update.
    * @param {Role} newRole - The new role to assign.
+   * @param {string} actingUserId - The ID of the user performing the action.
    * @returns {Promise<User>} The updated user.
    * @throws {NotFoundException} If the user with the given ID is not found.
+   * @throws {BadRequestException} If a user tries to change their own role.
    * @throws {InternalServerErrorException} If a database error occurs.
    */
-  async updateRole(id: string, newRole: Role): Promise<User> {
+  async updateRole(
+    id: string,
+    newRole: Role,
+    actingUserId: string,
+  ): Promise<User> {
     this.logger.log(
-      `Attempting to update role for user ID: ${id} to ${newRole}`,
+      `User ${actingUserId} attempting to update role for user ID: ${id} to ${newRole}`,
     );
+
+    if (id === actingUserId) {
+      throw new BadRequestException('An admin cannot change their own role.');
+    }
+
     try {
       // Use update - it implicitly checks if the user exists first
       const updatedUser = await this.prisma.user.update({

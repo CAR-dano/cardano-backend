@@ -13,6 +13,7 @@
  * --------------------------------------------------------------------------
  */
 
+import { GetUser } from '../auth/decorators/get-user.decorator';
 import {
   Controller,
   Get,
@@ -51,7 +52,6 @@ import { UpdateInspectorDto } from './dto/update-inspector.dto';
 
 import { CreateAdminDto } from './dto/create-admin.dto'; // Import CreateAdminDto
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
-
 
 @ApiTags('User Management (Admin)') // Tag for documentation
 @ApiBearerAuth('JwtAuthGuard') // Indicate JWT is needed for all endpoints here
@@ -306,14 +306,16 @@ export class UsersController {
   async updateUserRole(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserRoleDto: UpdateUserRoleDto,
+    @GetUser('id') actingUserId: string,
   ): Promise<UserResponseDto> {
     this.logger.log(
-      `Admin request: update role for user ${id} to ${updateUserRoleDto.role}`,
+      `Admin request from user ${actingUserId} to update role for user ${id} to ${updateUserRoleDto.role}`,
     );
-    // Service handles NotFoundException if user doesn't exist
+    // Service handles NotFoundException and self-update prevention
     const updatedUser = await this.usersService.updateRole(
       id,
       updateUserRoleDto.role,
+      actingUserId,
     );
     return new UserResponseDto(updatedUser);
   }
