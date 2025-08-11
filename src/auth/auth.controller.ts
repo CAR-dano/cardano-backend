@@ -138,7 +138,7 @@ export class AuthController {
   })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
-    description: 'Invalid credentials.',
+    description: 'Invalid credentials or inactive account.',
   })
   async loginLocal(
     @Req() req: AuthenticatedRequest, // Request now has req.user populated by LocalAuthGuard/LocalStrategy
@@ -149,6 +149,16 @@ export class AuthController {
       this.logger.error('LocalAuthGuard succeeded but req.user is missing!');
       throw new InternalServerErrorException('Authentication flow error.');
     }
+
+    const user = req.user as unknown as User;
+
+    if (user.isActive === false) {
+      this.logger.warn(`Login attempt from inactive user account: ${user.id}`);
+      throw new UnauthorizedException(
+        'User account is inactive. Please contact an administrator.',
+      );
+    }
+
     this.logger.log(
       `User logged in locally: ${req.user?.email ?? req.user?.username}`,
     );
