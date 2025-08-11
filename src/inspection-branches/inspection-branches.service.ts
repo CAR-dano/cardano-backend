@@ -36,6 +36,7 @@ export class InspectionBranchesService {
       data: {
         city: createInspectionBranchCityDto.city,
         code: code,
+        isActive: createInspectionBranchCityDto.isActive,
       },
     });
   }
@@ -87,6 +88,7 @@ export class InspectionBranchesService {
       where: { id },
       data: {
         city: updateInspectionBranchCityDto.city,
+        isActive: updateInspectionBranchCityDto.isActive,
       },
     });
   }
@@ -102,6 +104,21 @@ export class InspectionBranchesService {
     await this.findOne(id); // Check if exists before deleting
     return await this.prisma.inspectionBranchCity.delete({
       where: { id },
+    });
+  }
+
+  /**
+   * Toggles the active status of an inspection branch city.
+   *
+   * @param id The ID of the inspection branch city to toggle.
+   * @returns A promise that resolves to the updated InspectionBranchCity.
+   * @throws NotFoundException if the inspection branch city with the given ID is not found.
+   */
+  async toggleActive(id: string): Promise<InspectionBranchCity> {
+    const branch = await this.findOne(id);
+    return this.prisma.inspectionBranchCity.update({
+      where: { id },
+      data: { isActive: !branch.isActive },
     });
   }
 }

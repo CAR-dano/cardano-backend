@@ -21,6 +21,7 @@ import {
   Delete,
   UseGuards,
   HttpStatus,
+  Patch,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -232,5 +233,51 @@ export class InspectionBranchesController {
   })
   async remove(@Param('id') id: string) {
     return await this.inspectionBranchesService.remove(id);
+  }
+
+  /**
+   * Toggles the active status of an inspection branch city by its ID.
+   * Restricted to ADMIN and SUPERADMIN roles only.
+   *
+   * @param id The ID of the inspection branch city to toggle.
+   * @returns A promise that resolves to the updated InspectionBranchCityResponseDto.
+   * @throws UnauthorizedException if the user is not authenticated.
+   * @throws ForbiddenException if the user does not have the required role.
+   * @throws NotFoundException if the inspection branch city is not found.
+   */
+  @Patch(':id/toggle-active')
+  @Throttle({ default: { limit: 4, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Toggle the active status of an inspection branch city by ID',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'Inspection branch city ID',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description:
+      'The inspection branch city has been successfully status updated.',
+    type: InspectionBranchCityResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Inspection branch city not found.',
+  })
+  async toggleActive(@Param('id') id: string) {
+    return await this.inspectionBranchesService.toggleActive(id);
   }
 }
