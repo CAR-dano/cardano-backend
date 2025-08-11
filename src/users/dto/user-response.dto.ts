@@ -12,7 +12,7 @@
 
 import { ApiProperty } from '@nestjs/swagger';
 import { InspectionBranchCity, Role, User } from '@prisma/client';
-import { InspectionBranchCityResponseDto } from './inspection-branch-city-response.dto';
+import { UserInspectionBranchCityResponseDto } from './inspection-branch-city-response.dto';
 
 /**
  * DTO representing the public-facing user data.
@@ -91,9 +91,9 @@ export class UserResponseDto {
   @ApiProperty({
     description: 'The inspection branch city the user is associated with',
     nullable: true,
-    type: () => InspectionBranchCityResponseDto,
+    type: () => UserInspectionBranchCityResponseDto,
   })
-  inspectionBranchCity: InspectionBranchCityResponseDto | null;
+  inspectionBranchCity: UserInspectionBranchCityResponseDto | null;
 
   /**
    * Constructor to map from a Prisma User entity to this DTO.
@@ -114,7 +114,7 @@ export class UserResponseDto {
     this.createdAt = user.createdAt;
     this.updatedAt = user.updatedAt;
     this.inspectionBranchCity = user.inspectionBranchCity
-      ? new InspectionBranchCityResponseDto(user.inspectionBranchCity)
+      ? new UserInspectionBranchCityResponseDto(user.inspectionBranchCity)
       : null;
     // Explicitly excluded: password, googleId
   }
