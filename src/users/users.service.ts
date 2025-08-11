@@ -18,6 +18,7 @@ import {
   ConflictException, // For handling unique constraint errors
   Logger,
   BadRequestException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; // Adjust path if needed
 import { User, Role, Prisma } from '@prisma/client';
@@ -440,17 +441,28 @@ export class UsersService {
     id: string,
     newRole: Role,
     actingUserId: string,
+    actingUserRole: Role,
   ): Promise<User> {
     this.logger.log(
-      `User ${actingUserId} attempting to update role for user ID: ${id} to ${newRole}`,
+      `User ${actingUserId} (${actingUserRole}) attempting to update role for user ID: ${id} to ${newRole}`,
     );
 
     if (id === actingUserId) {
       throw new BadRequestException('An admin cannot change their own role.');
     }
 
+    const targetUser = await this.findById(id);
+    if (!targetUser) {
+      throw new NotFoundException(`User with ID "${id}" not found.`);
+    }
+
+    if (actingUserRole === Role.ADMIN && targetUser.role === Role.SUPERADMIN) {
+      throw new ForbiddenException(
+        'Admins cannot change the role of a superadmin.',
+      );
+    }
+
     try {
-      // Use update - it implicitly checks if the user exists first
       const updatedUser = await this.prisma.user.update({
         where: { id: id },
         data: { role: newRole },
@@ -458,7 +470,6 @@ export class UsersService {
       this.logger.log(`Successfully updated role for user ID: ${id}`);
       return updatedUser;
     } catch (error) {
-      // Check if the error is because the record to update wasn't found
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2025'
@@ -468,16 +479,10 @@ export class UsersService {
           `User with ID "${id}" not found for role update.`,
         );
       }
-      if (error instanceof Error) {
-        this.logger.error(
-          `Error updating role for user ID ${id}: ${error.message}`,
-          error.stack,
-        );
-      } else {
-        this.logger.error(
-          `Unknown error updating role for user ID ${id}: ${String(error)}`,
-        );
-      }
+      this.logger.error(
+        `Error updating role for user ID ${id}: ${error.message}`,
+        error.stack,
+      );
       throw new InternalServerErrorException(
         `Could not update role for user ID ${id}.`,
       );

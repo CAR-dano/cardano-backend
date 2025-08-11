@@ -307,15 +307,17 @@ export class UsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserRoleDto: UpdateUserRoleDto,
     @GetUser('id') actingUserId: string,
+    @GetUser('role') actingUserRole: Role,
   ): Promise<UserResponseDto> {
     this.logger.log(
-      `Admin request from user ${actingUserId} to update role for user ${id} to ${updateUserRoleDto.role}`,
+      `Admin request from user ${actingUserId} (${actingUserRole}) to update role for user ${id} to ${updateUserRoleDto.role}`,
     );
-    // Service handles NotFoundException and self-update prevention
+    // Service handles NotFoundException, self-update prevention, and hierarchy checks
     const updatedUser = await this.usersService.updateRole(
       id,
       updateUserRoleDto.role,
       actingUserId,
+      actingUserRole,
     );
     return new UserResponseDto(updatedUser);
   }
