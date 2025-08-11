@@ -18,6 +18,7 @@ import {
   MinLength,
   Matches,
   Length,
+  IsBoolean,
 } from 'class-validator';
 
 export class UpdateInspectorDto {
@@ -82,4 +83,13 @@ export class UpdateInspectorDto {
   @IsOptional()
   @IsString()
   inspectionBranchCityId?: string;
+
+  @ApiProperty({
+    description: 'Set the user account to active or inactive',
+    example: true,
+    required: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

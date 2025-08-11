@@ -490,50 +490,6 @@ export class UsersService {
   }
 
   /**
-   * Updates the 'active' status of a user. Requires 'isActive' field in schema.
-   *
-   * @param {string} id - User UUID.
-   * @param {boolean} isActive - New status.
-   * @returns {Promise<User>} Updated user.
-   * @throws {NotFoundException} If the user with the given ID is not found.
-   * @throws {InternalServerErrorException} If a database error occurs.
-   */
-  async setStatus(id: string, isActive: boolean): Promise<User> {
-    this.logger.log(
-      `Attempting to set status for user ID: ${id} to ${isActive}`,
-    );
-    // IMPORTANT: Add 'isActive Boolean @default(true)' to your User model in schema.prisma
-    // Then run migration and generate client before using this.
-    /*
-    try {
-        const updatedUser = await this.prisma.user.update({
-            where: { id: id },
-            data: { isActive: isActive }, // Assumes 'isActive' field exists
-        });
-        this.logger.log(`Successfully set status for user ID: ${id}`);
-        return updatedUser;
-    } catch (error: unknown) { // Added type unknown
-         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
-            throw new NotFoundException(`User with ID "${id}" not found for status update.`);
-        }
-        if (error instanceof Error) { // Added type check
-            this.logger.error(`Error setting status for user ID ${id}: ${error.message}`, error.stack);
-        } else { // Added unknown error logging
-            this.logger.error(`Unknown error setting status for user ID ${id}: ${error}`);
-        }
-        throw new InternalServerErrorException(`Could not set status for user ID ${id}.`);
-    }
-    */
-    // Placeholder if 'isActive' not implemented
-    this.logger.warn(
-      "'isActive' field potentially not implemented. Skipping status update logic.",
-    );
-    const user = await this.findById(id);
-    if (!user) throw new NotFoundException(`User with ID "${id}" not found.`);
-    return user;
-  }
-
-  /**
    * Links a Google account (identified by googleId) to an existing user account.
    * Checks if the googleId is already linked to another user.
    * Optionally verifies if the provided email matches the existing user's email.
@@ -1026,6 +982,7 @@ export class UsersService {
       username: updateInspectorDto.username,
       walletAddress: updateInspectorDto.walletAddress,
       whatsappNumber: updateInspectorDto.whatsappNumber,
+      isActive: updateInspectorDto.isActive,
     };
 
     if (updateInspectorDto.inspectionBranchCityId) {
@@ -1058,7 +1015,9 @@ export class UsersService {
         error.code === 'P2002'
       ) {
         this.logger.warn(
-          `Unique constraint violation during inspector update for ID ${id}: ${String(error.meta?.target)}`,
+          `Unique constraint violation during inspector update for ID ${id}: ${String(
+            error.meta?.target,
+          )}`,
         );
         const target = (error.meta?.target as string[]) || [];
         if (target.includes('email')) {

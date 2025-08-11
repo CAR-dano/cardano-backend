@@ -68,6 +68,12 @@ export class UserResponseDto {
   role: Role;
 
   /**
+   * The user's active status.
+   */
+  @ApiProperty({ description: 'User active status' })
+  isActive: boolean;
+
+  /**
    * The timestamp when the user account was created.
    */
   @ApiProperty({ description: 'Timestamp of user creation' })
@@ -95,7 +101,7 @@ export class UserResponseDto {
    * @param user The Prisma User entity.
    */
   constructor(
-    user: User & { inspectionBranchCity?: InspectionBranchCity | null }
+    user: User & { inspectionBranchCity?: InspectionBranchCity | null },
   ) {
     this.id = user.id;
     this.email = user.email;
@@ -104,6 +110,7 @@ export class UserResponseDto {
     this.walletAddress = user.walletAddress;
     this.whatsappNumber = user.whatsappNumber;
     this.role = user.role;
+    this.isActive = user.isActive;
     this.createdAt = user.createdAt;
     this.updatedAt = user.updatedAt;
     this.inspectionBranchCity = user.inspectionBranchCity
