@@ -130,8 +130,8 @@ export class InspectionsController {
    */
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.INSPECTOR)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.INSPECTOR)
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
   // @ApiBearerAuth()
