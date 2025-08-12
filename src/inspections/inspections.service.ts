@@ -164,7 +164,6 @@ export class InspectionsService {
     );
 
     const { identityDetails } = createInspectionDto;
-    const branchCityUuid = identityDetails.cabangInspeksi;
     const customerName = identityDetails.namaCustomer;
 
     // Determine the effective inspector ID. Use the one from the DTO as a fallback if auth is disabled.
@@ -186,11 +185,12 @@ export class InspectionsService {
     let inspectorName: string | null = null;
     let branchCityName: string | null = null;
     let branchCode = 'XXX'; // Default branch code
+    let effectiveBranchCityUuid: string;
 
     try {
       const inspector = await this.prisma.user.findUnique({
         where: { id: effectiveInspectorId },
-        select: { name: true },
+        select: { name: true, inspectionBranchCityId: true },
       });
       if (!inspector) {
         throw new BadRequestException(
@@ -200,13 +200,32 @@ export class InspectionsService {
       inspectorName = inspector.name;
       this.logger.log(`Fetched inspector name: ${inspectorName}`);
 
+      // Determine the branch city UUID to use
+      if (inspector.inspectionBranchCityId) {
+        effectiveBranchCityUuid = inspector.inspectionBranchCityId;
+        this.logger.log(
+          `Using branch city from inspector profile: ${effectiveBranchCityUuid}`,
+        );
+      } else {
+        effectiveBranchCityUuid = identityDetails.cabangInspeksi;
+        this.logger.log(
+          `Using branch city from request body: ${effectiveBranchCityUuid}`,
+        );
+      }
+
+      if (!effectiveBranchCityUuid) {
+        throw new BadRequestException(
+          'Branch City ID is missing. It must be provided either in the inspector profile or in the request body.',
+        );
+      }
+
       const branchCity = await this.prisma.inspectionBranchCity.findUnique({
-        where: { id: branchCityUuid },
+        where: { id: effectiveBranchCityUuid },
         select: { city: true, code: true },
       });
       if (!branchCity) {
         throw new BadRequestException(
-          `Inspection Branch City with ID "${branchCityUuid}" not found.`,
+          `Inspection Branch City with ID "${effectiveBranchCityUuid}" not found.`,
         );
       }
       branchCityName = branchCity.city;
@@ -252,7 +271,7 @@ export class InspectionsService {
           pretty_id: customId,
           // Store the UUIDs in the dedicated ID fields
           inspector: { connect: { id: effectiveInspectorId } }, // Connect using the effective UUID
-          branchCity: { connect: { id: branchCityUuid } }, // Connect using the UUID
+          branchCity: { connect: { id: effectiveBranchCityUuid } }, // Connect using the UUID
 
           vehiclePlateNumber: createInspectionDto.vehiclePlateNumber,
           inspectionDate: inspectionDateObj,

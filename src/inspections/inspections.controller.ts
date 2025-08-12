@@ -249,15 +249,13 @@ export class InspectionsController {
   @Post(':id/photos/multiple') // Renamed endpoint
   @SkipThrottle()
   @HttpCode(HttpStatus.CREATED)
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.INSPECTOR)
   @UseInterceptors(
     FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST, {
       storage: photoStorageConfig,
     }),
   )
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   @ApiOperation({
     summary: 'Upload a batch of photos for an inspection', // Updated summary
     description:
@@ -337,8 +335,8 @@ export class InspectionsController {
   @Post(':id/photos/single')
   @SkipThrottle()
   @HttpCode(HttpStatus.CREATED)
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.INSPECTOR)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   @UseInterceptors(
     FileInterceptor('photo', {
       storage: photoStorageConfig,
