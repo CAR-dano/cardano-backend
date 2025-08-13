@@ -1172,65 +1172,38 @@ export class InspectionsService {
     this.logger.log(
       `Reviewer ${reviewerId} attempting to approve inspection ${inspectionId}`,
     );
-    this.logger.debug(
-      `Received token for approval: ${token ? 'Exists' : 'Null'}`,
-    ); // Log token presence
 
-    // 1. Find the inspection and validate status
-    const inspection = await this.prisma.inspection.findUnique({
-      where: { id: inspectionId },
-    });
+    // --- Transactional Database Update ---
+    const updatedInspectionWithChanges = await this.prisma.$transaction(
+      async (tx) => {
+        // 1. Find the inspection and validate status
+        const inspection = await tx.inspection.findUnique({
+          where: { id: inspectionId },
+        });
 
-    if (!inspection) {
-      throw new NotFoundException(
-        `Inspection with ID "${inspectionId}" not found for approval.`,
-      );
-    }
+        if (!inspection) {
+          throw new NotFoundException(
+            `Inspection with ID "${inspectionId}" not found for approval.`,
+          );
+        }
 
-    if (
-      inspection.status !== InspectionStatus.NEED_REVIEW &&
-      inspection.status !== InspectionStatus.FAIL_ARCHIVE
-    ) {
-      throw new BadRequestException(
-        `Inspection ${inspectionId} cannot be approved. Current status is '${inspection.status}'. Required: '${InspectionStatus.NEED_REVIEW}' or '${InspectionStatus.FAIL_ARCHIVE}'.`,
-      );
-    }
+        if (
+          inspection.status !== InspectionStatus.NEED_REVIEW &&
+          inspection.status !== InspectionStatus.FAIL_ARCHIVE
+        ) {
+          throw new BadRequestException(
+            `Inspection ${inspectionId} cannot be approved. Current status is '${inspection.status}'. Required: '${InspectionStatus.NEED_REVIEW}' or '${InspectionStatus.FAIL_ARCHIVE}'.`,
+          );
+        }
 
-    // --- PDF Generation (Parallel) ---
-    const timestamp = Date.now();
-    const basePrettyId = inspection.pretty_id;
-
-    // Define URLs and filenames
-    const fullPdfUrl = `${this.config.getOrThrow<string>(
-      'CLIENT_BASE_URL_PDF',
-    )}/data/${inspection.id}`;
-    const noDocsPdfUrl = `${this.config.getOrThrow<string>(
-      'CLIENT_BASE_URL_PDF',
-    )}/pdf/${inspection.id}`;
-
-    const fullPdfFileName = `${basePrettyId}-${timestamp}.pdf`;
-    const noDocsPdfFileName = `${basePrettyId}-no-confidential-${timestamp}.pdf`;
-
-    try {
-      // Run PDF generation in parallel
-      const [fullPdfResult, noDocsPdfResult] = await Promise.all([
-        this._generateAndSavePdf(fullPdfUrl, fullPdfFileName, token),
-        this._generateAndSavePdf(noDocsPdfUrl, noDocsPdfFileName, token),
-      ]);
-
-      // --- Transactional Database Update ---
-      return this.prisma.$transaction(async (tx) => {
         // 2. Fetch all change logs for this inspection
         const allChanges = await tx.inspectionChangeLog.findMany({
           where: { inspectionId: inspectionId },
-          orderBy: { changedAt: 'desc' }, // Order by latest first for easier processing
+          orderBy: { changedAt: 'desc' },
         });
 
-        // Group changes by field key and get the latest change for each field
         const latestChanges = new Map<string, InspectionChangeLog>();
-
         for (const log of allChanges) {
-          // Create a unique key for each field path
           let key = log.fieldName;
           if (log.subFieldName) {
             key += `.${log.subFieldName}`;
@@ -1238,32 +1211,13 @@ export class InspectionsService {
               key += `.${log.subsubfieldname}`;
             }
           }
-
-          // Only store if we haven't seen this field key before (since we're processing latest first)
           if (!latestChanges.has(key)) {
             latestChanges.set(key, log);
           }
         }
 
         // 3. Apply the latest changes to the inspection data
-        // Start with a partial update object
-        const updateData: Prisma.InspectionUpdateInput = {
-          status: InspectionStatus.APPROVED,
-          // Correctly update the reviewer relationship
-          reviewer: {
-            connect: { id: reviewerId },
-          },
-          // Full PDF data
-          urlPdf: fullPdfResult.pdfPublicUrl,
-          pdfFileHash: fullPdfResult.pdfHashString,
-          ipfsPdf: `ipfs://${fullPdfResult.pdfCid}`,
-          // No-Docs PDF data
-          urlPdfNoDocs: noDocsPdfResult.pdfPublicUrl,
-          pdfFileHashNoDocs: noDocsPdfResult.pdfHashString,
-          ipfsPdfNoDocs: `ipfs://${noDocsPdfResult.pdfCid}`,
-        };
-
-        // Define which top-level fields in Inspection are JSON and can be updated via change log
+        const updateData: Prisma.InspectionUpdateInput = {};
         const jsonUpdatableFields: (keyof Inspection)[] = [
           'identityDetails',
           'vehicleData',
@@ -1271,54 +1225,22 @@ export class InspectionsService {
           'inspectionSummary',
           'detailedAssessment',
           'bodyPaintThickness',
+          'notesFontSizes',
         ];
 
-        // Process each latest change
         for (const [fieldKey, changeLog] of latestChanges) {
           const value = changeLog.newValue;
-          const parts = fieldKey.split('.'); // Split key into parts
-          const fieldName = parts[0] as keyof Inspection; // Assert fieldName type
-
-          this.logger.debug(
-            `Applying change: fieldKey=${fieldKey}, value=${JSON.stringify(
-              value,
-            )}, fieldName=${fieldName}`,
-          );
+          const parts = fieldKey.split('.');
+          const fieldName = parts[0] as keyof Inspection;
 
           if (parts.length === 1) {
-            this.logger.debug(
-              `Processing top-level field from changelog. fieldName: "${fieldName}", value: "${JSON.stringify(
-                value,
-              )}"`,
-            );
-            if (
-              parts[0] === 'inspector' &&
-              value !== null &&
-              typeof value === 'string'
-            ) {
-              this.logger.debug(
-                `Condition for 'inspector' (from parts[0]) met. Applying change.`,
-              );
-              updateData.inspector = { connect: { id: value.toString() } };
-              this.logger.debug(
-                `Applied inspector change using connect: ${value}`,
-              );
-            } else if (
-              parts[0] === 'branchCity' &&
-              value !== null &&
-              typeof value === 'string'
-            ) {
-              this.logger.debug(
-                `Condition for 'branchCity' (from parts[0]) met. Applying change.`,
-              );
-              updateData.branchCity = { connect: { id: value.toString() } };
-              this.logger.debug(
-                `Applied branchCity change using connect: ${value}`,
-              );
+            if (parts[0] === 'inspector' && typeof value === 'string') {
+              updateData.inspector = { connect: { id: value } };
+            } else if (parts[0] === 'branchCity' && typeof value === 'string') {
+              updateData.branchCity = { connect: { id: value } };
             } else if (
               Object.prototype.hasOwnProperty.call(inspection, fieldName)
             ) {
-              // Handle specific top-level fields with proper type conversion
               if (
                 fieldName === 'vehiclePlateNumber' &&
                 typeof value === 'string'
@@ -1328,150 +1250,100 @@ export class InspectionsService {
                 fieldName === 'inspectionDate' &&
                 typeof value === 'string'
               ) {
-                updateData.inspectionDate = new Date(value); // Convert ISO string back to Date
+                updateData.inspectionDate = new Date(value);
               } else if (
                 fieldName === 'overallRating' &&
                 typeof value === 'string'
               ) {
                 updateData.overallRating = value;
               }
-              // Add other top-level fields here as needed with appropriate type checks and assignments
-              else {
-                // Fallback for other top-level fields, might still need refinement
-                // updateData[fieldName as keyof Prisma.InspectionUpdateInput] = value as any; // Removed generic assignment
-              }
-            } else {
-              this.logger.warn(
-                `Top-level field "${
-                  parts[0]
-                }" from changelog (key: ${fieldKey}) did not match any specific update logic. Value: ${JSON.stringify(
-                  value,
-                )}. 'inspector' check: ${
-                  parts[0] === 'inspector'
-                }. 'branchCity' check: ${
-                  parts[0] === 'branchCity'
-                }. HasOwnProperty on inspection for fieldName: ${Object.prototype.hasOwnProperty.call(
-                  inspection,
-                  fieldName,
-                )}. Ignoring.`,
-              );
             }
-          } else {
-            // Handle nested fields (subFieldName or subsubfieldname)
-            // Only apply nested changes if the fieldName is one of the designated JSON updatable fields
-            if ((jsonUpdatableFields as string[]).includes(fieldName)) {
-              // Ensure the top-level JSON field exists in updateData, initializing if necessary
-              if (
-                !updateData[fieldName as keyof Prisma.InspectionUpdateInput] ||
-                typeof updateData[
-                  fieldName as keyof Prisma.InspectionUpdateInput
-                ] !== 'object' ||
-                updateData[fieldName as keyof Prisma.InspectionUpdateInput] ===
-                  null
-              ) {
-                // Initialize with the existing value from the inspection, or an empty object if existing is null/undefined
-                (updateData[
-                  fieldName as keyof Prisma.InspectionUpdateInput
-                ] as Record<string, Prisma.JsonValue>) =
-                  inspection[fieldName] &&
-                  typeof inspection[fieldName] === 'object' &&
-                  inspection[fieldName] !== null
-                    ? {
-                        ...(inspection[fieldName] as Record<
-                          string,
-                          Prisma.JsonValue
-                        >),
-                      }
-                    : {};
-              }
-
-              if (parts.length === 2) {
-                // Handle subFieldName (one level deep)
-                const subFieldName = parts[1];
-                // Use type assertion to allow indexed access and assignment
-                (
-                  updateData[
-                    fieldName as keyof Prisma.InspectionUpdateInput
-                  ] as Record<string, Prisma.JsonValue>
-                )[subFieldName] = value;
-              } else if (parts.length === 3) {
-                // Handle subsubfieldname (two levels deep)
-                const subFieldName = parts[1];
-                const subsubfieldname = parts[2];
-
-                // Ensure the sub-field object exists, initializing if necessary
-                const currentField = updateData[
-                  fieldName as keyof Prisma.InspectionUpdateInput
-                ] as Record<string, Prisma.JsonValue>;
-
-                if (
-                  !currentField[subFieldName] ||
-                  typeof currentField[subFieldName] !== 'object' ||
-                  currentField[subFieldName] === null
-                ) {
-                  // Initialize with the existing value from the inspection, or an empty object
-                  const existingParentField = inspection[fieldName];
-                  currentField[subFieldName] =
-                    existingParentField &&
-                    typeof existingParentField === 'object' &&
-                    existingParentField !== null &&
-                    (existingParentField as Record<string, Prisma.JsonValue>)[
-                      subFieldName
-                    ] &&
-                    typeof (
-                      existingParentField as Record<string, Prisma.JsonValue>
-                    )[subFieldName] === 'object' &&
-                    (existingParentField as Record<string, Prisma.JsonValue>)[
-                      subFieldName
-                    ] !== null
-                      ? {
-                          ...((
-                            existingParentField as Record<
-                              string,
-                              Prisma.JsonValue
-                            >
-                          )[subFieldName] as Record<string, Prisma.JsonValue>),
-                        }
-                      : {};
-                }
-
-                // Use type assertion to allow indexed access and assignment
-                (
-                  currentField[subFieldName] as Record<string, Prisma.JsonValue>
-                )[subsubfieldname] = value;
-              }
-              // Ignore parts.length > 3 for now, as logging is limited to 3 levels
-            } else {
-              this.logger.warn(
-                `Attempted to apply nested change log for non-JSON field: ${fieldKey}. Ignoring.`,
-              );
-              // Optionally, log a warning or handle this case differently
+          } else if ((jsonUpdatableFields as string[]).includes(fieldName)) {
+            if (
+              !updateData[fieldName] ||
+              typeof updateData[fieldName] !== 'object'
+            ) {
+              updateData[fieldName] = inspection[fieldName]
+                ? { ...(inspection[fieldName] as any) }
+                : {};
             }
+            let current = updateData[fieldName];
+            for (let i = 1; i < parts.length - 1; i++) {
+              if (!current[parts[i]] || typeof current[parts[i]] !== 'object') {
+                current[parts[i]] = {};
+              }
+              current = current[parts[i]];
+            }
+            current[parts[parts.length - 1]] = value;
           }
         }
 
         // 4. Update the Inspection record in the database
         const updatedInspection = await tx.inspection.update({
           where: { id: inspectionId },
-          data: updateData, // Use the prepared updateData object
+          data: updateData,
         });
 
         this.logger.log(
-          `Inspection ${inspectionId} approved and updated with latest logged changes by reviewer ${reviewerId}`,
+          `Inspection ${inspectionId} updated with latest logged changes by reviewer ${reviewerId}`,
         );
         return updatedInspection;
+      },
+    );
+
+    // --- PDF Generation (Post-Transaction) ---
+    const timestamp = Date.now();
+    const basePrettyId = updatedInspectionWithChanges.pretty_id;
+
+    const fullPdfUrl = `${this.config.getOrThrow<string>(
+      'CLIENT_BASE_URL_PDF',
+    )}/data/${inspectionId}`;
+    const noDocsPdfUrl = `${this.config.getOrThrow<string>(
+      'CLIENT_BASE_URL_PDF',
+    )}/pdf/${inspectionId}`;
+
+    const fullPdfFileName = `${basePrettyId}-${timestamp}.pdf`;
+    const noDocsPdfFileName = `${basePrettyId}-no-confidential-${timestamp}.pdf`;
+
+    try {
+      const [fullPdfResult, noDocsPdfResult] = await Promise.all([
+        this._generateAndSavePdf(fullPdfUrl, fullPdfFileName, token),
+        this._generateAndSavePdf(noDocsPdfUrl, noDocsPdfFileName, token),
+      ]);
+
+      // --- Final Database Update with PDF info and Status ---
+      const finalUpdateData: Prisma.InspectionUpdateInput = {
+        status: InspectionStatus.APPROVED,
+        reviewer: { connect: { id: reviewerId } },
+        urlPdf: fullPdfResult.pdfPublicUrl,
+        pdfFileHash: fullPdfResult.pdfHashString,
+        ipfsPdf: `ipfs://${fullPdfResult.pdfCid}`,
+        urlPdfNoDocs: noDocsPdfResult.pdfPublicUrl,
+        pdfFileHashNoDocs: noDocsPdfResult.pdfHashString,
+        ipfsPdfNoDocs: `ipfs://${noDocsPdfResult.pdfCid}`,
+      };
+
+      const finalInspection = await this.prisma.inspection.update({
+        where: { id: inspectionId },
+        data: finalUpdateData,
       });
+
+      this.logger.log(`Inspection ${inspectionId} approved successfully.`);
+      return finalInspection;
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'An unknown error occurred';
-      const errorStack =
-        error instanceof Error ? error.stack : 'No stack trace available';
       this.logger.error(
         `Failed to generate or save PDF for inspection ${inspectionId}: ${errorMessage}`,
-        errorStack,
+        (error as Error).stack,
       );
+      // Optionally, revert the status if PDF generation fails
+      await this.prisma.inspection.update({
+        where: { id: inspectionId },
+        data: { status: InspectionStatus.FAIL_ARCHIVE },
+      });
       throw new InternalServerErrorException(
-        `Could not generate PDF report from URL: ${errorMessage}`,
+        `Could not generate PDF report: ${errorMessage}`,
       );
     }
   }
