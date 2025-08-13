@@ -53,7 +53,6 @@ import { PlutusBlueprint, PlutusValidator } from './types/blueprint.type';
  */
 export interface InspectionNftMetadata {
   vehicleNumber: string;
-  pdfUrl: string;
   pdfHash: string;
 }
 interface Script {
@@ -71,6 +70,7 @@ export class BlockchainService {
   private readonly blockfrostProvider: BlockfrostProvider;
   private readonly wallet: MeshWallet; // Use AppWallet type for better type safety
   private readonly apiKey: string;
+  private readonly secretKey: string;
   private readonly blockfrostBaseUrl: string;
 
   /**
@@ -98,22 +98,11 @@ export class BlockchainService {
     // Initialize Wallet - Ensure WALLET_SECRET_KEY is set securely in .env
     // WARNING: Storing secret keys directly like this is NOT recommended for production.
     // Consider using secure key management solutions or backend wallets like Nami/Eternl with connector approach.
-    let secretKey: string | undefined;
-    switch (blockfrostEnv) {
-      case 'preview':
-      case 'preprod':
-        secretKey = this.configService.get<string>('WALLET_SECRET_KEY_TESTNET');
-        break;
-      case 'mainnet':
-        secretKey = this.configService.get<string>('WALLET_SECRET_KEY_mainnet');
-        break;
-      default:
-        throw new Error(
-          `Unsupported BLOCKFROST_ENV for wallet: ${blockfrostEnv as string}`,
-        );
-    }
+    this.secretKey = this.configService.getOrThrow<string>(
+      `WALLET_SECRET_KEY_${blockfrostEnv.toUpperCase()}`,
+    );
 
-    if (!secretKey) {
+    if (!this.secretKey) {
       throw new Error(
         `WALLET_SECRET_KEY for environment ${blockfrostEnv} is not set!`,
       );
@@ -125,7 +114,7 @@ export class BlockchainService {
       submitter: this.blockfrostProvider,
       key: {
         type: 'root', // Assuming root key from bech32 string
-        bech32: secretKey,
+        bech32: this.secretKey,
       },
       // Parameters can be added here if needed globally
     });
@@ -162,6 +151,22 @@ export class BlockchainService {
     );
 
     try {
+      const balance = await this.wallet.getBalance();
+      const lovelaceBalance =
+        balance.find((asset) => asset.unit === 'lovelace')?.quantity ?? '0';
+      const lovelaceAmount = parseInt(lovelaceBalance, 10);
+      const balanceInAda = lovelaceAmount / 1000000;
+
+      // 5 ADA = 5,000,000 lovelace
+      if (lovelaceAmount < 5000000) {
+        throw new BadRequestException(
+          `Wallet has not enough funds or the balance is insufficient. Current balance: ${balanceInAda.toFixed(
+            6,
+          )} ADA.`,
+        );
+      }
+      this.logger.debug(`Current balance: ${balanceInAda.toFixed(6)} ADA.`);
+
       const utxos = await this.wallet.getUtxos();
       if (!utxos || utxos.length === 0) {
         throw new InternalServerErrorException(
@@ -469,6 +474,7 @@ export class BlockchainService {
               description: 'NFT Proof of Vehicle Inspection',
               vehicleNumber: inspectionData.vehicleNumber,
               hash_pdf: inspectionData.pdfHash,
+              hash_pdf_non_confidential: inspectionData.pdfHashNonConfidential,
             },
           },
         },

@@ -24,8 +24,10 @@ import { InspectionChangeLogResponseDto } from './dto/inspection-change-log-resp
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @ApiTags('Inspection Change Log')
+@SkipThrottle()
 @Controller('inspections/:inspectionId/changelog')
 export class InspectionChangeLogController {
   constructor(
@@ -44,7 +46,7 @@ export class InspectionChangeLogController {
    */
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get inspection change log',

@@ -92,6 +92,61 @@ export class PublicApiService {
   }
 
   /**
+   * Retrieves a single inspection by ID, excluding photos with sensitive document labels.
+   * This is intended for public-facing endpoints where documents like "STNK" or "BPKB" should not be exposed.
+   *
+   * @param {string} id - The UUID of the inspection.
+   * @returns {Promise<Inspection>} The found inspection record with filtered photos.
+   * @throws {NotFoundException} If inspection not found.
+   */
+  async findOneWithoutDocuments(id: string): Promise<Inspection> {
+    this.logger.log(
+      `Retrieving public inspection ID: ${id}, excluding sensitive documents`,
+    );
+    try {
+      const inspection = await this.prisma.inspection.findUniqueOrThrow({
+        where: { id: id },
+        include: { photos: true },
+      });
+
+      // Define keywords for filtering photos. Case-insensitive.
+      const excludedKeywords = ['stnk', 'bpkb'];
+
+      // Filter out photos that have labels or categories matching the keywords.
+      if (inspection.photos) {
+        inspection.photos = inspection.photos.filter((photo) => {
+          const label = photo.label?.toLowerCase() || '';
+          const category = photo.category?.toLowerCase() || '';
+          // Return true (keep photo) if no keyword is found in label or category
+          return !excludedKeywords.some(
+            (keyword) => label.includes(keyword) || category.includes(keyword),
+          );
+        });
+      }
+
+      return inspection;
+    } catch (error: unknown) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException(`Inspection with ID "${id}" not found.`);
+      }
+      const errorMessage =
+        error instanceof Error ? error.message : 'An unknown error occurred';
+      const errorStack =
+        error instanceof Error ? error.stack : 'No stack trace available';
+      this.logger.error(
+        `Failed to retrieve public inspection ID ${id}: ${errorMessage}`,
+        errorStack,
+      );
+      throw new InternalServerErrorException(
+        `Could not retrieve public inspection ${id}.`,
+      );
+    }
+  }
+
+  /**
    * Retrieves a list of unique change logs for a specific inspection.
    * It first verifies the existence of the inspection and then fetches its change logs,
    * returning only the latest change for each unique field combination.

@@ -51,6 +51,7 @@ import { ExtractJwt } from 'passport-jwt'; // Import ExtractJwt
 import { InspectorGuard } from './guards/inspector.guard';
 import { LoginInspectorDto } from './dto/login-inspector.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
+import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 // Define interface for request object after JWT or Local auth guard runs
 interface AuthenticatedRequest extends Request {
@@ -84,6 +85,8 @@ export class AuthController {
    */
   @Post('register')
   @ApiOperation({ summary: 'Register a new user locally' })
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @ApiBody({ type: RegisterUserDto })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -121,6 +124,8 @@ export class AuthController {
    */
   @Post('login')
   @UseGuards(LocalAuthGuard) // Apply LocalAuthGuard to trigger LocalStrategy validation
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK) // Return 200 OK on successful login
   @ApiOperation({
     summary: 'Login with local credentials (email/username + password)',
@@ -133,7 +138,7 @@ export class AuthController {
   })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
-    description: 'Invalid credentials.',
+    description: 'Invalid credentials or inactive account.',
   })
   async loginLocal(
     @Req() req: AuthenticatedRequest, // Request now has req.user populated by LocalAuthGuard/LocalStrategy
@@ -144,6 +149,16 @@ export class AuthController {
       this.logger.error('LocalAuthGuard succeeded but req.user is missing!');
       throw new InternalServerErrorException('Authentication flow error.');
     }
+
+    const user = req.user as unknown as User;
+
+    if (user.isActive === false) {
+      this.logger.warn(`Login attempt from inactive user account: ${user.id}`);
+      throw new UnauthorizedException(
+        'User account is inactive. Please contact an administrator.',
+      );
+    }
+
     this.logger.log(
       `User logged in locally: ${req.user?.email ?? req.user?.username}`,
     );
@@ -169,6 +184,8 @@ export class AuthController {
    */
   @Post('login/inspector')
   @UseGuards(InspectorGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login for inspectors with PIN' })
   @ApiBody({ type: LoginInspectorDto })
@@ -179,7 +196,7 @@ export class AuthController {
   })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
-    description: 'Invalid PIN.',
+    description: 'Invalid PIN or inactive account.',
   })
   async loginInspector(
     @Req() req: AuthenticatedRequest,
@@ -188,7 +205,19 @@ export class AuthController {
       this.logger.error('LocalPinAuthGuard succeeded but req.user is missing!');
       throw new InternalServerErrorException('Authentication flow error.');
     }
-    this.logger.log(`Inspector logged in`);
+
+    const inspector = req.user as unknown as User;
+
+    if (inspector.isActive === false) {
+      this.logger.warn(
+        `Login attempt from inactive inspector account: ${inspector.id}`,
+      );
+      throw new UnauthorizedException(
+        'Inspector account is inactive. Please contact an administrator.',
+      );
+    }
+
+    this.logger.log(`Inspector logged in: ${inspector.id}`);
     const { accessToken, refreshToken } = await this.authService.login(
       req.user as any,
     );
@@ -208,6 +237,7 @@ export class AuthController {
    * @returns {Promise<{ accessToken: string, refreshToken: string }>} A new pair of access and refresh tokens.
    */
   @Post('refresh')
+  @SkipThrottle()
   @UseGuards(JwtRefreshGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Obtain a new access token using a refresh token' })
@@ -234,6 +264,7 @@ export class AuthController {
    * Redirects the user to Google's login page.
    */
   @Get('google')
+  @SkipThrottle()
   @UseGuards(AuthGuard('google')) // Trigger GoogleStrategy
   @ApiOperation({ summary: 'Initiate Google OAuth login' })
   @ApiResponse({ status: 302, description: 'Redirecting to Google.' })
@@ -247,27 +278,47 @@ export class AuthController {
    * GoogleStrategy validates the profile and attaches user info to req.user.
    * Generates JWT and redirects back to the frontend.
    */
-  // @Get('google/callback')
-  // @UseGuards(AuthGuard('google'))
-  // @ApiExcludeEndpoint() // Typically hidden from public API docs
-  // async googleAuthRedirect(
-  //   @Req() req: AuthenticatedRequest,
-  //   @Res() res: Response,
-  // ) {
-  //   // ... (Kode googleAuthRedirect tetap sama seperti sebelumnya, menggunakan req.user) ...
-  //   this.logger.log('Received Google OAuth callback.');
-  //   if (!req.user) {
-  //     /* ... handle error redirect ... */ return res.redirect(/*...*/);
-  //   }
-  //   try {
-  //     const { accessToken } = await this.authService.login(req.user);
-  //     const clientUrl =
-  //       this.configService.getOrThrow<string>('CLIENT_BASE_URL');
-  //     res.redirect(`${clientUrl}/auth/callback?token=${accessToken}`); // Redirect with token
-  //   } catch (error) {
-  //     /* ... handle error redirect ... */ res.redirect(/*...*/);
-  //   }
-  // }
+  @Get('google/callback')
+  @SkipThrottle()
+  @UseGuards(AuthGuard('google'))
+  @ApiExcludeEndpoint() // Typically hidden from public API docs
+  async googleAuthRedirect(
+    @Req() req: AuthenticatedRequest,
+    @Res() res: Response,
+  ) {
+    this.logger.log('Received Google OAuth callback.');
+    const clientUrl = this.configService.getOrThrow<string>(
+      'CLIENT_BASE_URL_GOOGLE',
+    );
+    if (!req.user) {
+      this.logger.error(
+        'Google OAuth callback error: req.user is missing after guard execution.',
+      );
+      const clientErrorUrl = `${clientUrl}/auth?error=authentication-failed`;
+      return res.redirect(clientErrorUrl);
+    }
+
+    try {
+      // The user object from GoogleStrategy.validate is in req.user
+      const { accessToken, refreshToken } = await this.authService.login(
+        req.user as any,
+      );
+
+      // Successful login, redirect to frontend with tokens
+      // It's generally safer to pass tokens in a query parameter for a one-time read
+      res.redirect(
+        `${clientUrl}/auth?token=${accessToken}&refreshToken=${refreshToken}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Error during Google authentication post-processing: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+      // Redirect to an error page on the client
+      const clientErrorUrl = `${clientUrl}/auth?error=authentication-failed`;
+      res.redirect(clientErrorUrl);
+    }
+  }
 
   /**
    * Logs out the user (primarily client-side for stateless JWT).
@@ -275,6 +326,8 @@ export class AuthController {
    */
   @Post('logout')
   @UseGuards(JwtAuthGuard) // Protect this endpoint
+  @Throttle({ default: { limit: 2, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout user' })
@@ -331,6 +384,8 @@ export class AuthController {
    * @returns {UserResponseDto} The user's profile information.
    */
   @Get('profile')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard) // Protect with JWT
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @ApiOperation({ summary: 'Get logged-in user profile' })
@@ -357,6 +412,7 @@ export class AuthController {
    * @returns {object} A success message if the token is valid.
    */
   @Get('check-token')
+  @SkipThrottle()
   @UseGuards(JwtAuthGuard) // Protect with JWT
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @ApiOperation({ summary: 'Check if JWT token is valid' })

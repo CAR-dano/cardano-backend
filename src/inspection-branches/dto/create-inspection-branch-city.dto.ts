@@ -10,7 +10,7 @@
  * --------------------------------------------------------------------------
  */
 
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength, IsBoolean, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
@@ -24,5 +24,19 @@ export class CreateInspectionBranchCityDto {
   @ApiProperty({ example: 'Jakarta', description: 'Name of the city' })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   city: string;
+
+  /**
+   * The status of the inspection branch city.
+   * @example true
+   */
+  @ApiProperty({
+    example: true,
+    description: 'Status of the city',
+    required: false,
+  })
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
 }

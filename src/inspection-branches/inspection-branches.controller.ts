@@ -21,6 +21,7 @@ import {
   Delete,
   UseGuards,
   HttpStatus,
+  Patch,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -38,6 +39,7 @@ import { InspectionBranchesService } from './inspection-branches.service';
 import { CreateInspectionBranchCityDto } from './dto/create-inspection-branch-city.dto';
 import { UpdateInspectionBranchCityDto } from './dto/update-inspection-branch-city.dto';
 import { InspectionBranchCityResponseDto } from './dto/inspection-branch-city-response.dto';
+import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 @ApiTags('Inspection Branches')
 @Controller('inspection-branches')
@@ -57,8 +59,10 @@ export class InspectionBranchesController {
    * @throws ForbiddenException if the user does not have the required role.
    */
   @Post()
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new inspection branch city' })
   @ApiBody({ type: CreateInspectionBranchCityDto })
@@ -93,6 +97,7 @@ export class InspectionBranchesController {
    * @returns A promise that resolves to an array of InspectionBranchCityResponseDto.
    */
   @Get()
+  @SkipThrottle()
   @ApiOperation({ summary: 'Get all inspection branch cities' })
   @ApiResponse({
     status: 200,
@@ -111,6 +116,8 @@ export class InspectionBranchesController {
    * @throws NotFoundException if the inspection branch city is not found.
    */
   @Get(':id')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @ApiOperation({ summary: 'Get an inspection branch city by ID' })
   @ApiParam({
     name: 'id',
@@ -143,8 +150,10 @@ export class InspectionBranchesController {
    * @throws NotFoundException if the inspection branch city is not found.
    */
   @Put(':id')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update an inspection branch city by ID' })
   @ApiParam({
@@ -195,8 +204,10 @@ export class InspectionBranchesController {
    * @throws NotFoundException if the inspection branch city is not found.
    */
   @Delete(':id')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete an inspection branch city by ID' })
   @ApiParam({
@@ -222,5 +233,51 @@ export class InspectionBranchesController {
   })
   async remove(@Param('id') id: string) {
     return await this.inspectionBranchesService.remove(id);
+  }
+
+  /**
+   * Toggles the active status of an inspection branch city by its ID.
+   * Restricted to ADMIN and SUPERADMIN roles only.
+   *
+   * @param id The ID of the inspection branch city to toggle.
+   * @returns A promise that resolves to the updated InspectionBranchCityResponseDto.
+   * @throws UnauthorizedException if the user is not authenticated.
+   * @throws ForbiddenException if the user does not have the required role.
+   * @throws NotFoundException if the inspection branch city is not found.
+   */
+  @Patch(':id/toggle-active')
+  @Throttle({ default: { limit: 4, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Toggle the active status of an inspection branch city by ID',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'Inspection branch city ID',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description:
+      'The inspection branch city has been successfully status updated.',
+    type: InspectionBranchCityResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Inspection branch city not found.',
+  })
+  async toggleActive(@Param('id') id: string) {
+    return await this.inspectionBranchesService.toggleActive(id);
   }
 }

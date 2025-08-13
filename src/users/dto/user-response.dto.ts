@@ -12,7 +12,7 @@
 
 import { ApiProperty } from '@nestjs/swagger';
 import { InspectionBranchCity, Role, User } from '@prisma/client';
-import { InspectionBranchCityResponseDto } from './inspection-branch-city-response.dto';
+import { UserInspectionBranchCityResponseDto } from './inspection-branch-city-response.dto';
 
 /**
  * DTO representing the public-facing user data.
@@ -68,6 +68,12 @@ export class UserResponseDto {
   role: Role;
 
   /**
+   * The user's active status.
+   */
+  @ApiProperty({ description: 'User active status' })
+  isActive: boolean;
+
+  /**
    * The timestamp when the user account was created.
    */
   @ApiProperty({ description: 'Timestamp of user creation' })
@@ -85,9 +91,9 @@ export class UserResponseDto {
   @ApiProperty({
     description: 'The inspection branch city the user is associated with',
     nullable: true,
-    type: () => InspectionBranchCityResponseDto,
+    type: () => UserInspectionBranchCityResponseDto,
   })
-  inspectionBranchCity: InspectionBranchCityResponseDto | null;
+  inspectionBranchCity: UserInspectionBranchCityResponseDto | null;
 
   /**
    * Constructor to map from a Prisma User entity to this DTO.
@@ -95,7 +101,7 @@ export class UserResponseDto {
    * @param user The Prisma User entity.
    */
   constructor(
-    user: User & { inspectionBranchCity?: InspectionBranchCity | null }
+    user: User & { inspectionBranchCity?: InspectionBranchCity | null },
   ) {
     this.id = user.id;
     this.email = user.email;
@@ -104,10 +110,11 @@ export class UserResponseDto {
     this.walletAddress = user.walletAddress;
     this.whatsappNumber = user.whatsappNumber;
     this.role = user.role;
+    this.isActive = user.isActive;
     this.createdAt = user.createdAt;
     this.updatedAt = user.updatedAt;
     this.inspectionBranchCity = user.inspectionBranchCity
-      ? new InspectionBranchCityResponseDto(user.inspectionBranchCity)
+      ? new UserInspectionBranchCityResponseDto(user.inspectionBranchCity)
       : null;
     // Explicitly excluded: password, googleId
   }

@@ -1,16 +1,24 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsNumber, IsDate } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsNumber,
+  IsDate,
+  MaxLength,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class VehicleDataDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   merekKendaraan: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   tipeKendaraan: string;
 
   @ApiProperty()
@@ -22,26 +30,31 @@ export class VehicleDataDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   transmisi: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   warnaKendaraan: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   odometer: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   kepemilikan: string;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   platNomor: string;
 
   @ApiProperty()

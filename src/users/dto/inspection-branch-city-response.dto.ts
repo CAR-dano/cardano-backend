@@ -14,7 +14,7 @@ import { InspectionBranchCity } from '@prisma/client';
 /**
  * DTO for public-facing inspection branch city data.
  */
-export class InspectionBranchCityResponseDto {
+export class UserInspectionBranchCityResponseDto {
   @ApiProperty({ description: 'Branch city unique identifier (UUID)' })
   id: string;
 

@@ -13,6 +13,7 @@
  * --------------------------------------------------------------------------
  */
 
+import { GetUser } from '../auth/decorators/get-user.decorator';
 import {
   Controller,
   Get,
@@ -49,6 +50,9 @@ import { GeneratePinResponseDto } from './dto/generate-pin-response.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 import { UpdateInspectorDto } from './dto/update-inspector.dto';
 
+import { CreateAdminDto } from './dto/create-admin.dto'; // Import CreateAdminDto
+import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+
 @ApiTags('User Management (Admin)') // Tag for documentation
 @ApiBearerAuth('JwtAuthGuard') // Indicate JWT is needed for all endpoints here
 @UseGuards(JwtAuthGuard, RolesGuard) // Apply both guards at the controller level
@@ -67,7 +71,9 @@ export class UsersController {
    * @returns A promise that resolves to an array of UserResponseDto.
    */
   @Get()
-  @Roles(Role.ADMIN) // Only ADMINs can access this
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @Roles(Role.ADMIN, Role.SUPERADMIN) // Only ADMINs can access this
   @ApiOperation({
     summary: 'Retrieve all users (Admin Only)',
     description:
@@ -99,7 +105,9 @@ export class UsersController {
    * @returns A promise that resolves to an array of UserResponseDto.
    */
   @Get('inspectors') // Specific endpoint for finding all inspectors
-  @Roles(Role.ADMIN) // Only ADMINs can access this
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @Roles(Role.ADMIN, Role.SUPERADMIN) // Only ADMINs can access this
   @ApiOperation({
     summary: 'Retrieve all inspector users',
     description:
@@ -121,6 +129,77 @@ export class UsersController {
   }
 
   /**
+   * Retrieves a list of all admin and superadmin users.
+   * Requires SUPERADMIN role.
+   *
+   * @returns A promise that resolves to an array of UserResponseDto.
+   */
+  @Get('admins')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @Roles(Role.SUPERADMIN)
+  @ApiOperation({
+    summary: 'Retrieve all admin and superadmin users (Superadmin Only)',
+    description:
+      'Fetches a list of all user accounts with ADMIN or SUPERADMIN roles.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of admin and superadmin users.',
+    type: [UserResponseDto],
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  async findAllAdminsAndSuperAdmins(): Promise<UserResponseDto[]> {
+    this.logger.log(`Superadmin request: findAllAdminsAndSuperAdmins`);
+    const users = await this.usersService.findAllAdminsAndSuperAdmins();
+    return users.map((user) => new UserResponseDto(user));
+  }
+
+  /**
+   * Creates a new user with the 'ADMIN' or 'SUPERADMIN' role.
+   * This endpoint is restricted to users with the 'SUPERADMIN' role.
+   *
+   * @param createAdminDto - DTO containing the new admin's details.
+   * @returns {Promise<UserResponseDto>} The created user's profile.
+   */
+  @Post('admin-user')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @Roles(Role.SUPERADMIN)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create a new admin/superadmin user (Superadmin only)',
+  })
+  @ApiBody({
+    type: CreateAdminDto,
+    description: 'Details for the new admin or superadmin user.',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'The user has been successfully created.',
+    type: UserResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid input data provided.',
+  })
+  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiResponse({
+    status: 409,
+    description: 'Conflict (email/username exists).',
+  })
+  async createAdminOrSuperAdmin(
+    @Body() createAdminDto: CreateAdminDto,
+  ): Promise<UserResponseDto> {
+    this.logger.log(
+      `Superadmin request to create admin/superadmin: ${createAdminDto.username}`,
+    );
+    const newUser =
+      await this.usersService.createAdminOrSuperAdmin(createAdminDto);
+    return new UserResponseDto(newUser);
+  }
+
+  /**
    * Retrieves details for a specific user by ID.
    * Requires ADMIN role.
    *
@@ -129,7 +208,9 @@ export class UsersController {
    * @throws NotFoundException if the user with the specified ID is not found.
    */
   @Get(':id')
-  @Roles(Role.ADMIN)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiOperation({
     summary: 'Retrieve user by ID (Admin Only)',
     description:
@@ -181,7 +262,9 @@ export class UsersController {
    * @throws NotFoundException if the user with the specified ID is not found.
    */
   @Put(':id/role') // Using PUT as role is a specific resource attribute being replaced
-  @Roles(Role.ADMIN)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Update user role (Admin Only)',
@@ -223,114 +306,20 @@ export class UsersController {
   async updateUserRole(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserRoleDto: UpdateUserRoleDto,
+    @GetUser('id') actingUserId: string,
+    @GetUser('role') actingUserRole: Role,
   ): Promise<UserResponseDto> {
     this.logger.log(
-      `Admin request: update role for user ${id} to ${updateUserRoleDto.role}`,
+      `Admin request from user ${actingUserId} (${actingUserRole}) to update role for user ${id} to ${updateUserRoleDto.role}`,
     );
-    // Service handles NotFoundException if user doesn't exist
+    // Service handles NotFoundException, self-update prevention, and hierarchy checks
     const updatedUser = await this.usersService.updateRole(
       id,
       updateUserRoleDto.role,
+      actingUserId,
+      actingUserRole,
     );
     return new UserResponseDto(updatedUser);
-  }
-
-  /**
-   * Disables a user account.
-   * Requires ADMIN role.
-   * Assumes 'setStatus' method and 'isActive' field exist in the service.
-   *
-   * @param id The UUID of the user to disable.
-   * @returns A promise that resolves to the updated UserResponseDto.
-   * @throws NotFoundException if the user with the specified ID is not found.
-   */
-  @Put(':id/disable') // Using PUT to set a specific state
-  @Roles(Role.ADMIN)
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Disable user account (Admin Only)',
-    description:
-      'Disables a user account, preventing the user from logging in. This endpoint is restricted to users with the ADMIN role.',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'User UUID',
-    type: String,
-    format: 'uuid',
-    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'User disabled.',
-    type: UserResponseDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized. Authentication token is missing or invalid.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. User does not have the necessary ADMIN role.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User with the specified ID not found.',
-  })
-  async disableUser(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<UserResponseDto> {
-    this.logger.log(`Admin request: disable user ${id}`);
-    const user = await this.usersService.setStatus(id, false); // Pass false to disable
-    return new UserResponseDto(user);
-  }
-
-  /**
-   * Enables a user account.
-   * Requires ADMIN role.
-   * Assumes 'setStatus' method and 'isActive' field exist in the service.
-   *
-   * @param id The UUID of the user to enable.
-   * @returns A promise that resolves to the updated UserResponseDto.
-   * @throws NotFoundException if the user with the specified ID is not found.
-   */
-  @Put(':id/enable') // Using PUT to set a specific state
-  @Roles(Role.ADMIN)
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Enable user account (Admin Only)',
-    description:
-      'Enables a disabled user account, allowing the user to log in again. This endpoint is restricted to users with the ADMIN role.',
-  })
-  @ApiParam({
-    name: 'id',
-    description: 'User UUID',
-    type: String,
-    format: 'uuid',
-    example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'User enabled.',
-    type: UserResponseDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized. Authentication token is missing or invalid.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. User does not have the necessary ADMIN role.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User with the specified ID not found.',
-  })
-  async enableUser(
-    @Param('id', ParseUUIDPipe) id: string,
-  ): Promise<UserResponseDto> {
-    this.logger.log(`Admin request: enable user ${id}`);
-    const user = await this.usersService.setStatus(id, true); // Pass true to enable
-    return new UserResponseDto(user);
   }
 
   /**
@@ -341,7 +330,9 @@ export class UsersController {
    * @returns {Promise<InspectorResponseDto>} The created inspector's profile, including the generated PIN.
    */
   @Post('inspector')
-  @Roles(Role.ADMIN) // Only ADMINs can access this
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @Roles(Role.ADMIN, Role.SUPERADMIN) // Only ADMINs can access this
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new inspector user (Admin only)' })
   @ApiBody({
@@ -385,7 +376,9 @@ export class UsersController {
    * @throws ConflictException if a user with the provided email, username, or wallet address already exists.
    */
   @Put(':id') // General PUT endpoint for user updates
-  @Roles(Role.ADMIN)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Update user details (Admin Only)',
@@ -446,7 +439,9 @@ export class UsersController {
    * @throws ConflictException if a user with the provided email or username already exists.
    */
   @Put('inspector/:id')
-  @Roles(Role.ADMIN)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Update inspector details (Admin Only)',
@@ -510,7 +505,9 @@ export class UsersController {
    * @throws NotFoundException if the user with the specified ID is not found or is not an inspector.
    */
   @Post('inspector/:id/generate-pin')
-  @Roles(Role.ADMIN)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Generate a new PIN for an inspector (Admin Only)',
@@ -558,7 +555,9 @@ export class UsersController {
    * @throws NotFoundException if the user with the specified ID is not found.
    */
   @Delete(':id') // DELETE endpoint for deleting users
-  @Roles(Role.ADMIN)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @HttpCode(HttpStatus.NO_CONTENT) // 204 No Content for successful DELETE
   @ApiOperation({
     summary: 'Delete a user (Admin Only) - Use with caution!',

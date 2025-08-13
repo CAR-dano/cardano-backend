@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsArray,
+  MaxLength,
 } from 'class-validator';
 
 export class FiturDto {
@@ -46,6 +47,7 @@ export class FiturDto {
   @ApiProperty()
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(1000, { each: true })
   @IsOptional()
   catatan: string[];
 

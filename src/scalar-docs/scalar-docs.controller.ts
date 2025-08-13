@@ -21,7 +21,9 @@ import { Response } from 'express';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getOpenApiDocument } from '../main'; // Import the function to get the generated document
+import { SkipThrottle } from '@nestjs/throttler';
 
+@SkipThrottle()
 @Controller()
 export class ScalarDocsController {
   private readonly logger = new Logger(ScalarDocsController.name);

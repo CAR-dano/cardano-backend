@@ -9,7 +9,12 @@
  * --------------------------------------------------------------------------
  */
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsOptional, IsBooleanString } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsBooleanString,
+  MaxLength,
+} from 'class-validator';
 
 export class AddPhotoDto {
   /**
@@ -25,6 +30,7 @@ export class AddPhotoDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   label?: string;
 
   /**
@@ -54,6 +60,7 @@ export class AddPhotoDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   category?: string;
 
   /**

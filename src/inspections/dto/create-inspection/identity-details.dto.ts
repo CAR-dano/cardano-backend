@@ -8,7 +8,7 @@
  * Defines the structure for inspector, customer, and branch city information.
  * --------------------------------------------------------------------------
  */
-import { IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
@@ -35,7 +35,9 @@ export class IdentityDetailsDto {
     example: 'Maul',
     description: 'The name of the customer.',
   })
+  @IsOptional()
   @IsString()
+  @MaxLength(255)
   namaCustomer: string;
 
   /**

@@ -40,6 +40,7 @@ import { InspectionChangeLogResponseDto } from 'src/inspection-change-log/dto/in
 
 // Prisma types
 import { InspectionChangeLog } from '@prisma/client';
+import { SkipThrottle } from '@nestjs/throttler';
 
 /**
  * @class PublicApiController
@@ -47,6 +48,7 @@ import { InspectionChangeLog } from '@prisma/client';
  * Handles requests for publicly accessible data such as inspector lists and inspection summaries.
  */
 @ApiTags('Public API') // Tag for Swagger documentation, categorizing endpoints under 'Public API'
+@SkipThrottle()
 @Controller('public') // Base path for all routes defined in this controller
 export class PublicApiController {
   // Logger instance for logging messages within this controller
@@ -206,6 +208,41 @@ export class PublicApiController {
     // Retrieve the inspection using the PublicApiService
     const inspection = await this.publicApiService.findOne(id);
     // Map the retrieved inspection entity to InspectionResponseDto
+    return new InspectionResponseDto(inspection);
+  }
+
+  /**
+   * Retrieves a specific inspection by its ID, excluding photos with sensitive document labels.
+   * This endpoint is for public consumption where STNK/BPKB photos should not be visible.
+   *
+   * @param {string} id The UUID of the inspection to retrieve.
+   * @returns {Promise<InspectionResponseDto>} A promise that resolves to the inspection record summary without sensitive documents.
+   */
+  @Get('inspections/:id/no-docs')
+  @ApiOperation({
+    summary: 'Retrieve an inspection by ID without sensitive documents',
+    description:
+      'Retrieves a specific inspection by ID, but excludes photos labeled as "STNK" or "BPKB" for public viewing.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'The UUID of the inspection to retrieve.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'The inspection record summary without sensitive documents.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Inspection not found.',
+  })
+  async findOneWithoutDocuments(
+    @Param('id') id: string,
+  ): Promise<InspectionResponseDto> {
+    const inspection = await this.publicApiService.findOneWithoutDocuments(id);
     return new InspectionResponseDto(inspection);
   }
 

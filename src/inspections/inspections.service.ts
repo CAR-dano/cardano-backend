@@ -23,7 +23,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; // Service for Prisma client interaction
 import { CreateInspectionDto } from './dto/create-inspection.dto'; // DTO for incoming creation data
-import { UpdateInspectionDto } from './dto/update-inspection.dto';
+import { UpdateInspectionDto } from './dto/update-inspection/update-inspection.dto';
 import { BuildMintTxDto } from '../blockchain/dto/build-mint-tx.dto';
 import { ConfirmMintDto } from './dto/confirm-mint.dto';
 import {
@@ -52,7 +52,6 @@ const PDF_PUBLIC_BASE_URL = process.env.PDF_PUBLIC_BASE_URL || '/pdfarchived'; /
 
 interface NftMetadata {
   vehicleNumber: string | null;
-  pdfUrl: string | null;
   pdfHash: string | null;
 }
 
@@ -159,38 +158,74 @@ export class InspectionsService {
     inspectorId: string,
   ): Promise<{ id: string }> {
     this.logger.log(
-      `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'} by inspector ${inspectorId}`,
+      `Creating inspection for plate: ${
+        createInspectionDto.vehiclePlateNumber ?? 'N/A'
+      } by inspector ${inspectorId}`,
     );
 
     const { identityDetails } = createInspectionDto;
-    const branchCityUuid = identityDetails.cabangInspeksi;
     const customerName = identityDetails.namaCustomer;
+
+    // Determine the effective inspector ID. Use the one from the DTO as a fallback if auth is disabled.
+    let effectiveInspectorId = inspectorId;
+    if (!effectiveInspectorId) {
+      this.logger.warn(
+        'No inspectorId from auth. Falling back to ID from createInspectionDto.identityDetails.namaInspektor.',
+      );
+      effectiveInspectorId = identityDetails.namaInspektor; // Assuming this field holds the UUID
+    }
+
+    if (!effectiveInspectorId) {
+      throw new BadRequestException(
+        'Inspector ID is missing. It must be provided either via an authenticated user or in the request body.',
+      );
+    }
 
     // 1. Fetch Inspector and Branch City records using UUIDs
     let inspectorName: string | null = null;
     let branchCityName: string | null = null;
     let branchCode = 'XXX'; // Default branch code
+    let effectiveBranchCityUuid: string;
 
     try {
       const inspector = await this.prisma.user.findUnique({
-        where: { id: inspectorId },
-        select: { name: true },
+        where: { id: effectiveInspectorId },
+        select: { name: true, inspectionBranchCityId: true },
       });
       if (!inspector) {
         throw new BadRequestException(
-          `Inspector with ID "${inspectorId}" not found.`,
+          `Inspector with ID "${effectiveInspectorId}" not found.`,
         );
       }
       inspectorName = inspector.name;
       this.logger.log(`Fetched inspector name: ${inspectorName}`);
 
+      // Determine the branch city UUID to use
+      if (inspector.inspectionBranchCityId) {
+        effectiveBranchCityUuid = inspector.inspectionBranchCityId;
+        this.logger.log(
+          `Using branch city from inspector profile: ${effectiveBranchCityUuid}`,
+        );
+      } else {
+        effectiveBranchCityUuid = identityDetails.cabangInspeksi;
+        this.logger.log(
+          `Using branch city from request body: ${effectiveBranchCityUuid}`,
+        );
+      }
+
+      if (!effectiveBranchCityUuid) {
+        throw new BadRequestException(
+          'Branch City ID is missing. It must be provided either in the inspector profile or in the request body.',
+        );
+      }
+
       const branchCity = await this.prisma.inspectionBranchCity.findUnique({
-        where: { id: branchCityUuid },
+        where: { id: effectiveBranchCityUuid },
         select: { city: true, code: true },
       });
       if (!branchCity) {
         throw new BadRequestException(
-          `Inspection Branch City with ID "${branchCityUuid}" not found.`,
+          `Inspection Branch City with ID "${effectiveBranchCityUuid}" not found.`,
         );
       }
       branchCityName = branchCity.city;
@@ -235,8 +270,8 @@ export class InspectionsService {
         const dataToCreate: Prisma.InspectionCreateInput = {
           pretty_id: customId,
           // Store the UUIDs in the dedicated ID fields
-          inspector: { connect: { id: inspectorId } }, // Connect using the UUID
-          branchCity: { connect: { id: branchCityUuid } }, // Connect using the UUID
+          inspector: { connect: { id: effectiveInspectorId } }, // Connect using the effective UUID
+          branchCity: { connect: { id: effectiveBranchCityUuid } }, // Connect using the UUID
 
           vehiclePlateNumber: createInspectionDto.vehiclePlateNumber,
           inspectionDate: inspectionDateObj,
@@ -394,6 +429,15 @@ export class InspectionsService {
     // We only care about what the user *intends* to change or set.
     // Use Object.keys and then check existence on oldObj.
     for (const key of Object.keys(newObj)) {
+      const newValue = newObj[key];
+
+      // If the new value is undefined or null, it's considered not present in the
+      // partial update payload (as per user feedback on transformation artifacts).
+      // We skip it to avoid logging unintentional changes from a real value to null.
+      if (newValue === undefined || newValue === null) {
+        continue;
+      }
+
       // Check if the key exists in the old object before recursing to avoid errors on new keys
       // This check is not strictly necessary for the logic but can prevent errors if oldObj is null/undefined
       // However, the isObject check above should handle the null/undefined case.
@@ -402,7 +446,7 @@ export class InspectionsService {
       this.logJsonChangesRecursive(
         fieldName, // Keep passing the top-level fieldName
         oldObj[key], // Value from existing DB record (can be undefined if key doesn't exist)
-        newObj[key], // Value from the update DTO
+        newValue, // Value from the update DTO
         changes,
         inspectionId,
         userId,
@@ -883,7 +927,9 @@ export class InspectionsService {
     meta: { total: number; page: number; pageSize: number; totalPages: number };
   }> {
     this.logger.log(
-      `Retrieving inspections for user role: ${userRole ?? 'N/A'}, status: ${Array.isArray(status) ? status.join(',') : (status ?? 'ALL (default)')}, page: ${page}, pageSize: ${pageSize}`,
+      `Retrieving inspections for user role: ${userRole ?? 'N/A'}, status: ${
+        Array.isArray(status) ? status.join(',') : (status ?? 'ALL (default)')
+      }, page: ${page}, pageSize: ${pageSize}`,
     );
 
     // Initialize whereClause
@@ -974,7 +1020,9 @@ export class InspectionsService {
       });
 
       this.logger.log(
-        `Retrieved ${inspections.length} inspections of ${total} total for role ${userRole ?? 'N/A'}.`,
+        `Retrieved ${
+          inspections.length
+        } inspections of ${total} total for role ${userRole ?? 'N/A'}.`,
       );
 
       const totalPages = Math.ceil(total / pageSize);
@@ -993,7 +1041,9 @@ export class InspectionsService {
       const errorStack =
         error instanceof Error ? error.stack : 'No stack trace available';
       this.logger.error(
-        `Failed to retrieve inspections for role ${userRole ?? 'N/A'}: ${errorMessage}`,
+        `Failed to retrieve inspections for role ${
+          userRole ?? 'N/A'
+        }: ${errorMessage}`,
         errorStack,
       );
       throw new InternalServerErrorException(
@@ -1070,6 +1120,37 @@ export class InspectionsService {
   }
 
   /**
+   * Generates, saves, and hashes a PDF from a given URL.
+   * This is a helper function for `approveInspection`.
+   * @param url The URL to generate the PDF from.
+   * @param baseFileName The unique filename for the PDF.
+   * @param token The JWT token for authentication.
+   * @returns An object with the public URL, IPFS CID, and hash of the PDF.
+   */
+  private async _generateAndSavePdf(
+    url: string,
+    baseFileName: string,
+    token: string | null,
+  ): Promise<{ pdfPublicUrl: string; pdfCid: string; pdfHashString: string }> {
+    const pdfBuffer = await this.generatePdfFromUrl(url, token);
+    const pdfCid = await this.ipfsService.add(pdfBuffer);
+    const pdfFilePath = path.join(PDF_ARCHIVE_PATH, baseFileName);
+    await fs.writeFile(pdfFilePath, pdfBuffer);
+    this.logger.log(`PDF report saved to: ${pdfFilePath}`);
+
+    const hash = crypto.createHash('sha256');
+    hash.update(pdfBuffer);
+    const pdfHashString = hash.digest('hex');
+    this.logger.log(
+      `PDF hash calculated for ${baseFileName}: ${pdfHashString}`,
+    );
+
+    const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${baseFileName}`;
+
+    return { pdfPublicUrl, pdfCid, pdfHashString };
+  }
+
+  /**
    * Approves an inspection, applies the latest logged change for each field,
    * generates and stores the PDF, calculates its hash, and changes status to APPROVED.
    * Fetches the latest changes from InspectionChangeLog and updates the Inspection record.
@@ -1115,44 +1196,29 @@ export class InspectionsService {
       );
     }
 
-    const frontendReportUrl = `${this.config.getOrThrow<string>(
+    // --- PDF Generation (Parallel) ---
+    const timestamp = Date.now();
+    const basePrettyId = inspection.pretty_id;
+
+    // Define URLs and filenames
+    const fullPdfUrl = `${this.config.getOrThrow<string>(
       'CLIENT_BASE_URL_PDF',
     )}/data/${inspection.id}`;
-    let pdfBuffer: Buffer;
-    let pdfCid: string;
-    let pdfHashString: string | null = null;
-    const pdfFileName = `${inspection.pretty_id}-${Date.now()}.pdf`; // Nama file unik
-    const pdfFilePath = path.join(PDF_ARCHIVE_PATH, pdfFileName);
-    const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${pdfFileName}`; // URL publik
+    const noDocsPdfUrl = `${this.config.getOrThrow<string>(
+      'CLIENT_BASE_URL_PDF',
+    )}/pdf/${inspection.id}`;
+
+    const fullPdfFileName = `${basePrettyId}-${timestamp}.pdf`;
+    const noDocsPdfFileName = `${basePrettyId}-no-confidential-${timestamp}.pdf`;
 
     try {
-      // Generate PDF from URL, passing the token
-      pdfBuffer = await this.generatePdfFromUrl(frontendReportUrl, token);
-      pdfCid = await this.ipfsService.add(pdfBuffer);
-      // Save PDF to Disc
-      await fs.writeFile(pdfFilePath, pdfBuffer);
-      this.logger.log(`PDF report saved to: ${pdfFilePath}`);
+      // Run PDF generation in parallel
+      const [fullPdfResult, noDocsPdfResult] = await Promise.all([
+        this._generateAndSavePdf(fullPdfUrl, fullPdfFileName, token),
+        this._generateAndSavePdf(noDocsPdfUrl, noDocsPdfFileName, token),
+      ]);
 
-      // Calculate PDF Hash
-      const hash = crypto.createHash('sha256');
-      hash.update(pdfBuffer);
-      pdfHashString = hash.digest('hex');
-      this.logger.log(`PDF hash calculated: ${pdfHashString}`);
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'An unknown error occurred';
-      const errorStack =
-        error instanceof Error ? error.stack : 'No stack trace available';
-      this.logger.error(
-        `Failed to generate or save PDF for inspection ${inspectionId}: ${errorMessage}`,
-        errorStack,
-      );
-      throw new InternalServerErrorException(
-        `Could not generate PDF report from URL: ${errorMessage}`,
-      );
-    }
-
-    try {
+      // --- Transactional Database Update ---
       return this.prisma.$transaction(async (tx) => {
         // 2. Fetch all change logs for this inspection
         const allChanges = await tx.inspectionChangeLog.findMany({
@@ -1187,9 +1253,14 @@ export class InspectionsService {
           reviewer: {
             connect: { id: reviewerId },
           },
-          urlPdf: pdfPublicUrl,
-          pdfFileHash: pdfHashString,
-          ipfsPdf: `ipfs://${pdfCid}`,
+          // Full PDF data
+          urlPdf: fullPdfResult.pdfPublicUrl,
+          pdfFileHash: fullPdfResult.pdfHashString,
+          ipfsPdf: `ipfs://${fullPdfResult.pdfCid}`,
+          // No-Docs PDF data
+          urlPdfNoDocs: noDocsPdfResult.pdfPublicUrl,
+          pdfFileHashNoDocs: noDocsPdfResult.pdfHashString,
+          ipfsPdfNoDocs: `ipfs://${noDocsPdfResult.pdfCid}`,
         };
 
         // Define which top-level fields in Inspection are JSON and can be updated via change log
@@ -1209,16 +1280,17 @@ export class InspectionsService {
           const fieldName = parts[0] as keyof Inspection; // Assert fieldName type
 
           this.logger.debug(
-            `Applying change: fieldKey=${fieldKey}, value=${JSON.stringify(value)}, fieldName=${fieldName}`,
+            `Applying change: fieldKey=${fieldKey}, value=${JSON.stringify(
+              value,
+            )}, fieldName=${fieldName}`,
           );
 
           if (parts.length === 1) {
             this.logger.debug(
-              `Processing top-level field from changelog. fieldName: "${fieldName}", value: "${JSON.stringify(value)}"`,
-            ); // KILOCODE DEBUG LOG
-            // Handle top-level fields (fieldName only)
-            // Only attempt to update if the field exists in the original inspection object
-            // KILOCODE FIX: Use parts[0] for 'inspector' and 'branchCity' checks to avoid TS error
+              `Processing top-level field from changelog. fieldName: "${fieldName}", value: "${JSON.stringify(
+                value,
+              )}"`,
+            );
             if (
               parts[0] === 'inspector' &&
               value !== null &&
@@ -1243,9 +1315,7 @@ export class InspectionsService {
               this.logger.debug(
                 `Applied branchCity change using connect: ${value}`,
               );
-            }
-            // KILOCODE FIX: Fallback to check actual properties on inspection object using fieldName (keyof Inspection)
-            else if (
+            } else if (
               Object.prototype.hasOwnProperty.call(inspection, fieldName)
             ) {
               // Handle specific top-level fields with proper type conversion
@@ -1272,7 +1342,18 @@ export class InspectionsService {
               }
             } else {
               this.logger.warn(
-                `Top-level field "${parts[0]}" from changelog (key: ${fieldKey}) did not match any specific update logic. Value: ${JSON.stringify(value)}. 'inspector' check: ${parts[0] === 'inspector'}. 'branchCity' check: ${parts[0] === 'branchCity'}. HasOwnProperty on inspection for fieldName: ${Object.prototype.hasOwnProperty.call(inspection, fieldName)}. Ignoring.`, // KILOCODE DEBUG LOG MODIFIED with parts[0]
+                `Top-level field "${
+                  parts[0]
+                }" from changelog (key: ${fieldKey}) did not match any specific update logic. Value: ${JSON.stringify(
+                  value,
+                )}. 'inspector' check: ${
+                  parts[0] === 'inspector'
+                }. 'branchCity' check: ${
+                  parts[0] === 'branchCity'
+                }. HasOwnProperty on inspection for fieldName: ${Object.prototype.hasOwnProperty.call(
+                  inspection,
+                  fieldName,
+                )}. Ignoring.`,
               );
             }
           } else {
@@ -1512,14 +1593,6 @@ export class InspectionsService {
         `Missing vehicle plate number for inspection ${inspectionId}. Cannot mint NFT.`,
       );
     }
-    if (!inspection.ipfsPdf && !inspection.urlPdf) {
-      this.logger.error(
-        `Missing PDF URL (ipfsPdf or urlPdf) for inspection ${inspectionId}. Cannot mint NFT.`,
-      );
-      throw new BadRequestException(
-        `Missing PDF URL for inspection ${inspectionId}. Cannot mint NFT.`,
-      );
-    }
     if (!inspection.pdfFileHash) {
       this.logger.error(
         `Missing PDF file hash for inspection ${inspectionId}. Cannot mint NFT.`,
@@ -1528,18 +1601,25 @@ export class InspectionsService {
         `Missing PDF file hash for inspection ${inspectionId}. Cannot mint NFT.`,
       );
     }
+    if (!inspection.pdfFileHashNoDocs) {
+      this.logger.error(
+        `Missing PDF file hash no docs for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+      throw new BadRequestException(
+        `Missing PDF file hash no docs for inspection ${inspectionId}. Cannot mint NFT.`,
+      );
+    }
 
     try {
       // 2. Minting
       let blockchainResult: { txHash: string; assetId: string } | null = null;
-      let blockchainSuccess: boolean = false;
+      let blockchainSuccess = false;
 
       try {
         // Now that we've checked for null, we can safely assert these are strings for the metadata type
         const metadataForNft: NftMetadata = {
           vehicleNumber: inspection.vehiclePlateNumber,
-          pdfUrl: inspection.ipfsPdf ? inspection.ipfsPdf : inspection.urlPdf,
-          pdfHash: inspection.pdfFileHash,
+          pdfHash: inspection.pdfFileHashNoDocs,
         };
         // Hapus field null/undefined dari metadata jika perlu (This step might be redundant now with checks above, but kept for safety)
         Object.keys(metadataForNft).forEach((key) =>
@@ -1553,7 +1633,7 @@ export class InspectionsService {
         );
         // Cast to InspectionNftMetadata as we've ensured non-nullability
         blockchainResult = await this.blockchainService.mintInspectionNft(
-          metadataForNft as InspectionNftMetadata,
+          metadataForNft as unknown as InspectionNftMetadata,
         ); // Panggil service minting
         blockchainSuccess = true;
         this.logger.log(
@@ -1778,10 +1858,6 @@ export class InspectionsService {
     }
   }
 
-
-
-
-
   /**
    * Tahap 1: Mempersiapkan data dan membangun unsigned transaction.
    * Fungsi ini dipanggil oleh frontend untuk mendapatkan transaksi yang siap ditandatangani.
@@ -1807,8 +1883,8 @@ export class InspectionsService {
     }
     if (
       !inspection.vehiclePlateNumber ||
-      !inspection.ipfsPdf ||
-      !inspection.pdfFileHash
+      !inspection.pdfFileHash ||
+      !inspection.pdfFileHashNoDocs
     ) {
       throw new BadRequestException(
         `Data inspeksi ${inspectionId} tidak lengkap untuk minting.`,
@@ -1821,6 +1897,7 @@ export class InspectionsService {
       inspectionData: {
         vehicleNumber: inspection.vehiclePlateNumber,
         pdfHash: inspection.pdfFileHash,
+        pdfHashNonConfidential: inspection.pdfFileHashNoDocs,
         nftDisplayName: `Car Inspection ${inspection.vehiclePlateNumber}`,
       },
     };
@@ -1924,6 +2001,116 @@ export class InspectionsService {
       );
       throw new InternalServerErrorException(
         'Could not retrieve latest archived inspection data.',
+      );
+    }
+  }
+
+  /**
+   * Permanently deletes an inspection, its related photos, change logs, and all associated files from disk.
+   * This is a destructive operation intended only for SUPERADMIN use.
+   *
+   * @param {string} id - The UUID of the inspection to delete.
+   * @returns {Promise<void>}
+   * @throws {NotFoundException} If the inspection with the given ID is not found.
+   * @throws {InternalServerErrorException} If any part of the deletion process fails.
+   */
+  async deleteInspectionPermanently(id: string): Promise<void> {
+    this.logger.warn(
+      `[SUPERADMIN] Initiating permanent deletion for inspection ID: ${id}`,
+    );
+
+    // 1. Fetch the inspection and its related photos to get file paths
+    const inspection = await this.prisma.inspection.findUnique({
+      where: { id },
+      include: { photos: true },
+    });
+
+    if (!inspection) {
+      this.logger.error(
+        `Inspection with ID "${id}" not found for permanent deletion.`,
+      );
+      throw new NotFoundException(`Inspection with ID "${id}" not found.`);
+    }
+
+    // 2. Correctly construct file paths based on user's clarification
+    const filePathsToDelete: string[] = [];
+    const UPLOAD_PATH = './uploads/inspection-photos';
+    const PDF_ARCHIVE_PATH = './pdfarchived';
+
+    inspection.photos.forEach((photo) => {
+      if (photo.path) {
+        // photo.url is just the filename, join it with the upload path
+        filePathsToDelete.push(path.join(UPLOAD_PATH, photo.path));
+      }
+    });
+    if (inspection.urlPdf) {
+      // inspection.urlPdf is /pdfarchived/filename.pdf, get basename and join with archive path
+      filePathsToDelete.push(
+        path.join(PDF_ARCHIVE_PATH, path.basename(inspection.urlPdf)),
+      );
+    }
+    if (inspection.urlPdfNoDocs) {
+      // inspection.urlPdfNoDocs is /pdfarchived/filename-no-docs.pdf, get basename and join
+      filePathsToDelete.push(
+        path.join(PDF_ARCHIVE_PATH, path.basename(inspection.urlPdfNoDocs)),
+      );
+    }
+
+    this.logger.log(
+      `Found ${filePathsToDelete.length} files to delete for inspection ${id}.`,
+    );
+    this.logger.debug(`Files to delete: ${JSON.stringify(filePathsToDelete)}`);
+
+    // 3. Delete files from the disk
+    for (const filePath of filePathsToDelete) {
+      try {
+        await fs.unlink(filePath);
+        this.logger.log(`Successfully deleted file: ${filePath}`);
+      } catch (error) {
+        if (error.code === 'ENOENT') {
+          this.logger.warn(`File not found, skipping deletion: ${filePath}`);
+        } else {
+          this.logger.error(
+            `Error deleting file ${filePath}: ${error.message}`,
+            error.stack,
+          );
+          // Decide if you want to stop the whole process if one file fails to delete.
+          // For now, we log the error and continue.
+        }
+      }
+    }
+
+    // 4. Delete database records within a transaction
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        this.logger.log(`Starting DB transaction to delete inspection ${id}`);
+
+        await tx.inspectionChangeLog.deleteMany({
+          where: { inspectionId: id },
+        });
+        this.logger.log(`Deleted change logs for inspection ${id}.`);
+
+        await tx.photo.deleteMany({
+          where: { inspectionId: id },
+        });
+        this.logger.log(`Deleted photo records for inspection ${id}.`);
+
+        await tx.inspection.delete({
+          where: { id },
+        });
+        this.logger.log(`Deleted inspection record ${id}.`);
+      });
+
+      this.logger.warn(
+        `[SUPERADMIN] Successfully and permanently deleted inspection ID: ${id}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Database transaction failed for permanent deletion of inspection ${id}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to permanently delete inspection data for ID ${id}.`,
       );
     }
   }

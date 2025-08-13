@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsArray,
   IsOptional,
+  MaxLength,
 } from 'class-validator';
 
 export class ToolsTestDto {
@@ -51,6 +52,7 @@ export class ToolsTestDto {
   @ApiProperty()
   @IsArray()
   @IsString({ each: true })
+  @MaxLength(1000, { each: true })
   @IsOptional()
   catatan: string[];
 }

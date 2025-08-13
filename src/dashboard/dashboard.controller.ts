@@ -28,9 +28,11 @@ import { OrderTrendResponseDto } from './dto/order-trend-response.dto';
 import { BranchDistributionResponseDto } from './dto/branch-distribution-response.dto';
 import { InspectorPerformanceResponseDto } from './dto/inspector-performance-response.dto';
 import { Role } from '@prisma/client';
+import { SkipThrottle } from '@nestjs/throttler';
 
 @ApiTags('Dashboard Admin') // For Swagger
 @ApiBearerAuth() // For Swagger, indicates endpoint requires a token
+@SkipThrottle()
 @Controller('dashboard')
 @UseGuards(JwtAuthGuard, RolesGuard) // Ensure JWTAuthGuard runs first
 export class DashboardController {
@@ -44,7 +46,7 @@ export class DashboardController {
    * @returns A promise that resolves to the main statistics data.
    */
   @Get('main-stats')
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Get main order statistics' })
   @ApiResponse({
     status: 200,
@@ -65,7 +67,7 @@ export class DashboardController {
    * @returns A promise that resolves to the order trend data.
    */
   @Get('order-trend')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Get order trend data' })
   @ApiResponse({
     status: 200,
@@ -86,7 +88,7 @@ export class DashboardController {
    * @returns A promise that resolves to the branch distribution data.
    */
   @Get('branch-distribution')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiOperation({
     summary: 'Get order distribution by branch',
   })
@@ -109,7 +111,7 @@ export class DashboardController {
    * @returns A promise that resolves to the inspector performance data.
    */
   @Get('inspector-performance')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Get inspector performance' })
   @ApiResponse({
     status: 200,

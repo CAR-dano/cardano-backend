@@ -28,6 +28,9 @@ import { UpdatePhotoDto } from './dto/update-photo.dto';
 // Import file system operations if deleting local files
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { validate } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
+import { PhotoMetadataDto } from './dto/photo-metadata.dto';
 const UPLOAD_PATH = './uploads/inspection-photos'; // Define consistently
 
 @Injectable()
@@ -375,20 +378,10 @@ export class PhotosService {
       throw new BadRequestException('Missing metadata JSON string.');
     }
 
-    let parsedMetadata: {
-      label?: string;
-      needAttention?: boolean;
-      category?: string;
-      isMandatory?: boolean;
-    }[];
+    let parsedMetadata: any[];
 
     try {
-      parsedMetadata = JSON.parse(metadataJsonString) as {
-        label?: string;
-        needAttention?: boolean;
-        category?: string;
-        isMandatory?: boolean;
-      }[];
+      parsedMetadata = JSON.parse(metadataJsonString);
 
       if (!Array.isArray(parsedMetadata)) {
         throw new Error('Metadata is not a valid JSON array.');
@@ -398,38 +391,32 @@ export class PhotosService {
           `Metadata count (${parsedMetadata.length}) does not match photo count (${files.length}).`,
         );
       }
-      // Optional: More detailed validation of each metadata object
-      parsedMetadata.forEach((meta, i) => {
-        // Label is optional. If provided, it must be a string.
-        // Empty string is allowed here and will be handled by data preparation to use the default.
-        if (meta.label !== undefined && typeof meta.label !== 'string') {
-          throw new BadRequestException(
-            `Invalid label type at metadata index ${i}: if provided, must be a string.`,
-          );
+
+      const validationErrors: { photoIndex: number; errors: string[] }[] = [];
+      for (let i = 0; i < parsedMetadata.length; i++) {
+        const metadataObject = parsedMetadata[i];
+        const metadataDto = plainToInstance(PhotoMetadataDto, metadataObject);
+        const errors = await validate(metadataDto);
+        if (errors.length > 0) {
+          validationErrors.push({
+            photoIndex: i,
+            errors: errors
+              .map((e) => (e.constraints ? Object.values(e.constraints) : []))
+              .flat(),
+          });
         }
-        if (
-          meta.needAttention !== undefined &&
-          typeof meta.needAttention !== 'boolean'
-        ) {
-          throw new BadRequestException(
-            `Invalid needAttention at metadata index ${i}.`,
-          );
-        }
-        if (meta.category !== undefined && typeof meta.category !== 'string') {
-          throw new BadRequestException(
-            `Invalid category at metadata index ${i}.`,
-          );
-        }
-        if (
-          meta.isMandatory !== undefined &&
-          typeof meta.isMandatory !== 'boolean'
-        ) {
-          throw new BadRequestException(
-            `Invalid isMandatory at metadata index ${i}.`,
-          );
-        }
-      });
+      }
+
+      if (validationErrors.length > 0) {
+        throw new BadRequestException({
+          message: 'Validation failed for photo metadata.',
+          errors: validationErrors,
+        });
+      }
     } catch (error: unknown) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       throw new BadRequestException(`Invalid metadata format: ${errorMessage}`);

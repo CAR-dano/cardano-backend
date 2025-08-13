@@ -19,7 +19,7 @@ import { ApiProperty } from '@nestjs/swagger';
 /**
  * Data Transfer Object (DTO) representing a photo associated with an inspection.
  */
-export class PhotoResponseDto {
+export class PhotoDetailResponseDTO {
   @ApiProperty({
     example: 'add815ce-d602-4e49-a360-e6012e23cead',
     description: 'The unique identifier (UUID) for the photo record.',
@@ -92,7 +92,7 @@ export class PhotoResponseDto {
   })
   updatedAt: Date;
 
-  constructor(partial: Partial<PhotoResponseDto>) {
+  constructor(partial: Partial<PhotoDetailResponseDTO>) {
     Object.assign(this, partial);
   }
 }
@@ -489,10 +489,10 @@ export class InspectionResponseDto {
     ],
     description:
       'An array containing metadata for photos associated with this inspection.',
-    type: PhotoResponseDto, // Specify the DTO type for array items
+    type: PhotoDetailResponseDTO, // Specify the DTO type for array items
     isArray: true, // Indicate that this is an array
   })
-  photos: PhotoResponseDto[]; // Use the new PhotoResponseDto type
+  photos: PhotoDetailResponseDTO[]; // Use the new PhotoDetailResponseDTO type
 
   /**
    * The URL pointing to the generated PDF report file (stored off-chain).
@@ -634,17 +634,21 @@ export class InspectionResponseDto {
    * Constructor to facilitate mapping from a Prisma Inspection entity.
    * Uses Object.assign for straightforward mapping of properties with the same name.
    * Can be extended to explicitly map or exclude fields if needed.
-   * @param {Partial<Inspection & { photos: Partial<PhotoResponseDto>[] }>} partial - The Prisma Inspection entity or a partial object including photos.
+   * @param {Partial<Inspection & { photos: Partial<PhotoDetailResponseDTO>[] }>} partial - The Prisma Inspection entity or a partial object including photos.
    */
   constructor(
-    partial: Partial<Inspection & { photos: Partial<PhotoResponseDto>[] }>,
+    partial: Partial<
+      Inspection & { photos: Partial<PhotoDetailResponseDTO>[] }
+    >,
   ) {
     // Copies properties from the Prisma entity to this DTO instance
     Object.assign(this, partial);
 
-    // Map the photos array to PhotoResponseDto instances
+    // Map the photos array to PhotoDetailResponseDTO instances
     if (partial.photos && Array.isArray(partial.photos)) {
-      this.photos = partial.photos.map((photo) => new PhotoResponseDto(photo));
+      this.photos = partial.photos.map(
+        (photo) => new PhotoDetailResponseDTO(photo),
+      );
     } else {
       this.photos = [];
     }

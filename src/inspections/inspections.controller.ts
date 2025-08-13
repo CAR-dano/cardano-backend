@@ -37,7 +37,7 @@ import {
 import { InspectionsService } from './inspections.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
-import { UpdateInspectionDto } from './dto/update-inspection.dto';
+import { UpdateInspectionDto } from './dto/update-inspection/update-inspection.dto';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express'; // NestJS interceptor for handling multiple file fields
 import { diskStorage } from 'multer'; // Storage engine for Multer (file uploads)
 import { extname } from 'path'; // Node.js utility for handling file extensions
@@ -68,6 +68,8 @@ import { Req } from '@nestjs/common'; // Import Req decorator
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { FileValidationPipe } from './pipes/file-validation.pipe';
+import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { skip } from 'rxjs';
 
 // Define an interface for the expected photo metadata structure
 interface PhotoMetadata {
@@ -130,7 +132,9 @@ export class InspectionsController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.INSPECTOR)
-  @ApiBearerAuth()
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  // @ApiBearerAuth()
   @ApiOperation({
     summary: 'Create a new inspection record (Inspector only)',
     description:
@@ -175,9 +179,10 @@ export class InspectionsController {
    * @returns A promise that resolves to the updated inspection record summary.
    */
   @Put(':id')
+  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Update an existing inspection record',
@@ -242,16 +247,15 @@ export class InspectionsController {
    * @returns {Promise<PhotoResponseDto[]>} Array of created photo record summaries.
    */
   @Post(':id/photos/multiple') // Renamed endpoint
+  @SkipThrottle()
   @HttpCode(HttpStatus.CREATED)
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.INSPECTOR)
   @UseInterceptors(
     FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST, {
       storage: photoStorageConfig,
     }),
   )
-  // @UseGuards(JwtAuthGuard, RolesGuard)
-  // @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   @ApiOperation({
     summary: 'Upload a batch of photos for an inspection', // Updated summary
     description:
@@ -329,9 +333,10 @@ export class InspectionsController {
    * @returns A promise that resolves to the created photo record summary.
    */
   @Post(':id/photos/single')
+  @SkipThrottle()
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.INSPECTOR)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   @UseInterceptors(
     FileInterceptor('photo', {
       storage: photoStorageConfig,
@@ -419,8 +424,10 @@ export class InspectionsController {
    * @returns A promise that resolves to an array of photo record summaries.
    */
   @Get(':id/photos')
+  @SkipThrottle()
+  @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve all photos for an inspection',
@@ -468,6 +475,8 @@ export class InspectionsController {
    * @returns A promise that resolves to the updated photo record summary.
    */
   @Put(':id/photos/:photoId')
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(
     FileInterceptor('photo', {
@@ -475,7 +484,7 @@ export class InspectionsController {
     }),
   ) // Handle single optional file
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Update a specific photo',
@@ -552,9 +561,10 @@ export class InspectionsController {
    * @returns A promise that resolves when the photo is deleted.
    */
   @Delete(':id/photos/:photoId')
+  @SkipThrottle()
   @HttpCode(HttpStatus.NO_CONTENT) // Standard for successful DELETE with no body
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Delete a specific photo',
@@ -608,6 +618,7 @@ export class InspectionsController {
    * @throws {NotFoundException} If inspection not found.
    */
   @Get('search')
+  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -654,9 +665,10 @@ export class InspectionsController {
    * @returns {Promise<InspectionResponseDto[]>} A list of found inspection summaries.
    */
   @Get('search/keyword')
+  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Search for inspections by a general keyword',
@@ -697,7 +709,8 @@ export class InspectionsController {
    */
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @SkipThrottle()
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve all inspection records with pagination',
@@ -801,7 +814,7 @@ export class InspectionsController {
     }
 
     this.logger.warn(
-      `[GET /inspections] Applying filter for DUMMY role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${parsedStatus ? parsedStatus.join(',') : 'undefined'}`,
+      `[GET /inspections] Applying filter for role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${parsedStatus ? parsedStatus.join(',') : 'undefined'}`,
     );
     const result = await this.inspectionsService.findAll(
       userRole,
@@ -826,8 +839,9 @@ export class InspectionsController {
    * @returns A promise that resolves to the inspection record summary.
    */
   @Get(':id')
+  @SkipThrottle()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Retrieve a specific inspection by ID',
@@ -879,9 +893,11 @@ export class InspectionsController {
    * @returns {Promise<InspectionResponseDto>} The approved inspection record summary.
    */
   @Patch(':id/approve')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Approve a submitted inspection',
@@ -941,9 +957,11 @@ export class InspectionsController {
    * @returns {Promise<InspectionResponseDto>} The archived inspection record summary.
    */
   @Put(':id/archive')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary:
@@ -1006,8 +1024,10 @@ export class InspectionsController {
    * @throws BadRequestException if adminAddress is not provided in the request body.
    */
   @Post(':id/build-archive-tx')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Step 1 - Build Unsigned Archive Transaction' })
   @ApiBody({ type: BuildMintRequestDto })
@@ -1061,9 +1081,11 @@ export class InspectionsController {
    * @returns A promise that resolves to the updated inspection record summary.
    */
   @Post(':id/confirm-archive')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Step 2 - Confirm and Save Minting Results' })
   @ApiResponse({
@@ -1111,9 +1133,10 @@ export class InspectionsController {
    * @returns {Promise<InspectionResponseDto>} The deactivated inspection record summary.
    */
   @Patch(':id/deactivate')
+  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Deactivate an archived inspection',
@@ -1164,9 +1187,10 @@ export class InspectionsController {
    * @returns {Promise<InspectionResponseDto>} The activated inspection record summary.
    */
   @Patch(':id/activate')
+  @SkipThrottle()
   @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Activate a deactivated inspection',
@@ -1207,5 +1231,51 @@ export class InspectionsController {
       userId,
     );
     return new InspectionResponseDto(inspection);
+  }
+
+  /**
+   * Handles the permanent deletion of an inspection and all associated data.
+   * [DELETE /inspections/:id/permanently]
+   * This is a destructive action and can only be performed by a SUPERADMIN.
+   * It deletes the inspection record, all related photo records, and all associated files (images and PDFs) from the disk.
+   * @param {string} id - The UUID of the inspection to delete permanently.
+   * @returns {Promise<void>} A promise that resolves when the deletion is complete.
+   */
+  @Delete(':id/permanently')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Permanently delete an inspection (Superadmin Only)',
+    description:
+      'Deletes an inspection, its photos, its change logs, and all associated files from the disk. This action is irreversible.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'The UUID of the inspection to delete permanently.',
+  })
+  @ApiResponse({
+    status: 204,
+    description: 'Inspection deleted successfully.',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the SUPERADMIN role.',
+  })
+  async deleteInspectionPermanently(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<void> {
+    this.logger.warn(
+      `[SUPERADMIN] Received request to permanently delete inspection ${id}`,
+    );
+    await this.inspectionsService.deleteInspectionPermanently(id);
   }
 } // End Controller
