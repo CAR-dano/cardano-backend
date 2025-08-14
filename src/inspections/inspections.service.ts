@@ -1422,10 +1422,47 @@ export class InspectionsService {
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
           '--disable-gpu',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor',
         ],
         executablePath: '/usr/bin/chromium-browser',
       });
       const page = await browser.newPage();
+
+      // Set proper viewport for web content (maintain original layout)
+      await page.setViewport({
+        width: 1200, // Standard desktop width
+        height: 1600, // Sufficient height for content
+        deviceScaleFactor: 1,
+      });
+
+      // Get compression level from environment
+      const compressionLevel = process.env.PDF_COMPRESSION_LEVEL || 'medium';
+      const enableOptimization = compressionLevel !== 'none';
+
+      // Only apply optimizations if compression is enabled
+      if (enableOptimization) {
+        await page.setRequestInterception(true);
+        page.on('request', (req) => {
+          const resourceType = req.resourceType();
+          const requestUrl = req.url();
+
+          // Only block truly unnecessary resources, keep fonts and important media
+          if (
+            requestUrl.includes('analytics') ||
+            requestUrl.includes('tracking') ||
+            requestUrl.includes('ads') ||
+            requestUrl.includes('facebook') ||
+            requestUrl.includes('google-analytics') ||
+            resourceType === 'websocket' ||
+            resourceType === 'eventsource'
+          ) {
+            void req.abort();
+          } else {
+            void req.continue();
+          }
+        });
+      }
 
       if (token) {
         const headers: Record<string, string> = {
@@ -1439,12 +1476,8 @@ export class InspectionsService {
 
       this.logger.log(`Navigating to ${url}`);
       await page.goto(url, {
-        waitUntil: 'networkidle0',
+        waitUntil: 'networkidle0', // Wait for all resources to load for better quality
         timeout: 360000,
-      });
-
-      await page.goto(url, {
-        waitUntil: 'domcontentloaded',
       });
 
       await page.waitForSelector('#glosarium', {
@@ -1452,9 +1485,81 @@ export class InspectionsService {
         timeout: 360000,
       });
 
-      this.logger.log(`Element is visible. Generating PDF...`);
-      const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
-      this.logger.log(`PDF buffer generated successfully from ${url}`);
+      // Only apply CSS optimizations if compression is enabled
+      if (enableOptimization) {
+        await page.addStyleTag({
+          content: `
+            @media print {
+              * {
+                -webkit-print-color-adjust: exact !important;
+                color-adjust: exact !important;
+              }
+              /* Only remove shadows and filters for file size, keep layout intact */
+              .shadow, .drop-shadow {
+                box-shadow: none !important;
+                filter: none !important;
+              }
+              /* Optimize images without breaking layout */
+              img {
+                image-rendering: optimizeSpeed !important;
+              }
+            }
+          `,
+        });
+
+        // Light optimization - only remove truly heavy elements
+        await page.evaluate(() => {
+          // Remove video and embed elements that don't contribute to the inspection report
+          const heavyElements = document.querySelectorAll(
+            'video:not([data-inspection]), iframe:not([data-inspection]), embed, object',
+          );
+          heavyElements.forEach((el) => {
+            (el as HTMLElement).style.display = 'none';
+          });
+        });
+      }
+
+      this.logger.log(`Generating PDF with ${compressionLevel} compression...`);
+
+      // Use conservative scale values to maintain layout quality
+      let scale = 1.0; // Default: no scaling for best quality
+
+      switch (compressionLevel) {
+        case 'high':
+          scale = 0.85; // Modest reduction
+          break;
+        case 'medium':
+          scale = 0.9; // Light reduction
+          break;
+        case 'low':
+        case 'none':
+          scale = 1.0; // No scaling
+          break;
+      }
+
+      const pdfBuffer = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        preferCSSPageSize: false,
+        displayHeaderFooter: false,
+        margin: {
+          top: '10mm',
+          bottom: '10mm',
+          left: '10mm',
+          right: '10mm',
+        },
+        scale,
+        omitBackground: false,
+        timeout: 360000,
+        tagged: compressionLevel === 'none', // Only tag for highest quality
+      });
+
+      const sizeInMB = (pdfBuffer.length / 1024 / 1024).toFixed(2);
+      this.logger.log(`PDF generated successfully from ${url}`);
+      this.logger.log(
+        `PDF size: ${sizeInMB} MB (compression: ${compressionLevel})`,
+      );
+
       return Buffer.from(pdfBuffer);
     } catch (error: unknown) {
       const errorMessage =
