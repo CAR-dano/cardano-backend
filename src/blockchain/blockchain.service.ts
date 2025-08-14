@@ -73,6 +73,9 @@ export class BlockchainService {
   private readonly secretKey: string;
   private readonly blockfrostBaseUrl: string;
 
+  private readonly MAX_RETRIES = 5;
+  private readonly INITIAL_RETRY_DELAY_MS = 1000; // 1 second
+
   /**
    * Constructs the BlockchainService instance.
    * Initializes BlockfrostProvider and MeshWallet based on environment configuration.
@@ -150,97 +153,125 @@ export class BlockchainService {
       `Attempting to mint NFT for vehicle: ${metadata.vehicleNumber}`,
     );
 
-    try {
-      const balance = await this.wallet.getBalance();
-      const lovelaceBalance =
-        balance.find((asset) => asset.unit === 'lovelace')?.quantity ?? '0';
-      const lovelaceAmount = parseInt(lovelaceBalance, 10);
-      const balanceInAda = lovelaceAmount / 1000000;
+    let retries = 0;
+    let delay = this.INITIAL_RETRY_DELAY_MS;
 
-      // 5 ADA = 5,000,000 lovelace
-      if (lovelaceAmount < 5000000) {
-        throw new BadRequestException(
-          `Wallet has not enough funds or the balance is insufficient. Current balance: ${balanceInAda.toFixed(
-            6,
-          )} ADA.`,
+    while (retries < this.MAX_RETRIES) {
+      try {
+        const balance = await this.wallet.getBalance();
+        const lovelaceBalance =
+          balance.find((asset) => asset.unit === 'lovelace')?.quantity ?? '0';
+        const lovelaceAmount = parseInt(lovelaceBalance, 10);
+        const balanceInAda = lovelaceAmount / 1000000;
+
+        // 5 ADA = 5,000,000 lovelace
+        if (lovelaceAmount < 5000000) {
+          throw new BadRequestException(
+            `Wallet has not enough funds or the balance is insufficient. Current balance: ${balanceInAda.toFixed(
+              6,
+            )} ADA.`,
+          );
+        }
+        this.logger.debug(`Current balance: ${balanceInAda.toFixed(6)} ADA.`);
+
+        const utxos = await this.wallet.getUtxos();
+        if (!utxos || utxos.length === 0) {
+          throw new InternalServerErrorException(
+            'Wallet has no UTXOs available to build the transaction.',
+          );
+        }
+        this.logger.debug(`Found ${utxos.length} UTXOs for wallet.`);
+
+        // Get the primary address of the wallet to use for forging script and change address
+        const walletAddress = (await this.wallet.getUsedAddresses())[0]; // Use getChangeAddress for consistency
+
+        // Define the forging script (single signature from the wallet owner)
+        const forgingScript = ForgeScript.withOneSignature(walletAddress);
+        const policyId = resolveScriptHash(forgingScript); // Calculate the policy ID
+
+        // Generate a unique token name based on key inspection data + perhaps a random element or timestamp for uniqueness assurance
+        const simpleAssetName = `Inspection_${metadata.vehicleNumber}`;
+        const simpleAssetNameHex = stringToHex(simpleAssetName); // Convert human-readable name to hex
+        // Construct the full asset ID
+        const assetId = policyId + simpleAssetNameHex;
+        this.logger.log(`Generated Asset ID: ${assetId}`);
+
+        // Prepare the metadata according to CIP-0025 (NFT standard) under the 721 label
+        // Ensure 'name' is set for display purposes
+        const nftDisplayName = `CarInspection-${metadata.vehicleNumber}`; // Use provided name or generate one
+        const imageForDisplay = `ipfs://QmY65h6y6zUoJjN3ripc4J2PzEvzL2VkiVXz3sCZboqPJw`; // Use provided name or generate one
+        const finalMetadata = {
+          ...metadata,
+          name: nftDisplayName,
+          image: imageForDisplay, // logo CAR-dano
+          mediaType: 'image/png',
+        }; // Add/overwrite name
+        // Structure for CIP-0025: { policyId: { assetName: { metadata } } }
+        const cip25Metadata = {
+          [policyId]: { [simpleAssetName]: finalMetadata },
+        }; // Use the human-readable asset name as the key in metadata
+
+        // Initialize the transaction builder
+        const txBuilder = this.getTxBuilder();
+
+        // Build the transaction
+        const unsignedTx = await txBuilder
+          .mint('1', policyId, simpleAssetNameHex) // Mint 1 token with the calculated details (using hex asset name)
+          .mintingScript(forgingScript) // Provide the script needed to authorize the mint
+          .metadataValue('721', cip25Metadata) // Attach metadata under the 721 label
+          .changeAddress(walletAddress) // Where to send remaining ADA and change
+          .selectUtxosFrom(utxos) // Provide the UTXOs to use for inputs/fees
+          .complete(); // Calculate fees and build the transaction body
+
+        this.logger.log('Transaction built successfully. Signing...');
+
+        // Sign the transaction
+        const signedTx = await this.wallet.signTx(unsignedTx, true); // Partial sign might be false if wallet holds all keys
+        this.logger.log('Transaction signed successfully. Submitting...');
+
+        // Submit the transaction
+        const txHash = await this.wallet.submitTx(signedTx);
+        this.logger.log(
+          `Transaction submitted successfully. TxHash: ${txHash}`,
         );
+
+        return { txHash, assetId };
+      } catch (error: unknown) {
+        let errorMessage = 'Unknown error during minting';
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        } else if (
+          typeof error === 'object' &&
+          error !== null &&
+          'message' in error &&
+          typeof (error as { message: unknown }).message === 'string'
+        ) {
+          errorMessage = (error as { message: string }).message;
+        }
+
+        if (
+          errorMessage.includes('Wallet has no UTXOs available') &&
+          retries < this.MAX_RETRIES - 1
+        ) {
+          this.logger.warn(
+            `UTXO error encountered. Retrying in ${delay}ms... (Attempt ${
+              retries + 1
+            }/${this.MAX_RETRIES})`,
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          delay *= 2; // Exponential backoff
+          retries++;
+        } else {
+          this.logger.error('NFT Minting failed:', error);
+          throw new InternalServerErrorException(
+            `Failed to mint NFT: ${errorMessage}`,
+          );
+        }
       }
-      this.logger.debug(`Current balance: ${balanceInAda.toFixed(6)} ADA.`);
-
-      const utxos = await this.wallet.getUtxos();
-      if (!utxos || utxos.length === 0) {
-        throw new InternalServerErrorException(
-          'Wallet has no UTXOs available to build the transaction.',
-        );
-      }
-      this.logger.debug(`Found ${utxos.length} UTXOs for wallet.`);
-
-      // Get the primary address of the wallet to use for forging script and change address
-      const walletAddress = (await this.wallet.getUsedAddresses())[0]; // Use getChangeAddress for consistency
-
-      // Define the forging script (single signature from the wallet owner)
-      const forgingScript = ForgeScript.withOneSignature(walletAddress);
-      const policyId = resolveScriptHash(forgingScript); // Calculate the policy ID
-
-      // Generate a unique token name based on key inspection data + perhaps a random element or timestamp for uniqueness assurance
-      const simpleAssetName = `Inspection_${metadata.vehicleNumber}`;
-      const simpleAssetNameHex = stringToHex(simpleAssetName); // Convert human-readable name to hex
-      // Construct the full asset ID
-      const assetId = policyId + simpleAssetNameHex;
-      this.logger.log(`Generated Asset ID: ${assetId}`);
-
-      // Prepare the metadata according to CIP-0025 (NFT standard) under the 721 label
-      // Ensure 'name' is set for display purposes
-      const nftDisplayName = `CarInspection-${metadata.vehicleNumber}`; // Use provided name or generate one
-      const imageForDisplay = `ipfs://QmY65h6y6zUoJjN3ripc4J2PzEvzL2VkiVXz3sCZboqPJw`; // Use provided name or generate one
-      const finalMetadata = {
-        ...metadata,
-        name: nftDisplayName,
-        image: imageForDisplay, // logo CAR-dano
-        mediaType: 'image/png',
-      }; // Add/overwrite name
-      // Structure for CIP-0025: { policyId: { assetName: { metadata } } }
-      const cip25Metadata = {
-        [policyId]: { [simpleAssetName]: finalMetadata },
-      }; // Use the human-readable asset name as the key in metadata
-
-      // Initialize the transaction builder
-      const txBuilder = this.getTxBuilder();
-
-      // Build the transaction
-      const unsignedTx = await txBuilder
-        .mint('1', policyId, simpleAssetNameHex) // Mint 1 token with the calculated details (using hex asset name)
-        .mintingScript(forgingScript) // Provide the script needed to authorize the mint
-        .metadataValue('721', cip25Metadata) // Attach metadata under the 721 label
-        .changeAddress(walletAddress) // Where to send remaining ADA and change
-        .selectUtxosFrom(utxos) // Provide the UTXOs to use for inputs/fees
-        .complete(); // Calculate fees and build the transaction body
-
-      this.logger.log('Transaction built successfully. Signing...');
-
-      // Sign the transaction
-      const signedTx = await this.wallet.signTx(unsignedTx, true); // Partial sign might be false if wallet holds all keys
-      this.logger.log('Transaction signed successfully. Submitting...');
-
-      // Submit the transaction
-      const txHash = await this.wallet.submitTx(signedTx);
-      this.logger.log(`Transaction submitted successfully. TxHash: ${txHash}`);
-
-      return { txHash, assetId };
-    } catch (error: any) {
-      this.logger.error('NFT Minting failed:', error);
-      // Provide more context if possible
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      const errorMessage = error
-        ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          error.info || // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-          error.message ||
-          'Unknown error during minting'
-        : 'Unknown error during minting';
-      throw new InternalServerErrorException(
-        `Failed to mint NFT: ${errorMessage}`,
-      );
     }
+    throw new InternalServerErrorException(
+      `Failed to mint NFT after ${this.MAX_RETRIES} retries due to UTXO unavailability.`,
+    );
   }
 
   /**
