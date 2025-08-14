@@ -16,9 +16,10 @@ import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder, OpenAPIObject } from '@nestjs/swagger';
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe, LogLevel } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { json, urlencoded } from 'express';
+import { getLoggerConfig } from './config/logger.config';
 
 let openApiDocument: OpenAPIObject | null = null;
 
@@ -35,10 +36,19 @@ export function getOpenApiDocument(): OpenAPIObject | null {
  * The main bootstrap function to initialize and start the NestJS application.
  */
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // Get logger configuration from environment
+  const loggerConfig = getLoggerConfig();
+
+  const app = await NestFactory.create(AppModule, {
+    logger: loggerConfig.logLevels, // Set log levels from configuration
+  });
   app.use(helmet());
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap - ApiGateway'); // Create a logger instance
+
+  logger.log(
+    `Logger initialized with levels: [${loggerConfig.logLevels.join(', ')}]`,
+  );
 
   // Set payload limits
   app.use(json({ limit: '5mb' }));
@@ -123,4 +133,7 @@ async function bootstrap() {
     `📄 OpenAPI JSON specification available at: http://localhost:${port}/api/v1/openapi.json`,
   );
 }
-bootstrap();
+bootstrap().catch((error) => {
+  console.error('Error starting application:', error);
+  process.exit(1);
+});
