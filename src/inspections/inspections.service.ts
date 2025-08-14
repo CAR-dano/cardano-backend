@@ -55,6 +55,85 @@ interface NftMetadata {
   pdfHash: string | null;
 }
 
+// PDF Generation Queue to limit concurrent operations
+class PdfGenerationQueue {
+  private queue: (() => Promise<any>)[] = [];
+  private running = 0;
+  private readonly maxConcurrent: number;
+  private totalProcessed = 0;
+  private totalErrors = 0;
+  private consecutiveErrors = 0;
+  private readonly maxConsecutiveErrors = 8; // Increased for bulk operations
+  private circuitBreakerOpenUntil = 0;
+
+  constructor(maxConcurrent = 5) {
+    // Increased to 5 for large bulk operations (10 inspections = 20 PDFs)
+    this.maxConcurrent = maxConcurrent;
+  }
+
+  get stats() {
+    return {
+      queueLength: this.queue.length,
+      running: this.running,
+      totalProcessed: this.totalProcessed,
+      totalErrors: this.totalErrors,
+      consecutiveErrors: this.consecutiveErrors,
+      circuitBreakerOpen: Date.now() < this.circuitBreakerOpenUntil,
+    };
+  }
+
+  private isCircuitBreakerOpen(): boolean {
+    return Date.now() < this.circuitBreakerOpenUntil;
+  }
+
+  async add<T>(task: () => Promise<T>): Promise<T> {
+    if (this.isCircuitBreakerOpen()) {
+      throw new Error(
+        'PDF generation circuit breaker is open due to consecutive failures. Please try again later.',
+      );
+    }
+
+    return new Promise((resolve, reject) => {
+      this.queue.push(async () => {
+        try {
+          const result = await task();
+          this.totalProcessed++;
+          this.consecutiveErrors = 0; // Reset on success
+          resolve(result);
+        } catch (error) {
+          this.totalErrors++;
+          this.consecutiveErrors++;
+
+          // Open circuit breaker if too many consecutive errors
+          if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
+            this.circuitBreakerOpenUntil = Date.now() + 300000; // 5 minutes
+          }
+
+          reject(error as Error);
+        }
+      });
+      void this.processQueue();
+    });
+  }
+
+  private async processQueue() {
+    if (this.running >= this.maxConcurrent || this.queue.length === 0) {
+      return;
+    }
+
+    this.running++;
+    const task = this.queue.shift();
+    if (task) {
+      try {
+        await task();
+      } finally {
+        this.running--;
+        void this.processQueue();
+      }
+    }
+  }
+}
+
 /**
  * Service responsible for handling business logic related to inspections.
  * Interacts with PrismaService to manage inspection data in the database.
@@ -66,6 +145,8 @@ interface NftMetadata {
 export class InspectionsService {
   // Initialize a logger for this service context
   private readonly logger = new Logger(InspectionsService.name);
+  // PDF generation queue to limit concurrent operations
+  private readonly pdfQueue = new PdfGenerationQueue(5); // Increased to 5 for large bulk operations
   // Inject PrismaService dependency via constructor
   constructor(
     private prisma: PrismaService,
@@ -74,7 +155,49 @@ export class InspectionsService {
     private readonly ipfsService: IpfsService,
   ) {
     // Ensure the PDF archive directory exists on startup
-    this.ensureDirectoryExists(PDF_ARCHIVE_PATH);
+    void this.ensureDirectoryExists(PDF_ARCHIVE_PATH);
+  }
+
+  /**
+   * Helper method to sleep for a given number of milliseconds
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Retry wrapper with exponential backoff
+   */
+  private async retryWithBackoff<T>(
+    operation: () => Promise<T>,
+    maxRetries: number = 3,
+    baseDelay: number = 1000,
+    operationName: string = 'operation',
+  ): Promise<T> {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await operation();
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
+
+        if (attempt === maxRetries) {
+          this.logger.error(
+            `${operationName} failed after ${maxRetries} attempts: ${errorMessage}`,
+          );
+          throw error;
+        }
+
+        const delay = baseDelay * Math.pow(2, attempt - 1); // Exponential backoff
+        this.logger.warn(
+          `${operationName} failed on attempt ${attempt}/${maxRetries}: ${errorMessage}. Retrying in ${delay}ms...`,
+        );
+
+        await this.sleep(delay);
+      }
+    }
+
+    throw new Error(`${operationName} failed after ${maxRetries} attempts`);
   }
 
   /**
@@ -1138,22 +1261,51 @@ export class InspectionsService {
     baseFileName: string,
     token: string | null,
   ): Promise<{ pdfPublicUrl: string; pdfCid: string; pdfHashString: string }> {
-    const pdfBuffer = await this.generatePdfFromUrl(url, token);
-    const pdfCid = await this.ipfsService.add(pdfBuffer);
-    const pdfFilePath = path.join(PDF_ARCHIVE_PATH, baseFileName);
-    await fs.writeFile(pdfFilePath, pdfBuffer);
-    this.logger.log(`PDF report saved to: ${pdfFilePath}`);
-
-    const hash = crypto.createHash('sha256');
-    hash.update(pdfBuffer);
-    const pdfHashString = hash.digest('hex');
+    const queueStats = this.pdfQueue.stats;
     this.logger.log(
-      `PDF hash calculated for ${baseFileName}: ${pdfHashString}`,
+      `Adding PDF generation to queue for ${baseFileName}. Queue status: ${queueStats.running}/${queueStats.queueLength + queueStats.running} (running/total)`,
     );
 
-    const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${baseFileName}`;
+    // Log special warning for very large bulk operations
+    if (queueStats.queueLength > 15) {
+      this.logger.warn(
+        `Very large bulk operation detected! ${queueStats.queueLength} PDFs queued. Estimated completion time: ${Math.ceil((queueStats.queueLength / 5) * 3)} minutes`,
+      );
+    }
 
-    return { pdfPublicUrl, pdfCid, pdfHashString };
+    // Use queue to limit concurrent PDF generations
+    return this.pdfQueue.add(async () => {
+      this.logger.log(`Starting PDF generation for ${baseFileName}`);
+
+      // Use retry mechanism for PDF generation
+      const pdfBuffer = await this.retryWithBackoff(
+        () => this.generatePdfFromUrl(url, token),
+        3, // max retries
+        2000, // base delay 2 seconds
+        `PDF generation for ${baseFileName}`,
+      );
+
+      const pdfCid = await this.ipfsService.add(pdfBuffer);
+      const pdfFilePath = path.join(PDF_ARCHIVE_PATH, baseFileName);
+      await fs.writeFile(pdfFilePath, pdfBuffer);
+      this.logger.log(`PDF report saved to: ${pdfFilePath}`);
+
+      const hash = crypto.createHash('sha256');
+      hash.update(pdfBuffer);
+      const pdfHashString = hash.digest('hex');
+      this.logger.log(
+        `PDF hash calculated for ${baseFileName}: ${pdfHashString}`,
+      );
+
+      const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${baseFileName}`;
+
+      const finalStats = this.pdfQueue.stats;
+      this.logger.log(
+        `PDF generation completed for ${baseFileName}. Queue stats: processed=${finalStats.totalProcessed}, errors=${finalStats.totalErrors}`,
+      );
+
+      return { pdfPublicUrl, pdfCid, pdfHashString };
+    });
   }
 
   /**
@@ -1175,9 +1327,32 @@ export class InspectionsService {
     reviewerId: string,
     token: string | null, // Accept the token
   ): Promise<Inspection> {
+    const startTime = Date.now();
+    const queueStatsBefore = this.pdfQueue.stats;
+
     this.logger.log(
-      `Reviewer ${reviewerId} attempting to approve inspection ${inspectionId}`,
+      `Reviewer ${reviewerId} attempting to approve inspection ${inspectionId}. Queue status: ${queueStatsBefore.running} running, ${queueStatsBefore.queueLength} queued`,
     );
+
+    // Warning if queue is getting too busy (may indicate bulk approve)
+    if (queueStatsBefore.queueLength > 15) {
+      this.logger.warn(
+        `PDF generation queue is very busy with ${queueStatsBefore.queueLength} items queued. Large bulk approval detected (possibly 10+ inspections).`,
+      );
+    } else if (queueStatsBefore.queueLength > 8) {
+      this.logger.warn(
+        `PDF generation queue is busy with ${queueStatsBefore.queueLength} items queued. Bulk approval in progress.`,
+      );
+    }
+
+    if (queueStatsBefore.circuitBreakerOpen) {
+      this.logger.error(
+        `PDF generation circuit breaker is open. Cannot process approval for inspection ${inspectionId}`,
+      );
+      throw new InternalServerErrorException(
+        'PDF generation service is temporarily unavailable due to consecutive failures. Please try again later.',
+      );
+    }
 
     // --- Transactional Database Update ---
     const updatedInspectionWithChanges = await this.prisma.$transaction(
@@ -1382,7 +1557,13 @@ export class InspectionsService {
         data: finalUpdateData,
       });
 
-      this.logger.log(`Inspection ${inspectionId} approved successfully.`);
+      const totalTime = Date.now() - startTime;
+      const queueStatsAfter = this.pdfQueue.stats;
+
+      this.logger.log(
+        `Inspection ${inspectionId} approved successfully in ${totalTime}ms. Queue stats: processed=${queueStatsAfter.totalProcessed}, errors=${queueStatsAfter.totalErrors}`,
+      );
+
       return finalInspection;
     } catch (error: unknown) {
       const errorMessage =
@@ -1414,6 +1595,26 @@ export class InspectionsService {
   ): Promise<Buffer> {
     let browser: Browser | null = null;
     this.logger.log(`Generating PDF from URL: ${url}`);
+
+    // Add a random delay to help with concurrent requests (adaptive based on queue size)
+    const currentQueueStats = this.pdfQueue.stats;
+    let delayMultiplier = 1000; // Base 1 second
+
+    if (currentQueueStats.queueLength > 15) {
+      delayMultiplier = 5000; // 0-5s for very large bulk (10+ inspections)
+    } else if (currentQueueStats.queueLength > 8) {
+      delayMultiplier = 3000; // 0-3s for large bulk (5-10 inspections)
+    } else if (currentQueueStats.queueLength > 3) {
+      delayMultiplier = 2000; // 0-2s for medium bulk (3-5 inspections)
+    }
+
+    const randomDelay = Math.random() * delayMultiplier;
+    await this.sleep(randomDelay);
+
+    this.logger.debug(
+      `Applied ${Math.round(randomDelay)}ms delay for queue size ${currentQueueStats.queueLength}`,
+    );
+
     try {
       browser = await puppeteer.launch({
         headless: true,
@@ -1424,9 +1625,30 @@ export class InspectionsService {
           '--disable-gpu',
           '--disable-web-security',
           '--disable-features=VizDisplayCompositor',
+          '--memory-pressure-off',
+          '--max_old_space_size=4096',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-ipc-flooding-protection',
+          '--disable-hang-monitor',
+          '--disable-client-side-phishing-detection',
+          '--disable-component-update',
+          '--disable-default-apps',
+          '--disable-domain-reliability',
+          '--disable-extensions',
+          '--disable-features=TranslateUI',
+          '--disable-sync',
+          '--hide-scrollbars',
+          '--mute-audio',
+          '--no-default-browser-check',
+          '--no-first-run',
         ],
         executablePath: '/usr/bin/chromium-browser',
+        timeout: 60000, // 1 minute timeout for browser launch
+        protocolTimeout: 600000, // 10 minutes timeout for protocol operations
       });
+
       const page = await browser.newPage();
 
       // Set proper viewport for web content (maintain original layout)
@@ -1437,7 +1659,7 @@ export class InspectionsService {
       });
 
       // Get compression level from environment
-      const compressionLevel = process.env.PDF_COMPRESSION_LEVEL || 'medium';
+      const compressionLevel = process.env.PDF_COMPRESSION_LEVEL || 'low';
       const enableOptimization = compressionLevel !== 'none';
 
       // Only apply optimizations if compression is enabled
@@ -1447,18 +1669,21 @@ export class InspectionsService {
           const resourceType = req.resourceType();
           const requestUrl = req.url();
 
-          // Only block truly unnecessary resources, keep fonts and important media
+          // Only block truly unnecessary resources, KEEP images and fonts
           if (
             requestUrl.includes('analytics') ||
             requestUrl.includes('tracking') ||
             requestUrl.includes('ads') ||
-            requestUrl.includes('facebook') ||
+            requestUrl.includes('facebook.com') ||
             requestUrl.includes('google-analytics') ||
+            requestUrl.includes('googletag') ||
+            requestUrl.includes('doubleclick') ||
             resourceType === 'websocket' ||
             resourceType === 'eventsource'
           ) {
             void req.abort();
           } else {
+            // Allow all other resources including images, fonts, stylesheets
             void req.continue();
           }
         });
@@ -1475,15 +1700,56 @@ export class InspectionsService {
       }
 
       this.logger.log(`Navigating to ${url}`);
-      await page.goto(url, {
-        waitUntil: 'networkidle0', // Wait for all resources to load for better quality
-        timeout: 360000,
-      });
+
+      // Use different wait strategies based on network conditions
+      let waitUntil: 'load' | 'networkidle0' | 'networkidle2' = 'networkidle0';
+
+      try {
+        await page.goto(url, {
+          waitUntil,
+          timeout: 600000, // Increased to 10 minutes for better reliability
+        });
+      } catch (navigationError: unknown) {
+        // If networkidle0 fails, try with networkidle2
+        const errorMsg =
+          navigationError instanceof Error
+            ? navigationError.message
+            : 'Unknown error';
+        this.logger.warn(
+          `Navigation with ${waitUntil} failed (${errorMsg}), trying with 'networkidle2' strategy`,
+        );
+        waitUntil = 'networkidle2';
+        await page.goto(url, {
+          waitUntil,
+          timeout: 600000,
+        });
+      }
 
       await page.waitForSelector('#glosarium', {
         visible: true,
-        timeout: 360000,
+        timeout: 600000, // Increased to 10 minutes for better reliability
       });
+
+      // Wait for images to load
+      this.logger.log('Waiting for images to load...');
+      await page.evaluate(async () => {
+        const images = Array.from(document.querySelectorAll('img'));
+        await Promise.all(
+          images.map((img) => {
+            if (img.complete) return Promise.resolve();
+            return new Promise((resolve, reject) => {
+              img.addEventListener('load', resolve);
+              img.addEventListener('error', reject);
+              // Fallback timeout for individual images
+              setTimeout(resolve, 10000); // 10 seconds max per image
+            });
+          }),
+        );
+      });
+
+      // Additional wait to ensure everything is rendered
+      await this.sleep(2000); // 2 second buffer
+      this.logger.log('All images loaded, proceeding with PDF generation...');
 
       // Only apply CSS optimizations if compression is enabled
       if (enableOptimization) {
@@ -1494,24 +1760,27 @@ export class InspectionsService {
                 -webkit-print-color-adjust: exact !important;
                 color-adjust: exact !important;
               }
-              /* Only remove shadows and filters for file size, keep layout intact */
-              .shadow, .drop-shadow {
+              /* Keep images intact and visible */
+              img {
+                max-width: 100% !important;
+                height: auto !important;
+                display: block !important;
+                page-break-inside: avoid !important;
+              }
+              /* Only remove heavy decorative elements that don't affect content */
+              .shadow:not(.inspection-shadow), .drop-shadow:not(.inspection-shadow) {
                 box-shadow: none !important;
                 filter: none !important;
-              }
-              /* Optimize images without breaking layout */
-              img {
-                image-rendering: optimizeSpeed !important;
               }
             }
           `,
         });
 
-        // Light optimization - only remove truly heavy elements
+        // Very light optimization - only remove truly unnecessary elements
         await page.evaluate(() => {
-          // Remove video and embed elements that don't contribute to the inspection report
+          // Remove only video elements that are clearly not part of inspection
           const heavyElements = document.querySelectorAll(
-            'video:not([data-inspection]), iframe:not([data-inspection]), embed, object',
+            'video:not([data-inspection]):not([class*="inspection"])',
           );
           heavyElements.forEach((el) => {
             (el as HTMLElement).style.display = 'none';
@@ -1550,7 +1819,7 @@ export class InspectionsService {
         },
         scale,
         omitBackground: false,
-        timeout: 360000,
+        timeout: 600000, // Increased to 10 minutes for better reliability
         tagged: compressionLevel === 'none', // Only tag for highest quality
       });
 
