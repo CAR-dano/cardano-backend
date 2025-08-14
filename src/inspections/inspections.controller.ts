@@ -1278,4 +1278,62 @@ export class InspectionsController {
     );
     await this.inspectionsService.deleteInspectionPermanently(id);
   }
+
+  /**
+   * Reverts the status of an inspection back to NEED_REVIEW.
+   * [PATCH /inspections/:id/revert-to-review]
+   * This endpoint allows SUPERADMIN users to rollback any inspection to NEED_REVIEW status,
+   * regardless of its current status. This is useful when an inspection needs to be re-reviewed
+   * due to errors, changes in requirements, or administrative decisions.
+   * @param {string} id - The UUID of the inspection to rollback.
+   * @param {string} userId - The ID of the SUPERADMIN user performing the action.
+   * @returns {Promise<InspectionResponseDto>} The updated inspection with NEED_REVIEW status.
+   */
+  @Patch(':id/revert-to-review')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Revert inspection status to NEED_REVIEW (Superadmin Only)',
+    description:
+      'Reverts any inspection status back to NEED_REVIEW, allowing it to be reviewed again. This action creates a change log entry and can only be performed by SUPERADMIN users.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'The UUID of the inspection to revert status.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Inspection status successfully reverted to NEED_REVIEW.',
+    type: InspectionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad Request (e.g., inspection already in NEED_REVIEW status).',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the SUPERADMIN role.',
+  })
+  async revertInspectionToReview(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ): Promise<InspectionResponseDto> {
+    this.logger.log(
+      `[SUPERADMIN] Received request to revert inspection ${id} status to NEED_REVIEW by user ${userId}`,
+    );
+    const inspection = await this.inspectionsService.rollbackInspectionStatus(
+      id,
+      userId,
+    );
+    return new InspectionResponseDto(inspection);
+  }
 } // End Controller

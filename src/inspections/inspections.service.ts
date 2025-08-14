@@ -2414,4 +2414,93 @@ export class InspectionsService {
       );
     }
   }
+
+  /**
+   * Reverts an inspection status back to NEED_REVIEW, regardless of its current status.
+   * This is typically used by SUPERADMIN users to rollback inspections that need to be re-reviewed.
+   * The operation creates a change log entry documenting the status rollback.
+   *
+   * @param {string} inspectionId - The UUID of the inspection to rollback.
+   * @param {string} superAdminId - The ID of the SUPERADMIN performing the rollback.
+   * @returns {Promise<Inspection>} The updated inspection record with NEED_REVIEW status.
+   * @throws {NotFoundException} If inspection not found.
+   * @throws {BadRequestException} If inspection is already in NEED_REVIEW status.
+   * @throws {InternalServerErrorException} For database errors.
+   */
+  async rollbackInspectionStatus(
+    inspectionId: string,
+    superAdminId: string,
+  ): Promise<Inspection> {
+    this.logger.log(
+      `SUPERADMIN ${superAdminId} attempting to rollback inspection ${inspectionId} status to NEED_REVIEW`,
+    );
+
+    try {
+      const updatedInspection = await this.prisma.$transaction(async (tx) => {
+        // 1. Find the inspection and validate it exists
+        const inspection = await tx.inspection.findUnique({
+          where: { id: inspectionId },
+        });
+
+        if (!inspection) {
+          throw new NotFoundException(
+            `Inspection with ID "${inspectionId}" not found for status rollback.`,
+          );
+        }
+
+        // 2. Check if inspection is already in NEED_REVIEW status
+        if (inspection.status === InspectionStatus.NEED_REVIEW) {
+          throw new BadRequestException(
+            `Inspection ${inspectionId} is already in NEED_REVIEW status. No rollback needed.`,
+          );
+        }
+
+        const originalStatus = inspection.status;
+
+        // 3. Update inspection status to NEED_REVIEW
+        const updatedInspection = await tx.inspection.update({
+          where: { id: inspectionId },
+          data: {
+            status: InspectionStatus.NEED_REVIEW,
+            updatedAt: new Date(),
+          },
+        });
+
+        // 4. Create change log entry for the status rollback
+        await tx.inspectionChangeLog.create({
+          data: {
+            inspectionId: inspectionId,
+            changedByUserId: superAdminId,
+            fieldName: 'status',
+            oldValue: originalStatus,
+            newValue: InspectionStatus.NEED_REVIEW,
+            changedAt: new Date(),
+          },
+        });
+
+        this.logger.log(
+          `Successfully rolled back inspection ${inspectionId} status from ${originalStatus} to NEED_REVIEW by SUPERADMIN ${superAdminId}`,
+        );
+
+        return updatedInspection;
+      });
+
+      return updatedInspection;
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      this.logger.error(
+        `Database transaction failed for status rollback of inspection ${inspectionId}: ${error.message}`,
+        error.stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to rollback inspection status for ID ${inspectionId}.`,
+      );
+    }
+  }
 }
