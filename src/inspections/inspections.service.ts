@@ -1074,9 +1074,15 @@ export class InspectionsService {
       });
 
       // Check authorization based on role and status
-      if (userRole === Role.ADMIN || userRole === Role.REVIEWER) {
-        this.logger.log(`Admin/Reviewer access granted for inspection ${id}`);
-        return inspection; // Admins/Reviewers can see all statuses
+      if (
+        userRole === Role.ADMIN ||
+        userRole === Role.REVIEWER ||
+        userRole === Role.SUPERADMIN
+      ) {
+        this.logger.log(
+          `Admin/Reviewer/Superadmin access granted for inspection ${id}`,
+        );
+        return inspection; // Admins/Reviewers/Superadmins can see all statuses
       } else if (inspection.status === InspectionStatus.ARCHIVED) {
         // TODO: Potentially check deactivatedAt here too?
         // if (inspection.deactivatedAt !== null) { throw new ForbiddenException(...); }
@@ -1259,22 +1265,70 @@ export class InspectionsService {
               }
             }
           } else if ((jsonUpdatableFields as string[]).includes(fieldName)) {
+            // Ensure updateData[fieldName] is an object for nested updates
             if (
               !updateData[fieldName] ||
-              typeof updateData[fieldName] !== 'object'
+              typeof updateData[fieldName] !== 'object' ||
+              Array.isArray(updateData[fieldName])
             ) {
               updateData[fieldName] = inspection[fieldName]
-                ? { ...(inspection[fieldName] as any) }
+                ? {
+                    ...(inspection[fieldName] as Record<
+                      string,
+                      Prisma.JsonValue
+                    >),
+                  } // Explicitly cast to Record
                 : {};
             }
-            let current = updateData[fieldName];
+
+            let current: Record<string, Prisma.JsonValue> = updateData[
+              fieldName
+            ] as Record<string, Prisma.JsonValue>; // Explicitly type current
             for (let i = 1; i < parts.length - 1; i++) {
-              if (!current[parts[i]] || typeof current[parts[i]] !== 'object') {
-                current[parts[i]] = {};
+              const part = parts[i];
+              if (
+                !current[part] ||
+                typeof current[part] !== 'object' ||
+                Array.isArray(current[part])
+              ) {
+                current[part] = {};
               }
-              current = current[parts[i]];
+              current = current[part] as Record<string, Prisma.JsonValue>; // Re-assign with explicit cast
             }
-            current[parts[parts.length - 1]] = value;
+
+            const lastPart = parts[parts.length - 1];
+            // Check for inspectionSummary.estimasiPerbaikan and parse if string
+            if (
+              fieldName === 'inspectionSummary' &&
+              parts.length === 2 && // Assuming estimasiPerbaikan is always a sub-sub-field
+              lastPart === 'estimasiPerbaikan'
+            ) {
+              if (typeof value === 'string') {
+                try {
+                  current[lastPart] = JSON.parse(value as string); // Explicitly cast value to string
+                  this.logger.log(
+                    `Parsed inspectionSummary.estimasiPerbaikan as JSON for inspection ${inspectionId}`,
+                  );
+                } catch (e: unknown) {
+                  // If parsing fails, it means the string was not valid JSON.
+                  // Throw a BadRequestException to inform the client.
+                  const errorMessage =
+                    e instanceof Error ? e.message : 'Unknown parsing error';
+                  this.logger.error(
+                    `Failed to parse inspectionSummary.estimasiPerbaikan as JSON for inspection ${inspectionId}. Value: "${value}". Error: ${errorMessage}`,
+                  );
+                  throw new BadRequestException(
+                    `Invalid JSON format for inspectionSummary.estimasiPerbaikan. Expected a valid JSON string, but received: "${value}". Parsing error: ${errorMessage}`,
+                  );
+                }
+              } else {
+                // If it's not a string, assign it directly (e.g., if it's already an object/array)
+                current[lastPart] = value;
+              }
+            } else {
+              // For all other fields or if not estimasiPerbaikan, assign directly
+              current[lastPart] = value;
+            }
           }
         }
 

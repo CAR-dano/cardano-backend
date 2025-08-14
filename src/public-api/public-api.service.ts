@@ -110,7 +110,15 @@ export class PublicApiService {
       });
 
       // Define keywords for filtering photos. Case-insensitive.
-      const excludedKeywords = ['stnk', 'bpkb'];
+      const excludedKeywords = [
+        'stnk',
+        'bpkb',
+        'dokumen',
+        'STNK',
+        'BPKB',
+        'Foto Dokumen',
+        'foto dokumen',
+      ];
 
       // Filter out photos that have labels or categories matching the keywords.
       if (inspection.photos) {
