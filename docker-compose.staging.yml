@@ -48,8 +48,9 @@ services:
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_SECURITY_ADMIN_USER=admin
       - GF_INSTALL_PLUGINS=grafana-clock-panel
-      - GF_SERVER_DOMAIN=${GRAFANA_DOMAIN:-staging.localhost}
-      - GF_SERVER_ROOT_URL=https://${GRAFANA_DOMAIN:-staging.localhost}/grafana
+      - GF_SERVER_DOMAIN=staging-api.inspeksimobil.id
+      - GF_SERVER_ROOT_URL=https://staging-api.inspeksimobil.id/grafana
+      - GF_SERVER_SERVE_FROM_SUB_PATH=true
     deploy:
       resources:
         limits:
