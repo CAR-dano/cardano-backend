@@ -58,7 +58,7 @@ services:
       -c shared_buffers=64MB
       -c effective_cache_size=256MB
       -c work_mem=1MB
-      -c log_statement=all  # Log all statements in development
+      -c log_statement=all
 
   # Node Exporter - Development monitoring
   node-exporter:
