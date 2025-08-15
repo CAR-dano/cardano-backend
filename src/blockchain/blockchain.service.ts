@@ -153,6 +153,13 @@ export class BlockchainService {
       `Attempting to mint NFT for vehicle: ${metadata.vehicleNumber}`,
     );
 
+    // Add random delay to prevent UTXO conflicts in concurrent minting
+    const randomDelay = Math.random() * 2000; // 0-2 seconds
+    await new Promise((resolve) => setTimeout(resolve, randomDelay));
+    this.logger.debug(
+      `Applied ${Math.round(randomDelay)}ms delay before minting to prevent UTXO conflicts`,
+    );
+
     let retries = 0;
     let delay = this.INITIAL_RETRY_DELAY_MS;
 

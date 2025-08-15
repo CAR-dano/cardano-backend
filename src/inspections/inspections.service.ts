@@ -134,6 +134,85 @@ class PdfGenerationQueue {
   }
 }
 
+// Blockchain/Minting Queue to prevent UTXO conflicts during concurrent minting
+class BlockchainMintingQueue {
+  private queue: (() => Promise<any>)[] = [];
+  private running = 0;
+  private readonly maxConcurrent: number;
+  private totalProcessed = 0;
+  private totalErrors = 0;
+  private consecutiveErrors = 0;
+  private readonly maxConsecutiveErrors = 5;
+  private circuitBreakerOpenUntil = 0;
+
+  constructor(maxConcurrent = 1) {
+    // Use 1 for sequential minting to prevent UTXO conflicts
+    this.maxConcurrent = maxConcurrent;
+  }
+
+  get stats() {
+    return {
+      queueLength: this.queue.length,
+      running: this.running,
+      totalProcessed: this.totalProcessed,
+      totalErrors: this.totalErrors,
+      consecutiveErrors: this.consecutiveErrors,
+      circuitBreakerOpen: Date.now() < this.circuitBreakerOpenUntil,
+    };
+  }
+
+  private isCircuitBreakerOpen(): boolean {
+    return Date.now() < this.circuitBreakerOpenUntil;
+  }
+
+  async add<T>(task: () => Promise<T>): Promise<T> {
+    if (this.isCircuitBreakerOpen()) {
+      throw new Error(
+        'Blockchain minting circuit breaker is open due to consecutive failures. Please try again later.',
+      );
+    }
+
+    return new Promise((resolve, reject) => {
+      this.queue.push(async () => {
+        try {
+          const result = await task();
+          this.totalProcessed++;
+          this.consecutiveErrors = 0; // Reset on success
+          resolve(result);
+        } catch (error) {
+          this.totalErrors++;
+          this.consecutiveErrors++;
+
+          // Open circuit breaker if too many consecutive errors
+          if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
+            this.circuitBreakerOpenUntil = Date.now() + 180000; // 3 minutes
+          }
+
+          reject(error as Error);
+        }
+      });
+      void this.processQueue();
+    });
+  }
+
+  private async processQueue() {
+    if (this.running >= this.maxConcurrent || this.queue.length === 0) {
+      return;
+    }
+
+    this.running++;
+    const task = this.queue.shift();
+    if (task) {
+      try {
+        await task();
+      } finally {
+        this.running--;
+        void this.processQueue();
+      }
+    }
+  }
+}
+
 /**
  * Service responsible for handling business logic related to inspections.
  * Interacts with PrismaService to manage inspection data in the database.
@@ -147,6 +226,8 @@ export class InspectionsService {
   private readonly logger = new Logger(InspectionsService.name);
   // PDF generation queue to limit concurrent operations
   private readonly pdfQueue = new PdfGenerationQueue(5); // Increased to 5 for large bulk operations
+  // Blockchain minting queue to prevent UTXO conflicts
+  private readonly blockchainQueue = new BlockchainMintingQueue(1); // Sequential minting to prevent UTXO conflicts
   // Inject PrismaService dependency via constructor
   constructor(
     private prisma: PrismaService,
@@ -156,6 +237,16 @@ export class InspectionsService {
   ) {
     // Ensure the PDF archive directory exists on startup
     void this.ensureDirectoryExists(PDF_ARCHIVE_PATH);
+  }
+
+  /**
+   * Get current queue statistics for monitoring purposes
+   */
+  getQueueStats() {
+    return {
+      pdfQueue: this.pdfQueue.stats,
+      blockchainQueue: this.blockchainQueue.stats,
+    };
   }
 
   /**
@@ -1911,7 +2002,7 @@ export class InspectionsService {
     }
 
     try {
-      // 2. Minting
+      // 2. Minting (with blockchain queue to prevent UTXO conflicts)
       let blockchainResult: { txHash: string; assetId: string } | null = null;
       let blockchainSuccess = false;
 
@@ -1928,13 +2019,23 @@ export class InspectionsService {
             : {},
         );
 
+        // Log blockchain queue stats before adding to queue
+        const queueStats = this.blockchainQueue.stats;
+        this.logger.log(
+          `Adding blockchain minting to queue for inspection ${inspectionId}. Queue status: ${queueStats.running}/${queueStats.queueLength + queueStats.running} (running/total)`,
+        );
+
         this.logger.log(
           `Calling blockchainService.mintInspectionNft for inspection ${inspectionId}`,
         );
-        // Cast to InspectionNftMetadata as we've ensured non-nullability
-        blockchainResult = await this.blockchainService.mintInspectionNft(
-          metadataForNft as unknown as InspectionNftMetadata,
-        ); // Panggil service minting
+
+        // Use blockchain queue to prevent UTXO conflicts
+        blockchainResult = await this.blockchainQueue.add(async () => {
+          return await this.blockchainService.mintInspectionNft(
+            metadataForNft as unknown as InspectionNftMetadata,
+          );
+        });
+
         blockchainSuccess = true;
         this.logger.log(
           `Blockchain interaction SUCCESS for inspection ${inspectionId}`,

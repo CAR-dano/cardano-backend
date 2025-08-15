@@ -1336,4 +1336,62 @@ export class InspectionsController {
     );
     return new InspectionResponseDto(inspection);
   }
+
+  /**
+   * Get current queue statistics for monitoring purposes.
+   * This endpoint provides insights into the current status of PDF generation
+   * and blockchain minting queues to help with debugging UTXO issues.
+   */
+  @Get('queue-stats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get Queue Statistics (SuperAdmin Only)',
+    description:
+      'Retrieves current statistics for PDF generation and blockchain minting queues. Useful for monitoring and debugging purposes.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Queue statistics retrieved successfully.',
+    schema: {
+      type: 'object',
+      properties: {
+        pdfQueue: {
+          type: 'object',
+          properties: {
+            queueLength: { type: 'number' },
+            running: { type: 'number' },
+            totalProcessed: { type: 'number' },
+            totalErrors: { type: 'number' },
+            consecutiveErrors: { type: 'number' },
+            circuitBreakerOpen: { type: 'boolean' },
+          },
+        },
+        blockchainQueue: {
+          type: 'object',
+          properties: {
+            queueLength: { type: 'number' },
+            running: { type: 'number' },
+            totalProcessed: { type: 'number' },
+            totalErrors: { type: 'number' },
+            consecutiveErrors: { type: 'number' },
+            circuitBreakerOpen: { type: 'boolean' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the SUPERADMIN role.',
+  })
+  getQueueStats() {
+    this.logger.log('Received request for queue statistics');
+    return this.inspectionsService.getQueueStats();
+  }
 } // End Controller
