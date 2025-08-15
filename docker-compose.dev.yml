@@ -1,5 +1,4 @@
 # Docker Compose Override for Development Environment
-version: '3.8'
 
 services:
   # Application - Development optimizations

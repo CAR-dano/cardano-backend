@@ -7,7 +7,10 @@ ENVIRONMENT=${1:-"development"}
 case $ENVIRONMENT in
   "production"|"prod"|"vps")
     echo "🚀 Switching to Production configuration..."
+    # Force copy and change permissions if needed
+    rm -f monitoring/prometheus/prometheus.yml 2>/dev/null || true
     cp monitoring/prometheus/prometheus.prod.yml monitoring/prometheus/prometheus.yml
+    chmod 644 monitoring/prometheus/prometheus.yml
     echo "✅ Production config applied"
     echo "📍 Metrics path: /v1/metrics (for nginx reverse proxy)"
     echo "📁 Volumes: /home/maul/cardano-app/backend/"
@@ -17,7 +20,10 @@ case $ENVIRONMENT in
     ;;
   "staging"|"stage")
     echo "🎯 Switching to Staging configuration..."
+    # Force copy and change permissions if needed
+    rm -f monitoring/prometheus/prometheus.yml 2>/dev/null || true
     cp monitoring/prometheus/prometheus.prod.yml monitoring/prometheus/prometheus.yml
+    chmod 644 monitoring/prometheus/prometheus.yml
     echo "✅ Staging config applied"
     echo "📍 Metrics path: /v1/metrics (for nginx reverse proxy)"
     echo "📁 Volumes: /var/www/cardano-backend/"
@@ -27,7 +33,10 @@ case $ENVIRONMENT in
     ;;
   "development"|"dev"|"local")
     echo "🔧 Switching to Development configuration..."
+    # Force copy and change permissions if needed
+    rm -f monitoring/prometheus/prometheus.yml 2>/dev/null || true
     cp monitoring/prometheus/prometheus.dev.yml monitoring/prometheus/prometheus.yml
+    chmod 644 monitoring/prometheus/prometheus.yml
     echo "✅ Development config applied"  
     echo "📍 Metrics path: /api/v1/metrics (direct access)"
     echo "📁 Volumes: /home/maul/CAR-dano/new-cardano-backend/"

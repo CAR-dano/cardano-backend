@@ -1,5 +1,4 @@
-# Docker Compose Override for Production/VPS
-version: '3.8'
+# Docker Compose Override for Production Environment
 
 services:
   # Application - Production optimizations

@@ -108,6 +108,10 @@ echo "Note: Using graceful restart to preserve data"
 docker compose -f docker-compose.yml -f docker-compose.staging.yml build --no-cache
 docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
 
+# Restart Prometheus to apply configuration changes
+echo "🔄 Restarting Prometheus to apply configuration changes..."
+docker compose -f docker-compose.yml -f docker-compose.staging.yml restart prometheus
+
 # Wait for services to start
 echo "⏳ Waiting for services to start..."
 sleep 30
