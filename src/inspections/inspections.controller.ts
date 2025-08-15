@@ -38,6 +38,10 @@ import { InspectionsService } from './inspections.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
 import { UpdateInspectionDto } from './dto/update-inspection/update-inspection.dto';
+import {
+  BulkApproveInspectionDto,
+  BulkApproveInspectionResponseDto,
+} from './dto/bulk-approve-inspection.dto';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express'; // NestJS interceptor for handling multiple file fields
 import { diskStorage } from 'multer'; // Storage engine for Multer (file uploads)
 import { extname } from 'path'; // Node.js utility for handling file extensions
@@ -944,6 +948,73 @@ export class InspectionsController {
       token, // Pass the token to the service
     );
     return new InspectionResponseDto(inspection);
+  }
+
+  /**
+   * [POST /inspections/bulk-approve]
+   * Bulk approve multiple inspections with enhanced error handling and rollback.
+   * Processes inspections sequentially to avoid race conditions and resource exhaustion.
+   * @param {BulkApproveInspectionDto} bulkApproveDto - Array of inspection IDs to approve.
+   * @returns {Promise<BulkApproveInspectionResponseDto>} Results of bulk approval operation.
+   */
+  @Post('bulk-approve')
+  @Throttle({ default: { limit: 5, ttl: 300000 } }) // More restrictive: 5 requests per 5 minutes
+  @UseGuards(ThrottlerGuard)
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Bulk approve multiple inspections',
+    description:
+      'Approves multiple inspections in sequence with automatic rollback on failure. Maximum 20 inspections per request.',
+  })
+  @ApiBody({
+    type: BulkApproveInspectionDto,
+    description: 'Array of inspection IDs to approve',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Bulk approval results with success/failure details.',
+    type: BulkApproveInspectionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad Request (e.g., invalid inspection IDs, too many requests).',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
+  async bulkApproveInspections(
+    @Body() bulkApproveDto: BulkApproveInspectionDto,
+    @GetUser('id') reviewerId: string,
+    @Req() req: Request,
+  ): Promise<BulkApproveInspectionResponseDto> {
+    const authHeader = req.headers.authorization;
+    const token = authHeader ? authHeader.split(' ')[1] : null;
+
+    this.logger.log(
+      `Bulk approve requested by ${reviewerId} for ${bulkApproveDto.inspectionIds.length} inspections`,
+    );
+
+    const result = await this.inspectionsService.bulkApproveInspections(
+      bulkApproveDto.inspectionIds,
+      reviewerId,
+      token,
+    );
+
+    // Log summary for monitoring
+    this.logger.log(
+      `Bulk approve completed: ${result.summary.successful}/${result.summary.total} successful`,
+    );
+
+    return result;
   }
 
   /**

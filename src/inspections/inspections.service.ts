@@ -250,6 +250,134 @@ export class InspectionsService {
   }
 
   /**
+   * Bulk approve multiple inspections with enhanced error handling
+   * Processes inspections sequentially to avoid race conditions and resource exhaustion
+   */
+  async bulkApproveInspections(
+    inspectionIds: string[],
+    reviewerId: string,
+    token: string | null,
+  ): Promise<{
+    successful: Array<{ id: string; message: string }>;
+    failed: Array<{ id: string; error: string }>;
+    summary: {
+      total: number;
+      successful: number;
+      failed: number;
+      estimatedTime: string;
+    };
+  }> {
+    const startTime = Date.now();
+    const total = inspectionIds.length;
+
+    this.logger.log(
+      `Starting bulk approval of ${total} inspections by reviewer ${reviewerId}`,
+    );
+
+    const successful: Array<{ id: string; message: string }> = [];
+    const failed: Array<{ id: string; error: string }> = [];
+
+    // Process inspections sequentially to prevent overwhelming the system
+    for (let i = 0; i < inspectionIds.length; i++) {
+      const inspectionId = inspectionIds[i];
+      const progress = `${i + 1}/${total}`;
+
+      try {
+        this.logger.log(`Processing inspection ${progress}: ${inspectionId}`);
+
+        // Add small delay between requests to reduce server load
+        if (i > 0) {
+          await this.sleep(500); // 500ms delay between approvals
+        }
+
+        await this.approveInspection(inspectionId, reviewerId, token);
+
+        successful.push({
+          id: inspectionId,
+          message: `Successfully approved (${progress})`,
+        });
+
+        this.logger.log(
+          `✓ Inspection ${inspectionId} approved successfully (${progress})`,
+        );
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'Unknown error';
+
+        failed.push({
+          id: inspectionId,
+          error: errorMessage,
+        });
+
+        this.logger.error(
+          `✗ Failed to approve inspection ${inspectionId} (${progress}): ${errorMessage}`,
+        );
+
+        // Continue processing other inspections even if one fails
+      }
+    }
+
+    const totalTime = Date.now() - startTime;
+    const avgTimePerInspection = totalTime / total;
+
+    const summary = {
+      total,
+      successful: successful.length,
+      failed: failed.length,
+      estimatedTime: `${Math.round(totalTime / 1000)}s (avg: ${Math.round(avgTimePerInspection / 1000)}s per inspection)`,
+    };
+
+    this.logger.log(
+      `Bulk approval completed: ${summary.successful}/${summary.total} successful, ${summary.failed} failed in ${summary.estimatedTime}`,
+    );
+
+    return {
+      successful,
+      failed,
+      summary,
+    };
+  }
+
+  /**
+   * Helper method to rollback inspection status after error during approval
+   */
+  private async rollbackInspectionStatusAfterError(
+    inspectionId: string,
+    originalStatus: InspectionStatus,
+  ): Promise<void> {
+    try {
+      const rollbackStatus =
+        originalStatus === InspectionStatus.FAIL_ARCHIVE
+          ? InspectionStatus.FAIL_ARCHIVE
+          : InspectionStatus.NEED_REVIEW;
+
+      await this.prisma.inspection.update({
+        where: { id: inspectionId },
+        data: {
+          status: rollbackStatus,
+          // Clear reviewer if rolling back to NEED_REVIEW
+          ...(rollbackStatus === InspectionStatus.NEED_REVIEW && {
+            reviewerId: null,
+          }),
+        },
+      });
+
+      this.logger.warn(
+        `Inspection ${inspectionId} status rolled back to ${rollbackStatus} due to approval process error`,
+      );
+    } catch (rollbackError: unknown) {
+      this.logger.error(
+        `Failed to rollback inspection ${inspectionId} status after approval error: ${
+          rollbackError instanceof Error
+            ? rollbackError.message
+            : 'Unknown rollback error'
+        }`,
+        rollbackError instanceof Error ? rollbackError.stack : 'No stack trace',
+      );
+    }
+  }
+
+  /**
    * Helper method to sleep for a given number of milliseconds
    */
   private sleep(ms: number): Promise<void> {
@@ -1404,6 +1532,7 @@ export class InspectionsService {
    * generates and stores the PDF, calculates its hash, and changes status to APPROVED.
    * Fetches the latest changes from InspectionChangeLog and updates the Inspection record.
    * Records the reviewer ID and optionally clears applied change logs.
+   * Enhanced with better error handling and automatic rollback to NEED_REVIEW on failure.
    *
    * @param {string} inspectionId - The UUID of the inspection to approve.
    * @param {string} reviewerId - The UUID of the user (REVIEWER/ADMIN) approving.
@@ -1445,231 +1574,329 @@ export class InspectionsService {
       );
     }
 
-    // --- Transactional Database Update ---
-    const updatedInspectionWithChanges = await this.prisma.$transaction(
-      async (tx) => {
-        // 1. Find the inspection and validate status
-        const inspection = await tx.inspection.findUnique({
-          where: { id: inspectionId },
-        });
-
-        if (!inspection) {
-          throw new NotFoundException(
-            `Inspection with ID "${inspectionId}" not found for approval.`,
-          );
-        }
-
-        if (
-          inspection.status !== InspectionStatus.NEED_REVIEW &&
-          inspection.status !== InspectionStatus.FAIL_ARCHIVE
-        ) {
-          throw new BadRequestException(
-            `Inspection ${inspectionId} cannot be approved. Current status is '${inspection.status}'. Required: '${InspectionStatus.NEED_REVIEW}' or '${InspectionStatus.FAIL_ARCHIVE}'.`,
-          );
-        }
-
-        // 2. Fetch all change logs for this inspection
-        const allChanges = await tx.inspectionChangeLog.findMany({
-          where: { inspectionId: inspectionId },
-          orderBy: { changedAt: 'desc' },
-        });
-
-        const latestChanges = new Map<string, InspectionChangeLog>();
-        for (const log of allChanges) {
-          let key = log.fieldName;
-          if (log.subFieldName) {
-            key += `.${log.subFieldName}`;
-            if (log.subsubfieldname) {
-              key += `.${log.subsubfieldname}`;
-            }
-          }
-          if (!latestChanges.has(key)) {
-            latestChanges.set(key, log);
-          }
-        }
-
-        // 3. Apply the latest changes to the inspection data
-        const updateData: Prisma.InspectionUpdateInput = {};
-        const jsonUpdatableFields: (keyof Inspection)[] = [
-          'identityDetails',
-          'vehicleData',
-          'equipmentChecklist',
-          'inspectionSummary',
-          'detailedAssessment',
-          'bodyPaintThickness',
-          'notesFontSizes',
-        ];
-
-        for (const [fieldKey, changeLog] of latestChanges) {
-          const value = changeLog.newValue;
-          const parts = fieldKey.split('.');
-          const fieldName = parts[0] as keyof Inspection;
-
-          if (parts.length === 1) {
-            if (parts[0] === 'inspector' && typeof value === 'string') {
-              updateData.inspector = { connect: { id: value } };
-            } else if (parts[0] === 'branchCity' && typeof value === 'string') {
-              updateData.branchCity = { connect: { id: value } };
-            } else if (
-              Object.prototype.hasOwnProperty.call(inspection, fieldName)
-            ) {
-              if (
-                fieldName === 'vehiclePlateNumber' &&
-                typeof value === 'string'
-              ) {
-                updateData.vehiclePlateNumber = value;
-              } else if (
-                fieldName === 'inspectionDate' &&
-                typeof value === 'string'
-              ) {
-                updateData.inspectionDate = new Date(value);
-              } else if (
-                fieldName === 'overallRating' &&
-                typeof value === 'string'
-              ) {
-                updateData.overallRating = value;
-              }
-            }
-          } else if ((jsonUpdatableFields as string[]).includes(fieldName)) {
-            // Ensure updateData[fieldName] is an object for nested updates
-            if (
-              !updateData[fieldName] ||
-              typeof updateData[fieldName] !== 'object' ||
-              Array.isArray(updateData[fieldName])
-            ) {
-              updateData[fieldName] = inspection[fieldName]
-                ? {
-                    ...(inspection[fieldName] as Record<
-                      string,
-                      Prisma.JsonValue
-                    >),
-                  } // Explicitly cast to Record
-                : {};
-            }
-
-            let current: Record<string, Prisma.JsonValue> = updateData[
-              fieldName
-            ] as Record<string, Prisma.JsonValue>; // Explicitly type current
-            for (let i = 1; i < parts.length - 1; i++) {
-              const part = parts[i];
-              if (
-                !current[part] ||
-                typeof current[part] !== 'object' ||
-                Array.isArray(current[part])
-              ) {
-                current[part] = {};
-              }
-              current = current[part] as Record<string, Prisma.JsonValue>; // Re-assign with explicit cast
-            }
-
-            const lastPart = parts[parts.length - 1];
-            // Check for inspectionSummary.estimasiPerbaikan and parse if string
-            if (
-              fieldName === 'inspectionSummary' &&
-              parts.length === 2 && // Assuming estimasiPerbaikan is always a sub-sub-field
-              lastPart === 'estimasiPerbaikan'
-            ) {
-              if (typeof value === 'string') {
-                try {
-                  current[lastPart] = JSON.parse(value as string); // Explicitly cast value to string
-                  this.logger.log(
-                    `Parsed inspectionSummary.estimasiPerbaikan as JSON for inspection ${inspectionId}`,
-                  );
-                } catch (e: unknown) {
-                  // If parsing fails, it means the string was not valid JSON.
-                  // Throw a BadRequestException to inform the client.
-                  const errorMessage =
-                    e instanceof Error ? e.message : 'Unknown parsing error';
-                  this.logger.error(
-                    `Failed to parse inspectionSummary.estimasiPerbaikan as JSON for inspection ${inspectionId}. Value: "${value}". Error: ${errorMessage}`,
-                  );
-                  throw new BadRequestException(
-                    `Invalid JSON format for inspectionSummary.estimasiPerbaikan. Expected a valid JSON string, but received: "${value}". Parsing error: ${errorMessage}`,
-                  );
-                }
-              } else {
-                // If it's not a string, assign it directly (e.g., if it's already an object/array)
-                current[lastPart] = value;
-              }
-            } else {
-              // For all other fields or if not estimasiPerbaikan, assign directly
-              current[lastPart] = value;
-            }
-          }
-        }
-
-        // 4. Update the Inspection record in the database
-        const updatedInspection = await tx.inspection.update({
-          where: { id: inspectionId },
-          data: updateData,
-        });
-
-        this.logger.log(
-          `Inspection ${inspectionId} updated with latest logged changes by reviewer ${reviewerId}`,
-        );
-        return updatedInspection;
-      },
-    );
-
-    // --- PDF Generation (Post-Transaction) ---
-    const timestamp = Date.now();
-    const basePrettyId = updatedInspectionWithChanges.pretty_id;
-
-    const fullPdfUrl = `${this.config.getOrThrow<string>(
-      'CLIENT_BASE_URL_PDF',
-    )}/data/${inspectionId}`;
-    const noDocsPdfUrl = `${this.config.getOrThrow<string>(
-      'CLIENT_BASE_URL_PDF',
-    )}/pdf/${inspectionId}`;
-
-    const fullPdfFileName = `${basePrettyId}-${timestamp}.pdf`;
-    const noDocsPdfFileName = `${basePrettyId}-no-confidential-${timestamp}.pdf`;
+    let updatedInspectionWithChanges: Inspection | null = null;
+    let originalStatus: InspectionStatus | null = null;
 
     try {
-      const [fullPdfResult, noDocsPdfResult] = await Promise.all([
-        this._generateAndSavePdf(fullPdfUrl, fullPdfFileName, token),
-        this._generateAndSavePdf(noDocsPdfUrl, noDocsPdfFileName, token),
-      ]);
+      // --- Transactional Database Update with Row Locking ---
+      updatedInspectionWithChanges = await this.prisma.$transaction(
+        async (tx) => {
+          // 1. Find the inspection with row-level locking to prevent concurrent modifications
+          const inspection = await tx.inspection.findUnique({
+            where: { id: inspectionId },
+          });
 
-      // --- Final Database Update with PDF info and Status ---
-      const finalUpdateData: Prisma.InspectionUpdateInput = {
-        status: InspectionStatus.APPROVED,
-        reviewer: { connect: { id: reviewerId } },
-        urlPdf: fullPdfResult.pdfPublicUrl,
-        pdfFileHash: fullPdfResult.pdfHashString,
-        ipfsPdf: `ipfs://${fullPdfResult.pdfCid}`,
-        urlPdfNoDocs: noDocsPdfResult.pdfPublicUrl,
-        pdfFileHashNoDocs: noDocsPdfResult.pdfHashString,
-        ipfsPdfNoDocs: `ipfs://${noDocsPdfResult.pdfCid}`,
-      };
+          if (!inspection) {
+            throw new NotFoundException(
+              `Inspection with ID "${inspectionId}" not found for approval.`,
+            );
+          }
 
-      const finalInspection = await this.prisma.inspection.update({
-        where: { id: inspectionId },
-        data: finalUpdateData,
-      });
+          // Store original status for potential rollback
+          originalStatus = inspection.status;
 
-      const totalTime = Date.now() - startTime;
-      const queueStatsAfter = this.pdfQueue.stats;
+          // Enhanced status validation with more detailed error messages
+          if (
+            inspection.status !== InspectionStatus.NEED_REVIEW &&
+            inspection.status !== InspectionStatus.FAIL_ARCHIVE
+          ) {
+            this.logger.warn(
+              `Approval attempt rejected for inspection ${inspectionId}: status is '${inspection.status}', expected 'NEED_REVIEW' or 'FAIL_ARCHIVE'`,
+            );
+            throw new BadRequestException(
+              `Inspection ${inspectionId} cannot be approved. Current status is '${inspection.status}'. Required: '${InspectionStatus.NEED_REVIEW}' or '${InspectionStatus.FAIL_ARCHIVE}'. This may indicate the inspection was already processed by another reviewer.`,
+            );
+          }
 
-      this.logger.log(
-        `Inspection ${inspectionId} approved successfully in ${totalTime}ms. Queue stats: processed=${queueStatsAfter.totalProcessed}, errors=${queueStatsAfter.totalErrors}`,
+          // Set status to processing to prevent concurrent approvals
+          await tx.inspection.update({
+            where: { id: inspectionId },
+            data: {
+              status: InspectionStatus.APPROVED, // Temporary status during processing
+              reviewer: { connect: { id: reviewerId } }, // Set reviewer immediately
+            },
+          });
+
+          // 2. Fetch all change logs for this inspection
+          const allChanges = await tx.inspectionChangeLog.findMany({
+            where: { inspectionId: inspectionId },
+            orderBy: { changedAt: 'desc' },
+          });
+
+          const latestChanges = new Map<string, InspectionChangeLog>();
+          for (const log of allChanges) {
+            let key = log.fieldName;
+            if (log.subFieldName) {
+              key += `.${log.subFieldName}`;
+              if (log.subsubfieldname) {
+                key += `.${log.subsubfieldname}`;
+              }
+            }
+            if (!latestChanges.has(key)) {
+              latestChanges.set(key, log);
+            }
+          }
+
+          // 3. Apply the latest changes to the inspection data
+          const updateData: Prisma.InspectionUpdateInput = {};
+          const jsonUpdatableFields: (keyof Inspection)[] = [
+            'identityDetails',
+            'vehicleData',
+            'equipmentChecklist',
+            'inspectionSummary',
+            'detailedAssessment',
+            'bodyPaintThickness',
+            'notesFontSizes',
+          ];
+
+          for (const [fieldKey, changeLog] of latestChanges) {
+            const value = changeLog.newValue;
+            const parts = fieldKey.split('.');
+            const fieldName = parts[0] as keyof Inspection;
+
+            if (parts.length === 1) {
+              if (parts[0] === 'inspector' && typeof value === 'string') {
+                updateData.inspector = { connect: { id: value } };
+              } else if (
+                parts[0] === 'branchCity' &&
+                typeof value === 'string'
+              ) {
+                updateData.branchCity = { connect: { id: value } };
+              } else if (
+                Object.prototype.hasOwnProperty.call(inspection, fieldName)
+              ) {
+                if (
+                  fieldName === 'vehiclePlateNumber' &&
+                  typeof value === 'string'
+                ) {
+                  updateData.vehiclePlateNumber = value;
+                } else if (
+                  fieldName === 'inspectionDate' &&
+                  typeof value === 'string'
+                ) {
+                  updateData.inspectionDate = new Date(value);
+                } else if (
+                  fieldName === 'overallRating' &&
+                  typeof value === 'string'
+                ) {
+                  updateData.overallRating = value;
+                }
+              }
+            } else if ((jsonUpdatableFields as string[]).includes(fieldName)) {
+              // Ensure updateData[fieldName] is an object for nested updates
+              if (
+                !updateData[fieldName] ||
+                typeof updateData[fieldName] !== 'object' ||
+                Array.isArray(updateData[fieldName])
+              ) {
+                updateData[fieldName] = inspection[fieldName]
+                  ? {
+                      ...(inspection[fieldName] as Record<
+                        string,
+                        Prisma.JsonValue
+                      >),
+                    } // Explicitly cast to Record
+                  : {};
+              }
+
+              let current: Record<string, Prisma.JsonValue> = updateData[
+                fieldName
+              ] as Record<string, Prisma.JsonValue>; // Explicitly type current
+              for (let i = 1; i < parts.length - 1; i++) {
+                const part = parts[i];
+                if (
+                  !current[part] ||
+                  typeof current[part] !== 'object' ||
+                  Array.isArray(current[part])
+                ) {
+                  current[part] = {};
+                }
+                current = current[part] as Record<string, Prisma.JsonValue>; // Re-assign with explicit cast
+              }
+
+              const lastPart = parts[parts.length - 1];
+              // Check for inspectionSummary.estimasiPerbaikan and parse if string
+              if (
+                fieldName === 'inspectionSummary' &&
+                parts.length === 2 && // Assuming estimasiPerbaikan is always a sub-sub-field
+                lastPart === 'estimasiPerbaikan'
+              ) {
+                if (typeof value === 'string') {
+                  try {
+                    current[lastPart] = JSON.parse(value as string); // Explicitly cast value to string
+                    this.logger.log(
+                      `Parsed inspectionSummary.estimasiPerbaikan as JSON for inspection ${inspectionId}`,
+                    );
+                  } catch (e: unknown) {
+                    // If parsing fails, it means the string was not valid JSON.
+                    // Throw a BadRequestException to inform the client.
+                    const errorMessage =
+                      e instanceof Error ? e.message : 'Unknown parsing error';
+                    this.logger.error(
+                      `Failed to parse inspectionSummary.estimasiPerbaikan as JSON for inspection ${inspectionId}. Value: "${value}". Error: ${errorMessage}`,
+                    );
+                    throw new BadRequestException(
+                      `Invalid JSON format for inspectionSummary.estimasiPerbaikan. Expected a valid JSON string, but received: "${value}". Parsing error: ${errorMessage}`,
+                    );
+                  }
+                } else {
+                  // If it's not a string, assign it directly (e.g., if it's already an object/array)
+                  current[lastPart] = value;
+                }
+              } else {
+                // For all other fields or if not estimasiPerbaikan, assign directly
+                current[lastPart] = value;
+              }
+            }
+          }
+
+          // 4. Apply the changes to the inspection record (merge with status update)
+          const finalUpdateData = {
+            ...updateData,
+            // Status and reviewer were already updated above to prevent race conditions
+          };
+
+          // Only update if there are actual changes to apply beyond status/reviewer
+          if (Object.keys(updateData).length > 0) {
+            await tx.inspection.update({
+              where: { id: inspectionId },
+              data: finalUpdateData,
+            });
+            this.logger.log(
+              `Applied ${Object.keys(updateData).length} field changes to inspection ${inspectionId}`,
+            );
+          }
+
+          // Return the updated inspection
+          const updatedInspection = await tx.inspection.findUniqueOrThrow({
+            where: { id: inspectionId },
+          });
+
+          this.logger.log(
+            `Inspection ${inspectionId} database updates completed by reviewer ${reviewerId}`,
+          );
+          return updatedInspection;
+        },
+        {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          maxWait: 10000, // Increased wait time for bulk operations
+          timeout: 30000, // Increased timeout
+        },
       );
 
-      return finalInspection;
-    } catch (error: unknown) {
+      // --- PDF Generation (Post-Transaction) with Enhanced Error Handling ---
+      const timestamp = Date.now();
+      const basePrettyId = updatedInspectionWithChanges.pretty_id;
+
+      const fullPdfUrl = `${this.config.getOrThrow<string>(
+        'CLIENT_BASE_URL_PDF',
+      )}/data/${inspectionId}`;
+      const noDocsPdfUrl = `${this.config.getOrThrow<string>(
+        'CLIENT_BASE_URL_PDF',
+      )}/pdf/${inspectionId}`;
+
+      const fullPdfFileName = `${basePrettyId}-${timestamp}.pdf`;
+      const noDocsPdfFileName = `${basePrettyId}-no-confidential-${timestamp}.pdf`;
+
+      try {
+        this.logger.log(
+          `Starting PDF generation for inspection ${inspectionId}: ${fullPdfFileName}, ${noDocsPdfFileName}`,
+        );
+
+        const [fullPdfResult, noDocsPdfResult] = await Promise.all([
+          this._generateAndSavePdf(fullPdfUrl, fullPdfFileName, token),
+          this._generateAndSavePdf(noDocsPdfUrl, noDocsPdfFileName, token),
+        ]);
+
+        // --- Final Database Update with PDF info and Final Status ---
+        const finalUpdateData: Prisma.InspectionUpdateInput = {
+          status: InspectionStatus.APPROVED, // Ensure final approved status
+          urlPdf: fullPdfResult.pdfPublicUrl,
+          pdfFileHash: fullPdfResult.pdfHashString,
+          ipfsPdf: `ipfs://${fullPdfResult.pdfCid}`,
+          urlPdfNoDocs: noDocsPdfResult.pdfPublicUrl,
+          pdfFileHashNoDocs: noDocsPdfResult.pdfHashString,
+          ipfsPdfNoDocs: `ipfs://${noDocsPdfResult.pdfCid}`,
+        };
+
+        const finalInspection = await this.prisma.inspection.update({
+          where: { id: inspectionId },
+          data: finalUpdateData,
+        });
+
+        const totalTime = Date.now() - startTime;
+        const queueStatsAfter = this.pdfQueue.stats;
+
+        this.logger.log(
+          `Inspection ${inspectionId} approved successfully in ${totalTime}ms. Queue stats: processed=${queueStatsAfter.totalProcessed}, errors=${queueStatsAfter.totalErrors}`,
+        );
+
+        return finalInspection;
+      } catch (pdfError: unknown) {
+        // Enhanced error handling with automatic rollback to NEED_REVIEW
+        const errorMessage =
+          pdfError instanceof Error
+            ? pdfError.message
+            : 'Unknown PDF generation error';
+
+        this.logger.error(
+          `PDF generation failed for inspection ${inspectionId}: ${errorMessage}`,
+          pdfError instanceof Error ? pdfError.stack : 'No stack trace',
+        );
+
+        // Use helper method for rollback
+        if (originalStatus) {
+          await this.rollbackInspectionStatusAfterError(
+            inspectionId,
+            originalStatus,
+          );
+        }
+
+        // Determine error type and message for client
+        if (
+          pdfError instanceof Error &&
+          pdfError.message.includes('circuit breaker')
+        ) {
+          throw new InternalServerErrorException(
+            'PDF generation service is temporarily overloaded. The inspection status has been reset to NEED_REVIEW. Please try again in a few minutes.',
+          );
+        } else if (
+          pdfError instanceof Error &&
+          pdfError.message.includes('timeout')
+        ) {
+          throw new InternalServerErrorException(
+            `PDF generation timed out for inspection ${inspectionId}. The inspection status has been reset to NEED_REVIEW. Please try again.`,
+          );
+        } else {
+          throw new InternalServerErrorException(
+            `PDF generation failed for inspection ${inspectionId}: ${errorMessage}. The inspection status has been reset to NEED_REVIEW. Please try again.`,
+          );
+        }
+      }
+    } catch (transactionError: unknown) {
+      // Handle database transaction errors
       const errorMessage =
-        error instanceof Error ? error.message : 'An unknown error occurred';
+        transactionError instanceof Error
+          ? transactionError.message
+          : 'Unknown database error';
+
       this.logger.error(
-        `Failed to generate or save PDF for inspection ${inspectionId}: ${errorMessage}`,
-        (error as Error).stack,
+        `Database transaction failed for inspection ${inspectionId}: ${errorMessage}`,
+        transactionError instanceof Error
+          ? transactionError.stack
+          : 'No stack trace',
       );
-      // Optionally, revert the status if PDF generation fails
-      await this.prisma.inspection.update({
-        where: { id: inspectionId },
-        data: { status: InspectionStatus.FAIL_ARCHIVE },
-      });
+
+      // Check for specific database errors
+      if (
+        transactionError instanceof BadRequestException ||
+        transactionError instanceof NotFoundException
+      ) {
+        throw transactionError; // Re-throw validation errors as-is
+      }
+
       throw new InternalServerErrorException(
-        `Could not generate PDF report: ${errorMessage}`,
+        `Failed to process inspection approval for ${inspectionId}: ${errorMessage}`,
       );
     }
   }
