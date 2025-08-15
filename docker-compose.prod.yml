@@ -50,7 +50,7 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
       - GF_SERVER_DOMAIN=api.inspeksimobil.id
-      - GF_SERVER_ROOT_URL=https://api.inspeksimobil.id/grafana
+      - GF_SERVER_ROOT_URL=https://api.inspeksimobil.id/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
     deploy:
       resources:
