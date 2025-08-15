@@ -20,11 +20,23 @@ else
 fi
 
 echo "=== Stopping Grafana ==="
-docker-compose $COMPOSE_FILES down grafana
+if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose $COMPOSE_FILES down grafana
+elif command -v docker >/dev/null 2>&1; then
+    docker compose $COMPOSE_FILES down grafana
+else
+    echo "Neither docker-compose nor docker compose found"
+fi
 echo
 
 echo "=== Starting Grafana ==="
-docker-compose $COMPOSE_FILES up -d grafana
+if command -v docker-compose >/dev/null 2>&1; then
+    docker-compose $COMPOSE_FILES up -d grafana
+elif command -v docker >/dev/null 2>&1; then
+    docker compose $COMPOSE_FILES up -d grafana
+else
+    echo "Neither docker-compose nor docker compose found"
+fi
 echo
 
 echo "=== Waiting for Grafana to start ==="
