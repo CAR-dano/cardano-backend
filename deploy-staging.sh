@@ -2,25 +2,14 @@
 
 # Staging Deployment Script
 # Usage: ./deploy-staging.sh
+# 
+# Note: Backup is handled separately by:
+# 1. pre-deploy-check.sh (automatic backup before deployment)
+# 2. backup-data.sh (manual backup when needed)
 
 set -e  # Exit on any error
 
 echo "🚀 Starting Staging Deployment..."
-
-# Create backups directory if not exists
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_DIR="./backups/${TIMESTAMP}_staging"
-if [ ! -d "$BACKUP_DIR" ]; then
-    echo "📁 Creating backups directory: $BACKUP_DIR"
-    mkdir -p "$BACKUP_DIR"
-fi
-
-# Check if .env exists, backup if exists
-if [ -f ".env" ]; then
-    echo "💾 Backing up existing .env file..."
-    cp .env "$BACKUP_DIR/.env"
-    echo "✅ Backup saved as: $BACKUP_DIR/.env"
-fi
 
 # Check if .env exists, if not create from staging template
 if [ ! -f ".env" ]; then
@@ -77,31 +66,6 @@ fi
 echo "🔧 Switching to staging monitoring configuration..."
 ./monitoring/switch-environment.sh staging
 
-# Backup database before deployment
-echo "💾 Creating database backup..."
-if docker compose ps postgres | grep -q "Up" 2>/dev/null; then
-    POSTGRES_USER=$(grep POSTGRES_USER .env | cut -d= -f2 | tr -d '"')
-    DB_BACKUP_FILE="$BACKUP_DIR/database.sql"
-    docker compose exec -T postgres pg_dumpall -U ${POSTGRES_USER:-cardano_user} > "$DB_BACKUP_FILE"
-    echo "✅ Database backup created: $DB_BACKUP_FILE"
-    
-    # Compress the backup to save space
-    if command -v gzip &> /dev/null; then
-        gzip "$DB_BACKUP_FILE"
-        echo "✅ Database backup compressed: $DB_BACKUP_FILE.gz"
-    fi
-else
-    echo "⚠️  Database not running, skipping backup"
-fi
-
-# Create docker-compose config backup
-echo "💾 Creating docker-compose backup..."
-cp docker-compose.yml "$BACKUP_DIR/docker-compose.yml"
-if [ -f "docker-compose.staging.yml" ]; then
-    cp docker-compose.staging.yml "$BACKUP_DIR/docker-compose.staging.yml"
-fi
-echo "✅ Docker-compose config backed up"
-
 # Build and deploy with staging overrides (graceful restart)
 echo "🐳 Deploying with staging configuration..."
 echo "Note: Using graceful restart to preserve data"
@@ -143,11 +107,6 @@ else
     exit 1
 fi
 
-# Cleanup old backups (keep only last 10)
-echo "🧹 Cleaning up old backups..."
-find "./backups" -maxdepth 1 -type d -name "*_staging" | sort | head -n -10 | xargs rm -rf 2>/dev/null || true
-echo "✅ Old backups cleaned (kept last 10)"
-
 echo ""
 echo "🎉 Staging deployment completed successfully!"
 echo ""
@@ -155,12 +114,6 @@ echo "📊 Monitoring URLs:"
 echo "  • Grafana: https://staging-cari.inspeksimobil.id/grafana"
 echo "  • Prometheus: https://staging-cari.inspeksimobil.id/prometheus"
 echo "  • Metrics: https://staging-cari.inspeksimobil.id/v1/metrics"
-echo ""
-echo "📁 Backup Information:"
-echo "  • Full backup directory: $BACKUP_DIR"
-echo "  • .env backup: $BACKUP_DIR/.env"
-echo "  • Database backup: $BACKUP_DIR/database.sql.gz"
-echo "  • Docker config backup: $BACKUP_DIR/docker-compose.yml"
 echo ""
 echo "📁 Volume paths:"
 echo "  • Uploads: /var/www/cardano-backend/uploads"
