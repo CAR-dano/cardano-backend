@@ -1,0 +1,100 @@
+# Docker Compose Override for Production/VPS
+version: '3.8'
+
+services:
+  # Application - Production optimizations
+  app:
+    restart: always
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - /home/maul/cardano-app/backend/uploads:/usr/src/app/uploads
+      - /home/maul/cardano-app/backend/pdfarchived:/usr/src/app/pdfarchived
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+          cpus: '2.0'
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  # Prometheus - Production config with VPS-compatible metrics path
+  prometheus:
+    restart: always
+    volumes:
+      - ./monitoring/prometheus/prometheus.prod.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d' # Longer retention for production
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+
+  # Grafana - Production settings
+  grafana:
+    restart: always
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_INSTALL_PLUGINS=grafana-clock-panel,grafana-simple-json-datasource
+      - GF_SERVER_DOMAIN=${GRAFANA_DOMAIN:-localhost}
+      - GF_SERVER_ROOT_URL=https://${GRAFANA_DOMAIN:-localhost}/grafana
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '0.3'
+
+  # PostgreSQL - Production optimizations
+  postgres:
+    restart: always
+    environment:
+      - POSTGRES_SHARED_PRELOAD_LIBRARIES=pg_stat_statements
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.track=all
+      -c max_connections=200
+      -c shared_buffers=1GB
+      -c effective_cache_size=4GB
+      -c work_mem=8MB
+      -c maintenance_work_mem=256MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+    deploy:
+      resources:
+        limits:
+          memory: 6G
+          cpus: '1.5'
+
+  # Node Exporter - Production monitoring
+  node-exporter:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.1'
+
+  # PostgreSQL Exporter - Production monitoring
+  postgres-exporter:
+    restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.1'

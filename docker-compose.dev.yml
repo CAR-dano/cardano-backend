@@ -1,0 +1,70 @@
+# Docker Compose Override for Development Environment
+version: '3.8'
+
+services:
+  # Application - Development optimizations
+  app:
+    restart: 'no' # Don't auto-restart in development
+    environment:
+      - NODE_ENV=development
+    volumes:
+      - /home/maul/CAR-dano/new-cardano-backend/uploads:/usr/src/app/uploads
+      - /home/maul/CAR-dano/new-cardano-backend/pdfarchived:/usr/src/app/pdfarchived
+      - ./src:/usr/src/app/src # Live code reload
+      - ./package.json:/usr/src/app/package.json
+    # No resource limits for development
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '1m'
+        max-file: '1'
+
+  # Prometheus - Development config
+  prometheus:
+    restart: 'no'
+    volumes:
+      - ./monitoring/prometheus/prometheus.dev.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=1d' # Short retention for development
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--web.enable-lifecycle'
+      - '--log.level=debug' # Debug logging for development
+
+  # Grafana - Development settings
+  grafana:
+    restart: 'no'
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=true # Allow signup in development
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SERVER_DOMAIN=localhost
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_LOG_LEVEL=debug # Debug logging
+
+  # PostgreSQL - Development optimizations
+  postgres:
+    restart: 'no'
+    environment:
+      - POSTGRES_SHARED_PRELOAD_LIBRARIES=pg_stat_statements
+    command: >
+      postgres
+      -c shared_preload_libraries=pg_stat_statements
+      -c pg_stat_statements.track=all
+      -c max_connections=20
+      -c shared_buffers=64MB
+      -c effective_cache_size=256MB
+      -c work_mem=1MB
+      -c log_statement=all  # Log all statements in development
+
+  # Node Exporter - Development monitoring
+  node-exporter:
+    restart: 'no'
+
+  # PostgreSQL Exporter - Development monitoring
+  postgres-exporter:
+    restart: 'no'
