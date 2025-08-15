@@ -10,3 +10,41 @@ Dockerfile
 .git
 .gitignore
 npm-debug.log
+
+# Backup folders - not needed in Docker image
+backups/
+
+# Runtime data folders - will be created at runtime or mounted as volumes
+uploads/
+pdfarchived/
+
+# Development and testing files
+test/
+*.spec.ts
+*.test.ts
+
+# Documentation
+docs/
+README.md
+LICENSE
+SAFE_DEPLOYMENT.md
+
+# Scripts not needed in container (except entrypoint.sh)
+backup-data.sh
+debug-grafana.sh
+deploy-production.sh
+deploy-staging.sh
+fix-grafana.sh
+pre-deploy-check.sh
+restore-data.sh
+monitoring/switch-environment.sh
+monitoring/test-monitoring.sh
+Jenkinsfile
+
+# Monitoring configs (should be mounted or configured separately)
+monitoring/
+
+# Additional development files
+eslint.config.mjs
+.prettierrc
+.prettierignore

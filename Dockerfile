@@ -63,6 +63,9 @@ COPY --from=builder /usr/src/app/node_modules/.prisma ./node_modules/.prisma
 # Copy public assets from the builder stage.
 COPY --from=builder /usr/src/app/public ./public
 
+# Create necessary directories for runtime
+RUN mkdir -p uploads/inspection-photos pdfarchived
+
 # Copy the entrypoint script into the container.
 COPY entrypoint.sh .
 
