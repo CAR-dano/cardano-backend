@@ -13,8 +13,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: '0.5'
+          memory: 4G
+          cpus: '2.0'
     logging:
       driver: 'json-file'
       options:
@@ -39,8 +39,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 512M
-          cpus: '0.3'
+          memory: 1G
+          cpus: '0.5'
 
   # Grafana - Production settings
   grafana:
@@ -55,8 +55,8 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
-          cpus: '0.2'
+          memory: 512M
+          cpus: '0.3'
 
   # PostgreSQL - Production optimizations
   postgres:
@@ -67,15 +67,19 @@ services:
       postgres
       -c shared_preload_libraries=pg_stat_statements
       -c pg_stat_statements.track=all
-      -c max_connections=100
-      -c shared_buffers=256MB
-      -c effective_cache_size=1GB
-      -c work_mem=4MB
+      -c max_connections=200
+      -c shared_buffers=1GB
+      -c effective_cache_size=4GB
+      -c work_mem=8MB
+      -c maintenance_work_mem=256MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: '0.5'
+          memory: 6G
+          cpus: '1.5'
 
   # Node Exporter - Production monitoring
   node-exporter:
@@ -83,7 +87,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64M
+          memory: 128M
           cpus: '0.1'
 
   # PostgreSQL Exporter - Production monitoring
@@ -92,5 +96,5 @@ services:
     deploy:
       resources:
         limits:
-          memory: 64M
+          memory: 128M
           cpus: '0.1'
