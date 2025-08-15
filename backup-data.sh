@@ -24,9 +24,9 @@ fi
 
 # Backup database
 echo "💾 Backing up database..."
-if docker-compose ps postgres | grep -q "Up" 2>/dev/null; then
+if docker compose ps postgres | grep -q "Up" 2>/dev/null; then
     POSTGRES_USER=$(grep POSTGRES_USER .env | cut -d= -f2 2>/dev/null || echo "cardano_user")
-    docker-compose exec -T postgres pg_dumpall -U ${POSTGRES_USER} > "$BACKUP_DIR/database.sql"
+    docker compose exec -T postgres pg_dumpall -U ${POSTGRES_USER} > "$BACKUP_DIR/database.sql"
     echo "✅ Database backed up to: $BACKUP_DIR/database.sql"
 else
     echo "⚠️  Database not running, skipping database backup"
@@ -67,12 +67,12 @@ Contents:
 - pdfarchived/ directory
 
 Restore Instructions:
-1. Stop application: docker-compose down
-2. Restore database: docker-compose exec -T postgres psql -U \$POSTGRES_USER < database.sql
+1. Stop application: docker compose down
+2. Restore database: docker compose exec -T postgres psql -U \$POSTGRES_USER < database.sql
 3. Copy uploads: cp -r uploads/ ./
 4. Copy pdfarchived: cp -r pdfarchived/ ./
 5. Copy .env: cp .env.backup .env
-6. Start application: docker-compose up -d
+6. Start application: docker compose up -d
 EOF
 
 echo ""

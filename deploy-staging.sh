@@ -3,36 +3,6 @@
 # Staging Deployment Script
 # Usage: ./deploy-staging.sh
 
-set -e  # Exit # Backup database before deployment
-echo "💾 Creating database backup..."
-if docker-compose ps postgres | grep -q "Up" 2>/dev/null; then
-    POSTGRES_USER=$(grep POSTGRES_USER .env | cut -d= -f2 | tr -d '"')
-    DB_BACKUP_FILE="$BACKUP_DIR/database.sql"
-    docker-compose exec -T postgres pg_dumpall -U ${POSTGRES_USER:-cardano_user} > "$DB_BACKUP_FILE"
-    echo "✅ Database backup created: $DB_BACKUP_FILE"
-    
-    # Compress the backup to save space
-    if command -v gzip &> /dev/null; then
-        gzip "$DB_BACKUP_FILE"
-        echo "✅ Database backup compressed: $DB_BACKUP_FILE.gz"
-    fi
-else
-    echo "⚠️  Database not running, skipping backup"
-fi
-
-# Create docker-compose config backup
-echo "💾 Creating docker-compose backup..."
-cp docker-compose.yml "$BACKUP_DIR/docker-compose.yml"
-if [ -f "docker-compose.staging.yml" ]; then
-    cp docker-compose.staging.yml "$BACKUP_DIR/docker-compose.staging.yml"
-fi
-echo "✅ Docker-compose config backed up"ror
-
-#!/bin/bash
-
-# Staging Deployment Script
-# Usage: ./deploy-staging.sh
-
 set -e  # Exit on any error
 
 echo "🚀 Starting Staging Deployment..."
@@ -108,20 +78,35 @@ echo "🔧 Switching to staging monitoring configuration..."
 ./monitoring/switch-environment.sh staging
 
 # Backup database before deployment
-echo "� Creating database backup..."
-if docker-compose ps postgres | grep -q "Up" 2>/dev/null; then
-    POSTGRES_USER=$(grep POSTGRES_USER .env | cut -d= -f2)
-    docker-compose exec -T postgres pg_dumpall -U ${POSTGRES_USER:-cardano_user} > "db_backup_staging_$(date +%Y%m%d_%H%M%S).sql"
-    echo "✅ Database backup created"
+echo "💾 Creating database backup..."
+if docker compose ps postgres | grep -q "Up" 2>/dev/null; then
+    POSTGRES_USER=$(grep POSTGRES_USER .env | cut -d= -f2 | tr -d '"')
+    DB_BACKUP_FILE="$BACKUP_DIR/database.sql"
+    docker compose exec -T postgres pg_dumpall -U ${POSTGRES_USER:-cardano_user} > "$DB_BACKUP_FILE"
+    echo "✅ Database backup created: $DB_BACKUP_FILE"
+    
+    # Compress the backup to save space
+    if command -v gzip &> /dev/null; then
+        gzip "$DB_BACKUP_FILE"
+        echo "✅ Database backup compressed: $DB_BACKUP_FILE.gz"
+    fi
 else
     echo "⚠️  Database not running, skipping backup"
 fi
 
+# Create docker-compose config backup
+echo "💾 Creating docker-compose backup..."
+cp docker-compose.yml "$BACKUP_DIR/docker-compose.yml"
+if [ -f "docker-compose.staging.yml" ]; then
+    cp docker-compose.staging.yml "$BACKUP_DIR/docker-compose.staging.yml"
+fi
+echo "✅ Docker-compose config backed up"
+
 # Build and deploy with staging overrides (graceful restart)
 echo "🐳 Deploying with staging configuration..."
 echo "Note: Using graceful restart to preserve data"
-docker-compose -f docker-compose.yml -f docker-compose.staging.yml build --no-cache
-docker-compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.staging.yml build --no-cache
+docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
 
 # Wait for services to start
 echo "⏳ Waiting for services to start..."

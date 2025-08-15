@@ -76,10 +76,10 @@ echo "🔧 Switching to production monitoring configuration..."
 
 # Backup database before deployment
 echo "💾 Creating database backup..."
-if docker-compose ps postgres | grep -q "Up" 2>/dev/null; then
+if docker compose ps postgres | grep -q "Up" 2>/dev/null; then
     POSTGRES_USER=$(grep POSTGRES_USER .env | cut -d= -f2 | tr -d '"')
     DB_BACKUP_FILE="$BACKUP_DIR/database.sql"
-    docker-compose exec -T postgres pg_dumpall -U ${POSTGRES_USER:-cardano_user} > "$DB_BACKUP_FILE"
+    docker compose exec -T postgres pg_dumpall -U ${POSTGRES_USER:-cardano_user} > "$DB_BACKUP_FILE"
     echo "✅ Database backup created: $DB_BACKUP_FILE"
     
     # Compress the backup to save space
@@ -102,8 +102,8 @@ echo "✅ Docker-compose config backed up"
 # Build and deploy with production overrides (graceful restart)
 echo "🐳 Deploying with production configuration..."
 echo "Note: Using graceful restart to preserve data"
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
-docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
 # Wait for services to start
 echo "⏳ Waiting for services to start..."
@@ -137,7 +137,7 @@ else
 fi
 
 # Check database
-if docker-compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres pg_isready -U ${POSTGRES_USER:-cardano_user} > /dev/null 2>&1; then
+if docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres pg_isready -U ${POSTGRES_USER:-cardano_user} > /dev/null 2>&1; then
     echo "✅ PostgreSQL: Healthy"
 else
     echo "❌ PostgreSQL: Failed"
@@ -164,8 +164,8 @@ echo "  • Database backup: $BACKUP_DIR/database.sql.gz"
 echo "  • Docker config backup: $BACKUP_DIR/docker-compose.yml"
 echo ""
 echo "🔧 Useful commands:"
-echo "  • View logs: docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs -f [service]"
-echo "  • Scale service: docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale app=2"
-echo "  • Stop services: docker-compose -f docker-compose.yml -f docker-compose.prod.yml down"
+echo "  • View logs: docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f [service]"
+echo "  • Scale service: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale app=2"
+echo "  • Stop services: docker compose -f docker-compose.yml -f docker-compose.prod.yml down"
 echo ""
 echo "✅ Ready for production traffic!"

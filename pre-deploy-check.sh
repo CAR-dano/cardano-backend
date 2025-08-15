@@ -51,8 +51,17 @@ fi
 # Check Docker
 echo ""
 echo "🐳 Checking Docker..."
-if command -v docker &> /dev/null && command -v docker-compose &> /dev/null; then
-    echo "✅ Docker and docker-compose available"
+if command -v docker &> /dev/null; then
+    echo "✅ Docker available"
+    
+    # Check for docker compose (either plugin or standalone)
+    if docker compose version &> /dev/null || command -v docker-compose &> /dev/null; then
+        echo "✅ Docker Compose available"
+    else
+        echo "❌ Docker Compose not available"
+        echo "Please install Docker Compose"
+        exit 1
+    fi
     
     # Check Docker daemon
     if docker info &> /dev/null; then
@@ -63,7 +72,7 @@ if command -v docker &> /dev/null && command -v docker-compose &> /dev/null; the
         exit 1
     fi
 else
-    echo "❌ Docker or docker-compose not installed"
+    echo "❌ Docker not installed"
     exit 1
 fi
 
@@ -163,6 +172,6 @@ case $ENVIRONMENT in
         echo "  ./deploy-staging.sh"
         ;;
     *)
-        echo "  docker-compose up -d"
+        echo "  docker compose up -d"
         ;;
 esac
