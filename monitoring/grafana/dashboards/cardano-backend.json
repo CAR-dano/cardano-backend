@@ -457,19 +457,19 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{method=\"POST\", route=~\".*inspections$\"}[5m]))",
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{method=\"POST\", route=\"/api/v1/inspections\"}[5m]))",
           "interval": "",
           "legendFormat": "95th percentile - {{status}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{method=\"POST\", route=~\".*inspections$\"}[5m]))",
+          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{method=\"POST\", route=\"/api/v1/inspections\"}[5m]))",
           "interval": "",
           "legendFormat": "50th percentile - {{status}}",
           "refId": "B"
         },
         {
-          "expr": "rate(http_requests_total{method=\"POST\", route=~\".*inspections$\"}[5m])",
+          "expr": "rate(http_requests_total{method=\"POST\", route=\"/api/v1/inspections\"}[5m])",
           "interval": "",
           "legendFormat": "Request Rate - {{status}}",
           "refId": "C"
@@ -550,19 +550,19 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{method=\"POST\", route=~\".*photos/multiple\"}[5m]))",
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{method=\"POST\", route=~\"/api/v1/inspections/.*/photos/multiple\"}[5m]))",
           "interval": "",
           "legendFormat": "95th percentile - {{status}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{method=\"POST\", route=~\".*photos/multiple\"}[5m]))",
+          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{method=\"POST\", route=~\"/api/v1/inspections/.*/photos/multiple\"}[5m]))",
           "interval": "",
           "legendFormat": "50th percentile - {{status}}",
           "refId": "B"
         },
         {
-          "expr": "rate(http_requests_total{method=\"POST\", route=~\".*photos/multiple\"}[5m])",
+          "expr": "rate(http_requests_total{method=\"POST\", route=~\"/api/v1/inspections/.*/photos/multiple\"}[5m])",
           "interval": "",
           "legendFormat": "Request Rate - {{status}}",
           "refId": "C"
@@ -643,19 +643,19 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{method=\"GET\", route=~\".*inspections/search\"}[5m]))",
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{method=\"GET\", route=\"/api/v1/inspections/search\"}[5m]))",
           "interval": "",
           "legendFormat": "95th percentile - {{status}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{method=\"GET\", route=~\".*inspections/search\"}[5m]))",
+          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{method=\"GET\", route=\"/api/v1/inspections/search\"}[5m]))",
           "interval": "",
           "legendFormat": "50th percentile - {{status}}",
           "refId": "B"
         },
         {
-          "expr": "rate(http_requests_total{method=\"GET\", route=~\".*inspections/search\"}[5m])",
+          "expr": "rate(http_requests_total{method=\"GET\", route=\"/api/v1/inspections/search\"}[5m])",
           "interval": "",
           "legendFormat": "Request Rate - {{status}}",
           "refId": "C"
@@ -736,19 +736,19 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{method=\"PATCH\", route=~\".*approve\"}[5m]))",
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{method=\"PATCH\", route=~\"/api/v1/inspections/.*/approve\"}[5m]))",
           "interval": "",
           "legendFormat": "95th percentile - {{status}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{method=\"PATCH\", route=~\".*approve\"}[5m]))",
+          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{method=\"PATCH\", route=~\"/api/v1/inspections/.*/approve\"}[5m]))",
           "interval": "",
           "legendFormat": "50th percentile - {{status}}",
           "refId": "B"
         },
         {
-          "expr": "rate(http_requests_total{method=\"PATCH\", route=~\".*approve\"}[5m])",
+          "expr": "rate(http_requests_total{method=\"PATCH\", route=~\"/api/v1/inspections/.*/approve\"}[5m])",
           "interval": "",
           "legendFormat": "Request Rate - {{status}}",
           "refId": "C"
@@ -829,19 +829,19 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{method=\"POST\", route=~\".*bulk-approve\"}[5m]))",
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{method=\"POST\", route=\"/api/v1/inspections/bulk-approve\"}[5m]))",
           "interval": "",
           "legendFormat": "95th percentile - {{status}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{method=\"POST\", route=~\".*bulk-approve\"}[5m]))",
+          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{method=\"POST\", route=\"/api/v1/inspections/bulk-approve\"}[5m]))",
           "interval": "",
           "legendFormat": "50th percentile - {{status}}",
           "refId": "B"
         },
         {
-          "expr": "rate(http_requests_total{method=\"POST\", route=~\".*bulk-approve\"}[5m])",
+          "expr": "rate(http_requests_total{method=\"POST\", route=\"/api/v1/inspections/bulk-approve\"}[5m])",
           "interval": "",
           "legendFormat": "Request Rate - {{status}}",
           "refId": "C"
@@ -922,19 +922,19 @@
       },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{method=\"PUT\", route=~\".*archive\"}[5m]))",
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{method=\"PUT\", route=~\"/api/v1/inspections/.*/archive\"}[5m]))",
           "interval": "",
           "legendFormat": "95th percentile - {{status}}",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{method=\"PUT\", route=~\".*archive\"}[5m]))",
+          "expr": "histogram_quantile(0.50, rate(http_request_duration_seconds_bucket{method=\"PUT\", route=~\"/api/v1/inspections/.*/archive\"}[5m]))",
           "interval": "",
           "legendFormat": "50th percentile - {{status}}",
           "refId": "B"
         },
         {
-          "expr": "rate(http_requests_total{method=\"PUT\", route=~\".*archive\"}[5m])",
+          "expr": "rate(http_requests_total{method=\"PUT\", route=~\"/api/v1/inspections/.*/archive\"}[5m])",
           "interval": "",
           "legendFormat": "Request Rate - {{status}}",
           "refId": "C"
@@ -957,7 +957,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Cardano Backend Dashboard",
-  "uid": "cardano-backend",
+  "title": "Cardano Backend Dashboard v2",
+  "uid": "cardano-backend-v2",
   "version": 2
 }
