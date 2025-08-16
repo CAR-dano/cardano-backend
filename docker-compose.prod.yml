@@ -54,6 +54,8 @@ services:
       - GF_SERVER_DOMAIN=api.inspeksimobil.id
       - GF_SERVER_ROOT_URL=/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
+    volumes:
+      - ./monitoring/grafana/provisioning/datasources/prometheus.prod.yml:/etc/grafana/provisioning/datasources/prometheus.yml
     deploy:
       resources:
         limits:
