@@ -35,8 +35,8 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
       - '--web.enable-admin-api'
-      - '--web.external-url=https://api.inspeksimobil.id/prometheus/'
-      - '--web.route-prefix=/prometheus/'
+      - '--web.external-url=https://api.inspeksimobil.id/prometheus'
+      - '--web.route-prefix=/prometheus'
     deploy:
       resources:
         limits:
