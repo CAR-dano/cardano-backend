@@ -34,6 +34,8 @@ services:
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
+      - '--web.external-url=https://staging-api.inspeksimobil.id/prometheus/'
+      - '--web.route-prefix=/prometheus/'
     deploy:
       resources:
         limits:
@@ -49,7 +51,7 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_INSTALL_PLUGINS=grafana-clock-panel
       - GF_SERVER_DOMAIN=staging-api.inspeksimobil.id
-      - GF_SERVER_ROOT_URL=https://staging-api.inspeksimobil.id/grafana
+      - GF_SERVER_ROOT_URL=/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
     deploy:
       resources:
