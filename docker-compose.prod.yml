@@ -55,7 +55,11 @@ services:
       - GF_SERVER_ROOT_URL=/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
     volumes:
+      # Override provisioning completely for production - no conflicts
+      - grafana_data:/var/lib/grafana
       - ./monitoring/grafana/provisioning/datasources/prometheus.prod.yml:/etc/grafana/provisioning/datasources/prometheus.yml
+      - ./monitoring/grafana/provisioning/dashboards/dashboard.prod.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards
     deploy:
       resources:
         limits:
