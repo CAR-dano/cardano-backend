@@ -55,12 +55,9 @@ services:
       - GF_SERVER_ROOT_URL=/grafana/
       - GF_SERVER_SERVE_FROM_SUB_PATH=true
     volumes:
-      # Completely override base volumes to prevent conflicts
+      # Use dedicated production provisioning directory to avoid conflicts
       - grafana_data:/var/lib/grafana
-      # Only mount production-specific datasource and dashboard configs
-      - ./monitoring/grafana/provisioning/datasources/prometheus.prod.yml:/etc/grafana/provisioning/datasources/prometheus.yml
-      - ./monitoring/grafana/provisioning/dashboards/dashboard.prod.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
-      # Mount the actual dashboard files
+      - ./monitoring/grafana/provisioning-prod:/etc/grafana/provisioning
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards
     deploy:
       resources:
