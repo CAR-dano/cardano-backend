@@ -4,11 +4,6 @@ datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
-    url: https://api.inspeksimobil.id/prometheus
+    url: http://prometheus:9090
     isDefault: true
     editable: true
-    jsonData:
-      httpMethod: GET
-      manageAlerts: true
-      prometheusType: Prometheus
-      prometheusVersion: 2.40.0
