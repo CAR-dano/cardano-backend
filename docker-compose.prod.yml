@@ -6,6 +6,8 @@ services:
     restart: always
     environment:
       - NODE_ENV=production
+      - NEW_RELIC_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY}
+      - NEW_RELIC_APP_NAME=cardano-backend-prod
     volumes:
       - /home/maul/cardano-app/backend/uploads:/usr/src/app/uploads
       - /home/maul/cardano-app/backend/pdfarchived:/usr/src/app/pdfarchived

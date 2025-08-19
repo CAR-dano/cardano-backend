@@ -1,3 +1,4 @@
+import 'newrelic';
 /*
  * --------------------------------------------------------------------------
  * File: main.ts
@@ -16,7 +17,7 @@ import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder, OpenAPIObject } from '@nestjs/swagger';
-import { Logger, ValidationPipe, LogLevel } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { json, urlencoded } from 'express';
 import { getLoggerConfig } from './config/logger.config';

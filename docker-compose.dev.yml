@@ -6,6 +6,8 @@ services:
     restart: 'no' # Don't auto-restart in development
     environment:
       - NODE_ENV=development
+      - NEW_RELIC_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY}
+      - NEW_RELIC_APP_NAME=cardano-backend-dev
     volumes:
       - /home/maul/CAR-dano/new-cardano-backend/uploads:/usr/src/app/uploads
       - /home/maul/CAR-dano/new-cardano-backend/pdfarchived:/usr/src/app/pdfarchived
