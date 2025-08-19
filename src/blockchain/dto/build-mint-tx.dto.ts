@@ -47,18 +47,6 @@ class InspectionDataDto {
   pdfHash: string;
 
   /**
-   * The SHA-256 hash of the PDF file content without confidential data.
-   */
-  @ApiProperty({
-    description:
-      'The SHA-256 hash of the PDF file content without confidential data.',
-    example: 'd4e5f6...',
-  })
-  @IsString()
-  @IsNotEmpty()
-  pdfHashNonConfidential: string;
-
-  /**
    * The display name for the NFT.
    */
   @ApiProperty({

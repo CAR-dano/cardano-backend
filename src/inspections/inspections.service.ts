@@ -2509,11 +2509,7 @@ export class InspectionsService {
         `Inspeksi ${inspectionId} tidak bisa di-mint. Status: ${inspection.status}`,
       );
     }
-    if (
-      !inspection.vehiclePlateNumber ||
-      !inspection.pdfFileHash ||
-      !inspection.pdfFileHashNoDocs
-    ) {
+    if (!inspection.vehiclePlateNumber || !inspection.pdfFileHashNoDocs) {
       throw new BadRequestException(
         `Data inspeksi ${inspectionId} tidak lengkap untuk minting.`,
       );
@@ -2524,8 +2520,7 @@ export class InspectionsService {
       adminAddress: adminAddress,
       inspectionData: {
         vehicleNumber: inspection.vehiclePlateNumber,
-        pdfHash: inspection.pdfFileHash,
-        pdfHashNonConfidential: inspection.pdfFileHashNoDocs,
+        pdfHash: inspection.pdfFileHashNoDocs,
         nftDisplayName: `Car Inspection ${inspection.vehiclePlateNumber}`,
       },
     };
