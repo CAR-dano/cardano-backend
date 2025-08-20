@@ -165,10 +165,7 @@ export class BlockchainService {
 
     while (retries < this.MAX_RETRIES) {
       try {
-        const balance = await this.wallet.getBalance();
-        const lovelaceBalance =
-          balance.find((asset) => asset.unit === 'lovelace')?.quantity ?? '0';
-        const lovelaceAmount = parseInt(lovelaceBalance, 10);
+        const lovelaceAmount = parseInt(await this.wallet.getLovelace(), 10);
         const balanceInAda = lovelaceAmount / 1000000;
 
         // 5 ADA = 5,000,000 lovelace
@@ -187,7 +184,30 @@ export class BlockchainService {
             'Wallet has no UTXOs available to build the transaction.',
           );
         }
-        this.logger.debug(`Found ${utxos.length} UTXOs for wallet.`);
+
+        // Filter UTXOs to only use those with sufficient ADA (at least 2 ADA for fees + min UTXO)
+        const usableUtxos = utxos.filter((utxo) => {
+          if (!utxo.output?.amount) return false;
+
+          const lovelaceAmount = utxo.output.amount.find(
+            (asset) => asset.unit === 'lovelace',
+          )?.quantity;
+
+          if (!lovelaceAmount) return false;
+
+          const amount = parseInt(lovelaceAmount, 10);
+          return amount >= 2000000; // At least 2 ADA
+        });
+
+        if (usableUtxos.length === 0) {
+          throw new InternalServerErrorException(
+            `No UTXOs with sufficient ADA (minimum 2 ADA) available for transaction fees. Current wallet balance: ${balanceInAda.toFixed(6)} ADA.`,
+          );
+        }
+
+        this.logger.debug(
+          `Found ${utxos.length} total UTXOs, ${usableUtxos.length} usable UTXOs for wallet.`,
+        );
 
         // Get the primary address of the wallet to use for forging script and change address
         const walletAddress = (await this.wallet.getUsedAddresses())[0]; // Use getChangeAddress for consistency
@@ -227,7 +247,7 @@ export class BlockchainService {
           .mintingScript(forgingScript) // Provide the script needed to authorize the mint
           .metadataValue('721', cip25Metadata) // Attach metadata under the 721 label
           .changeAddress(walletAddress) // Where to send remaining ADA and change
-          .selectUtxosFrom(utxos) // Provide the UTXOs to use for inputs/fees
+          .selectUtxosFrom(usableUtxos) // Provide the filtered UTXOs to use for inputs/fees
           .complete(); // Calculate fees and build the transaction body
 
         this.logger.log('Transaction built successfully. Signing...');
