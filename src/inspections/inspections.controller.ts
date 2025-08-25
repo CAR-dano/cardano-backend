@@ -1361,6 +1361,7 @@ export class InspectionsController {
    * @returns {Promise<InspectionResponseDto>} The updated inspection with NEED_REVIEW status.
    */
   @Patch(':id/revert-to-review')
+  @HttpCode(HttpStatus.NO_CONTENT)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SUPERADMIN)
   @ApiBearerAuth()
@@ -1376,9 +1377,9 @@ export class InspectionsController {
     description: 'The UUID of the inspection to revert status.',
   })
   @ApiResponse({
-    status: 200,
-    description: 'Inspection status successfully reverted to NEED_REVIEW.',
-    type: InspectionResponseDto,
+    status: HttpStatus.NO_CONTENT,
+    description:
+      'Inspection status successfully reverted to NEED_REVIEW. No response body (204).',
   })
   @ApiResponse({
     status: 400,
@@ -1397,15 +1398,67 @@ export class InspectionsController {
   async revertInspectionToReview(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('id') userId: string,
-  ): Promise<InspectionResponseDto> {
+  ): Promise<void> {
     this.logger.log(
       `[SUPERADMIN] Received request to revert inspection ${id} status to NEED_REVIEW by user ${userId}`,
     );
-    const inspection = await this.inspectionsService.rollbackInspectionStatus(
-      id,
-      userId,
+    await this.inspectionsService.rollbackInspectionStatus(id, userId);
+    // Return 204 No Content to save bandwidth — client can fetch updated inspection separately if needed
+    return;
+  }
+
+  /**
+   * Reverts the status of an inspection back to APPROVED if the current status
+   * is ARCHIVED or FAIL_ARCHIVE.
+   * [PATCH /inspections/:id/revert-to-approved]
+   * This endpoint allows SUPERADMIN users to rollback an inspection back to APPROVED,
+   * typically used when an archive/minting result needs to be undone for administrative reasons.
+   */
+  @Patch(':id/revert-to-approved')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Revert inspection status to APPROVED (Superadmin Only)',
+    description:
+      'Reverts an inspection from ARCHIVED or FAIL_ARCHIVE back to APPROVED. This action creates a change log entry and can only be performed by SUPERADMIN users.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'The UUID of the inspection to revert status.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description:
+      'Inspection status successfully reverted to APPROVED. No response body (204).',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad Request (e.g., inspection not in ARCHIVED or FAIL_ARCHIVE status).',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the SUPERADMIN role.',
+  })
+  async revertInspectionToApproved(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ): Promise<void> {
+    this.logger.log(
+      `[SUPERADMIN] Received request to revert inspection ${id} status to APPROVED by user ${userId}`,
     );
-    return new InspectionResponseDto(inspection);
+    await this.inspectionsService.revertInspectionToApproved(id, userId);
+    // Return 204 No Content to save bandwidth — client can fetch updated inspection separately if needed
+    return;
   }
 
   /**

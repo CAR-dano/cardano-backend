@@ -2284,13 +2284,20 @@ export class InspectionsService {
       }
 
       // 3. Update Inspection Record in DB (Final Status)
+      // Requirement: if minting fails, keep the inspection as APPROVED (allow manual retry later)
       const finalStatus = blockchainSuccess
         ? InspectionStatus.ARCHIVED
-        : InspectionStatus.FAIL_ARCHIVE;
+        : InspectionStatus.APPROVED; // changed from FAIL_ARCHIVE to APPROVED on mint failure
+
       const updateData: Prisma.InspectionUpdateInput = {
         status: finalStatus,
-        nftAssetId: blockchainResult?.assetId || null,
-        blockchainTxHash: blockchainResult?.txHash || null,
+        // Only set nftAssetId and blockchainTxHash if blockchain interaction succeeded
+        nftAssetId: blockchainSuccess
+          ? blockchainResult?.assetId || null
+          : null,
+        blockchainTxHash: blockchainSuccess
+          ? blockchainResult?.txHash || null
+          : null,
         archivedAt: blockchainSuccess ? new Date() : null,
       };
       const finalInspection = await this.prisma.inspection.update({
@@ -2823,6 +2830,101 @@ export class InspectionsService {
       );
       throw new InternalServerErrorException(
         `Failed to rollback inspection status for ID ${inspectionId}.`,
+      );
+    }
+  }
+
+  /**
+   * Revert an inspection from ARCHIVED or FAIL_ARCHIVE back to APPROVED.
+   * Only for SUPERADMIN. Creates a change log entry documenting the status change.
+   */
+  async revertInspectionToApproved(
+    inspectionId: string,
+    superAdminId: string,
+  ): Promise<Inspection> {
+    this.logger.log(
+      `SUPERADMIN ${superAdminId} attempting to revert inspection ${inspectionId} to APPROVED`,
+    );
+
+    try {
+      const updatedInspection = await this.prisma.$transaction(async (tx) => {
+        const inspection = await tx.inspection.findUnique({
+          where: { id: inspectionId },
+        });
+
+        if (!inspection) {
+          throw new NotFoundException(
+            `Inspection with ID "${inspectionId}" not found for revert to APPROVED.`,
+          );
+        }
+
+        if (
+          inspection.status !== InspectionStatus.ARCHIVED &&
+          inspection.status !== InspectionStatus.FAIL_ARCHIVE
+        ) {
+          throw new BadRequestException(
+            `Inspection ${inspectionId} cannot be reverted to APPROVED because its current status is '${inspection.status}'. Allowed: '${InspectionStatus.ARCHIVED}' or '${InspectionStatus.FAIL_ARCHIVE}'.`,
+          );
+        }
+
+        const originalStatus = inspection.status;
+
+        const updated = await tx.inspection.update({
+          where: { id: inspectionId },
+          data: {
+            status: InspectionStatus.APPROVED,
+            updatedAt: new Date(),
+            // Clear archived fields if we are reverting from ARCHIVED
+            archivedAt:
+              originalStatus === InspectionStatus.ARCHIVED
+                ? null
+                : inspection.archivedAt,
+            nftAssetId:
+              originalStatus === InspectionStatus.ARCHIVED
+                ? null
+                : inspection.nftAssetId,
+            blockchainTxHash:
+              originalStatus === InspectionStatus.ARCHIVED
+                ? null
+                : inspection.blockchainTxHash,
+          },
+        });
+
+        await tx.inspectionChangeLog.create({
+          data: {
+            inspectionId: inspectionId,
+            changedByUserId: superAdminId,
+            fieldName: 'status',
+            oldValue: originalStatus,
+            newValue: InspectionStatus.APPROVED,
+            changedAt: new Date(),
+          },
+        });
+
+        this.logger.log(
+          `Inspection ${inspectionId} status reverted from ${originalStatus} to APPROVED by SUPERADMIN ${superAdminId}`,
+        );
+
+        return updated;
+      });
+
+      return updatedInspection;
+    } catch (error) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      this.logger.error(
+        `Failed to revert inspection ${inspectionId} to APPROVED: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+        error instanceof Error ? error.stack : 'No stack trace',
+      );
+      throw new InternalServerErrorException(
+        `Failed to revert inspection ${inspectionId} to APPROVED.`,
       );
     }
   }

@@ -231,4 +231,41 @@ describe('BlockchainService - mintInspectionNft', () => {
     expect(res).toHaveProperty('txHash');
     expect(mockWallet.getUnspentOutputs).toHaveBeenCalledTimes(2);
   });
+
+  it('rebuilds and retries on submit-time Cardano validation error and succeeds', async () => {
+    // Provide a single usable utxo for initial build
+    const mockWallet = makeMockWallet([[makeUtxo('initial', 0, 3000000)]]);
+    // Override submitTx to fail first with a Cardano validation style error
+    let called = 0;
+    mockWallet.submitTx = jest.fn().mockImplementation(async () => {
+      called += 1;
+      if (called === 1) {
+        const err: any = new Error('BadInputsUTxO (TxIn ... )');
+        throw err;
+      }
+      return `txhash_retry_success`;
+    });
+
+    (service as any).wallet = mockWallet;
+
+    // Provide a tx builder; during retry the service will fetch fresh UTXOs via Blockfrost
+    const mockBuilder = makeMockTxBuilder();
+    (service as any).getTxBuilder = jest.fn().mockReturnValue(mockBuilder);
+
+    // Mock blockfrostProvider.fetchAddressUTxOs to return a fresh UTXO on retry
+    (service as any).blockfrostProvider = {
+      fetchAddressUTxOs: jest
+        .fn()
+        .mockResolvedValue([makeUtxo('fresh', 0, 3000000)]),
+    } as any;
+
+    // Reduce retry counts/delays so test runs fast
+    (service as any).SUBMIT_MAX_RETRIES = 2;
+    (service as any).SUBMIT_INITIAL_DELAY_MS = 1;
+
+    const res = await service.mintInspectionNft(metadata as any);
+    expect(res).toHaveProperty('txHash');
+    expect(res.txHash).toBe('txhash_retry_success');
+    expect(mockWallet.submitTx).toHaveBeenCalledTimes(2);
+  });
 });
