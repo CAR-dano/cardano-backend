@@ -240,6 +240,43 @@ export class InspectionsService {
   }
 
   /**
+   * Hash a vehicle number using SHA-256 and return hex string.
+   * Use this when you need to store a privacy-preserving identifier on-chain.
+   */
+  private hashVehicleNumber(vehicleNumber: string): string {
+    if (!vehicleNumber || typeof vehicleNumber !== 'string') return '';
+    const normalized = vehicleNumber.trim().toUpperCase();
+    return crypto.createHash('sha256').update(normalized, 'utf8').digest('hex');
+  }
+
+  /**
+   * Helper to produce a small object to include in NFT metadata attributes.
+   * Returns { hash, alg } where alg is the hashing algorithm used.
+   */
+  private getVehicleNumberHashForMetadata(vehicleNumber: string) {
+    const hash = this.hashVehicleNumber(vehicleNumber);
+    return { vehicleNumberHash: hash, vehicleNumberAlg: 'sha256' };
+  }
+
+  /**
+   * Normalize vehicle fields like brand/type: trim, collapse spaces, title-case.
+   */
+  private normalizeVehicleField(input?: string | null): string | undefined {
+    if (!input) return undefined;
+    try {
+      let s = String(input).trim().replace(/\s+/g, ' ');
+      s = s
+        .toLowerCase()
+        .split(' ')
+        .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : ''))
+        .join(' ');
+      return s || undefined;
+    } catch {
+      return String(input).trim() || undefined;
+    }
+  }
+
+  /**
    * Get current queue statistics for monitoring purposes
    */
   getQueueStats() {
@@ -2235,16 +2272,90 @@ export class InspectionsService {
 
       try {
         // Now that we've checked for null, we can safely assert these are strings for the metadata type
-        const metadataForNft: NftMetadata = {
-          vehicleNumber: inspection.vehiclePlateNumber,
+        // Build metadata for NFT minting. We include a hashed vehicle number for privacy
+        // and attach inspection details required for attributes.
+        const vehicleHashObj = this.getVehicleNumberHashForMetadata(
+          inspection.vehiclePlateNumber,
+        );
+
+        // Safely extract vehicleData (it may be stored as JSON object or JSON string)
+        let vehicleDataObj: Record<string, unknown> = {};
+        try {
+          if (typeof inspection.vehicleData === 'string') {
+            vehicleDataObj = JSON.parse(
+              inspection.vehicleData as string,
+            ) as Record<string, unknown>;
+          } else if (
+            inspection.vehicleData &&
+            typeof inspection.vehicleData === 'object'
+          ) {
+            vehicleDataObj = inspection.vehicleData as Record<string, unknown>;
+          }
+        } catch (err: unknown) {
+          this.logger.warn(
+            `Failed to parse vehicleData for inspection ${inspectionId}: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+          vehicleDataObj = {};
+        }
+
+        const carBrandValue = (vehicleDataObj['merekKendaraan'] ??
+          vehicleDataObj['merek'] ??
+          vehicleDataObj['brand']) as string | undefined;
+        const carTypeValue = (vehicleDataObj['tipeKendaraan'] ??
+          vehicleDataObj['tipekendaraan'] ??
+          vehicleDataObj['tipe'] ??
+          vehicleDataObj['model']) as string | undefined;
+
+        const carBrandNorm =
+          this.normalizeVehicleField(carBrandValue) ?? 'Unknown';
+        const carTypeNorm =
+          this.normalizeVehicleField(carTypeValue) ?? 'Unknown';
+
+        const metadataForNft: NftMetadata & Partial<InspectionNftMetadata> = {
+          // Do not include plaintext vehicleNumber on-chain if privacy is desired.
+          vehicleNumber: null,
           pdfHash: inspection.pdfFileHashNoDocs,
-        };
+          // hashed vehicle number and algorithm for verification/audit off-chain
+          // these will be included in metadata attributes by the blockchain service
+          // by reading these fields (vehicleNumberHash/vehicleNumberAlg).
+          ...(vehicleHashObj as Record<string, unknown>),
+          name: `${carBrandNorm} Used Car Record ${inspection.pretty_id}-${String(
+            Date.now(),
+          ).slice(-8)}`,
+          // inspection-level fields (ensure correct types)
+          inspectionDate: inspection.inspectionDate
+            ? new Date(inspection.inspectionDate).toISOString()
+            : new Date().toISOString(),
+          overallRating:
+            typeof inspection.overallRating === 'number'
+              ? inspection.overallRating
+              : Number(inspection.overallRating) || 0,
+          carBrand: carBrandNorm,
+          carType: carTypeNorm,
+        } as unknown as NftMetadata & Partial<InspectionNftMetadata>;
         // Hapus field null/undefined dari metadata jika perlu (This step might be redundant now with checks above, but kept for safety)
         Object.keys(metadataForNft).forEach((key) =>
           metadataForNft[key] === undefined || metadataForNft[key] === null
             ? delete metadataForNft[key]
             : {},
         );
+
+        // Ensure an asset name that is short and unique to avoid assetId collisions. Use first 8 chars of PDF hash or fallback to inspectionId.
+        const shortHash = (() => {
+          if (
+            typeof inspection.pdfFileHashNoDocs === 'string' &&
+            inspection.pdfFileHashNoDocs.length >= 8
+          ) {
+            return inspection.pdfFileHashNoDocs.slice(0, 8);
+          }
+          return inspectionId.replace(/-/g, '').slice(0, 8);
+        })();
+
+        // assign name field on metadata (will be sanitized later in BlockchainService)
+        (metadataForNft as Partial<InspectionNftMetadata>).simpleAssetName =
+          `CAR-dano-${shortHash}`;
 
         // Log blockchain queue stats before adding to queue
         const queueStats = this.blockchainQueue.stats;
@@ -2284,19 +2395,71 @@ export class InspectionsService {
       }
 
       // 3. Update Inspection Record in DB (Final Status)
+      // Requirement: if minting fails, keep the inspection as APPROVED (allow manual retry later)
       const finalStatus = blockchainSuccess
         ? InspectionStatus.ARCHIVED
-        : InspectionStatus.FAIL_ARCHIVE;
-      const updateData: Prisma.InspectionUpdateInput = {
+        : InspectionStatus.APPROVED; // changed from FAIL_ARCHIVE to APPROVED on mint failure
+
+      // Build update data but do not explicitly set optional fields to `null`.
+      // If we write `null` for `nftAssetId` we risk clearing an existing value
+      // when a concurrent record already claimed the assetId (P2002). Instead,
+      // only include nftAssetId and blockchainTxHash when we actually have a value.
+      const updateDataBase: Prisma.InspectionUpdateInput = {
         status: finalStatus,
-        nftAssetId: blockchainResult?.assetId || null,
-        blockchainTxHash: blockchainResult?.txHash || null,
         archivedAt: blockchainSuccess ? new Date() : null,
       };
-      const finalInspection = await this.prisma.inspection.update({
-        where: { id: inspectionId },
-        data: updateData,
-      });
+
+      const updateData = {
+        ...updateDataBase,
+        // Only attach nftAssetId when we received a non-empty assetId from the
+        // blockchain operation. This avoids writing `NULL` into the DB.
+        ...(blockchainSuccess && blockchainResult?.assetId
+          ? { nftAssetId: blockchainResult.assetId }
+          : {}),
+        ...(blockchainSuccess && blockchainResult?.txHash
+          ? { blockchainTxHash: blockchainResult.txHash }
+          : {}),
+      } as Prisma.InspectionUpdateInput;
+      let finalInspection: Inspection;
+      try {
+        finalInspection = await this.prisma.inspection.update({
+          where: { id: inspectionId },
+          data: updateData,
+        });
+      } catch (dbErr: unknown) {
+        // Handle unique constraint on nft_asset_id gracefully (another record already used this assetId)
+        if (
+          dbErr instanceof Prisma.PrismaClientKnownRequestError &&
+          dbErr.code === 'P2002'
+        ) {
+          const meta = dbErr.meta as unknown;
+          const metaHasNftTarget =
+            meta &&
+            typeof meta === 'object' &&
+            Array.isArray((meta as { target?: unknown }).target) &&
+            ((meta as { target?: unknown }).target as unknown[]).some(
+              (t) => String(t) === 'nft_asset_id',
+            );
+
+          if (metaHasNftTarget) {
+            this.logger.warn(
+              `nft_asset_id conflict when updating inspection ${inspectionId}. Another record already uses this assetId. Retrying update without nftAssetId.`,
+            );
+            // remove nftAssetId from updateData and retry
+            const safeUpdate = { ...updateData } as Record<string, unknown>;
+            if ('nftAssetId' in safeUpdate) delete safeUpdate.nftAssetId;
+            // Attempt a second update without nftAssetId
+            finalInspection = await this.prisma.inspection.update({
+              where: { id: inspectionId },
+              data: safeUpdate as Prisma.InspectionUpdateInput,
+            });
+          } else {
+            throw dbErr;
+          }
+        } else {
+          throw dbErr;
+        }
+      }
       this.logger.log(
         `Inspection ${inspectionId} final status set to ${finalStatus}.`,
       );
@@ -2316,10 +2479,10 @@ export class InspectionsService {
       try {
         await this.prisma.inspection.updateMany({
           where: { id: inspectionId, status: InspectionStatus.ARCHIVING },
-          data: { status: InspectionStatus.FAIL_ARCHIVE },
+          data: { status: InspectionStatus.APPROVED },
         });
         this.logger.log(
-          `Inspection ${inspectionId} status reverted to FAIL_ARCHIVE due to error.`,
+          `Inspection ${inspectionId} status reverted to APPROVED due to error.`,
         );
       } catch (revertError: unknown) {
         const revertErrorMessage =
@@ -2689,14 +2852,16 @@ export class InspectionsService {
       try {
         await fs.unlink(filePath);
         this.logger.log(`Successfully deleted file: ${filePath}`);
-      } catch (error) {
-        if (error.code === 'ENOENT') {
+      } catch (error: unknown) {
+        const nodeErr = error as NodeJS.ErrnoException | undefined;
+        if (nodeErr && nodeErr.code === 'ENOENT') {
           this.logger.warn(`File not found, skipping deletion: ${filePath}`);
         } else {
-          this.logger.error(
-            `Error deleting file ${filePath}: ${error.message}`,
-            error.stack,
-          );
+          const msg =
+            error instanceof Error ? error.message : JSON.stringify(error);
+          const stack =
+            error instanceof Error && error.stack ? error.stack : undefined;
+          this.logger.error(`Error deleting file ${filePath}: ${msg}`, stack);
           // Decide if you want to stop the whole process if one file fails to delete.
           // For now, we log the error and continue.
         }
@@ -2727,10 +2892,14 @@ export class InspectionsService {
       this.logger.warn(
         `[SUPERADMIN] Successfully and permanently deleted inspection ID: ${id}`,
       );
-    } catch (error) {
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error ? error.message : JSON.stringify(error);
+      const stack =
+        error instanceof Error && error.stack ? error.stack : undefined;
       this.logger.error(
-        `Database transaction failed for permanent deletion of inspection ${id}: ${error.message}`,
-        error.stack,
+        `Database transaction failed for permanent deletion of inspection ${id}: ${msg}`,
+        stack,
       );
       throw new InternalServerErrorException(
         `Failed to permanently delete inspection data for ID ${id}.`,
@@ -2809,6 +2978,103 @@ export class InspectionsService {
       });
 
       return updatedInspection;
+    } catch (error: unknown) {
+      if (
+        error instanceof NotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      const msg =
+        error instanceof Error ? error.message : JSON.stringify(error);
+      const stack =
+        error instanceof Error && error.stack ? error.stack : undefined;
+      this.logger.error(
+        `Database transaction failed for status rollback of inspection ${inspectionId}: ${msg}`,
+        stack,
+      );
+      throw new InternalServerErrorException(
+        `Failed to rollback inspection status for ID ${inspectionId}.`,
+      );
+    }
+  }
+
+  /**
+   * Revert an inspection from ARCHIVED or FAIL_ARCHIVE back to APPROVED.
+   * Only for SUPERADMIN. Creates a change log entry documenting the status change.
+   */
+  async revertInspectionToApproved(
+    inspectionId: string,
+    superAdminId: string,
+  ): Promise<Inspection> {
+    this.logger.log(
+      `SUPERADMIN ${superAdminId} attempting to revert inspection ${inspectionId} to APPROVED`,
+    );
+
+    try {
+      const updatedInspection = await this.prisma.$transaction(async (tx) => {
+        const inspection = await tx.inspection.findUnique({
+          where: { id: inspectionId },
+        });
+
+        if (!inspection) {
+          throw new NotFoundException(
+            `Inspection with ID "${inspectionId}" not found for revert to APPROVED.`,
+          );
+        }
+
+        if (
+          inspection.status !== InspectionStatus.ARCHIVED &&
+          inspection.status !== InspectionStatus.FAIL_ARCHIVE
+        ) {
+          throw new BadRequestException(
+            `Inspection ${inspectionId} cannot be reverted to APPROVED because its current status is '${inspection.status}'. Allowed: '${InspectionStatus.ARCHIVED}' or '${InspectionStatus.FAIL_ARCHIVE}'.`,
+          );
+        }
+
+        const originalStatus = inspection.status;
+
+        const updated = await tx.inspection.update({
+          where: { id: inspectionId },
+          data: {
+            status: InspectionStatus.APPROVED,
+            updatedAt: new Date(),
+            // Clear archived fields if we are reverting from ARCHIVED
+            archivedAt:
+              originalStatus === InspectionStatus.ARCHIVED
+                ? null
+                : inspection.archivedAt,
+            nftAssetId:
+              originalStatus === InspectionStatus.ARCHIVED
+                ? null
+                : inspection.nftAssetId,
+            blockchainTxHash:
+              originalStatus === InspectionStatus.ARCHIVED
+                ? null
+                : inspection.blockchainTxHash,
+          },
+        });
+
+        await tx.inspectionChangeLog.create({
+          data: {
+            inspectionId: inspectionId,
+            changedByUserId: superAdminId,
+            fieldName: 'status',
+            oldValue: originalStatus,
+            newValue: InspectionStatus.APPROVED,
+            changedAt: new Date(),
+          },
+        });
+
+        this.logger.log(
+          `Inspection ${inspectionId} status reverted from ${originalStatus} to APPROVED by SUPERADMIN ${superAdminId}`,
+        );
+
+        return updated;
+      });
+
+      return updatedInspection;
     } catch (error) {
       if (
         error instanceof NotFoundException ||
@@ -2818,11 +3084,13 @@ export class InspectionsService {
       }
 
       this.logger.error(
-        `Database transaction failed for status rollback of inspection ${inspectionId}: ${error.message}`,
-        error.stack,
+        `Failed to revert inspection ${inspectionId} to APPROVED: ${
+          error instanceof Error ? error.message : 'Unknown error'
+        }`,
+        error instanceof Error ? error.stack : 'No stack trace',
       );
       throw new InternalServerErrorException(
-        `Failed to rollback inspection status for ID ${inspectionId}.`,
+        `Failed to revert inspection ${inspectionId} to APPROVED.`,
       );
     }
   }
