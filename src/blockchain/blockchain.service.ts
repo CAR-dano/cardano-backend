@@ -55,6 +55,22 @@ import { PlutusBlueprint, PlutusValidator } from './types/blueprint.type';
 export interface InspectionNftMetadata {
   vehicleNumber: string;
   pdfHash: string;
+  // Optional display metadata (CIP-25 fields)
+  name?: string;
+  image?: string;
+  mediaType?: string;
+  description?: string;
+  // Inspection details to include as attributes
+  inspectionDate?: string; // ISO8601
+  overallRating?: number; // numeric score
+  carBrand?: string;
+  carType?: string;
+  // hashed vehicle identifier for privacy-preserving storage
+  vehicleNumberHash?: string;
+  vehicleNumberAlg?: string;
+  // optional algorithm for the pdfHash field if present
+  pdfHashAlg?: string;
+  simpleAssetName: string;
 }
 interface Script {
   code: string;
@@ -234,9 +250,7 @@ export class BlockchainService {
   async mintInspectionNft(
     metadata: InspectionNftMetadata,
   ): Promise<{ txHash: string; assetId: string }> {
-    this.logger.log(
-      `Attempting to mint NFT for vehicle: ${metadata.vehicleNumber}`,
-    );
+    this.logger.log(`Attempting to mint NFT`);
 
     // Add random delay to prevent UTXO conflicts in concurrent minting
     const randomDelay = Math.random() * 2000; // 0-2 seconds
@@ -517,27 +531,153 @@ export class BlockchainService {
           const forgingScript = ForgeScript.withOneSignature(walletAddress);
           const policyId = resolveScriptHash(forgingScript); // Calculate the policy ID
 
-          // Generate a unique token name based on key inspection data + perhaps a random element or timestamp for uniqueness assurance
-          const simpleAssetName = `Inspection_${metadata.vehicleNumber}`;
+          // Generate a human-readable token name and its hex form for the asset id
+          const simpleAssetName = metadata.simpleAssetName;
           const simpleAssetNameHex = stringToHex(simpleAssetName); // Convert human-readable name to hex
           // Construct the full asset ID
           const assetId = policyId + simpleAssetNameHex;
           this.logger.log(`Generated Asset ID: ${assetId}`);
 
           // Prepare the metadata according to CIP-0025 (NFT standard) under the 721 label
-          // Ensure 'name' is set for display purposes
-          const nftDisplayName = `CarInspection-${metadata.vehicleNumber}`; // Use provided name or generate one
-          const imageForDisplay = `ipfs://QmY65h6y6zUoJjN3ripc4J2PzEvzL2VkiVXz3sCZboqPJw`; // Use provided name or generate one
+          // Prefer fields passed in `metadata`, otherwise fall back to sensible defaults.
+          const nftDisplayName =
+            typeof metadata.name === 'string' && metadata.name.trim().length > 0
+              ? metadata.name
+              : (() => {
+                  // Prefer readable brand if available
+                  if (
+                    typeof metadata.carBrand === 'string' &&
+                    metadata.carBrand.trim().length > 0
+                  ) {
+                    return `${this.sanitizeMetadatumString(
+                      metadata.carBrand,
+                      'carBrand',
+                    )} Used Car Record`;
+                  }
+
+                  // Fall back to inspection date (short ISO date) when brand missing
+                  if (
+                    typeof metadata.inspectionDate === 'string' &&
+                    metadata.inspectionDate.trim().length > 0
+                  ) {
+                    try {
+                      const d = new Date(metadata.inspectionDate);
+                      if (!Number.isNaN(d.getTime())) {
+                        return `Used Car Record ${d.toISOString().slice(0, 10)}`;
+                      }
+                    } catch {
+                      /* ignore and continue */
+                    }
+                  }
+
+                  // Next fallback: use first 8 chars of vehicleNumberHash for uniqueness
+                  if (
+                    typeof metadata.vehicleNumberHash === 'string' &&
+                    metadata.vehicleNumberHash.length >= 8
+                  ) {
+                    return `Used Car Record ${metadata.vehicleNumberHash.slice(0, 8)}`;
+                  }
+
+                  // Generic fallback
+                  return 'Used Car Record';
+                })();
+
+          const imageForDisplay =
+            typeof metadata.image === 'string' &&
+            metadata.image.trim().length > 0
+              ? metadata.image
+              : 'ipfs://QmY65h6y6zUoJjN3ripc4J2PzEvzL2VkiVXz3sCZboqPJw';
+
+          const mediaTypeForDisplay =
+            typeof metadata.mediaType === 'string' &&
+            metadata.mediaType.trim().length > 0
+              ? metadata.mediaType
+              : 'image/png';
+
+          // Prefer ipfs:// form for on-chain metadata to keep values short.
+          const ipfsStyleImage = imageForDisplay.startsWith('ipfs://')
+            ? imageForDisplay
+            : imageForDisplay.replace('https://ipfs.io/ipfs/', 'ipfs://');
+
+          // Files array for display - keep only short/ipfs entries to avoid 64-byte metadatum limit
+          const files = [
+            {
+              name: nftDisplayName,
+              src: this.sanitizeMetadatumString(ipfsStyleImage, 'image'),
+              mediaType: mediaTypeForDisplay,
+            },
+          ];
+
+          // Build attributes array for easier indexing on marketplaces
+          const attributes: Array<{
+            trait_type: string;
+            value: string | number;
+          }> = [];
+          if (metadata.vehicleNumberHash) {
+            attributes.push({
+              trait_type: 'vehicleNumberHash',
+              value: metadata.vehicleNumberHash,
+            });
+          }
+          if (metadata.vehicleNumberAlg) {
+            attributes.push({
+              trait_type: 'vehicleNumberAlg',
+              value: metadata.vehicleNumberAlg,
+            });
+          }
+          if (metadata.inspectionDate) {
+            attributes.push({
+              trait_type: 'inspectionDate',
+              value: metadata.inspectionDate,
+            });
+          }
+          if (typeof metadata.overallRating === 'number') {
+            attributes.push({
+              trait_type: 'overallRating',
+              value: metadata.overallRating,
+            });
+          }
+          if (metadata.carBrand) {
+            attributes.push({
+              trait_type: 'carBrand',
+              value: metadata.carBrand,
+            });
+          }
+          if (metadata.carType) {
+            attributes.push({ trait_type: 'carType', value: metadata.carType });
+          }
+
           const finalMetadata = {
+            // keep original metadata but guarantee display fields
             ...metadata,
+            pdfHashAlg: metadata.pdfHashAlg ?? 'sha256',
             name: nftDisplayName,
-            image: imageForDisplay, // logo CAR-dano
-            mediaType: 'image/png',
-          }; // Add/overwrite name
+            image: this.sanitizeMetadatumString(ipfsStyleImage, 'image'),
+            mediaType: mediaTypeForDisplay,
+            files,
+            description: this.sanitizeMetadatumString(
+              metadata.description ?? 'NFT Proof of Vehicle Inspection',
+              'description',
+            ),
+            mintedBy: this.sanitizeMetadatumString(
+              typeof walletAddress === 'string' && walletAddress.length > 48
+                ? walletAddress.slice(0, 48) + '...'
+                : String(walletAddress),
+              'mintedBy',
+            ),
+            mintedAt: new Date().toISOString(),
+            attributes,
+          };
+
           // Structure for CIP-0025: { policyId: { assetName: { metadata } } }
+          // Sanitize the entire metadata tree to ensure no string exceeds 64 bytes
+          const sanitizedMetadata = this.sanitizeMetadataObject(
+            finalMetadata,
+          ) as Record<string, unknown> | undefined;
+
           const cip25Metadata = {
-            [policyId]: { [simpleAssetName]: finalMetadata },
-          }; // Use the human-readable asset name as the key in metadata
+            [policyId]: { [simpleAssetName]: sanitizedMetadata },
+          };
 
           // Initialize the transaction builder
           const txBuilder = this.getTxBuilder();
@@ -575,14 +715,25 @@ export class BlockchainService {
 
               // Normalize message for detection
               let submitMessage = '';
-              if (submitErr instanceof Error) submitMessage = submitErr.message;
-              else if (
+              if (submitErr instanceof Error) {
+                submitMessage = submitErr.message;
+              } else if (
                 typeof submitErr === 'object' &&
                 submitErr !== null &&
-                'message' in submitErr &&
-                typeof (submitErr as any).message === 'string'
+                'message' in submitErr
               ) {
-                submitMessage = (submitErr as any).message;
+                const maybeMessage = (submitErr as { message?: unknown })
+                  .message;
+                if (typeof maybeMessage === 'string') {
+                  submitMessage = maybeMessage;
+                } else {
+                  try {
+                    submitMessage = JSON.stringify(submitErr);
+                  } catch {
+                    // Fall back to a stable token when JSON.stringify fails
+                    submitMessage = '[object Object]';
+                  }
+                }
               } else {
                 submitMessage = String(submitErr);
               }
@@ -641,15 +792,26 @@ export class BlockchainService {
                   }
 
                   const freshMeshUtxos = freshUsable.map((u: unknown) => {
-                    const tx = u as any;
+                    const tx = u as {
+                      input:
+                        | { txHash: string; outputIndex: number }
+                        | (() => { txHash: string; outputIndex: number });
+                      output:
+                        | Record<string, unknown>
+                        | (() => Record<string, unknown>);
+                    };
                     const inputObj =
                       typeof tx.input === 'function' ? tx.input() : tx.input;
                     const outputObj =
                       typeof tx.output === 'function' ? tx.output() : tx.output;
+                    const typedInputObj = inputObj as {
+                      txHash: string;
+                      outputIndex: number;
+                    };
                     return {
                       input: {
-                        txHash: inputObj.txHash,
-                        outputIndex: inputObj.outputIndex,
+                        txHash: typedInputObj.txHash,
+                        outputIndex: typedInputObj.outputIndex,
                       },
                       output: outputObj as unknown,
                     } as const;
@@ -1079,6 +1241,50 @@ export class BlockchainService {
    */
   private constructMintRedeemer(): Data {
     return mConStr(0, []);
+  }
+
+  /**
+   * Ensure metadatum string values do not exceed Cardano's 64 byte limit.
+   * Prefer converting https://ipfs.io/ipfs/... -> ipfs://... when possible.
+   * If still too long, truncate to 64 bytes (utf8-aware) and log a warning.
+   */
+  private sanitizeMetadatumString(value: string, fieldName?: string): string {
+    if (typeof value !== 'string') return value;
+    const maxBytes = 64;
+    const byteLen = Buffer.byteLength(value, 'utf8');
+    if (byteLen <= maxBytes) return value;
+
+    // Try converting common IPFS gateway URL to ipfs:// which is shorter
+    if (value.includes('ipfs.io/ipfs/')) {
+      const ipfs = value.replace('https://ipfs.io/ipfs/', 'ipfs://');
+      if (Buffer.byteLength(ipfs, 'utf8') <= maxBytes) return ipfs;
+    }
+
+    // Truncate to maxBytes preserving utf8 boundaries
+    const buf = Buffer.from(value, 'utf8');
+    const truncated = buf.slice(0, maxBytes).toString('utf8');
+    this.logger.warn(
+      `Metadatum value for '${fieldName ?? 'unknown'}' exceeded ${maxBytes} bytes and was truncated. Original length=${byteLen}`,
+    );
+    return truncated;
+  }
+
+  // Recursively sanitize all string values in an object intended for on-chain metadata
+  private sanitizeMetadataObject(obj: unknown, path = ''): unknown {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj === 'string') return this.sanitizeMetadatumString(obj, path);
+    if (typeof obj === 'number' || typeof obj === 'boolean') return obj;
+    if (Array.isArray(obj)) {
+      return obj.map((v, i) => this.sanitizeMetadataObject(v, `${path}[${i}]`));
+    }
+    if (typeof obj === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+        out[k] = this.sanitizeMetadataObject(v, path ? `${path}.${k}` : k);
+      }
+      return out;
+    }
+    return obj;
   }
 
   /**
