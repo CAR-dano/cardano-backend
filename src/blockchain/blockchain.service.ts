@@ -31,6 +31,7 @@ import {
   stringToHex,
   mConStr,
   type Data,
+  type UTxO,
 } from '@meshsdk/core';
 
 // Mesh SDK Core CST Library for Plutus script operations
@@ -75,6 +76,10 @@ export class BlockchainService {
 
   private readonly MAX_RETRIES = 5;
   private readonly INITIAL_RETRY_DELAY_MS = 1000; // 1 second
+  // Minimum lovelace per individual UTXO to be considered usable for tx building.
+  // This can be configured via environment using MIN_UTXO_LOVELACE (in lovelace)
+  // or MIN_UTXO_ADA (in ADA). Defaults to 2 ADA.
+  private readonly MIN_UTXO_LOVELACE: number;
 
   /**
    * Constructs the BlockchainService instance.
@@ -122,6 +127,34 @@ export class BlockchainService {
       // Parameters can be added here if needed globally
     });
     this.logger.log('MeshWallet Initialized.');
+
+    // Read per-UTXO minimum from configuration if provided
+    const configuredMinLovelace =
+      this.configService.get<number>('MIN_UTXO_LOVELACE');
+    const configuredMinAda = this.configService.get<number>('MIN_UTXO_ADA');
+
+    if (
+      typeof configuredMinLovelace === 'number' &&
+      !Number.isNaN(configuredMinLovelace)
+    ) {
+      this.MIN_UTXO_LOVELACE = Math.max(0, Math.floor(configuredMinLovelace));
+    } else if (
+      typeof configuredMinAda === 'number' &&
+      !Number.isNaN(configuredMinAda)
+    ) {
+      this.MIN_UTXO_LOVELACE = Math.max(
+        0,
+        Math.floor(configuredMinAda * 1000000),
+      );
+    } else {
+      this.MIN_UTXO_LOVELACE = 2000000; // default 2 ADA
+    }
+
+    this.logger.log(
+      `Per-UTXO minimum set to ${this.MIN_UTXO_LOVELACE} lovelace (${(
+        this.MIN_UTXO_LOVELACE / 1000000
+      ).toFixed(6)} ADA)`,
+    );
   }
 
   /**
@@ -178,36 +211,103 @@ export class BlockchainService {
         }
         this.logger.debug(`Current balance: ${balanceInAda.toFixed(6)} ADA.`);
 
-        const utxos = await this.wallet.getUtxos();
-        if (!utxos || utxos.length === 0) {
+        // Use getUnspentOutputs to ensure we only work with UTXOs that are
+        // unspent and available for building new transactions (safer for parallel
+        // transaction builds and avoids attempting to use locked/invalid UTXOs).
+        const utxos = await this.wallet.getUnspentOutputs();
+
+        // Basic validation: must be a non-empty array
+        if (!Array.isArray(utxos) || utxos.length === 0) {
           throw new InternalServerErrorException(
-            'Wallet has no UTXOs available to build the transaction.',
+            'Wallet has no unspent outputs available to build the transaction.',
           );
         }
 
-        // Filter UTXOs to only use those with sufficient ADA (at least 2 ADA for fees + min UTXO)
+        // Stronger shape validation and filter: ensure each returned UTXO has an
+        // output with amount list and includes a lovelace entry. Then keep only
+        // those with at least 2 ADA to cover fees + min UTXO requirements.
+        // Local minimal types for safer runtime checks (avoid unsafe `any` usage)
+        type AssetAmount = { unit?: string; quantity?: string | number };
+        type TxOutput = { address?: string; amount?: AssetAmount[] };
         const usableUtxos = utxos.filter((utxo) => {
-          if (!utxo.output?.amount) return false;
+          // Expecting TransactionUnspentOutput-like shape: { input: {...}, output: { address, amount: [{ unit, quantity }, ...] } }
+          if (!utxo || typeof utxo !== 'object') return false;
 
-          const lovelaceAmount = utxo.output.amount.find(
-            (asset) => asset.unit === 'lovelace',
-          )?.quantity;
+          const tx = utxo as unknown as {
+            output?: TxOutput | (() => TxOutput);
+          };
 
-          if (!lovelaceAmount) return false;
+          const output =
+            typeof tx.output === 'function' ? tx.output() : tx.output;
+          if (!output || !Array.isArray(output.amount)) return false;
 
-          const amount = parseInt(lovelaceAmount, 10);
-          return amount >= 2000000; // At least 2 ADA
+          const lovelaceEntry = output.amount.find(
+            (asset) => asset && asset.unit === 'lovelace',
+          );
+
+          if (!lovelaceEntry || lovelaceEntry.quantity === undefined) {
+            return false;
+          }
+
+          const amount = parseInt(String(lovelaceEntry.quantity), 10);
+          if (Number.isNaN(amount)) return false;
+
+          return amount >= this.MIN_UTXO_LOVELACE;
         });
 
-        if (usableUtxos.length === 0) {
+        if (!Array.isArray(usableUtxos) || usableUtxos.length === 0) {
+          // Helpful debug: aggregate balance may be sufficient, but none of the
+          // individual returned unspent outputs meet the per-UTXO minimum used
+          // by the builder (we filtered for >= 2 ADA). This can happen when
+          // balance is composed of many small UTXOs.
+          this.logger.debug(
+            `No usable unspent outputs found: total returned UTXOs=${utxos.length}, usable=${usableUtxos.length}, aggregateBalance=${balanceInAda.toFixed(6)} ADA`,
+          );
+
           throw new InternalServerErrorException(
-            `No UTXOs with sufficient ADA (minimum 2 ADA) available for transaction fees. Current wallet balance: ${balanceInAda.toFixed(6)} ADA.`,
+            `No unspent outputs meet the per-UTXO minimum (${(
+              this.MIN_UTXO_LOVELACE / 1000000
+            ).toFixed(
+              6,
+            )} ADA). Wallet aggregate balance: ${balanceInAda.toFixed(6)} ADA. Returned UTXOs: ${utxos.length}. Usable (>=${(
+              this.MIN_UTXO_LOVELACE / 1000000
+            ).toFixed(
+              6,
+            )} ADA): ${usableUtxos.length}. Consider consolidating UTXOs or relaxing the per-UTXO filter if appropriate.`,
           );
         }
 
         this.logger.debug(
           `Found ${utxos.length} total UTXOs, ${usableUtxos.length} usable UTXOs for wallet.`,
         );
+
+        // Convert TransactionUnspentOutput-like objects to the plain UTxO shape
+        // expected by MeshTxBuilder.selectUtxosFrom. Some implementations expose
+        // `input`/`output` as functions, others as plain objects; handle both.
+        type TxLike = {
+          input:
+            | { txHash: string; outputIndex: number }
+            | (() => { txHash: string; outputIndex: number });
+          output: Record<string, unknown> | (() => Record<string, unknown>);
+        };
+
+        const meshUtxos = usableUtxos.map((u: unknown) => {
+          const tx = u as TxLike;
+          const inputObj =
+            typeof tx.input === 'function' ? tx.input() : tx.input;
+          const outputObj =
+            typeof tx.output === 'function' ? tx.output() : tx.output;
+
+          // We keep output as unknown and cast only at the return site to avoid
+          // unsafe `any` leakage across the function.
+          return {
+            input: {
+              txHash: inputObj.txHash,
+              outputIndex: inputObj.outputIndex,
+            },
+            output: outputObj as unknown,
+          } as const;
+        });
 
         // Get the primary address of the wallet to use for forging script and change address
         const walletAddress = (await this.wallet.getUsedAddresses())[0]; // Use getChangeAddress for consistency
@@ -247,7 +347,7 @@ export class BlockchainService {
           .mintingScript(forgingScript) // Provide the script needed to authorize the mint
           .metadataValue('721', cip25Metadata) // Attach metadata under the 721 label
           .changeAddress(walletAddress) // Where to send remaining ADA and change
-          .selectUtxosFrom(usableUtxos) // Provide the filtered UTXOs to use for inputs/fees
+          .selectUtxosFrom(meshUtxos as unknown as UTxO[]) // Provide the filtered and-mapped UTXOs to use for inputs/fees
           .complete(); // Calculate fees and build the transaction body
 
         this.logger.log('Transaction built successfully. Signing...');
@@ -277,7 +377,9 @@ export class BlockchainService {
         }
 
         if (
-          errorMessage.includes('Wallet has no UTXOs available') &&
+          (errorMessage.includes('unspent outputs') ||
+            errorMessage.includes('UTXOs') ||
+            errorMessage.includes('UTXO')) &&
           retries < this.MAX_RETRIES - 1
         ) {
           this.logger.warn(
