@@ -10,6 +10,19 @@ WORKDIR /usr/src/app
 # leveraging Docker's layer caching for faster builds.
 COPY package*.json ./
 
+# Install build tools required to compile native modules during `npm ci` (node-datachannel, etc.).
+# These are installed only in the builder stage so the final image remains lean.
+RUN apk add --no-cache \
+    build-base \
+    python3 \
+    cmake \
+    git \
+    openssl-dev \
+    libc6-compat
+
+# Ensure `python` points to `python3` for node-gyp / cmake-js compatibility
+RUN ln -sf /usr/bin/python3 /usr/bin/python || true
+
 # Install project dependencies. `npm ci` is used for clean and consistent installations in CI/CD environments.
 RUN npm ci
 
