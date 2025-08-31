@@ -749,7 +749,7 @@ export class BlockchainService {
                 submitAttempts <= this.SUBMIT_MAX_RETRIES
               ) {
                 this.logger.warn(
-                  `Submit failed with Cardano validation error (${submitMessage}). Attempting rebuild+resubmit (${submitAttempts}/${this.SUBMIT_MAX_RETRIES}) after ${submitDelay}ms...`,
+                  `Submit failed with Cardano validation error. Attempting rebuild+resubmit (${submitAttempts}/${this.SUBMIT_MAX_RETRIES}) after ${submitDelay}ms...`,
                 );
                 // Wait a bit before retrying to allow mempool/chain to settle
                 // and to reduce tight loops.
@@ -884,10 +884,8 @@ export class BlockchainService {
           delay *= 2; // Exponential backoff
           retries++;
         } else {
-          this.logger.error('NFT Minting failed:', error);
-          throw new InternalServerErrorException(
-            `Failed to mint NFT: ${errorMessage}`,
-          );
+          this.logger.error('NFT Minting failed');
+          throw new InternalServerErrorException(`Failed to mint NFT`);
         }
       }
     }

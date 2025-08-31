@@ -57,10 +57,7 @@ RUN apk add --no-cache \
 # Install OpenSSL and PostgreSQL client libraries, which might be needed for database connections.
 RUN apk add --no-cache openssl postgresql-libs
 
-# Set New Relic environment variables
-ENV NEW_RELIC_NO_CONFIG_FILE=true
-ENV NEW_RELIC_DISTRIBUTED_TRACING_ENABLED=true
-ENV NEW_RELIC_LOG=stdout
+# New Relic removed: monitoring configuration cleaned up
 
 # Set the working directory for the production stage.
 WORKDIR /usr/src/app

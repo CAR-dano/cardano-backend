@@ -6,8 +6,7 @@ services:
     restart: unless-stopped
     environment:
       - NODE_ENV=staging
-      - NEW_RELIC_LICENSE_KEY=${NEW_RELIC_LICENSE_KEY}
-      - NEW_RELIC_APP_NAME=cardano-backend-staging
+    # New Relic removed
     volumes:
       - /var/www/cardano-backend/uploads:/usr/src/app/uploads
       - /var/www/cardano-backend/pdfarchived:/usr/src/app/pdfarchived
