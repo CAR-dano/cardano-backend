@@ -1576,7 +1576,9 @@ export class InspectionsService {
         `PDF hash calculated for ${baseFileName}: ${pdfHashString}`,
       );
 
-      const pdfPublicUrl = uploadedUrl;
+      // Persist proxied path so frontend can fetch via our domain and the proxy.
+      // Store the proxied route (v1/pdf) rather than the external Backblaze URL.
+      const pdfPublicUrl = `/v1/pdf/${baseFileName}`;
 
       const finalStats = this.pdfQueue.stats;
       this.logger.log(

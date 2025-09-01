@@ -23,6 +23,7 @@ import { InspectionsModule } from '../inspections/inspections.module';
 
 // Controller and service imports for this module
 import { PublicApiController } from './public-api.controller';
+import { PdfProxyController } from './pdf-proxy.controller';
 import { PublicApiService } from './public-api.service';
 
 /**
@@ -38,7 +39,7 @@ import { PublicApiService } from './public-api.service';
   // Imports other modules that provide necessary services or controllers
   imports: [UsersModule, InspectionsModule],
   // Declares controllers that handle incoming requests for this module
-  controllers: [PublicApiController],
+  controllers: [PublicApiController, PdfProxyController],
   // Registers services that encapsulate the business logic for this module
   providers: [PublicApiService],
 })
