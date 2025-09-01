@@ -68,6 +68,47 @@ export class BackblazeService {
     return `${endpoint}/file/${bucket}/${encodeURIComponent(key)}`;
   }
 
+  /**
+   * Upload a Buffer directly to the configured bucket. Returns a public URL.
+   */
+  async uploadBuffer(
+    buffer: Buffer,
+    key: string,
+    contentType: string = 'application/octet-stream',
+    bucketName?: string,
+  ): Promise<string> {
+    const bucket = bucketName || this.bucketName;
+    if (!bucket) throw new Error('Bucket name not configured');
+
+    const cmd = new PutObjectCommand({
+      Bucket: bucket,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
+    });
+
+    await this.s3Client.send(cmd);
+
+    const endpoint = (this.endpoint || '')
+      .replace(/^http:\/\//, 'https://')
+      .replace(/\/$/, '');
+    return `${endpoint}/file/${bucket}/${encodeURIComponent(key)}`;
+  }
+
+  /**
+   * Upload a PDF buffer into the `pdfarchived/` prefix and return a public URL.
+   * This ensures PDFs are stored under the `pdfarchived` path in the bucket and
+   * the returned URL points to /file/{bucket}/pdfarchived/{filename}.
+   */
+  async uploadPdfBuffer(
+    buffer: Buffer,
+    filename: string,
+    bucketName?: string,
+  ): Promise<string> {
+    const key = `pdfarchived/${filename}`;
+    return this.uploadBuffer(buffer, key, 'application/pdf', bucketName);
+  }
+
   // Get an object stream from Backblaze
   async getFile(
     fileName: string,
