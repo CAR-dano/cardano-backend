@@ -21,7 +21,15 @@ export class BackblazeService {
     const accessKeyId = this.config.get<string>('STORAGE_APPLICATION_KEY_ID');
     const secretAccessKey = this.config.get<string>('STORAGE_APPLICATION_KEY');
     const region = this.config.get<string>('STORAGE_REGION');
-    this.endpoint = this.config.get<string>('STORAGE_ENDPOINT');
+    // Normalize endpoint: ensure it contains a protocol so the SDK can connect properly.
+    const rawEndpoint = this.config.get<string>('STORAGE_ENDPOINT');
+    if (rawEndpoint && !/^https?:\/\//i.test(rawEndpoint)) {
+      this.endpoint = `https://${rawEndpoint.replace(/\/$/, '')}`;
+    } else if (rawEndpoint) {
+      this.endpoint = rawEndpoint.replace(/\/$/, '');
+    } else {
+      this.endpoint = undefined;
+    }
     this.bucketName = this.config.get<string>('STORAGE_BUCKET_NAME');
 
     if (!accessKeyId || !secretAccessKey) {
@@ -34,6 +42,25 @@ export class BackblazeService {
       `BackblazeService constructor: endpoint=${this.endpoint ?? 'N/A'}, bucket=${this.bucketName ?? 'N/A'}, region=${region ?? 'N/A'}`,
     );
 
+    // Optionally use a node HTTP handler (if available) with a modest connection
+    // timeout. We require it dynamically so the package remains optional.
+    let requestHandler: any = undefined;
+    try {
+      const nh = require('@aws-sdk/node-http-handler');
+      if (nh && typeof nh.NodeHttpHandler === 'function') {
+        // increase timeouts: 20s connect, 60s socket
+        requestHandler = new nh.NodeHttpHandler({
+          connectionTimeout: 20_000,
+          socketTimeout: 60_000,
+        });
+      }
+    } catch (e) {
+      // package not installed; proceed without a custom handler
+      this.logger.debug(
+        `BackblazeService: node-http-handler not available: ${String(e)}`,
+      );
+    }
+
     this.s3Client = new S3Client({
       credentials: {
         accessKeyId: accessKeyId || '',
@@ -41,8 +68,76 @@ export class BackblazeService {
       },
       endpoint: this.endpoint || undefined,
       region: region || undefined,
-      // Backblaze is S3-compatible; default client options usually work.
+      forcePathStyle: true,
+      ...(requestHandler ? { requestHandler } : {}),
     });
+  }
+
+  // Helper to stringify errors for better logs
+  private formatError(err: unknown): string {
+    if (err instanceof Error) {
+      const anyErr = err as any;
+      const parts = [
+        `name=${anyErr.name ?? 'Error'}`,
+        `message=${anyErr.message ?? ''}`,
+      ];
+      if (anyErr.code) parts.push(`code=${String(anyErr.code)}`);
+      if (anyErr.stack) parts.push(`stack=${anyErr.stack.split('\n')[0]}`);
+      try {
+        // include other enumerable properties (like $metadata)
+        const extra = Object.keys(anyErr)
+          .filter((k) => !['name', 'message', 'stack'].includes(k))
+          .reduce((acc: any, k) => ({ ...acc, [k]: anyErr[k] }), {});
+        if (Object.keys(extra).length)
+          parts.push(`extra=${JSON.stringify(extra)}`);
+      } catch (_) {
+        // ignore
+      }
+      return parts.join(' ');
+    }
+    try {
+      return JSON.stringify(err);
+    } catch (_) {
+      return String(err);
+    }
+  }
+
+  // Wrapper to send S3 commands with retries for transient network errors
+  private async sendCommand(cmd: unknown, maxAttempts = 3): Promise<any> {
+    let attempt = 0;
+    let lastErr: unknown;
+    while (attempt < maxAttempts) {
+      try {
+        attempt++;
+        if (attempt > 1)
+          this.logger.debug(
+            `sendCommand: retry attempt ${attempt} for ${(cmd as any)?.constructor?.name ?? 'command'}`,
+          );
+        return await this.s3Client.send(cmd as any);
+      } catch (err: unknown) {
+        lastErr = err;
+        const code = ((err as any)?.code ?? (err as any)?.name ?? '') as string;
+        // For network/timeouts, wait and retry; otherwise break
+        if (
+          typeof code === 'string' &&
+          /ETIMEDOUT|ECONNRESET|ENOTFOUND|EAI_AGAIN/i.test(code) &&
+          attempt < maxAttempts
+        ) {
+          const backoff = Math.pow(2, attempt) * 500; // 500ms, 1000ms, 2000ms...
+          this.logger.warn(
+            `sendCommand: transient network error (${String(code)}), backing off ${backoff}ms and retrying (${attempt}/${maxAttempts})`,
+          );
+          await new Promise((r) => setTimeout(r, backoff));
+          continue;
+        }
+        // Non-transient or out of attempts
+        this.logger.error(
+          `sendCommand: failed after ${attempt} attempt(s): ${this.formatError(err)}`,
+        );
+        throw err;
+      }
+    }
+    throw lastErr;
   }
 
   // Upload a file (from multer) to Backblaze B2 (S3-compatible)
@@ -69,9 +164,8 @@ export class BackblazeService {
         `uploadFile: successfully uploaded '${key}' to bucket '${bucket}'`,
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(
-        `uploadFile: failed to upload '${key}' to bucket '${bucket}': ${msg}`,
+        `uploadFile: failed to upload '${key}' to bucket '${bucket}': ${this.formatError(err)}`,
       );
       throw err;
     }
@@ -114,9 +208,8 @@ export class BackblazeService {
         `uploadBuffer: successfully uploaded '${key}' to bucket '${bucket}'`,
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(
-        `uploadBuffer: failed to upload '${key}' to bucket '${bucket}': ${msg}`,
+        `uploadBuffer: failed to upload '${key}' to bucket '${bucket}': ${this.formatError(err)}`,
       );
       throw err;
     }
@@ -153,9 +246,8 @@ export class BackblazeService {
       this.logger.log(`uploadPdfBuffer: uploaded pdf '${filename}' => ${url}`);
       return url;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(
-        `uploadPdfBuffer: failed to upload pdf '${filename}': ${msg}`,
+        `uploadPdfBuffer: failed to upload pdf '${filename}': ${this.formatError(err)}`,
       );
       throw err;
     }
@@ -179,9 +271,8 @@ export class BackblazeService {
       );
       return res.Body as unknown as Readable | undefined;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(
-        `getFile: failed to fetch key='${fileName}' from bucket='${bucket}': ${msg}`,
+        `getFile: failed to fetch key='${fileName}' from bucket='${bucket}': ${this.formatError(err)}`,
       );
       throw err;
     }
@@ -201,9 +292,8 @@ export class BackblazeService {
       );
       return res.Contents;
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(
-        `listFiles: failed to list objects in bucket='${bucket}': ${msg}`,
+        `listFiles: failed to list objects in bucket='${bucket}': ${this.formatError(err)}`,
       );
       throw err;
     }
@@ -223,9 +313,8 @@ export class BackblazeService {
         `deleteFile: deleted key='${fileName}' from bucket='${bucket}'`,
       );
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
       this.logger.error(
-        `deleteFile: failed to delete key='${fileName}' from bucket='${bucket}': ${msg}`,
+        `deleteFile: failed to delete key='${fileName}' from bucket='${bucket}': ${this.formatError(err)}`,
       );
       throw err;
     }
