@@ -33,7 +33,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { IpfsModule } from './ipfs/ipfs.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { MetricsMiddleware } from './metrics/metrics.middleware';
-import { BackblazeService } from './common/services/backblaze.service';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -90,9 +90,10 @@ import { BackblazeService } from './common/services/backblaze.service';
     DashboardModule,
     IpfsModule,
     MetricsModule,
+    CommonModule,
   ],
   controllers: [],
-  providers: [BackblazeService],
+  providers: [],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

@@ -2112,8 +2112,7 @@ export const openApiDocument = {
             example: 'newuser123',
             minLength: 3,
             maxLength: 20,
-            pattern: '^[a-zA-Z0-9_]+
-,
+            pattern: '^[a-zA-Z0-9_]+$',
           },
           password: {
             type: 'string',
