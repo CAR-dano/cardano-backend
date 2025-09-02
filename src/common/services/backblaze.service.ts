@@ -30,6 +30,10 @@ export class BackblazeService {
       );
     }
 
+    this.logger.debug(
+      `BackblazeService constructor: endpoint=${this.endpoint ?? 'N/A'}, bucket=${this.bucketName ?? 'N/A'}, region=${region ?? 'N/A'}`,
+    );
+
     this.s3Client = new S3Client({
       credentials: {
         accessKeyId: accessKeyId || '',
@@ -49,7 +53,9 @@ export class BackblazeService {
     const bucket = bucketName || this.bucketName;
     if (!bucket) throw new Error('Bucket name not configured');
     const key = file.originalname;
-
+    this.logger.debug(
+      `uploadFile: uploading key='${key}' to bucket='${bucket}' (size=${file.buffer?.length ?? 'unknown'})`,
+    );
     const cmd = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
@@ -57,7 +63,18 @@ export class BackblazeService {
       ContentType: file.mimetype,
     });
 
-    await this.s3Client.send(cmd);
+    try {
+      await this.s3Client.send(cmd);
+      this.logger.log(
+        `uploadFile: successfully uploaded '${key}' to bucket '${bucket}'`,
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `uploadFile: failed to upload '${key}' to bucket '${bucket}': ${msg}`,
+      );
+      throw err;
+    }
 
     // Construct a public URL. Backblaze can expose files under a public bucket URL.
     // The exact public host may differ by account; we build a reasonable URL from STORAGE_ENDPOINT.
@@ -65,7 +82,9 @@ export class BackblazeService {
       .replace(/^http:\/\//, 'https://')
       .replace(/\/$/, '');
     // Many Backblaze public URLs follow /file/{bucket}/{key}
-    return `${endpoint}/file/${bucket}/${encodeURIComponent(key)}`;
+    const publicUrl = `${endpoint}/file/${bucket}/${encodeURIComponent(key)}`;
+    this.logger.debug(`uploadFile: public URL for '${key}' => ${publicUrl}`);
+    return publicUrl;
   }
 
   /**
@@ -79,7 +98,9 @@ export class BackblazeService {
   ): Promise<string> {
     const bucket = bucketName || this.bucketName;
     if (!bucket) throw new Error('Bucket name not configured');
-
+    this.logger.debug(
+      `uploadBuffer: uploading key='${key}' to bucket='${bucket}' (size=${buffer.length})`,
+    );
     const cmd = new PutObjectCommand({
       Bucket: bucket,
       Key: key,
@@ -87,12 +108,25 @@ export class BackblazeService {
       ContentType: contentType,
     });
 
-    await this.s3Client.send(cmd);
+    try {
+      await this.s3Client.send(cmd);
+      this.logger.log(
+        `uploadBuffer: successfully uploaded '${key}' to bucket '${bucket}'`,
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `uploadBuffer: failed to upload '${key}' to bucket '${bucket}': ${msg}`,
+      );
+      throw err;
+    }
 
     const endpoint = (this.endpoint || '')
       .replace(/^http:\/\//, 'https://')
       .replace(/\/$/, '');
-    return `${endpoint}/file/${bucket}/${encodeURIComponent(key)}`;
+    const publicUrl = `${endpoint}/file/${bucket}/${encodeURIComponent(key)}`;
+    this.logger.debug(`uploadBuffer: public URL for '${key}' => ${publicUrl}`);
+    return publicUrl;
   }
 
   /**
@@ -106,7 +140,25 @@ export class BackblazeService {
     bucketName?: string,
   ): Promise<string> {
     const key = `pdfarchived/${filename}`;
-    return this.uploadBuffer(buffer, key, 'application/pdf', bucketName);
+    this.logger.debug(
+      `uploadPdfBuffer: uploading pdf '${filename}' as key='${key}'`,
+    );
+    try {
+      const url = await this.uploadBuffer(
+        buffer,
+        key,
+        'application/pdf',
+        bucketName,
+      );
+      this.logger.log(`uploadPdfBuffer: uploaded pdf '${filename}' => ${url}`);
+      return url;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `uploadPdfBuffer: failed to upload pdf '${filename}': ${msg}`,
+      );
+      throw err;
+    }
   }
 
   // Get an object stream from Backblaze
@@ -116,29 +168,66 @@ export class BackblazeService {
   ): Promise<Readable | undefined> {
     const bucket = bucketName || this.bucketName;
     if (!bucket) throw new Error('Bucket name not configured');
-
+    this.logger.debug(
+      `getFile: fetching key='${fileName}' from bucket='${bucket}'`,
+    );
     const cmd = new GetObjectCommand({ Bucket: bucket, Key: fileName });
-    const res = await this.s3Client.send(cmd);
-    // response.Body is a stream in Node.js runtimes
-    return res.Body as unknown as Readable | undefined;
+    try {
+      const res = await this.s3Client.send(cmd);
+      this.logger.log(
+        `getFile: fetched key='${fileName}' from bucket='${bucket}'`,
+      );
+      return res.Body as unknown as Readable | undefined;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `getFile: failed to fetch key='${fileName}' from bucket='${bucket}': ${msg}`,
+      );
+      throw err;
+    }
   }
 
   // List files in the bucket
   async listFiles(bucketName?: string) {
     const bucket = bucketName || this.bucketName;
     if (!bucket) throw new Error('Bucket name not configured');
-
+    this.logger.debug(`listFiles: listing objects in bucket='${bucket}'`);
     const cmd = new ListObjectsV2Command({ Bucket: bucket });
-    const res = await this.s3Client.send(cmd);
-    return res.Contents;
+    try {
+      const res = await this.s3Client.send(cmd);
+      const count = res.Contents ? res.Contents.length : 0;
+      this.logger.log(
+        `listFiles: found ${count} objects in bucket='${bucket}'`,
+      );
+      return res.Contents;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `listFiles: failed to list objects in bucket='${bucket}': ${msg}`,
+      );
+      throw err;
+    }
   }
 
   // Delete a file
   async deleteFile(fileName: string, bucketName?: string): Promise<void> {
     const bucket = bucketName || this.bucketName;
     if (!bucket) throw new Error('Bucket name not configured');
-
+    this.logger.debug(
+      `deleteFile: deleting key='${fileName}' from bucket='${bucket}'`,
+    );
     const cmd = new DeleteObjectCommand({ Bucket: bucket, Key: fileName });
-    await this.s3Client.send(cmd);
+    try {
+      await this.s3Client.send(cmd);
+      this.logger.log(
+        `deleteFile: deleted key='${fileName}' from bucket='${bucket}'`,
+      );
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `deleteFile: failed to delete key='${fileName}' from bucket='${bucket}': ${msg}`,
+      );
+      throw err;
+    }
   }
 }
