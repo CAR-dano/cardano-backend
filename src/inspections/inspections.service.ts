@@ -1518,7 +1518,7 @@ export class InspectionsService {
     url: string,
     baseFileName: string,
     token: string | null,
-  ): Promise<{ pdfPublicUrl: string; pdfCid: string; pdfHashString: string }> {
+  ): Promise<{ pdfPublicUrl: string; pdfCid: string; pdfHashString: string; pdfCloudUrl: string }> {
     const queueStats = this.pdfQueue.stats;
     this.logger.log(
       `Adding PDF generation to queue for ${baseFileName}. Queue status: ${queueStats.running}/${queueStats.queueLength + queueStats.running} (running/total)`,
@@ -1585,7 +1585,7 @@ export class InspectionsService {
         `PDF generation completed for ${baseFileName}. Queue stats: processed=${finalStats.totalProcessed}, errors=${finalStats.totalErrors}`,
       );
 
-      return { pdfPublicUrl, pdfCid, pdfHashString };
+      return { pdfPublicUrl, pdfCid, pdfHashString, pdfCloudUrl: uploadedUrl  };
     });
   }
 
@@ -1874,9 +1874,11 @@ export class InspectionsService {
         const finalUpdateData: Prisma.InspectionUpdateInput = {
           status: InspectionStatus.APPROVED, // Ensure final approved status
           urlPdf: fullPdfResult.pdfPublicUrl,
+          urlPdfCloud: fullPdfResult.pdfCloudUrl,
           pdfFileHash: fullPdfResult.pdfHashString,
           ipfsPdf: `ipfs://${fullPdfResult.pdfCid}`,
           urlPdfNoDocs: noDocsPdfResult.pdfPublicUrl,
+          urlPdfNoDocsCloud: noDocsPdfResult.pdfCloudUrl,
           pdfFileHashNoDocs: noDocsPdfResult.pdfHashString,
           ipfsPdfNoDocs: `ipfs://${noDocsPdfResult.pdfCid}`,
         };

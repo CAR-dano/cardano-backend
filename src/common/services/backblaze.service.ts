@@ -170,15 +170,11 @@ export class BackblazeService {
       throw err;
     }
 
-    // Construct a public URL. Backblaze can expose files under a public bucket URL.
-    // The exact public host may differ by account; we build a reasonable URL from STORAGE_ENDPOINT.
-    const endpoint = (this.endpoint || '')
-      .replace(/^http:\/\//, 'https://')
-      .replace(/\/$/, '');
-    // Many Backblaze public URLs follow /file/{bucket}/{key}
-    const publicUrl = `${endpoint}/file/${bucket}/${encodeURIComponent(key)}`;
-    this.logger.debug(`uploadFile: public URL for '${key}' => ${publicUrl}`);
-    return publicUrl;
+  // Construct a public URL using STORAGE_FILE_ENDPOINT or fallback to default Backblaze file endpoint.
+  const fileEndpoint = this.config.get<string>('STORAGE_FILE_ENDPOINT') || `https://f005.backblazeb2.com`;
+  const publicUrl = `${fileEndpoint}/file/${bucket}/${encodeURIComponent(key)}`;
+  this.logger.debug(`uploadFile: public URL for '${key}' => ${publicUrl}`);
+  return publicUrl;
   }
 
   /**
@@ -214,12 +210,10 @@ export class BackblazeService {
       throw err;
     }
 
-    const endpoint = (this.endpoint || '')
-      .replace(/^http:\/\//, 'https://')
-      .replace(/\/$/, '');
-    const publicUrl = `${endpoint}/file/${bucket}/${encodeURIComponent(key)}`;
-    this.logger.debug(`uploadBuffer: public URL for '${key}' => ${publicUrl}`);
-    return publicUrl;
+  const fileEndpoint = this.config.get<string>('STORAGE_FILE_ENDPOINT') || `https://f005.backblazeb2.com`;
+  const publicUrl = `${fileEndpoint}/file/${bucket}/${encodeURIComponent(key)}`;
+  this.logger.debug(`uploadBuffer: public URL for '${key}' => ${publicUrl}`);
+  return publicUrl;
   }
 
   /**

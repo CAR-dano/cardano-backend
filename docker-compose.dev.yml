@@ -8,8 +8,8 @@ services:
       - NODE_ENV=development
     # New Relic removed
     volumes:
-      - /home/maul/CAR-dano/new-cardano-backend/uploads:/usr/src/app/uploads
-      - /home/maul/CAR-dano/new-cardano-backend/pdfarchived:/usr/src/app/pdfarchived
+      - /home/maul/Documents/cardano-backend/uploads:/usr/src/app/uploads
+      - /home/maul/Documents/cardano-backend/pdfarchived:/usr/src/app/pdfarchived
       - ./src:/usr/src/app/src # Live code reload
       - ./package.json:/usr/src/app/package.json
     # No resource limits for development
