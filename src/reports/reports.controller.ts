@@ -31,6 +31,8 @@ import {
 } from '@nestjs/swagger';
 import { ReportDetailResponseDto } from './dto/report-detail-response.dto';
 import { PhotoResponseDto } from '../photos/dto/photo-response.dto';
+import { ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse } from '@nestjs/swagger';
+import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 
 @ApiTags('Reports')
 @Controller('reports')
@@ -51,7 +53,10 @@ export class ReportsController {
   @ApiOperation({ summary: 'Get report detail with download status' })
   @ApiParam({ name: 'id', description: 'Inspection ID (UUID)' })
   @ApiOkResponse({ description: 'Report detail and canDownload flag', type: ReportDetailResponseDto })
-  @ApiResponse({ status: 404, description: 'Inspection not found' })
+  @ApiNotFoundResponse({ description: 'Inspection not found', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async getDetail(
     @Param('id') id: string,
     @GetUser('id') userId: string,
@@ -146,9 +151,12 @@ export class ReportsController {
   @ApiOperation({ summary: 'Download no-docs PDF (charges 1 credit for customer on first download)' })
   @ApiParam({ name: 'id', description: 'Inspection ID (UUID)' })
   @ApiProduces('application/pdf')
-  @ApiResponse({ status: 200, description: 'PDF stream (application/pdf)' })
+  @ApiOkResponse({ description: 'PDF stream (application/pdf)' })
   @ApiResponse({ status: 402, description: 'Payment Required (insufficient credits for customer)' })
-  @ApiResponse({ status: 404, description: 'No no-docs PDF available or file missing' })
+  @ApiNotFoundResponse({ description: 'No no-docs PDF available or file missing', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async download(
     @Param('id') id: string,
     @GetUser('id') userId: string,

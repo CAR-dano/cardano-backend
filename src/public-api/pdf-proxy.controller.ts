@@ -11,7 +11,10 @@ import { BackblazeService } from '../common/services/backblaze.service';
 import { Stream } from 'stream';
 import * as fs from 'fs';
 import * as path from 'path';
+import { ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 
+@ApiTags('Public PDF')
 @Controller()
 export class PdfProxyController {
   private readonly logger = new Logger(PdfProxyController.name);
@@ -56,18 +59,30 @@ export class PdfProxyController {
 
   // New proxied path used by frontend going forward
   @Get('v1/pdf/:name')
+  @ApiOperation({ summary: '[v1] Stream a PDF (Backblaze/local fallback)' })
+  @ApiOkResponse({ description: 'PDF stream' })
+  @ApiNotFoundResponse({ description: 'PDF not found', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async proxyV1(@Param('name') name: string, @Res() res: Response) {
     return this.streamPdfToResponse(name, res);
   }
 
   // Keep legacy path used when files were served from VPS
   @Get('pdfarchived/:name')
+  @ApiOperation({ summary: 'Stream legacy archived PDF' })
+  @ApiOkResponse({ description: 'PDF stream' })
+  @ApiNotFoundResponse({ description: 'PDF not found', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async proxyArchived(@Param('name') name: string, @Res() res: Response) {
     return this.streamPdfToResponse(name, res);
   }
 
   // Also keep /pdf/:name for compatibility with earlier changes
   @Get('pdf/:name')
+  @ApiOperation({ summary: 'Stream PDF by name' })
+  @ApiOkResponse({ description: 'PDF stream' })
+  @ApiNotFoundResponse({ description: 'PDF not found', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async proxyPdf(@Param('name') name: string, @Res() res: Response) {
     return this.streamPdfToResponse(name, res);
   }

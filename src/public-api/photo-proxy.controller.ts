@@ -3,7 +3,16 @@ import { Response } from 'express';
 import { BackblazeService } from '../common/services/backblaze.service';
 import * as fs from 'fs';
 import * as path from 'path';
+import {
+  ApiInternalServerErrorResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 
+@ApiTags('Public Photos')
 @Controller()
 export class PhotoProxyController {
   private readonly logger = new Logger(PhotoProxyController.name);
@@ -83,6 +92,10 @@ export class PhotoProxyController {
   // Wildcard to support nested paths like {inspectionId}/{category}/{filename}
   // Use a named param with (*) to work with both Express and Fastify
   @Get('uploads/inspection-photos/*path')
+  @ApiOperation({ summary: 'Stream an inspection photo by wildcard path' })
+  @ApiOkResponse({ description: 'Photo stream' })
+  @ApiNotFoundResponse({ description: 'Photo not found', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async proxyUploadsWildcard(
     @Param('path') path: any,
     @Res() res: Response,
@@ -103,12 +116,20 @@ export class PhotoProxyController {
 
   // Direct path used by external clients (single-segment fallback for legacy)
   @Get('uploads/inspection-photos/:name')
+  @ApiOperation({ summary: 'Stream an inspection photo by name' })
+  @ApiOkResponse({ description: 'Photo stream' })
+  @ApiNotFoundResponse({ description: 'Photo not found', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async proxyUploads(@Param('name') name: string, @Res() res: Response) {
     return this.streamPhoto(name, res);
   }
 
   // Optionally expose v1 variant to mirror PDF proxy style
   @Get('v1/uploads/inspection-photos/*path')
+  @ApiOperation({ summary: '[v1] Stream an inspection photo by wildcard path' })
+  @ApiOkResponse({ description: 'Photo stream' })
+  @ApiNotFoundResponse({ description: 'Photo not found', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async proxyV1UploadsWildcard(
     @Param('path') path: any,
     @Res() res: Response,
@@ -127,12 +148,20 @@ export class PhotoProxyController {
   }
 
   @Get('v1/uploads/inspection-photos/:name')
+  @ApiOperation({ summary: '[v1] Stream an inspection photo by name' })
+  @ApiOkResponse({ description: 'Photo stream' })
+  @ApiNotFoundResponse({ description: 'Photo not found', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async proxyV1Uploads(@Param('name') name: string, @Res() res: Response) {
     return this.streamPhoto(name, res);
   }
 
   // Legacy singular folder support
   @Get('uploads/inspection-photos/:name')
+  @ApiOperation({ summary: 'Stream legacy inspection photo by name' })
+  @ApiOkResponse({ description: 'Photo stream' })
+  @ApiNotFoundResponse({ description: 'Photo not found', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async proxyLegacy(@Param('name') name: string, @Res() res: Response) {
     return this.streamPhoto(name, res);
   }

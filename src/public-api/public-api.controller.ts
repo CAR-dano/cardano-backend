@@ -25,7 +25,8 @@ import {
 } from '@nestjs/common';
 
 // Swagger documentation modules
-import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags, ApiOkResponse, ApiBadRequestResponse, ApiNotFoundResponse, ApiInternalServerErrorResponse } from '@nestjs/swagger';
+import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 
 // Services
 import { UsersService } from '../users/users.service';
@@ -87,7 +88,8 @@ export class PublicApiController {
     description:
       'Returns status of application and dependencies: app uptime, database ping, object storage reachability, and optional payment webhook reachability with signature dry-run.',
   })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Health status' })
+  @ApiOkResponse({ description: 'Health status' })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async getHealth() {
     const startedAt = Date.now();
     const nowIso = new Date().toISOString();
@@ -186,23 +188,10 @@ export class PublicApiController {
     description:
       'Fetches a list of all user accounts specifically designated as inspectors. This endpoint is publicly accessible.',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'List of inspector users.',
-    type: [UserResponseDto],
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Bad Request.',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Not Found.',
-  })
-  @ApiResponse({
-    status: HttpStatus.INTERNAL_SERVER_ERROR,
-    description: 'Internal Server Error.',
-  })
+  @ApiOkResponse({ description: 'List of inspector users.', type: [UserResponseDto] })
+  @ApiBadRequestResponse({ description: 'Bad Request.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Internal Server Error.', type: HttpErrorResponseDto })
   async findAllInspectors(): Promise<UserResponseDto[]> {
     // Log the incoming public request
     this.logger.log(`Public request: findAllInspectors users`);
@@ -228,23 +217,10 @@ export class PublicApiController {
     description:
       'Retrieves the 5 most recent inspections with status ARCHIVED, including one photo with the label "Front View", vehicle plate number, vehicle brand, and vehicle type.',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Array of the latest archived inspection summaries.',
-    type: [LatestArchivedInspectionResponseDto],
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Bad Request.',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Not Found.',
-  })
-  @ApiResponse({
-    status: HttpStatus.INTERNAL_SERVER_ERROR,
-    description: 'Internal Server Error (e.g., database error).',
-  })
+  @ApiOkResponse({ description: 'Array of the latest archived inspection summaries.', type: [LatestArchivedInspectionResponseDto] })
+  @ApiBadRequestResponse({ description: 'Bad Request.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Not Found.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Internal Server Error (e.g., database error).', type: HttpErrorResponseDto })
   async getLatestArchivedInspections(): Promise<
     LatestArchivedInspectionResponseDto[]
   > {
@@ -292,23 +268,10 @@ export class PublicApiController {
     format: 'uuid',
     description: 'The UUID of the inspection to retrieve.',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'The inspection record summary.',
-    type: InspectionResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Bad Request.',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Inspection not found.',
-  })
-  @ApiResponse({
-    status: HttpStatus.INTERNAL_SERVER_ERROR,
-    description: 'Internal Server Error.',
-  })
+  @ApiOkResponse({ description: 'The inspection record summary.', type: InspectionResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Internal Server Error.', type: HttpErrorResponseDto })
   async findOne(@Param('id') id: string): Promise<InspectionResponseDto> {
     // Retrieve the inspection using the PublicApiService
     const inspection = await this.publicApiService.findOne(id);
@@ -335,15 +298,8 @@ export class PublicApiController {
     format: 'uuid',
     description: 'The UUID of the inspection to retrieve.',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'The inspection record summary without sensitive documents.',
-    type: InspectionResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Inspection not found.',
-  })
+  @ApiOkResponse({ description: 'The inspection record summary without sensitive documents.', type: InspectionResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
   async findOneWithoutDocuments(
     @Param('id') id: string,
   ): Promise<InspectionResponseDto> {
@@ -371,23 +327,10 @@ export class PublicApiController {
     type: String,
     description: 'The ID of the inspection',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Successfully retrieved inspection change log.',
-    type: [InspectionChangeLogResponseDto],
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Inspection not found.',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Bad Request.',
-  })
-  @ApiResponse({
-    status: HttpStatus.INTERNAL_SERVER_ERROR,
-    description: 'Internal Server Error.',
-  })
+  @ApiOkResponse({ description: 'Successfully retrieved inspection change log.', type: [InspectionChangeLogResponseDto] })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Internal Server Error.', type: HttpErrorResponseDto })
   async findChangesByInspectionId(
     @Param('id') inspectionId: string,
   ): Promise<InspectionChangeLog[]> {

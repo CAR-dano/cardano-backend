@@ -20,7 +20,13 @@ import {
   ApiResponse,
   ApiTags,
   ApiCreatedResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiInternalServerErrorResponse,
+  ApiOkResponse,
 } from '@nestjs/swagger';
+import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { CheckoutResponseDto } from './dto/checkout-response.dto';
 
 @ApiTags('Billing')
@@ -33,7 +39,8 @@ export class BillingController {
 
   @Get('packages')
   @ApiOperation({ summary: 'List active credit packages' })
-  @ApiResponse({ status: 200, description: 'Packages list' })
+  @ApiOkResponse({ description: 'Packages list' })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async listPackages() {
     const packagesList = await this.billing.listPackages();
     return { packages: packagesList };
@@ -45,6 +52,10 @@ export class BillingController {
   @ApiOperation({ summary: 'Create checkout (Xendit invoice) for a credit package' })
   @ApiBody({ type: CheckoutDto })
   @ApiCreatedResponse({ description: 'Checkout created; returns payment URL', type: CheckoutResponseDto })
+  @ApiBadRequestResponse({ description: 'Validation failed or bad payload.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async checkout(
     @Body() dto: CheckoutDto,
     @GetUser('id') userId: string,
@@ -59,7 +70,8 @@ export class BillingController {
   @Post('webhook/xendit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Xendit webhook handler (idempotent)' })
-  @ApiResponse({ status: 200, description: 'Webhook processed' })
+  @ApiOkResponse({ description: 'Webhook processed' })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async xenditWebhook(
     @Body() body: any,
     @Headers('x-callback-token') callbackToken: string,

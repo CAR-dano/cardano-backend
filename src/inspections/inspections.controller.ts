@@ -60,6 +60,17 @@ import {
   ApiTags,
   ApiBearerAuth,
 } from '@nestjs/swagger';
+import {
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiNoContentResponse,
+  ApiInternalServerErrorResponse,
+} from '@nestjs/swagger';
+import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { AddMultiplePhotosDto } from 'src/photos/dto/add-multiple-photos.dto';
 import { AddSinglePhotoDto } from 'src/inspections/dto/add-single-photo.dto';
 import { BuildMintTxResponseDto } from '../blockchain/dto/build-mint-tx-response.dto';
@@ -135,23 +146,10 @@ export class InspectionsController {
       'Creates the initial inspection record containing text and JSON data. This is the first step before uploading photos or archiving. Only accessible by users with the INSPECTOR role.',
   })
   @ApiBody({ type: CreateInspectionDto })
-  @ApiResponse({
-    status: HttpStatus.CREATED,
-    description: 'The newly created inspection record summary.',
-    type: InspectionResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Bad Request (e.g., invalid input data).',
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'Unauthorized. User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'Forbidden. User does not have the INSPECTOR role.',
-  })
+  @ApiCreatedResponse({ description: 'The newly created inspection record summary.', type: InspectionResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input data).', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Unauthorized. User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'Forbidden. User does not have the INSPECTOR role.', type: HttpErrorResponseDto })
   async create(
     @Body() createInspectionDto: CreateInspectionDto,
     @GetUser('id') inspectorId: string,
@@ -190,8 +188,7 @@ export class InspectionsController {
     description: 'The UUID of the inspection to update.',
   })
   @ApiBody({ type: UpdateInspectionDto })
-  @ApiResponse({
-    status: 200,
+  @ApiOkResponse({
     description: 'Message indicating changes have been logged.',
     schema: {
       type: 'object',
@@ -200,19 +197,10 @@ export class InspectionsController {
       },
     },
   })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request (e.g., invalid input data).',
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input data).', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async update(
     @Param('id') id: string,
@@ -285,17 +273,9 @@ export class InspectionsController {
     },
     description: 'Metadata and photo files for the batch upload.',
   })
-  @ApiResponse({
-    status: 201,
-    description: 'Array of created photo record summaries.',
-    type: [PhotoResponseDto],
-  })
-  @ApiResponse({
-    status: 400,
-    description:
-      'Bad Request (e.g., invalid input, no files provided, invalid file type).',
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiCreatedResponse({ description: 'Array of created photo record summaries.', type: [PhotoResponseDto] })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input, no files provided, invalid file type).', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async addMultiplePhotos(
     @Param('id') id: string,
@@ -353,17 +333,9 @@ export class InspectionsController {
     description:
       'Metadata (label, needAttention) and photo file for the upload.',
   })
-  @ApiResponse({
-    status: 201,
-    description: 'The created photo record summary.',
-    type: PhotoResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description:
-      'Bad Request (e.g., invalid input, no file provided, invalid file type).',
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiCreatedResponse({ description: 'The created photo record summary.', type: PhotoResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input, no file provided, invalid file type).', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async addSinglePhoto(
     @Param('id') id: string,
@@ -434,20 +406,10 @@ export class InspectionsController {
     format: 'uuid',
     description: 'Inspection ID',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Array of photo record summaries.',
-    type: [PhotoResponseDto],
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
+  @ApiOkResponse({ description: 'Array of photo record summaries.', type: [PhotoResponseDto] })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async getPhotosForInspection(
     @Param('id') id: string,
@@ -503,24 +465,11 @@ export class InspectionsController {
     description:
       'Optional metadata updates (label, needAttention) and/or a new photo file.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'The updated photo record summary.',
-    type: PhotoResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request (e.g., invalid input, invalid file type).',
-  })
-  @ApiResponse({ status: 404, description: 'Inspection or Photo not found.' })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
+  @ApiOkResponse({ description: 'The updated photo record summary.', type: PhotoResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input, invalid file type).', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection or Photo not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async updatePhoto(
     @Param('id') inspectionId: string,
@@ -577,19 +526,10 @@ export class InspectionsController {
     format: 'uuid',
     description: 'Photo ID',
   })
-  @ApiResponse({
-    status: 204,
-    description: 'Photo deleted successfully (No Content).',
-  })
-  @ApiResponse({ status: 404, description: 'Photo not found.' })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
+  @ApiNoContentResponse({ description: 'Photo deleted successfully (No Content).' })
+  @ApiNotFoundResponse({ description: 'Photo not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async deletePhoto(
     @Param('id', ParseUUIDPipe) inspectionId: string, // Included for path consistency, might not be needed by service
@@ -627,12 +567,8 @@ export class InspectionsController {
     type: String,
     description: 'The vehicle plate number to search for (e.g., "AB 1234 CD").',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'The found inspection record summary.',
-    type: InspectionResponseDto,
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiOkResponse({ description: 'The found inspection record summary.', type: InspectionResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
   async searchByVehicleNumber(
     @Query('vehicleNumber') vehicleNumber: string,
   ): Promise<InspectionResponseDto> {
@@ -676,12 +612,9 @@ export class InspectionsController {
     description:
       'The keyword to search for (e.g., "Avanza", "AB 1234 CD", "pending").',
   })
-  @ApiResponse({
-    status: 200,
-    description:
-      'A list of found inspection records. Returns an empty array if no matches are found.',
-    type: [InspectionResponseDto], // Menandakan bahwa ini adalah array dari DTO
-  })
+  @ApiOkResponse({ description: 'A list of found inspection records. Returns an empty array if no matches are found.', type: [InspectionResponseDto] })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
   async searchByKeyword(
     @Query('q') keyword: string,
   ): Promise<InspectionResponseDto[]> {
@@ -735,8 +668,7 @@ export class InspectionsController {
     type: Number,
     description: 'Number of items per page. Defaults to 10.',
   })
-  @ApiResponse({
-    status: 200,
+  @ApiOkResponse({
     description: 'Paginated list of inspection record summaries with metadata.',
     schema: {
       type: 'object',
@@ -757,14 +689,8 @@ export class InspectionsController {
       },
     },
   })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findAll(
     @Query('role') userRole?: Role,
@@ -854,20 +780,10 @@ export class InspectionsController {
     enum: Role,
     description: 'Filter inspection visibility by user role.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'The inspection record summary.',
-    type: InspectionResponseDto,
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
+  @ApiOkResponse({ description: 'The inspection record summary.', type: InspectionResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findOne(
     @Param('id') id: string,
@@ -904,25 +820,11 @@ export class InspectionsController {
     format: 'uuid',
     description: 'Inspection ID',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'The approved inspection record summary.',
-    type: InspectionResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description:
-      'Bad Request (e.g., inspection not in a state to be approved).',
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
+  @ApiOkResponse({ description: 'The approved inspection record summary.', type: InspectionResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid state).', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async approveInspection(
     @Param('id') id: string,
@@ -963,24 +865,10 @@ export class InspectionsController {
     type: BulkApproveInspectionDto,
     description: 'Array of inspection IDs to approve',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Bulk approval results with success/failure details.',
-    type: BulkApproveInspectionResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description:
-      'Bad Request (e.g., invalid inspection IDs, too many requests).',
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
+  @ApiOkResponse({ description: 'Bulk approval results with success/failure details.', type: BulkApproveInspectionResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid inspection IDs, too many requests).', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
   async bulkApproveInspections(
     @Body() bulkApproveDto: BulkApproveInspectionDto,
     @GetUser('id') reviewerId: string,
@@ -1037,32 +925,11 @@ export class InspectionsController {
     format: 'uuid',
     description: 'Inspection ID',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Inspection archived successfully.',
-    type: InspectionResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request (e.g., invalid URL, inspection not approved).',
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
+  @ApiOkResponse({ description: 'Inspection archived successfully.', type: InspectionResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid URL, inspection not approved).', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
   async processToArchive(
     @Param('id') id: string,
     @GetUser('id') userId: string,
@@ -1092,32 +959,12 @@ export class InspectionsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Step 1 - Build Unsigned Archive Transaction' })
   @ApiBody({ type: BuildMintRequestDto })
-  @ApiResponse({
-    status: 201,
-    description: 'The unsigned transaction details for archiving.',
-    type: BuildMintTxResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description:
-      'Bad Request (e.g., invalid input data, missing adminAddress).',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Inspection not found.',
-  })
-  @ApiResponse({
-    status: HttpStatus.INTERNAL_SERVER_ERROR,
-    description: 'Internal Server Error.',
-  })
+  @ApiCreatedResponse({ description: 'The unsigned transaction details for archiving.', type: BuildMintTxResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input data, missing adminAddress).', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Internal Server Error.', type: HttpErrorResponseDto })
   async buildArchiveTransaction(
     @Param('id') id: string,
     @Body() buildMintRequestDto: BuildMintRequestDto,
@@ -1149,32 +996,12 @@ export class InspectionsController {
   @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Step 2 - Confirm and Save Minting Results' })
-  @ApiResponse({
-    status: 200,
-    description:
-      'The updated inspection record summary after confirming archive.',
-    type: InspectionResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Bad Request (e.g., invalid input data).',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Inspection not found.',
-  })
-  @ApiResponse({
-    status: HttpStatus.INTERNAL_SERVER_ERROR,
-    description: 'Internal Server Error.',
-  })
+  @ApiOkResponse({ description: 'Updated inspection after confirming archive.', type: InspectionResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input data).', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Internal Server Error.', type: HttpErrorResponseDto })
   async confirmArchive(
     @Param('id') id: string,
     @Body() confirmDto: ConfirmMintDto,
@@ -1209,25 +1036,11 @@ export class InspectionsController {
     format: 'uuid',
     description: 'Inspection ID',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'The deactivated inspection record summary.',
-    type: InspectionResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description:
-      'Bad Request (e.g., inspection not in a state to be deactivated).',
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
+  @ApiOkResponse({ description: 'The deactivated inspection record summary.', type: InspectionResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid state).', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async deactivateArchive(
     @Param('id') id: string,
@@ -1263,25 +1076,11 @@ export class InspectionsController {
     format: 'uuid',
     description: 'Inspection ID',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'The activated inspection record summary.',
-    type: InspectionResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description:
-      'Bad Request (e.g., inspection not in a state to be activated).',
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
+  @ApiOkResponse({ description: 'The activated inspection record summary.', type: InspectionResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid state).', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the required permissions.', type: HttpErrorResponseDto })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async activateArchive(
     @Param('id') id: string,
@@ -1318,19 +1117,10 @@ export class InspectionsController {
     format: 'uuid',
     description: 'The UUID of the inspection to delete permanently.',
   })
-  @ApiResponse({
-    status: 204,
-    description: 'Inspection deleted successfully.',
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the SUPERADMIN role.',
-  })
+  @ApiNoContentResponse({ description: 'Inspection deleted successfully.' })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the SUPERADMIN role.', type: HttpErrorResponseDto })
   async deleteInspectionPermanently(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<void> {
@@ -1366,25 +1156,11 @@ export class InspectionsController {
     format: 'uuid',
     description: 'The UUID of the inspection to revert status.',
   })
-  @ApiResponse({
-    status: HttpStatus.NO_CONTENT,
-    description:
-      'Inspection status successfully reverted to NEED_REVIEW. No response body (204).',
-  })
-  @ApiResponse({
-    status: 400,
-    description:
-      'Bad Request (e.g., inspection already in NEED_REVIEW status).',
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the SUPERADMIN role.',
-  })
+  @ApiNoContentResponse({ description: 'Inspection status reverted to NEED_REVIEW.' })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., already in NEED_REVIEW).', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the SUPERADMIN role.', type: HttpErrorResponseDto })
   async revertInspectionToReview(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('id') userId: string,
@@ -1420,25 +1196,11 @@ export class InspectionsController {
     format: 'uuid',
     description: 'The UUID of the inspection to revert status.',
   })
-  @ApiResponse({
-    status: HttpStatus.NO_CONTENT,
-    description:
-      'Inspection status successfully reverted to APPROVED. No response body (204).',
-  })
-  @ApiResponse({
-    status: 400,
-    description:
-      'Bad Request (e.g., inspection not in ARCHIVED or FAIL_ARCHIVE status).',
-  })
-  @ApiResponse({ status: 404, description: 'Inspection not found.' })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the SUPERADMIN role.',
-  })
+  @ApiNoContentResponse({ description: 'Inspection status reverted to APPROVED.' })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., not in ARCHIVED/FAIL_ARCHIVE).', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the SUPERADMIN role.', type: HttpErrorResponseDto })
   async revertInspectionToApproved(
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('id') userId: string,
@@ -1465,8 +1227,7 @@ export class InspectionsController {
     description:
       'Retrieves current statistics for PDF generation and blockchain minting queues. Useful for monitoring and debugging purposes.',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
+  @ApiOkResponse({
     description: 'Queue statistics retrieved successfully.',
     schema: {
       type: 'object',
@@ -1496,14 +1257,8 @@ export class InspectionsController {
       },
     },
   })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the SUPERADMIN role.',
-  })
+  @ApiUnauthorizedResponse({ description: 'User is not authenticated.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User does not have the SUPERADMIN role.', type: HttpErrorResponseDto })
   getQueueStats() {
     this.logger.log('Received request for queue statistics');
     return this.inspectionsService.getQueueStats();
