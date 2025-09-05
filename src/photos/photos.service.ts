@@ -31,13 +31,52 @@ import * as path from 'path';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { PhotoMetadataDto } from './dto/photo-metadata.dto';
+import { BackblazeService } from '../common/services/backblaze.service';
 const UPLOAD_PATH = './uploads/inspection-photos'; // Define consistently
+const LEGACY_UPLOAD_PATH = './uploads/inspection-photo'; // legacy disk folder
 
 @Injectable()
 export class PhotosService {
   private readonly logger = new Logger(PhotosService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly backblaze: BackblazeService,
+  ) {}
+
+  private getMimeFromFilename(name: string, fallback = 'application/octet-stream'): string {
+    const ext = path.extname(name).toLowerCase();
+    switch (ext) {
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.png':
+        return 'image/png';
+      case '.webp':
+        return 'image/webp';
+      case '.gif':
+        return 'image/gif';
+      default:
+        return fallback;
+    }
+  }
+
+  private generateSafeUniqueName(originalname: string): string {
+    const extension = path.extname(originalname) || '';
+    const base = path.basename(originalname, extension);
+    const safeBase = base.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'photo';
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    return `${safeBase}-${uniqueSuffix}${extension}`;
+  }
+
+  private async uploadBufferToCloud(
+    buffer: Buffer,
+    filename: string,
+    mimetype?: string,
+  ): Promise<void> {
+    const ct = mimetype || this.getMimeFromFilename(filename);
+    await this.backblaze.uploadImageBuffer(buffer, filename, ct);
+  }
 
   /**
    * Ensures that an inspection with the given ID exists in the database.
@@ -87,10 +126,15 @@ export class PhotosService {
     const isMandatory = dto.isMandatory === 'true';
 
     try {
+      if (!file || !file.buffer) {
+        throw new BadRequestException('Photo file buffer is missing');
+      }
+      const generatedName = this.generateSafeUniqueName(file.originalname);
+      await this.uploadBufferToCloud(file.buffer, generatedName, file.mimetype);
       return await this.prisma.photo.create({
         data: {
           inspection: { connect: { id: inspectionId } },
-          path: file.filename,
+          path: generatedName,
           // eslint-disable-next-line prettier/prettier
           label:
             dto.label === '' || dto.label === undefined ? undefined : dto.label,
@@ -212,10 +256,19 @@ export class PhotosService {
 
       // 4. Handle File Replacement
       if (newPhotoFile) {
+        if (!newPhotoFile.buffer) {
+          throw new BadRequestException('New photo file buffer is missing');
+        }
+        const newName = this.generateSafeUniqueName(newPhotoFile.originalname);
         this.logger.verbose(
-          `New file provided: ${newPhotoFile.filename}. Replacing old file: ${existingPhoto.path}`,
+          `New file provided. Uploading '${newName}' to replace old file: ${existingPhoto.path}`,
         );
-        dataToUpdate.path = newPhotoFile.filename; // Set the new path in the update data
+        await this.uploadBufferToCloud(
+          newPhotoFile.buffer,
+          newName,
+          newPhotoFile.mimetype,
+        );
+        dataToUpdate.path = newName; // Set the new path in the update data
         oldFilePath = existingPhoto.path; // Mark the old file path for deletion AFTER DB update
       }
 
@@ -243,20 +296,23 @@ export class PhotosService {
 
       // 7. Delete Old File (AFTER successful DB update)
       if (oldFilePath) {
-        const fullOldPath = path.join(UPLOAD_PATH, oldFilePath);
-        this.logger.log(`Attempting to delete old file: ${fullOldPath}`);
+        // Try deleting old local file (legacy) if exists; ignore errors
         try {
+          const fullOldPath = path.join(UPLOAD_PATH, oldFilePath);
           await fs.unlink(fullOldPath);
-          this.logger.log(`Successfully deleted old file: ${fullOldPath}`);
-        } catch (fileError: unknown) {
-          // Log the error, but don't fail the overall operation since DB is updated
-          const errorStack =
-            fileError instanceof Error ? fileError.stack : undefined;
-          this.logger.error(
-            `Failed to delete old photo file ${fullOldPath} after updating record ${photoId}`,
-            errorStack,
+        } catch (_) {}
+        // Try delete old cloud object as well
+        try {
+          await this.backblaze.deleteFile(
+            `uploads/inspection-photos/${oldFilePath}`,
           );
-          // TODO: Consider adding a mechanism to retry deletion or flag orphaned files
+          this.logger.log(
+            `Deleted old cloud object: uploads/inspection-photos/${oldFilePath}`,
+          );
+        } catch (cloudErr) {
+          this.logger.warn(
+            `Failed to delete old cloud object '${oldFilePath}': ${cloudErr instanceof Error ? cloudErr.message : String(cloudErr)}`,
+          );
         }
       }
 
@@ -312,20 +368,22 @@ export class PhotosService {
         where: { id: photoId },
       });
 
-      // --- Delete file from local storage ---
-      // IMPORTANT: Only do this if using local diskStorage. Skip if using S3 etc.
-      // Consider error handling here (what if DB delete works but file delete fails?)
-      const filePath = path.join(UPLOAD_PATH, photo.path); // Assuming UPLOAD_PATH is defined globally/imported
+      // Try delete legacy local copy, if any; ignore errors
       try {
+        const filePath = path.join(UPLOAD_PATH, photo.path);
         await fs.unlink(filePath);
-        this.logger.log(`Successfully deleted photo file: ${filePath}`);
-      } catch (fileError: unknown) {
-        // Log the error but maybe don't fail the whole operation if DB record deleted?
-        const errorStack =
-          fileError instanceof Error ? fileError.stack : undefined;
-        this.logger.error(
-          `Failed to delete photo file ${filePath} after deleting DB record ${photoId}`,
-          errorStack,
+      } catch (_) {}
+      // Also try to delete from Backblaze
+      try {
+        await this.backblaze.deleteFile(
+          `uploads/inspection-photos/${photo.path}`,
+        );
+        this.logger.log(
+          `Successfully deleted cloud object: uploads/inspection-photos/${photo.path}`,
+        );
+      } catch (cloudErr: unknown) {
+        this.logger.warn(
+          `Failed to delete cloud object for ${photo.path}: ${cloudErr instanceof Error ? cloudErr.message : String(cloudErr)}`,
         );
       }
       // --- End File Deletion ---
@@ -424,19 +482,29 @@ export class PhotosService {
 
     await this.ensureInspectionExists(inspectionId); // Ensure inspection exists
 
-    // Prepare data for batch creation
+    // Upload to cloud and prepare data for batch creation
+    const generatedNames: string[] = [];
+    for (const file of files) {
+      if (!file || !file.buffer) {
+        throw new BadRequestException('One of the photo file buffers is missing');
+      }
+      const name = this.generateSafeUniqueName(file.originalname);
+      await this.uploadBufferToCloud(file.buffer, name, file.mimetype);
+      generatedNames.push(name);
+    }
+
     const photosToCreate: Prisma.PhotoCreateManyInput[] = files.map(
       (file, index) => {
         const meta = parsedMetadata[index];
         return {
-          inspectionId: inspectionId, // Link each photo to the inspection
-          path: file.filename,
+          inspectionId: inspectionId,
+          path: generatedNames[index],
           label:
             meta.label === '' || meta.label === undefined
               ? undefined
               : meta.label,
-          category: meta.category, // Add category
-          isMandatory: meta.isMandatory ?? false, // Add isMandatory
+          category: meta.category,
+          isMandatory: meta.isMandatory ?? false,
           originalLabel: null,
           needAttention: meta.needAttention ?? false,
         };

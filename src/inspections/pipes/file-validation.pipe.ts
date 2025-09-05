@@ -42,25 +42,20 @@ export class FileValidationPipe implements PipeTransform {
   }
 
   private async validateFile(file: Express.Multer.File): Promise<void> {
-    // 1. Basic check from Multer
-    if (!file || !file.path) {
+    // 1. Basic check from Multer (supports memory or disk storage)
+    if (!file) {
       throw new BadRequestException('Invalid file uploaded.');
     }
 
     // 2. Size Validation
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      await this.cleanupFile(file.path);
       throw new BadRequestException(
         `File "${file.originalname}" exceeds the size limit of 5 MB.`,
       );
     }
 
     // 3. Mimetype and Extension Validation
-    if (
-      !ALLOWED_MIME_TYPES.test(file.mimetype) ||
-      !ALLOWED_EXTENSIONS.test(extname(file.originalname))
-    ) {
-      await this.cleanupFile(file.path);
+    if (!ALLOWED_MIME_TYPES.test(file.mimetype) || !ALLOWED_EXTENSIONS.test(extname(file.originalname))) {
       throw new BadRequestException(
         `File "${file.originalname}" has an invalid type. Only JPG, JPEG, PNG, and GIF are allowed.`,
       );
@@ -72,17 +67,18 @@ export class FileValidationPipe implements PipeTransform {
         'import("file-type")',
       ) as Promise<typeof import('file-type')>);
 
-      const buffer = await fs.readFile(file.path);
-      const type = await fileTypeFromBuffer(buffer);
+      const buffer = file.buffer || (file.path ? await fs.readFile(file.path) : undefined);
+      if (!buffer) {
+        throw new BadRequestException('File buffer is missing');
+      }
+      const type = await fileTypeFromBuffer(buffer as unknown as Buffer);
 
       if (!type || !ALLOWED_MIME_TYPES.test(type.mime)) {
-        await this.cleanupFile(file.path);
         throw new BadRequestException(
           `File content of "${file.originalname}" does not match its extension.`,
         );
       }
     } catch (error) {
-      await this.cleanupFile(file.path);
       this.logger.error(`Validation failed for ${file.originalname}:`, error);
       if (error instanceof BadRequestException) {
         throw error;

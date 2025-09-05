@@ -247,6 +247,55 @@ export class BackblazeService {
     }
   }
 
+  /**
+   * Upload an image buffer to `uploads/inspection-photos/{filename}` and return the public URL.
+   * Accepts common image MIME types; defaults to application/octet-stream if unknown.
+   */
+  async uploadImageBuffer(
+    buffer: Buffer,
+    filename: string,
+    contentType: string = 'application/octet-stream',
+    bucketName?: string,
+  ): Promise<string> {
+    const key = `uploads/inspection-photos/${filename}`;
+    this.logger.debug(
+      `uploadImageBuffer: uploading image '${filename}' as key='${key}' (ct=${contentType})`,
+    );
+    try {
+      const url = await this.uploadBuffer(buffer, key, contentType, bucketName);
+      this.logger.log(
+        `uploadImageBuffer: uploaded image '${filename}' => ${url}`,
+      );
+      return url;
+    } catch (err: unknown) {
+      this.logger.error(
+        `uploadImageBuffer: failed to upload image '${filename}': ${this.formatError(err)}`,
+      );
+      throw err;
+    }
+  }
+
+  /**
+   * Batch upload image buffers. Returns an array of public URLs in the same order.
+   */
+  async uploadImageBuffers(
+    items: { buffer: Buffer; filename: string; contentType?: string }[],
+    bucketName?: string,
+  ): Promise<string[]> {
+    const results: string[] = [];
+    for (const item of items) {
+      const ct = item.contentType || 'application/octet-stream';
+      const url = await this.uploadImageBuffer(
+        item.buffer,
+        item.filename,
+        ct,
+        bucketName,
+      );
+      results.push(url);
+    }
+    return results;
+  }
+
   // Get an object stream from Backblaze
   async getFile(
     fileName: string,
