@@ -39,9 +39,14 @@ export class CreditPackagesService {
     return this.prisma.creditPackage.update({ where: { id }, data: dto });
   }
 
-  async setActive(id: string, active: boolean) {
+  async toggleActive(id: string) {
     if (!id) throw new BadRequestException('id is required');
-    return this.prisma.creditPackage.update({ where: { id }, data: { isActive: active } });
+    const current = await this.prisma.creditPackage.findUnique({ where: { id } });
+    if (!current) throw new BadRequestException('credit package not found');
+    return this.prisma.creditPackage.update({
+      where: { id },
+      data: { isActive: !current.isActive },
+    });
   }
 
   async remove(id: string) {
