@@ -34,6 +34,9 @@ import { IpfsModule } from './ipfs/ipfs.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { MetricsMiddleware } from './metrics/metrics.middleware';
 import { CommonModule } from './common/common.module';
+import { ReportsModule } from './reports/reports.module';
+import { CreditsModule } from './credits/credits.module';
+import { BillingModule } from './billing/billing.module';
 
 @Module({
   imports: [
@@ -91,6 +94,9 @@ import { CommonModule } from './common/common.module';
     IpfsModule,
     MetricsModule,
     CommonModule,
+    ReportsModule,
+    CreditsModule,
+    BillingModule,
   ],
   controllers: [],
   providers: [],
