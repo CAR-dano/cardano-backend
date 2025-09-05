@@ -1,5 +1,6 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 @Injectable()
 export class CreditPackagesService {
@@ -36,21 +37,51 @@ export class CreditPackagesService {
     if (!dto || Object.keys(dto).length === 0) {
       throw new BadRequestException('No fields provided for update');
     }
-    return this.prisma.creditPackage.update({ where: { id }, data: dto });
+    try {
+      return await this.prisma.creditPackage.update({ where: { id }, data: dto });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException('Credit package not found');
+      }
+      throw error;
+    }
   }
 
   async toggleActive(id: string) {
     if (!id) throw new BadRequestException('id is required');
     const current = await this.prisma.creditPackage.findUnique({ where: { id } });
-    if (!current) throw new BadRequestException('credit package not found');
-    return this.prisma.creditPackage.update({
-      where: { id },
-      data: { isActive: !current.isActive },
-    });
+    if (!current) throw new NotFoundException('Credit package not found');
+    try {
+      return await this.prisma.creditPackage.update({
+        where: { id },
+        data: { isActive: !current.isActive },
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException('Credit package not found');
+      }
+      throw error;
+    }
   }
 
   async remove(id: string) {
     if (!id) throw new BadRequestException('id is required');
-    return this.prisma.creditPackage.delete({ where: { id } });
+    try {
+      return await this.prisma.creditPackage.delete({ where: { id } });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException('Credit package not found');
+      }
+      throw error;
+    }
   }
 }

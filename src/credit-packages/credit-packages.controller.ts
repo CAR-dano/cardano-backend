@@ -9,6 +9,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  NotFoundException,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -32,6 +33,8 @@ import { CreateCreditPackageDto } from './dto/create-credit-package.dto';
 import { UpdateCreditPackageDto } from './dto/update-credit-package.dto';
 import { CreditPackageResponseDto } from './dto/credit-package-response.dto';
 import { CreditPackageListResponseDto } from './dto/credit-package-list-response.dto';
+import { CreditPackageItemResponseDto } from './dto/credit-package-item-response.dto';
+import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 
 @ApiTags('Credit Packages')
 @Controller('admin/credit-packages')
@@ -44,9 +47,9 @@ export class CreditPackagesController {
   @Get()
   @ApiOperation({ summary: 'List all credit packages (active & inactive)' })
   @ApiOkResponse({ description: 'Packages list returned.', type: CreditPackageListResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.' })
-  @ApiForbiddenResponse({ description: 'User lacks required role.' })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async findAll() {
     const packagesList = await this.service.findAll();
     return new CreditPackageListResponseDto(
@@ -56,60 +59,61 @@ export class CreditPackagesController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get credit package by ID' })
-  @ApiOkResponse({ description: 'Package found.', type: CreditPackageResponseDto })
-  @ApiNotFoundResponse({ description: 'Package not found.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.' })
-  @ApiForbiddenResponse({ description: 'User lacks required role.' })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.' })
+  @ApiOkResponse({ description: 'Credit package found.', type: CreditPackageItemResponseDto })
+  @ApiNotFoundResponse({ description: 'Credit package not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async findOne(@Param('id') id: string) {
     const pkg = await this.service.findOne(id);
-    return pkg ? new CreditPackageResponseDto(pkg) : null;
+    if (!pkg) throw new NotFoundException('Credit package not found');
+    return new CreditPackageItemResponseDto(new CreditPackageResponseDto(pkg));
   }
 
   @Post()
   @ApiOperation({ summary: 'Create a new credit package' })
-  @ApiCreatedResponse({ description: 'Credit package created', type: CreditPackageResponseDto })
-  @ApiBadRequestResponse({ description: 'Validation failed or bad payload.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.' })
-  @ApiForbiddenResponse({ description: 'User lacks required role.' })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.' })
+  @ApiCreatedResponse({ description: 'Credit package created', type: CreditPackageItemResponseDto })
+  @ApiBadRequestResponse({ description: 'Validation failed or bad payload.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async create(@Body() dto: CreateCreditPackageDto) {
     const created = await this.service.create(dto);
-    return new CreditPackageResponseDto(created);
+    return new CreditPackageItemResponseDto(new CreditPackageResponseDto(created));
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update credit package (partial)' })
-  @ApiOkResponse({ description: 'Credit package updated', type: CreditPackageResponseDto })
-  @ApiBadRequestResponse({ description: 'No fields provided or validation failed.' })
-  @ApiNotFoundResponse({ description: 'Package not found.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.' })
-  @ApiForbiddenResponse({ description: 'User lacks required role.' })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.' })
+  @ApiOkResponse({ description: 'Credit package updated', type: CreditPackageItemResponseDto })
+  @ApiBadRequestResponse({ description: 'No fields provided or validation failed.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Credit package not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async update(@Param('id') id: string, @Body() dto: UpdateCreditPackageDto) {
     const updated = await this.service.update(id, dto);
-    return new CreditPackageResponseDto(updated);
+    return new CreditPackageItemResponseDto(new CreditPackageResponseDto(updated));
   }
 
   @Patch(':id/active')
   @ApiOperation({ summary: 'Toggle active state (activate if inactive, and vice versa)' })
-  @ApiOkResponse({ description: 'Toggled active state', type: CreditPackageResponseDto })
-  @ApiNotFoundResponse({ description: 'Package not found.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.' })
-  @ApiForbiddenResponse({ description: 'User lacks required role.' })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.' })
+  @ApiOkResponse({ description: 'Toggled active state', type: CreditPackageItemResponseDto })
+  @ApiNotFoundResponse({ description: 'Credit package not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async toggleActive(@Param('id') id: string) {
     const updated = await this.service.toggleActive(id);
-    return new CreditPackageResponseDto(updated);
+    return new CreditPackageItemResponseDto(new CreditPackageResponseDto(updated));
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a credit package' })
   @ApiNoContentResponse({ description: 'Credit package deleted' })
-  @ApiNotFoundResponse({ description: 'Package not found.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.' })
-  @ApiForbiddenResponse({ description: 'User lacks required role.' })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.' })
+  @ApiNotFoundResponse({ description: 'Credit package not found.', type: HttpErrorResponseDto })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
+  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string): Promise<void> {
     await this.service.remove(id);
