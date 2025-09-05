@@ -1,4 +1,4 @@
-import { Controller, Get, Logger, NotFoundException, Param, Res } from '@nestjs/common';
+import { Controller, Get, Logger, NotFoundException, Param, Res, Req } from '@nestjs/common';
 import { Response } from 'express';
 import { BackblazeService } from '../common/services/backblaze.service';
 import * as fs from 'fs';
@@ -9,8 +9,9 @@ export class PhotoProxyController {
   private readonly logger = new Logger(PhotoProxyController.name);
   constructor(private readonly backblazeService: BackblazeService) {}
 
-  private contentTypeFor(name: string): string {
-    const ext = path.extname(name).toLowerCase();
+  private contentTypeFor(name?: string): string {
+    const n = name || '';
+    const ext = path.extname(n).toLowerCase();
     switch (ext) {
       case '.jpg':
       case '.jpeg':
@@ -27,9 +28,15 @@ export class PhotoProxyController {
   }
 
   private async streamPhoto(name: string, res: Response) {
-    const ct = this.contentTypeFor(name);
-    const localPath = path.resolve(process.cwd(), 'uploads', 'inspection-photos', name);
-    const legacyLocalPath = path.resolve(process.cwd(), 'uploads', 'inspection-photo', name); // legacy
+    if (!name || typeof name !== 'string') {
+      throw new NotFoundException('Photo not found');
+    }
+    // Basic sanitization
+    const safe = name.replace(/^\/+/, '').replace(/\\/g, '/');
+    if (safe.includes('..')) throw new NotFoundException('Photo not found');
+    const ct = this.contentTypeFor(safe);
+    const localPath = path.resolve(process.cwd(), 'uploads', 'inspection-photos', safe);
+    const legacyLocalPath = path.resolve(process.cwd(), 'uploads', 'inspection-photo', safe); // legacy
 
     // First try local (new folder)
     if (fs.existsSync(localPath)) {
@@ -40,7 +47,7 @@ export class PhotoProxyController {
     }
 
     // Try cloud (Backblaze) under uploads/inspection-photos
-    const key = `uploads/inspection-photos/${name}`;
+    const key = `uploads/inspection-photos/${safe}`;
     try {
       const stream = await this.backblazeService.getFile(key);
       if (stream) {
@@ -63,26 +70,70 @@ export class PhotoProxyController {
       return fs.createReadStream(legacyLocalPath).pipe(res);
     }
 
-    this.logger.error(`Photo not found in Backblaze or local: ${name}`);
+    this.logger.error(`Photo not found in Backblaze or local: ${safe}`);
     throw new NotFoundException('Photo not found');
   }
 
-  // Direct path used by external clients (Nginx maps to app with global prefix)
+  private normalizeStarParam(p: any): string {
+    if (Array.isArray(p)) return p.join('/');
+    if (typeof p === 'string') return p;
+    return String(p || '');
+  }
+
+  // Wildcard to support nested paths like {inspectionId}/{category}/{filename}
+  // Use a named param with (*) to work with both Express and Fastify
+  @Get('uploads/inspection-photos/*path')
+  async proxyUploadsWildcard(
+    @Param('path') path: any,
+    @Res() res: Response,
+    @Req() req: any,
+  ) {
+    const name = this.normalizeStarParam(path);
+    if (!name) {
+      // Fallback: derive from URL
+      const url: string = (req?.url || '').toString();
+      const idx = url.indexOf('/uploads/inspection-photos/');
+      if (idx >= 0) {
+        const candidate = url.slice(idx + '/uploads/inspection-photos/'.length);
+        return this.streamPhoto(candidate, res);
+      }
+    }
+    return this.streamPhoto(name, res);
+  }
+
+  // Direct path used by external clients (single-segment fallback for legacy)
   @Get('uploads/inspection-photos/:name')
   async proxyUploads(@Param('name') name: string, @Res() res: Response) {
     return this.streamPhoto(name, res);
   }
 
   // Optionally expose v1 variant to mirror PDF proxy style
+  @Get('v1/uploads/inspection-photos/*path')
+  async proxyV1UploadsWildcard(
+    @Param('path') path: any,
+    @Res() res: Response,
+    @Req() req: any,
+  ) {
+    const name = this.normalizeStarParam(path);
+    if (!name) {
+      const url: string = (req?.url || '').toString();
+      const idx = url.indexOf('/v1/uploads/inspection-photos/');
+      if (idx >= 0) {
+        const candidate = url.slice(idx + '/v1/uploads/inspection-photos/'.length);
+        return this.streamPhoto(candidate, res);
+      }
+    }
+    return this.streamPhoto(name, res);
+  }
+
   @Get('v1/uploads/inspection-photos/:name')
   async proxyV1Uploads(@Param('name') name: string, @Res() res: Response) {
     return this.streamPhoto(name, res);
   }
 
   // Legacy singular folder support
-  @Get('uploads/inspection-photo/:name')
+  @Get('uploads/inspection-photos/:name')
   async proxyLegacy(@Param('name') name: string, @Res() res: Response) {
     return this.streamPhoto(name, res);
   }
 }
-

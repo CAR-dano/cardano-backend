@@ -69,6 +69,51 @@ export class PhotosService {
     return `${safeBase}-${uniqueSuffix}${extension}`;
   }
 
+  // Map various Indonesian/irregular labels into canonical English categories
+  private mapCategoryToEnglish(input?: string | null): string {
+    if (!input) return 'general';
+    const s = String(input).trim().toLowerCase();
+    // accept already-canonical
+    if (
+      [
+        'exterior',
+        'interior',
+        'engine',
+        'chassis',
+        'tools',
+        'documents',
+        'document',
+        'general',
+      ].includes(s)
+    ) {
+      return s === 'document' ? 'documents' : s;
+    }
+    // normalize common Indonesian labels
+    const normalized = s
+      .replace(/tambahan/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (normalized.startsWith('eksterior') || /eksterior/.test(normalized)) return 'exterior';
+    if (normalized.startsWith('interior') || /interior/.test(normalized)) return 'interior';
+    if (normalized.startsWith('mesin') || /engine|mesin/.test(normalized)) return 'engine';
+    if (normalized.includes('kaki') || /chassis|sasis|suspensi/.test(normalized)) return 'chassis';
+    if (normalized.includes('alat') || /tools|tool/.test(normalized)) return 'tools';
+    if (normalized.includes('dokumen') || /document|dokumen|stnk|bpkb/.test(normalized)) return 'documents';
+    if (normalized.includes('wajib') || normalized.includes('general')) return 'general';
+    return 'general';
+  }
+
+  private buildRelativeKey(
+    inspectionId: string,
+    category: string,
+    filename: string,
+  ): string {
+    const safeInspectionId = String(inspectionId).replace(/[^a-zA-Z0-9_-]/g, '');
+    const safeCategory = this.mapCategoryToEnglish(category);
+    return `${safeInspectionId}/${safeCategory}/${filename}`;
+  }
+
   private async uploadBufferToCloud(
     buffer: Buffer,
     filename: string,
@@ -130,15 +175,25 @@ export class PhotosService {
         throw new BadRequestException('Photo file buffer is missing');
       }
       const generatedName = this.generateSafeUniqueName(file.originalname);
-      await this.uploadBufferToCloud(file.buffer, generatedName, file.mimetype);
+      const mappedCategory = this.mapCategoryToEnglish(dto.category);
+      const relativeKey = this.buildRelativeKey(
+        inspectionId,
+        mappedCategory,
+        generatedName,
+      );
+      await this.uploadBufferToCloud(
+        file.buffer,
+        relativeKey,
+        file.mimetype,
+      );
       return await this.prisma.photo.create({
         data: {
           inspection: { connect: { id: inspectionId } },
-          path: generatedName,
+          path: relativeKey,
           // eslint-disable-next-line prettier/prettier
           label:
             dto.label === '' || dto.label === undefined ? undefined : dto.label,
-          category: dto.category, // Add category
+          category: mappedCategory, // normalized category
           isMandatory: isMandatory, // Add isMandatory
           originalLabel: null,
           needAttention: needAttention,
@@ -263,12 +318,15 @@ export class PhotosService {
         this.logger.verbose(
           `New file provided. Uploading '${newName}' to replace old file: ${existingPhoto.path}`,
         );
+        // keep the same directory (inspectionId/category) as existing path
+        const dir = path.posix.dirname(existingPhoto.path);
+        const newRelative = dir === '.' ? newName : `${dir}/${newName}`;
         await this.uploadBufferToCloud(
           newPhotoFile.buffer,
-          newName,
+          newRelative,
           newPhotoFile.mimetype,
         );
-        dataToUpdate.path = newName; // Set the new path in the update data
+        dataToUpdate.path = newRelative; // Set the new path in the update data
         oldFilePath = existingPhoto.path; // Mark the old file path for deletion AFTER DB update
       }
 
@@ -483,27 +541,32 @@ export class PhotosService {
     await this.ensureInspectionExists(inspectionId); // Ensure inspection exists
 
     // Upload to cloud and prepare data for batch creation
-    const generatedNames: string[] = [];
-    for (const file of files) {
+    const relativeKeys: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       if (!file || !file.buffer) {
         throw new BadRequestException('One of the photo file buffers is missing');
       }
       const name = this.generateSafeUniqueName(file.originalname);
-      await this.uploadBufferToCloud(file.buffer, name, file.mimetype);
-      generatedNames.push(name);
+      const meta = parsedMetadata[i] ?? {};
+      const mappedCategory = this.mapCategoryToEnglish(meta.category);
+      const relativeKey = this.buildRelativeKey(inspectionId, mappedCategory, name);
+      await this.uploadBufferToCloud(file.buffer, relativeKey, file.mimetype);
+      relativeKeys.push(relativeKey);
     }
 
     const photosToCreate: Prisma.PhotoCreateManyInput[] = files.map(
       (file, index) => {
-        const meta = parsedMetadata[index];
+        const meta = parsedMetadata[index] ?? {};
+        const mappedCategory = this.mapCategoryToEnglish(meta.category);
         return {
           inspectionId: inspectionId,
-          path: generatedNames[index],
+          path: relativeKeys[index],
           label:
             meta.label === '' || meta.label === undefined
               ? undefined
               : meta.label,
-          category: meta.category,
+          category: mappedCategory,
           isMandatory: meta.isMandatory ?? false,
           originalLabel: null,
           needAttention: meta.needAttention ?? false,

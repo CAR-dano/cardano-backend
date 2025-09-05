@@ -114,6 +114,7 @@ export class PublicApiService {
         'stnk',
         'bpkb',
         'dokumen',
+        'documents',
         'STNK',
         'BPKB',
         'Foto Dokumen',
