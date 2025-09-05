@@ -37,6 +37,7 @@ import { CommonModule } from './common/common.module';
 import { ReportsModule } from './reports/reports.module';
 import { CreditsModule } from './credits/credits.module';
 import { BillingModule } from './billing/billing.module';
+import { CreditPackagesModule } from './credit-packages/credit-packages.module';
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { BillingModule } from './billing/billing.module';
     ReportsModule,
     CreditsModule,
     BillingModule,
+    CreditPackagesModule,
   ],
   controllers: [],
   providers: [],
