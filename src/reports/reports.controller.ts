@@ -30,6 +30,7 @@ import {
   ApiOkResponse,
 } from '@nestjs/swagger';
 import { ReportDetailResponseDto } from './dto/report-detail-response.dto';
+import { PhotoResponseDto } from '../photos/dto/photo-response.dto';
 
 @ApiTags('Reports')
 @Controller('reports')
@@ -56,6 +57,14 @@ export class ReportsController {
     @GetUser('id') userId: string,
     @GetUser('role') userRole: Role,
   ): Promise<ReportDetailResponseDto> {
+    // Fetch inspection with a subset of photos for key exterior views
+    const desiredLabels = [
+      'Tampak Depan',
+      'Tampak Samping Kanan',
+      'Tampak Samping Kiri',
+      'Tampak Belakang',
+    ];
+
     const inspection = await this.prisma.inspection.findUnique({
       where: { id },
       select: {
@@ -66,6 +75,18 @@ export class ReportsController {
         status: true,
         urlPdfNoDocs: true,
         urlPdfNoDocsCloud: true,
+        photos: {
+          where: { label: { in: desiredLabels } },
+          orderBy: { createdAt: 'asc' },
+          select: {
+            id: true,
+            path: true,
+            label: true,
+            originalLabel: true,
+            needAttention: true,
+            createdAt: true,
+          },
+        },
       },
     });
 
@@ -84,8 +105,31 @@ export class ReportsController {
       select: { credits: true },
     });
 
+    // Normalize and order photos if present
+    if (inspection && (inspection as any).photos) {
+      const normalized = (inspection as any).photos
+        .map((p: any) =>
+          new PhotoResponseDto({
+            id: p.id,
+            path: p.path,
+            label: p.label ?? 'Tambahan',
+            originalLabel: p.originalLabel ?? null,
+            needAttention: p.needAttention ?? false,
+            createdAt: p.createdAt,
+          } as any),
+        )
+        .sort((a: any, b: any) => {
+          const ai = desiredLabels.indexOf(a.label ?? '');
+          const bi = desiredLabels.indexOf(b.label ?? '');
+          return ai - bi;
+        });
+
+      (inspection as any).photos = normalized as any;
+    }
+
     return {
-      inspection,
+      // Cast to align with DTO typing after normalization
+      inspection: (inspection as unknown) as any,
       canDownload,
       userCreditBalance: userRole === Role.CUSTOMER ? user?.credits ?? 0 : undefined,
     };

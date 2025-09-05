@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { InspectionStatus } from '@prisma/client';
+import { PhotoResponseDto } from '../../photos/dto/photo-response.dto';
 
 export class ReportDetailInspectionDto {
   @ApiProperty({ format: 'uuid' })
@@ -26,6 +27,14 @@ export class ReportDetailInspectionDto {
 
   @ApiPropertyOptional({ nullable: true, description: 'Cloud URL to no-docs PDF (Backblaze)' })
   urlPdfNoDocsCloud?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Subset of photos for key exterior views (Front, Right Side, Left Side, Rear).',
+    type: PhotoResponseDto,
+    isArray: true,
+  })
+  photos?: PhotoResponseDto[];
 }
 
 export class ReportDetailResponseDto {
