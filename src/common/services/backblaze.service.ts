@@ -6,6 +6,7 @@ import {
   GetObjectCommand,
   ListObjectsV2Command,
   DeleteObjectCommand,
+  HeadBucketCommand,
 } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import type { Express } from 'express';
@@ -360,6 +361,29 @@ export class BackblazeService {
         `deleteFile: failed to delete key='${fileName}' from bucket='${bucket}': ${this.formatError(err)}`,
       );
       throw err;
+    }
+  }
+
+  /**
+   * Perform a lightweight connectivity check against the configured bucket.
+   * Uses S3 HeadBucket to verify bucket exists and credentials are valid.
+   */
+  async headBucket(bucketName?: string): Promise<{
+    ok: boolean;
+    bucket?: string;
+    endpoint?: string;
+    error?: string;
+  }> {
+    const bucket = bucketName || this.bucketName;
+    try {
+      if (!bucket) throw new Error('Bucket name not configured');
+      const cmd = new HeadBucketCommand({ Bucket: bucket });
+      await this.s3Client.send(cmd);
+      return { ok: true, bucket, endpoint: this.endpoint };
+    } catch (err: unknown) {
+      const msg = this.formatError(err);
+      this.logger.error(`headBucket: failed: ${msg}`);
+      return { ok: false, bucket, endpoint: this.endpoint, error: msg };
     }
   }
 }

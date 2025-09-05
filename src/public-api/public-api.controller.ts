@@ -41,6 +41,10 @@ import { InspectionChangeLogResponseDto } from 'src/inspection-change-log/dto/in
 // Prisma types
 import { InspectionChangeLog } from '@prisma/client';
 import { SkipThrottle } from '@nestjs/throttler';
+import { PrismaService } from '../prisma/prisma.service';
+import { BackblazeService } from '../common/services/backblaze.service';
+import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
 
 /**
  * @class PublicApiController
@@ -64,9 +68,110 @@ export class PublicApiController {
     private readonly usersService: UsersService,
     private readonly inspectionsService: InspectionsService,
     private readonly publicApiService: PublicApiService,
+    private readonly prisma: PrismaService,
+    private readonly backblaze: BackblazeService,
+    private readonly config: ConfigService,
   ) {
     // Log controller initialization
     this.logger.log('PublicApiController initialized');
+  }
+
+  /**
+   * Health check endpoint for public consumers.
+   * Returns overall status and component checks (app, db, storage, webhook).
+   */
+  @Get('health')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Health status (Public)',
+    description:
+      'Returns status of application and dependencies: app uptime, database ping, object storage reachability, and optional payment webhook reachability with signature dry-run.',
+  })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Health status' })
+  async getHealth() {
+    const startedAt = Date.now();
+    const nowIso = new Date().toISOString();
+
+    // DB ping
+    const dbCheck = await (async () => {
+      const started = Date.now();
+      try {
+        // Simple ping via SELECT 1
+        const res: any = await this.prisma.$queryRaw`SELECT 1 as ok`;
+        const ok = Array.isArray(res) && res.length > 0;
+        return { ok, latencyMs: Date.now() - started };
+      } catch (err: any) {
+        this.logger.error(`Health DB check failed: ${err?.message ?? err}`);
+        return { ok: false, latencyMs: Date.now() - started, error: String(err?.message ?? err) };
+      }
+    })();
+
+    // Object storage head
+    const storageCheck = await (async () => {
+      const started = Date.now();
+      const res = await this.backblaze.headBucket().catch((err) => ({ ok: false, error: String(err) }));
+      return { ...res, latencyMs: Date.now() - started };
+    })();
+
+    // Payment webhook reachability + signature dry-run (optional)
+    const webhookCheck = await (async () => {
+      const url = this.config.get<string>('PAYMENT_WEBHOOK_URL');
+      const secret = this.config.get<string>('PAYMENT_WEBHOOK_SECRET');
+      if (!url) {
+        return { configured: false, ok: false, reason: 'PAYMENT_WEBHOOK_URL not set' };
+      }
+      const headers: Record<string, string> = { 'X-Health-Check': 'true' };
+      let dryRunSignature: string | undefined;
+      if (secret) {
+        // Generic HMAC SHA256 over a stable payload
+        const payload = 'health-check';
+        dryRunSignature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+        headers['X-Signature'] = dryRunSignature;
+      }
+      // HEAD reachability with timeout
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      try {
+        const resp = await fetch(url, { method: 'HEAD', headers, signal: controller.signal as any });
+        clearTimeout(timeout);
+        return {
+          configured: true,
+          ok: resp.status < 400,
+          statusCode: resp.status,
+          signatureDryRun: Boolean(secret),
+          dryRunSignature,
+        };
+      } catch (err: any) {
+        clearTimeout(timeout);
+        this.logger.warn(`Health webhook HEAD failed: ${String(err?.message ?? err)}`);
+        return {
+          configured: true,
+          ok: false,
+          error: String(err?.message ?? err),
+          signatureDryRun: Boolean(secret),
+          dryRunSignature,
+        };
+      }
+    })();
+
+    // Overall status: ok only if all mandatory checks pass
+    const mandatoryOk = dbCheck.ok && storageCheck.ok !== false; // treat undefined as ok if service not configured
+    const overall = mandatoryOk ? 'ok' : 'degraded';
+
+    return {
+      status: overall,
+      components: {
+        app: {
+          ok: true,
+          timestamp: nowIso,
+          uptimeSec: Math.round(process.uptime()),
+          latencyMs: Date.now() - startedAt,
+        },
+        database: dbCheck,
+        storage: storageCheck,
+        paymentWebhook: webhookCheck,
+      },
+    };
   }
 
   /**
