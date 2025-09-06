@@ -26,20 +26,93 @@ export function ApiStandardErrors(opts: ApiStandardErrorsOptions = {}) {
   const decs: MethodDecorator[] = [];
   const add = (fn: MethodDecorator | undefined) => fn && decs.push(fn);
 
+  const json = (example: any) => ({
+    'application/json': {
+      examples: {
+        example: { value: example },
+      },
+    },
+  });
+
   const br = opts.badRequest ?? 'Bad Request.';
-  if (br) add(ApiBadRequestResponse({ description: br, type: HttpErrorResponseDto }));
+  if (br)
+    add(
+      ApiBadRequestResponse({
+        description: br,
+        type: HttpErrorResponseDto,
+        content: json({
+          statusCode: 400,
+          message: ['field is required', 'invalid value'],
+          error: 'Bad Request',
+          path: '/api/v1/example',
+          timestamp: new Date().toISOString(),
+        }),
+      }),
+    );
 
   const un = opts.unauthorized ?? 'Missing or invalid JWT.';
-  if (un) add(ApiUnauthorizedResponse({ description: un, type: HttpErrorResponseDto }));
+  if (un)
+    add(
+      ApiUnauthorizedResponse({
+        description: un,
+        type: HttpErrorResponseDto,
+        content: json({
+          statusCode: 401,
+          message: 'Unauthorized',
+          error: 'Unauthorized',
+          path: '/api/v1/example',
+          timestamp: new Date().toISOString(),
+        }),
+      }),
+    );
 
   const fb = opts.forbidden ?? 'User lacks required role.';
-  if (fb) add(ApiForbiddenResponse({ description: fb, type: HttpErrorResponseDto }));
+  if (fb)
+    add(
+      ApiForbiddenResponse({
+        description: fb,
+        type: HttpErrorResponseDto,
+        content: json({
+          statusCode: 403,
+          message: 'Forbidden',
+          error: 'Forbidden',
+          path: '/api/v1/example',
+          timestamp: new Date().toISOString(),
+        }),
+      }),
+    );
 
   const nf = opts.notFound ?? 'Resource not found.';
-  if (nf) add(ApiNotFoundResponse({ description: nf, type: HttpErrorResponseDto }));
+  if (nf)
+    add(
+      ApiNotFoundResponse({
+        description: nf,
+        type: HttpErrorResponseDto,
+        content: json({
+          statusCode: 404,
+          message: 'Not Found',
+          error: 'Not Found',
+          path: '/api/v1/example',
+          timestamp: new Date().toISOString(),
+        }),
+      }),
+    );
 
   const ie = opts.internal ?? 'Unexpected server error.';
-  if (ie) add(ApiInternalServerErrorResponse({ description: ie, type: HttpErrorResponseDto }));
+  if (ie)
+    add(
+      ApiInternalServerErrorResponse({
+        description: ie,
+        type: HttpErrorResponseDto,
+        content: json({
+          statusCode: 500,
+          message: 'Internal Server Error',
+          error: 'Internal Server Error',
+          path: '/api/v1/example',
+          timestamp: new Date().toISOString(),
+        }),
+      }),
+    );
 
   return applyDecorators(...decs);
 }
@@ -54,4 +127,3 @@ export function ApiAuthErrors() {
     ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto }),
   );
 }
-

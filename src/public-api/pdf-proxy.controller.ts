@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
+import { ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 
 @ApiTags('Public PDF')
 @Controller()
@@ -61,8 +62,7 @@ export class PdfProxyController {
   @Get('v1/pdf/:name')
   @ApiOperation({ summary: '[v1] Stream a PDF (Backblaze/local fallback)' })
   @ApiOkResponse({ description: 'PDF stream' })
-  @ApiNotFoundResponse({ description: 'PDF not found', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'PDF not found' })
   async proxyV1(@Param('name') name: string, @Res() res: Response) {
     return this.streamPdfToResponse(name, res);
   }
@@ -71,8 +71,7 @@ export class PdfProxyController {
   @Get('pdfarchived/:name')
   @ApiOperation({ summary: 'Stream legacy archived PDF' })
   @ApiOkResponse({ description: 'PDF stream' })
-  @ApiNotFoundResponse({ description: 'PDF not found', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'PDF not found' })
   async proxyArchived(@Param('name') name: string, @Res() res: Response) {
     return this.streamPdfToResponse(name, res);
   }
@@ -81,8 +80,7 @@ export class PdfProxyController {
   @Get('pdf/:name')
   @ApiOperation({ summary: 'Stream PDF by name' })
   @ApiOkResponse({ description: 'PDF stream' })
-  @ApiNotFoundResponse({ description: 'PDF not found', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'PDF not found' })
   async proxyPdf(@Param('name') name: string, @Res() res: Response) {
     return this.streamPdfToResponse(name, res);
   }

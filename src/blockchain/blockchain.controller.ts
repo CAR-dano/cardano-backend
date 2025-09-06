@@ -29,7 +29,8 @@ import { TransactionMetadataResponseDto } from './dto/transaction-metadata-respo
 import { NftDataResponseDto } from './dto/nft-data-response.dto';
 
 // Swagger API documentation
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiOkResponse, ApiBadRequestResponse, ApiNotFoundResponse, ApiInternalServerErrorResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiOkResponse, ApiBadRequestResponse, ApiNotFoundResponse } from '@nestjs/swagger';
+import { ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 
 @ApiTags('Blockchain Operations')
@@ -64,7 +65,7 @@ export class BlockchainController {
   @ApiOkResponse({ description: 'Metadata retrieved successfully.', type: [TransactionMetadataResponseDto] })
   @ApiBadRequestResponse({ description: 'Bad Request (Missing txHash).', type: HttpErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Transaction or metadata not found.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Failed to fetch metadata from Blockfrost.', type: HttpErrorResponseDto })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async getTransactionMetadata(
     @Param('txHash') txHash: string,
   ): Promise<TransactionMetadataResponseDto[]> {
@@ -97,7 +98,7 @@ export class BlockchainController {
   @ApiOkResponse({ description: 'Asset data retrieved successfully.', type: NftDataResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request (Missing assetId).', type: HttpErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Asset not found.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Failed to fetch asset data from Blockfrost.', type: HttpErrorResponseDto })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async getNftData(
     @Param('assetId') assetId: string,
   ): Promise<NftDataResponseDto> {

@@ -53,6 +53,7 @@ import {
 } from '@nestjs/swagger';
 import { UserResponseDto } from './dto/user-response.dto'; // DTO for API responses
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
+import { ApiAuthErrors } from '../common/decorators/api-standard-errors.decorator';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto'; // DTO for updating role
 import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
 import { InspectorResponseDto } from './dto/inspector-response.dto';
@@ -90,9 +91,7 @@ export class UsersController {
       'Fetches a list of all user accounts in the system. This endpoint is restricted to users with the ADMIN role.',
   })
   @ApiOkResponse({ description: 'List of users.', type: [UserResponseDto] })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async findAll(): Promise<UserResponseDto[]> {
     this.logger.log(`Admin request: findAll users`);
     const users = await this.usersService.findAll();
@@ -115,8 +114,7 @@ export class UsersController {
       'Fetches a list of all user accounts specifically designated as inspectors.',
   })
   @ApiOkResponse({ description: 'List of inspector users.', type: [UserResponseDto] })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async findAllInspectors(): Promise<UserResponseDto[]> {
     this.logger.log(`findAllInspectors users`);
     const users = await this.usersService.findAllInspectors();
@@ -139,8 +137,7 @@ export class UsersController {
       'Fetches a list of all user accounts with ADMIN or SUPERADMIN roles.',
   })
   @ApiOkResponse({ description: 'List of admin and superadmin users.', type: [UserResponseDto] })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async findAllAdminsAndSuperAdmins(): Promise<UserResponseDto[]> {
     this.logger.log(`Superadmin request: findAllAdminsAndSuperAdmins`);
     const users = await this.usersService.findAllAdminsAndSuperAdmins();
@@ -168,9 +165,8 @@ export class UsersController {
   })
   @ApiCreatedResponse({ description: 'User created.', type: UserResponseDto })
   @ApiBadRequestResponse({ description: 'Invalid input data provided.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict (email/username exists).', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async createAdminOrSuperAdmin(
     @Body() createAdminDto: CreateAdminDto,
   ): Promise<UserResponseDto> {
@@ -207,10 +203,8 @@ export class UsersController {
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @ApiOkResponse({ description: 'User details.', type: UserResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
   @ApiNotFoundResponse({ description: 'User with the specified ID not found.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<UserResponseDto> {
@@ -255,10 +249,8 @@ export class UsersController {
   })
   @ApiOkResponse({ description: 'User role updated.', type: UserResponseDto })
   @ApiBadRequestResponse({ description: 'Invalid role provided in the request body.', type: HttpErrorResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
   @ApiNotFoundResponse({ description: 'User with the specified ID not found.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async updateUserRole(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserRoleDto: UpdateUserRoleDto,
@@ -297,8 +289,8 @@ export class UsersController {
   })
   @ApiCreatedResponse({ description: 'Inspector created, including the generated PIN.', type: InspectorResponseDto })
   @ApiBadRequestResponse({ description: 'Invalid input data provided for the new inspector.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
   @ApiConflictResponse({ description: 'Conflict (email/username exists).', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async createInspector(
     @Body() createInspectorDto: CreateInspectorDto,
   ): Promise<InspectorResponseDto> {
@@ -340,11 +332,9 @@ export class UsersController {
   @ApiBody({ type: UpdateUserDto, description: 'The updated user details.' })
   @ApiOkResponse({ description: 'User details updated.', type: UserResponseDto })
   @ApiBadRequestResponse({ description: 'Invalid input data provided for the user update.', type: HttpErrorResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
   @ApiNotFoundResponse({ description: 'User with the specified ID not found.', type: HttpErrorResponseDto })
   @ApiConflictResponse({ description: 'A user with the provided email, username, or wallet address already exists.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async updateUser(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserDto: UpdateUserDto,
@@ -387,11 +377,9 @@ export class UsersController {
   })
   @ApiOkResponse({ description: 'Inspector details updated.', type: UserResponseDto })
   @ApiBadRequestResponse({ description: 'Invalid input data provided for the inspector update.', type: HttpErrorResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Inspector with the specified ID not found.', type: HttpErrorResponseDto })
   @ApiConflictResponse({ description: 'A user with the provided email or username already exists.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async updateInspector(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateInspectorDto: UpdateInspectorDto,
@@ -430,10 +418,8 @@ export class UsersController {
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @ApiOkResponse({ description: 'PIN generated successfully.', type: GeneratePinResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Inspector with the specified ID not found.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async generatePin(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<GeneratePinResponseDto> {
@@ -468,10 +454,8 @@ export class UsersController {
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @ApiNoContentResponse({ description: 'User deleted.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
   @ApiNotFoundResponse({ description: 'User with the specified ID not found.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async deleteUser(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     this.logger.warn(`Admin request: DELETE user ${id}`);
     await this.usersService.deleteUser(id);

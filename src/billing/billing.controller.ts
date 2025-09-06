@@ -13,19 +13,8 @@ import { CheckoutDto, BillingGateway } from './dto/checkout.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { ConfigService } from '@nestjs/config';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiOperation,
-  ApiResponse,
-  ApiTags,
-  ApiCreatedResponse,
-  ApiBadRequestResponse,
-  ApiUnauthorizedResponse,
-  ApiForbiddenResponse,
-  ApiInternalServerErrorResponse,
-  ApiOkResponse,
-} from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse, ApiTags, ApiCreatedResponse, ApiBadRequestResponse, ApiInternalServerErrorResponse, ApiOkResponse } from '@nestjs/swagger';
+import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { CheckoutResponseDto } from './dto/checkout-response.dto';
 
@@ -40,7 +29,7 @@ export class BillingController {
   @Get('packages')
   @ApiOperation({ summary: 'List active credit packages' })
   @ApiOkResponse({ description: 'Packages list' })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async listPackages() {
     const packagesList = await this.billing.listPackages();
     return { packages: packagesList };
@@ -53,9 +42,7 @@ export class BillingController {
   @ApiBody({ type: CheckoutDto })
   @ApiCreatedResponse({ description: 'Checkout created; returns payment URL', type: CheckoutResponseDto })
   @ApiBadRequestResponse({ description: 'Validation failed or bad payload.', type: HttpErrorResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async checkout(
     @Body() dto: CheckoutDto,
     @GetUser('id') userId: string,
@@ -71,7 +58,7 @@ export class BillingController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Xendit webhook handler (idempotent)' })
   @ApiOkResponse({ description: 'Webhook processed' })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async xenditWebhook(
     @Body() body: any,
     @Headers('x-callback-token') callbackToken: string,

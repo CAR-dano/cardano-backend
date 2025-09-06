@@ -33,6 +33,7 @@ import { ReportDetailResponseDto } from './dto/report-detail-response.dto';
 import { PhotoResponseDto } from '../photos/dto/photo-response.dto';
 import { ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse } from '@nestjs/swagger';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
+import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 
 @ApiTags('Reports')
 @Controller('reports')
@@ -54,9 +55,7 @@ export class ReportsController {
   @ApiParam({ name: 'id', description: 'Inspection ID (UUID)' })
   @ApiOkResponse({ description: 'Report detail and canDownload flag', type: ReportDetailResponseDto })
   @ApiNotFoundResponse({ description: 'Inspection not found', type: HttpErrorResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async getDetail(
     @Param('id') id: string,
     @GetUser('id') userId: string,
@@ -154,9 +153,7 @@ export class ReportsController {
   @ApiOkResponse({ description: 'PDF stream (application/pdf)' })
   @ApiResponse({ status: 402, description: 'Payment Required (insufficient credits for customer)' })
   @ApiNotFoundResponse({ description: 'No no-docs PDF available or file missing', type: HttpErrorResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async download(
     @Param('id') id: string,
     @GetUser('id') userId: string,

@@ -13,17 +13,8 @@
 import { Controller, Get, Param, UseGuards, HttpStatus } from '@nestjs/common';
 import { InspectionChangeLogService } from './inspection-change-log.service';
 import { InspectionChangeLog, Role } from '@prisma/client';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiBearerAuth,
-  ApiUnauthorizedResponse,
-  ApiForbiddenResponse,
-  ApiNotFoundResponse,
-  ApiInternalServerErrorResponse,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiNotFoundResponse, ApiUnauthorizedResponse, ApiForbiddenResponse } from '@nestjs/swagger';
+import { ApiAuthErrors } from '../common/decorators/api-standard-errors.decorator';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { InspectionChangeLogResponseDto } from './dto/inspection-change-log-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -64,10 +55,8 @@ export class InspectionChangeLogController {
     description: 'The ID of the inspection',
   })
   @ApiOkResponse({ description: 'Successfully retrieved inspection change log.', type: [InspectionChangeLogResponseDto] })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async findByInspectionId(
     @Param('inspectionId') inspectionId: string,
   ): Promise<InspectionChangeLog[]> {

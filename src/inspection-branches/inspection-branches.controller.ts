@@ -41,6 +41,7 @@ import { UpdateInspectionBranchCityDto } from './dto/update-inspection-branch-ci
 import { InspectionBranchCityResponseDto } from './dto/inspection-branch-city-response.dto';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
+import { ApiAuthErrors } from '../common/decorators/api-standard-errors.decorator';
 import {
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
@@ -78,9 +79,7 @@ export class InspectionBranchesController {
   @ApiBody({ type: CreateInspectionBranchCityDto })
   @ApiCreatedResponse({ description: 'Created.', type: InspectionBranchCityResponseDto })
   @ApiBadRequestResponse({ description: 'Invalid input data.', type: HttpErrorResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async create(
     @Body() createInspectionBranchCityDto: CreateInspectionBranchCityDto,
   ) {
@@ -98,7 +97,6 @@ export class InspectionBranchesController {
   @SkipThrottle()
   @ApiOperation({ summary: 'Get all inspection branch cities' })
   @ApiOkResponse({ description: 'List of all inspection branch cities.', type: [InspectionBranchCityResponseDto] })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async findAll() {
     return await this.inspectionBranchesService.findAll();
   }
@@ -121,7 +119,6 @@ export class InspectionBranchesController {
   })
   @ApiOkResponse({ description: 'The inspection branch city details.', type: InspectionBranchCityResponseDto })
   @ApiNotFoundResponse({ description: 'Inspection branch city not found.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   async findOne(@Param('id') id: string) {
     return this.inspectionBranchesService.findOne(id);
   }
@@ -153,10 +150,8 @@ export class InspectionBranchesController {
   @ApiBody({ type: UpdateInspectionBranchCityDto })
   @ApiOkResponse({ description: 'Updated.', type: InspectionBranchCityResponseDto })
   @ApiBadRequestResponse({ description: 'Invalid input data.', type: HttpErrorResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Inspection branch city not found.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async update(
     @Param('id') id: string,
     @Body() updateInspectionBranchCityDto: UpdateInspectionBranchCityDto,
@@ -190,10 +185,8 @@ export class InspectionBranchesController {
     description: 'Inspection branch city ID',
   })
   @ApiOkResponse({ description: 'Deleted.' })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Inspection branch city not found.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async remove(@Param('id') id: string) {
     return await this.inspectionBranchesService.remove(id);
   }
@@ -223,10 +216,8 @@ export class InspectionBranchesController {
     description: 'Inspection branch city ID',
   })
   @ApiOkResponse({ description: 'Active state updated.', type: InspectionBranchCityResponseDto })
-  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto })
-  @ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto })
   @ApiNotFoundResponse({ description: 'Inspection branch city not found.', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async toggleActive(@Param('id') id: string) {
     return await this.inspectionBranchesService.toggleActive(id);
   }
