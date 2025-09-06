@@ -55,8 +55,8 @@ export class AddPhotoDto {
   @ApiProperty({
     description: 'Category of the photo',
     required: false,
-    example: 'exterior',
-    default: 'general',
+    example: 'Eksterior Tambahan',
+    default: 'General Wajib',
   })
   @IsOptional()
   @IsString()

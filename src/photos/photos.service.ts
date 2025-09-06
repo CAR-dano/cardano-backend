@@ -69,11 +69,45 @@ export class PhotosService {
     return `${safeBase}-${uniqueSuffix}${extension}`;
   }
 
-  // Map various Indonesian/irregular labels into canonical English categories
-  private mapCategoryToEnglish(input?: string | null): string {
+  // Map various labels into canonical Indonesian categories
+  private mapCategoryToIndonesian(input?: string | null): string {
+    if (!input) return 'General Wajib';
+    const s = String(input).trim();
+    const lower = s.toLowerCase();
+
+    // If already in our canonical Indonesian set, return as-is (normalize spacing/case later if needed)
+    const canonicalSet = [
+      'Eksterior Tambahan',
+      'Interior Tambahan',
+      'General Wajib',
+      'Mesin Tambahan',
+      'Kaki-kaki Tambahan',
+      'Alat-alat Tambahan',
+      'Foto Dokumen',
+    ];
+    if (canonicalSet.map((c) => c.toLowerCase()).includes(lower)) {
+      // Return properly cased canonical value
+      return canonicalSet.find((c) => c.toLowerCase() === lower) as string;
+    }
+
+    // Normalize common variations and English labels to Indonesian canonical values
+    const normalized = lower.replace(/\s+/g, ' ').trim();
+
+    if (/(^|\b)(eksterior|exterior)(\b|$)/.test(normalized)) return 'Eksterior Tambahan';
+    if (/(^|\b)(interior)(\b|$)/.test(normalized)) return 'Interior Tambahan';
+    if (/(^|\b)(mesin|engine)(\b|$)/.test(normalized)) return 'Mesin Tambahan';
+    if (/(kaki|chassis|sasis|suspensi)/.test(normalized)) return 'Kaki-kaki Tambahan';
+    if (/(alat|tools|tool)/.test(normalized)) return 'Alat-alat Tambahan';
+    if (/(dokumen|document|documents|stnk|bpkb)/.test(normalized)) return 'Foto Dokumen';
+    if (/(wajib|general)/.test(normalized)) return 'General Wajib';
+    return 'General Wajib';
+  }
+
+  // Map category to a path-safe slug (lowercase, no spaces)
+  private mapCategoryToPathSlug(input?: string | null): string {
     if (!input) return 'general';
     const s = String(input).trim().toLowerCase();
-    // accept already-canonical
+    // accept canonical slugs directly
     if (
       [
         'exterior',
@@ -88,19 +122,15 @@ export class PhotosService {
     ) {
       return s === 'document' ? 'documents' : s;
     }
-    // normalize common Indonesian labels
-    const normalized = s
-      .replace(/tambahan/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (normalized.startsWith('eksterior') || /eksterior/.test(normalized)) return 'exterior';
-    if (normalized.startsWith('interior') || /interior/.test(normalized)) return 'interior';
-    if (normalized.startsWith('mesin') || /engine|mesin/.test(normalized)) return 'engine';
-    if (normalized.includes('kaki') || /chassis|sasis|suspensi/.test(normalized)) return 'chassis';
-    if (normalized.includes('alat') || /tools|tool/.test(normalized)) return 'tools';
-    if (normalized.includes('dokumen') || /document|dokumen|stnk|bpkb/.test(normalized)) return 'documents';
-    if (normalized.includes('wajib') || normalized.includes('general')) return 'general';
+    // Map Indonesian phrases to slug
+    const normalized = s.replace(/\s+/g, ' ').trim();
+    if (/(^|\b)(eksterior)(\b|$)/.test(normalized)) return 'exterior';
+    if (/(^|\b)(interior)(\b|$)/.test(normalized)) return 'interior';
+    if (/(^|\b)(mesin)(\b|$)/.test(normalized)) return 'engine';
+    if (/(kaki|sasis|suspensi)/.test(normalized)) return 'chassis';
+    if (/(alat)/.test(normalized)) return 'tools';
+    if (/(dokumen|stnk|bpkb)/.test(normalized)) return 'documents';
+    if (/(wajib|general)/.test(normalized)) return 'general';
     return 'general';
   }
 
@@ -110,7 +140,7 @@ export class PhotosService {
     filename: string,
   ): string {
     const safeInspectionId = String(inspectionId).replace(/[^a-zA-Z0-9_-]/g, '');
-    const safeCategory = this.mapCategoryToEnglish(category);
+    const safeCategory = this.mapCategoryToPathSlug(category);
     return `${safeInspectionId}/${safeCategory}/${filename}`;
   }
 
@@ -175,7 +205,7 @@ export class PhotosService {
         throw new BadRequestException('Photo file buffer is missing');
       }
       const generatedName = this.generateSafeUniqueName(file.originalname);
-      const mappedCategory = this.mapCategoryToEnglish(dto.category);
+      const mappedCategory = this.mapCategoryToIndonesian(dto.category);
       const relativeKey = this.buildRelativeKey(
         inspectionId,
         mappedCategory,
@@ -193,7 +223,7 @@ export class PhotosService {
           // eslint-disable-next-line prettier/prettier
           label:
             dto.label === '' || dto.label === undefined ? undefined : dto.label,
-          category: mappedCategory, // normalized category
+          category: mappedCategory, // normalized category (Indonesian)
           isMandatory: isMandatory, // Add isMandatory
           originalLabel: null,
           needAttention: needAttention,
@@ -549,7 +579,7 @@ export class PhotosService {
       }
       const name = this.generateSafeUniqueName(file.originalname);
       const meta = parsedMetadata[i] ?? {};
-      const mappedCategory = this.mapCategoryToEnglish(meta.category);
+      const mappedCategory = this.mapCategoryToIndonesian(meta.category);
       const relativeKey = this.buildRelativeKey(inspectionId, mappedCategory, name);
       await this.uploadBufferToCloud(file.buffer, relativeKey, file.mimetype);
       relativeKeys.push(relativeKey);
@@ -558,7 +588,7 @@ export class PhotosService {
     const photosToCreate: Prisma.PhotoCreateManyInput[] = files.map(
       (file, index) => {
         const meta = parsedMetadata[index] ?? {};
-        const mappedCategory = this.mapCategoryToEnglish(meta.category);
+        const mappedCategory = this.mapCategoryToIndonesian(meta.category);
         return {
           inspectionId: inspectionId,
           path: relativeKeys[index],
