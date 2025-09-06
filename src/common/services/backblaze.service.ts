@@ -70,6 +70,8 @@ export class BackblazeService {
       endpoint: this.endpoint || undefined,
       region: region || undefined,
       forcePathStyle: true,
+      // Increase built-in AWS SDK retry attempts a bit
+      maxAttempts: 6,
       ...(requestHandler ? { requestHandler } : {}),
     });
   }
@@ -160,7 +162,7 @@ export class BackblazeService {
     });
 
     try {
-      await this.s3Client.send(cmd);
+      await this.sendCommand(cmd);
       this.logger.log(
         `uploadFile: successfully uploaded '${key}' to bucket '${bucket}'`,
       );
@@ -200,7 +202,7 @@ export class BackblazeService {
     });
 
     try {
-      await this.s3Client.send(cmd);
+      await this.sendCommand(cmd);
       this.logger.log(
         `uploadBuffer: successfully uploaded '${key}' to bucket '${bucket}'`,
       );
@@ -309,7 +311,7 @@ export class BackblazeService {
     );
     const cmd = new GetObjectCommand({ Bucket: bucket, Key: fileName });
     try {
-      const res = await this.s3Client.send(cmd);
+      const res = await this.sendCommand(cmd);
       this.logger.log(
         `getFile: fetched key='${fileName}' from bucket='${bucket}'`,
       );
@@ -329,7 +331,7 @@ export class BackblazeService {
     this.logger.debug(`listFiles: listing objects in bucket='${bucket}'`);
     const cmd = new ListObjectsV2Command({ Bucket: bucket });
     try {
-      const res = await this.s3Client.send(cmd);
+      const res = await this.sendCommand(cmd);
       const count = res.Contents ? res.Contents.length : 0;
       this.logger.log(
         `listFiles: found ${count} objects in bucket='${bucket}'`,
@@ -352,7 +354,7 @@ export class BackblazeService {
     );
     const cmd = new DeleteObjectCommand({ Bucket: bucket, Key: fileName });
     try {
-      await this.s3Client.send(cmd);
+      await this.sendCommand(cmd);
       this.logger.log(
         `deleteFile: deleted key='${fileName}' from bucket='${bucket}'`,
       );
@@ -378,7 +380,7 @@ export class BackblazeService {
     try {
       if (!bucket) throw new Error('Bucket name not configured');
       const cmd = new HeadBucketCommand({ Bucket: bucket });
-      await this.s3Client.send(cmd);
+      await this.sendCommand(cmd);
       return { ok: true, bucket, endpoint: this.endpoint };
     } catch (err: unknown) {
       const msg = this.formatError(err);
