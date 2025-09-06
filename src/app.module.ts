@@ -51,31 +51,7 @@ import { CreditPackagesModule } from './credit-packages/credit-packages.module';
         limit: 200,
       },
     ]),
-    // --- ServeStaticModule Configuration ---
-    ServeStaticModule.forRoot({
-      // rootPath: Specifies the folder in the server's filesystem to be served.
-      // join(process.cwd(), 'uploads'): Creates an absolute path to the 'uploads' folder
-      // at the project root (where the 'dist' folder is usually located after build).
-      rootPath: join(process.cwd(), 'uploads'),
-
-      // serveRoot: Specifies the URL prefix where files will be available.
-      // If serveRoot: '/uploads', files in './uploads/inspection-photos/image.jpg'
-      // will be accessible via URL: http://localhost:3000/uploads/inspection-photos/image.jpg
-      // If serveRoot: '/static-files', the URL will be http://localhost:3000/static-files/inspection-photos/image.jpg
-      // '/uploads' is a common and intuitive choice.
-      serveRoot: '/uploads',
-
-      // Optional: Exclude API routes so they are not overridden by static serving
-      // exclude: ['/api/v1/(.*)'], // Be careful if serveRoot is also '/api/v1'
-
-      // Optional: Additional configurations (cache control, etc.)
-      // serveStaticOptions: {
-      //   maxAge: '1d', // Example cache 1 day
-      //   setHeaders: (res, path, stat) => {
-      //     res.set('Cross-Origin-Resource-Policy', 'cross-origin'); // Important if FE is on a different domain
-      //   },
-      // },
-    }),
+    // Note: Static serving for 'uploads' is disabled to force all access via API controllers
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'public'),
       // Avoid conflicting with API routes: serve public assets under /public
