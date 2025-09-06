@@ -1,11 +1,15 @@
 #!/bin/bash
 
 # Data Backup Script
-# Usage: ./backup-data.sh [environment]
+# Usage:
+#   ./backup-data.sh [environment] [mode]
+#     environment: development|staging|production (default: development)
+#     mode: full|sql-only (default: full)
 
 set -e
 
 ENVIRONMENT=${1:-"development"}
+MODE=${2:-"full"}
 BACKUP_DIR="./backups/$(date +%Y%m%d_%H%M%S)_${ENVIRONMENT}"
 
 echo "🛡️  Starting data backup for: $ENVIRONMENT"
@@ -19,13 +23,17 @@ if ! command -v zip >/dev/null 2>&1; then
     exit 1
 fi
 
-# Backup .env file
-if [ -f ".env" ]; then
-    echo "📋 Backing up .env file..."
-    cp .env "$BACKUP_DIR/.env.backup"
-    echo "✅ .env backed up"
+# Backup .env file (skip if sql-only)
+if [ "$MODE" != "sql-only" ]; then
+  if [ -f ".env" ]; then
+      echo "📋 Backing up .env file..."
+      cp .env "$BACKUP_DIR/.env.backup"
+      echo "✅ .env backed up"
+  else
+      echo "⚠️  No .env file found to backup"
+  fi
 else
-    echo "⚠️  No .env file found to backup"
+  echo "⏭️  Skipping .env backup (sql-only mode)"
 fi
 
 # Backup database (dump + zip)
@@ -41,22 +49,30 @@ else
     echo "⚠️  Database not running, skipping database backup"
 fi
 
-# Backup uploads/inspection-photos as zip
-if [ -d "uploads/inspection-photos" ]; then
-    echo "📸 Backing up uploads/inspection-photos..."
-    zip -q -9 -r "$BACKUP_DIR/inspection-photos.zip" "uploads/inspection-photos"
-    echo "✅ inspection-photos zipped to: $BACKUP_DIR/inspection-photos.zip"
+# Backup uploads/inspection-photos as zip (skip if sql-only)
+if [ "$MODE" != "sql-only" ]; then
+  if [ -d "uploads/inspection-photos" ]; then
+      echo "📸 Backing up uploads/inspection-photos..."
+      zip -q -9 -r "$BACKUP_DIR/inspection-photos.zip" "uploads/inspection-photos"
+      echo "✅ inspection-photos zipped to: $BACKUP_DIR/inspection-photos.zip"
+  else
+      echo "⚠️  uploads/inspection-photos not found"
+  fi
 else
-    echo "⚠️  uploads/inspection-photos not found"
+  echo "⏭️  Skipping uploads backup (sql-only mode)"
 fi
 
-# Backup PDF archives as zip
-if [ -d "pdfarchived" ]; then
-    echo "📄 Backing up pdfarchived directory..."
-    zip -q -9 -r "$BACKUP_DIR/pdfarchived.zip" "pdfarchived"
-    echo "✅ pdfarchived zipped to: $BACKUP_DIR/pdfarchived.zip"
+# Backup PDF archives as zip (skip if sql-only)
+if [ "$MODE" != "sql-only" ]; then
+  if [ -d "pdfarchived" ]; then
+      echo "📄 Backing up pdfarchived directory..."
+      zip -q -9 -r "$BACKUP_DIR/pdfarchived.zip" "pdfarchived"
+      echo "✅ pdfarchived zipped to: $BACKUP_DIR/pdfarchived.zip"
+  else
+      echo "⚠️  No pdfarchived directory found"
+  fi
 else
-    echo "⚠️  No pdfarchived directory found"
+  echo "⏭️  Skipping pdfarchived backup (sql-only mode)"
 fi
 
 # Create backup manifest
@@ -70,18 +86,18 @@ Hostname: $(hostname)
 User: $(whoami)
 
 Contents:
-- .env.backup (if existed)
+$( [ "$MODE" != "sql-only" ] && echo "- .env.backup (if existed)" )
 - sql.zip (contains database.sql)
-- inspection-photos.zip (contains uploads/inspection-photos)
-- pdfarchived.zip (contains pdfarchived)
+$( [ "$MODE" != "sql-only" ] && echo "- inspection-photos.zip (contains uploads/inspection-photos)" )
+$( [ "$MODE" != "sql-only" ] && echo "- pdfarchived.zip (contains pdfarchived)" )
 
 Restore Instructions:
 1. Stop application: docker compose down
-2. Unzip archives at repo root: unzip sql.zip; unzip inspection-photos.zip; unzip pdfarchived.zip
+2. Unzip archives at repo root: unzip sql.zip$( [ "$MODE" != "sql-only" ] && echo "; unzip inspection-photos.zip; unzip pdfarchived.zip" )
 3. Restore database: docker compose exec -T postgres psql -U \$POSTGRES_USER < database.sql
-4. Ensure uploads exist: mkdir -p uploads; (unzipping should recreate uploads/inspection-photos)
-5. Copy .env: cp .env.backup .env
-6. Start application: docker compose up -d
+$( [ "$MODE" != "sql-only" ] && echo "4. Ensure uploads exist: mkdir -p uploads; (unzipping should recreate uploads/inspection-photos)" )
+$( [ "$MODE" != "sql-only" ] && echo "5. Copy .env: cp .env.backup .env" )
+$( [ "$MODE" != "sql-only" ] && echo "6." || echo "4.") Start application: docker compose up -d
 EOF
 
 echo ""
