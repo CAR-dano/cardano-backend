@@ -84,6 +84,7 @@ import { Req } from '@nestjs/common'; // Import Req decorator
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { FileValidationPipe } from './pipes/file-validation.pipe';
+import { OptionalFileValidationPipe } from './pipes/optional-file-validation.pipe';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { skip } from 'rxjs';
 
@@ -473,7 +474,8 @@ export class InspectionsController {
     @Param('photoId', ParseUUIDPipe) photoId: string,
     @Body() updatePhotoDto: UpdatePhotoDto, // Contains optional label/needAttention
     @GetUser('id') userId: string,
-    @UploadedFile(new FileValidationPipe()) newFile?: Express.Multer.File, // Optional new file
+    @UploadedFile(new OptionalFileValidationPipe())
+    newFile?: Express.Multer.File, // Optional new file, validate only if present
   ): Promise<PhotoResponseDto> {
     this.logger.debug('Update DTO:', updatePhotoDto);
     this.logger.debug('New file:', newFile?.filename);
