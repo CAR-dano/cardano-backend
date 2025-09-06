@@ -1577,8 +1577,8 @@ export class InspectionsService {
       );
 
       // Persist proxied path so frontend can fetch via our domain and the proxy.
-      // Store the proxied route (v1/pdf) rather than the external Backblaze URL.
-      const pdfPublicUrl = `/v1/pdf/${baseFileName}`;
+      // Store the proxied route under /v1/pdfarchived to minimize path confusion.
+      const pdfPublicUrl = `/v1/pdfarchived/${baseFileName}`;
 
       const finalStats = this.pdfQueue.stats;
       this.logger.log(

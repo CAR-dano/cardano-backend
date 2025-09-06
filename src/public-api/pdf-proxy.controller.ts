@@ -58,21 +58,21 @@ export class PdfProxyController {
     throw new NotFoundException('File not found');
   }
 
-  // Proxied path used by frontend going forward (global prefix adds /api/v1)
-  @Get('pdf/:name')
-  @ApiOperation({ summary: 'Stream a PDF (Backblaze/local fallback)' })
+  // Canonical route: use /pdfarchived to minimize confusion
+  @Get('pdfarchived/:name')
+  @ApiOperation({ summary: 'Stream a PDF (Backblaze/local fallback) under /pdfarchived' })
   @ApiOkResponse({ description: 'PDF stream' })
   @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'PDF not found' })
-  async proxyPdfV1(@Param('name') name: string, @Res() res: Response) {
+  async proxyPdfArchived(@Param('name') name: string, @Res() res: Response) {
     return this.streamPdfToResponse(name, res);
   }
 
-  // Keep legacy path used when files were served from VPS
-  @Get('pdfarchived/:name')
-  @ApiOperation({ summary: 'Stream legacy archived PDF' })
+  // Keep /pdf/:name as alias for compatibility with earlier changes
+  @Get('pdf/:name')
+  @ApiOperation({ summary: 'Alias: Stream PDF by name under /pdf (compat)' })
   @ApiOkResponse({ description: 'PDF stream' })
   @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'PDF not found' })
-  async proxyArchived(@Param('name') name: string, @Res() res: Response) {
+  async proxyPdfAlias(@Param('name') name: string, @Res() res: Response) {
     return this.streamPdfToResponse(name, res);
   }
 
