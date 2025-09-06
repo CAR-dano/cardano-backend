@@ -9,10 +9,37 @@
 
 set -e  # Exit on any error
 
+# --- Options ---
+# --confirm            Required to deploy to production
+# --fast               Skip build and health checks for faster rollout
+# --skip-build         Skip the image build step
+# --skip-healthcheck   Skip health checks after up -d
+# --no-cache           Force build without using Docker cache
+
+CONFIRMED=false
+FAST=false
+SKIP_BUILD=false
+SKIP_HEALTHCHECK=false
+NO_CACHE=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --confirm) CONFIRMED=true ;;
+    --fast) FAST=true ;;
+    --skip-build) SKIP_BUILD=true ;;
+    --skip-healthcheck) SKIP_HEALTHCHECK=true ;;
+    --no-cache) NO_CACHE=true ;;
+    -h|--help)
+      echo "Usage: $0 --confirm [--fast|--skip-build] [--skip-healthcheck] [--no-cache]"
+      exit 0
+      ;;
+  esac
+done
+
 echo "🚀 Starting Production Deployment..."
 
 # Check if running on production environment
-if [[ "$1" != "--confirm" ]]; then
+if [[ "$CONFIRMED" != true ]]; then
     echo "⚠️  WARNING: This will deploy to PRODUCTION environment!"
     echo "Make sure you have:"
     echo "  1. ✅ Configured .env file with production values"
@@ -64,49 +91,87 @@ fi
 echo "🔧 Switching to production monitoring configuration..."
 ./monitoring/switch-environment.sh production
 
+COMPOSE_CMD=(docker compose -f docker-compose.yml -f docker-compose.prod.yml)
+
 # Build and deploy with production overrides (graceful restart)
 echo "🐳 Deploying with production configuration..."
 echo "Note: Using graceful restart to preserve data"
-docker compose -f docker-compose.yml -f docker-compose.prod.yml build --no-cache
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 
-# Wait for services to start
-echo "⏳ Waiting for services to start..."
-sleep 30
-
-# Health checks
-echo "🔍 Running health checks..."
-
-# Check application
-if curl -f http://localhost:3010/api/v1/metrics > /dev/null 2>&1; then
-    echo "✅ Application: Healthy"
-else
-    echo "❌ Application: Failed"
-    exit 1
+if [[ "$FAST" == true ]]; then
+  echo "⚡ Fast mode enabled: skipping build and health checks"
+  SKIP_BUILD=true
+  SKIP_HEALTHCHECK=true
 fi
 
-# Check Prometheus
-if curl -f http://localhost:9090/-/healthy > /dev/null 2>&1; then
-    echo "✅ Prometheus: Healthy"
+if [[ "$SKIP_BUILD" != true ]]; then
+  echo "🔨 Building images (cached) ..."
+  if [[ "$NO_CACHE" == true ]]; then
+    echo "  (no-cache)"
+    "${COMPOSE_CMD[@]}" build --no-cache
+  else
+    "${COMPOSE_CMD[@]}" build
+  fi
 else
-    echo "❌ Prometheus: Failed"
-    exit 1
+  echo "⏭️  Skipping build step"
 fi
 
-# Check Grafana
-if curl -f http://localhost:3001/api/health > /dev/null 2>&1; then
-    echo "✅ Grafana: Healthy"
+echo "🚢 Starting services..."
+"${COMPOSE_CMD[@]}" up -d
+
+# Helper functions for health checks (replace fixed sleep with smart waits)
+wait_for_http() {
+  local url="$1"; shift
+  local name="$1"; shift
+  local timeout="${1:-120}"; shift || true
+  local interval=3
+  local elapsed=0
+  while (( elapsed < timeout )); do
+    if curl -fsS "$url" > /dev/null 2>&1; then
+      echo "✅ $name: Healthy"
+      return 0
+    fi
+    sleep "$interval"
+    elapsed=$((elapsed+interval))
+  done
+  echo "❌ $name: Timeout after ${timeout}s ($url)"
+  return 1
+}
+
+wait_for_postgres() {
+  local timeout="${1:-120}"; shift || true
+  local interval=3
+  local elapsed=0
+  local user="${POSTGRES_USER:-cardano_user}"
+  while (( elapsed < timeout )); do
+    if "${COMPOSE_CMD[@]}" exec -T postgres pg_isready -U "$user" > /dev/null 2>&1; then
+      echo "✅ PostgreSQL: Healthy"
+      return 0
+    fi
+    sleep "$interval"
+    elapsed=$((elapsed+interval))
+  done
+  echo "❌ PostgreSQL: Timeout after ${timeout}s"
+  return 1
+}
+
+if [[ "$SKIP_HEALTHCHECK" != true ]]; then
+  echo "🔍 Running health checks..."
 else
-    echo "❌ Grafana: Failed"
-    exit 1
+  echo "⏭️  Skipping health checks"
 fi
 
-# Check database
-if docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres pg_isready -U ${POSTGRES_USER:-cardano_user} > /dev/null 2>&1; then
-    echo "✅ PostgreSQL: Healthy"
-else
-    echo "❌ PostgreSQL: Failed"
-    exit 1
+if [[ "$SKIP_HEALTHCHECK" != true ]]; then
+  # Application
+  wait_for_http "http://localhost:3010/api/v1/metrics" "Application" 120 || exit 1
+
+  # Prometheus
+  wait_for_http "http://localhost:9090/-/healthy" "Prometheus" 120 || exit 1
+
+  # Grafana
+  wait_for_http "http://localhost:3001/api/health" "Grafana" 120 || exit 1
+
+  # Database
+  wait_for_postgres 120 || exit 1
 fi
 
 echo ""
