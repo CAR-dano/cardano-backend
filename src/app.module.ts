@@ -78,7 +78,8 @@ import { CreditPackagesModule } from './credit-packages/credit-packages.module';
     }),
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'public'),
-      serveRoot: '/api/v1', // Serve public files under the /api/v1 prefix
+      // Avoid conflicting with API routes: serve public assets under /public
+      serveRoot: '/public',
     }),
     AuthModule,
     BlockchainModule,

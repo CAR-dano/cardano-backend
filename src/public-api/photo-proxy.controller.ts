@@ -108,51 +108,13 @@ export class PhotoProxyController {
     return this.streamPhoto(name, res);
   }
 
-  // Direct path used by external clients (single-segment fallback for legacy)
+  // Note: v1-prefixed routes removed because global prefix already adds /api/v1
+  // Keep single-segment fallback route for legacy clients
   @Get('uploads/inspection-photos/:name')
   @ApiOperation({ summary: 'Stream an inspection photo by name' })
   @ApiOkResponse({ description: 'Photo stream' })
   @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'Photo not found' })
-  async proxyUploads(@Param('name') name: string, @Res() res: Response) {
-    return this.streamPhoto(name, res);
-  }
-
-  // Optionally expose v1 variant to mirror PDF proxy style
-  @Get('v1/uploads/inspection-photos/*path')
-  @ApiOperation({ summary: '[v1] Stream an inspection photo by wildcard path' })
-  @ApiOkResponse({ description: 'Photo stream' })
-  @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'Photo not found' })
-  async proxyV1UploadsWildcard(
-    @Param('path') path: any,
-    @Res() res: Response,
-    @Req() req: any,
-  ) {
-    const name = this.normalizeStarParam(path);
-    if (!name) {
-      const url: string = (req?.url || '').toString();
-      const idx = url.indexOf('/v1/uploads/inspection-photos/');
-      if (idx >= 0) {
-        const candidate = url.slice(idx + '/v1/uploads/inspection-photos/'.length);
-        return this.streamPhoto(candidate, res);
-      }
-    }
-    return this.streamPhoto(name, res);
-  }
-
-  @Get('v1/uploads/inspection-photos/:name')
-  @ApiOperation({ summary: '[v1] Stream an inspection photo by name' })
-  @ApiOkResponse({ description: 'Photo stream' })
-  @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'Photo not found' })
-  async proxyV1Uploads(@Param('name') name: string, @Res() res: Response) {
-    return this.streamPhoto(name, res);
-  }
-
-  // Legacy singular folder support
-  @Get('uploads/inspection-photos/:name')
-  @ApiOperation({ summary: 'Stream legacy inspection photo by name' })
-  @ApiOkResponse({ description: 'Photo stream' })
-  @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'Photo not found' })
-  async proxyLegacy(@Param('name') name: string, @Res() res: Response) {
+  async proxyUploadsByName(@Param('name') name: string, @Res() res: Response) {
     return this.streamPhoto(name, res);
   }
 }

@@ -58,12 +58,12 @@ export class PdfProxyController {
     throw new NotFoundException('File not found');
   }
 
-  // New proxied path used by frontend going forward
-  @Get('v1/pdf/:name')
-  @ApiOperation({ summary: '[v1] Stream a PDF (Backblaze/local fallback)' })
+  // Proxied path used by frontend going forward (global prefix adds /api/v1)
+  @Get('pdf/:name')
+  @ApiOperation({ summary: 'Stream a PDF (Backblaze/local fallback)' })
   @ApiOkResponse({ description: 'PDF stream' })
   @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'PDF not found' })
-  async proxyV1(@Param('name') name: string, @Res() res: Response) {
+  async proxyPdfV1(@Param('name') name: string, @Res() res: Response) {
     return this.streamPdfToResponse(name, res);
   }
 
@@ -76,12 +76,5 @@ export class PdfProxyController {
     return this.streamPdfToResponse(name, res);
   }
 
-  // Also keep /pdf/:name for compatibility with earlier changes
-  @Get('pdf/:name')
-  @ApiOperation({ summary: 'Stream PDF by name' })
-  @ApiOkResponse({ description: 'PDF stream' })
-  @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'PDF not found' })
-  async proxyPdf(@Param('name') name: string, @Res() res: Response) {
-    return this.streamPdfToResponse(name, res);
-  }
+  // Note: single /pdf/:name route already defined above
 }
