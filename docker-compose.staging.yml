@@ -3,11 +3,11 @@
 services:
   # Application - Staging optimizations
   app:
-    image: maulanaanjari/inspeksimobil-backend:latest
+    image: maulanaanjari/inspeksimobil-backend:${TAG:-latest}
     restart: unless-stopped
     environment:
       - NODE_ENV=staging
-    # New Relic removed
+    env_file: [.env]
     volumes:
       - /var/www/cardano-backend/uploads:/usr/src/app/uploads
       - /var/www/cardano-backend/pdfarchived:/usr/src/app/pdfarchived
