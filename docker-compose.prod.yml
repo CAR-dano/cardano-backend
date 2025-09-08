@@ -3,10 +3,11 @@
 services:
   # Application - Production optimizations
   app:
+    image: maulanaanjari/inspeksimobil-backend:${TAG:-latest}
     restart: always
     environment:
       - NODE_ENV=production
-    # New Relic removed
+    env_file: [.env]
     volumes:
       - /home/maul/cardano-app/backend/uploads:/usr/src/app/uploads
       - /home/maul/cardano-app/backend/pdfarchived:/usr/src/app/pdfarchived

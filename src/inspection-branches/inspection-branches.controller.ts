@@ -40,6 +40,17 @@ import { CreateInspectionBranchCityDto } from './dto/create-inspection-branch-ci
 import { UpdateInspectionBranchCityDto } from './dto/update-inspection-branch-city.dto';
 import { InspectionBranchCityResponseDto } from './dto/inspection-branch-city-response.dto';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
+import { ApiAuthErrors } from '../common/decorators/api-standard-errors.decorator';
+import {
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiInternalServerErrorResponse,
+  ApiOkResponse,
+  ApiCreatedResponse,
+} from '@nestjs/swagger';
 
 @ApiTags('Inspection Branches')
 @Controller('inspection-branches')
@@ -66,23 +77,9 @@ export class InspectionBranchesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new inspection branch city' })
   @ApiBody({ type: CreateInspectionBranchCityDto })
-  @ApiResponse({
-    status: HttpStatus.CREATED,
-    description: 'The inspection branch city has been successfully created.',
-    type: InspectionBranchCityResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid input data.',
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
+  @ApiCreatedResponse({ description: 'Created.', type: InspectionBranchCityResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid input data.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async create(
     @Body() createInspectionBranchCityDto: CreateInspectionBranchCityDto,
   ) {
@@ -99,11 +96,7 @@ export class InspectionBranchesController {
   @Get()
   @SkipThrottle()
   @ApiOperation({ summary: 'Get all inspection branch cities' })
-  @ApiResponse({
-    status: 200,
-    description: 'List of all inspection branch cities.',
-    type: [InspectionBranchCityResponseDto],
-  })
+  @ApiOkResponse({ description: 'List of all inspection branch cities.', type: [InspectionBranchCityResponseDto] })
   async findAll() {
     return await this.inspectionBranchesService.findAll();
   }
@@ -124,15 +117,8 @@ export class InspectionBranchesController {
     type: String,
     description: 'Inspection branch city ID',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'The inspection branch city details.',
-    type: InspectionBranchCityResponseDto,
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Inspection branch city not found.',
-  })
+  @ApiOkResponse({ description: 'The inspection branch city details.', type: InspectionBranchCityResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection branch city not found.', type: HttpErrorResponseDto })
   async findOne(@Param('id') id: string) {
     return this.inspectionBranchesService.findOne(id);
   }
@@ -162,27 +148,10 @@ export class InspectionBranchesController {
     description: 'Inspection branch city ID',
   })
   @ApiBody({ type: UpdateInspectionBranchCityDto })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'The inspection branch city has been successfully updated.',
-    type: InspectionBranchCityResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid input data.',
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Inspection branch city not found.',
-  })
+  @ApiOkResponse({ description: 'Updated.', type: InspectionBranchCityResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid input data.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection branch city not found.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async update(
     @Param('id') id: string,
     @Body() updateInspectionBranchCityDto: UpdateInspectionBranchCityDto,
@@ -215,22 +184,9 @@ export class InspectionBranchesController {
     type: String,
     description: 'Inspection branch city ID',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'The inspection branch city has been successfully deleted.',
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Inspection branch city not found.',
-  })
+  @ApiOkResponse({ description: 'Deleted.' })
+  @ApiNotFoundResponse({ description: 'Inspection branch city not found.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async remove(@Param('id') id: string) {
     return await this.inspectionBranchesService.remove(id);
   }
@@ -259,24 +215,9 @@ export class InspectionBranchesController {
     type: String,
     description: 'Inspection branch city ID',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description:
-      'The inspection branch city has been successfully status updated.',
-    type: InspectionBranchCityResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Inspection branch city not found.',
-  })
+  @ApiOkResponse({ description: 'Active state updated.', type: InspectionBranchCityResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspection branch city not found.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async toggleActive(@Param('id') id: string) {
     return await this.inspectionBranchesService.toggleActive(id);
   }

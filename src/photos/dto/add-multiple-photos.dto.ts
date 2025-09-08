@@ -17,15 +17,16 @@ export class AddMultiplePhotosDto {
    * Each object MUST correspond to a file uploaded in the 'photos' field,
    * maintaining the same order.
    * Structure per object: { label?: string, needAttention?: boolean, category?: string, isMandatory?: boolean }
-   * @example '[{"label":"Baret 1","needAttention":true, "category": "exterior", "isMandatory": false},{"needAttention":false, "category": "engine"}]'
+   * Contoh kategori (Indonesia): "Eksterior Tambahan", "Interior Tambahan", "General Wajib", "Mesin Tambahan", "Kaki-kaki Tambahan", "Alat-alat Tambahan", "Foto Dokumen".
+   * @example '[{"label":"Baret 1","needAttention":true, "category": "Eksterior Tambahan", "isMandatory": false},{"needAttention":false, "category": "Mesin Tambahan"}]'
    */
   @ApiProperty({
     type: 'string',
     format: 'json',
     description:
-      'REQUIRED: JSON string array of metadata ({label?: string, needAttention?: boolean, category?: string, isMandatory?: boolean}) matching file upload order. Label defaults to "Tambahan" if not provided.',
+      'REQUIRED: JSON string array of metadata ({label?: string, needAttention?: boolean, category?: string, isMandatory?: boolean}) matching file upload order. Label defaults to "Tambahan" if not provided. Kategori gunakan bahasa Indonesia.',
     example:
-      '[{"label":"Baret 1","needAttention":true, "category": "exterior", "isMandatory": false},{"category": "interior", "isMandatory": true}]',
+      '[{"label":"Baret 1","needAttention":true, "category": "Eksterior Tambahan", "isMandatory": false},{"category": "Interior Tambahan", "isMandatory": true}]',
   })
   @IsString()
   @IsNotEmpty()

@@ -13,18 +13,15 @@
 import { Controller, Get, Param, UseGuards, HttpStatus } from '@nestjs/common';
 import { InspectionChangeLogService } from './inspection-change-log.service';
 import { InspectionChangeLog, Role } from '@prisma/client';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-  ApiParam,
-  ApiBearerAuth,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiNotFoundResponse, ApiUnauthorizedResponse, ApiForbiddenResponse } from '@nestjs/swagger';
+import { ApiAuthErrors } from '../common/decorators/api-standard-errors.decorator';
+import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { InspectionChangeLogResponseDto } from './dto/inspection-change-log-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { SkipThrottle } from '@nestjs/throttler';
+import { ApiOkResponse } from '@nestjs/swagger';
 
 @ApiTags('Inspection Change Log')
 @SkipThrottle()
@@ -57,23 +54,9 @@ export class InspectionChangeLogController {
     type: String,
     description: 'The ID of the inspection',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Successfully retrieved inspection change log.',
-    type: [InspectionChangeLogResponseDto],
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'User is not authenticated.',
-  })
-  @ApiResponse({
-    status: HttpStatus.FORBIDDEN,
-    description: 'User does not have the required permissions.',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Inspection not found.',
-  })
+  @ApiOkResponse({ description: 'Successfully retrieved inspection change log.', type: [InspectionChangeLogResponseDto] })
+  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async findByInspectionId(
     @Param('inspectionId') inspectionId: string,
   ): Promise<InspectionChangeLog[]> {

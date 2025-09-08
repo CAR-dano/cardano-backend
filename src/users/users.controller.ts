@@ -41,8 +41,19 @@ import {
   ApiResponse,
   ApiParam,
   ApiBody,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiConflictResponse,
+  ApiNoContentResponse,
+  ApiInternalServerErrorResponse,
 } from '@nestjs/swagger';
 import { UserResponseDto } from './dto/user-response.dto'; // DTO for API responses
+import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
+import { ApiAuthErrors } from '../common/decorators/api-standard-errors.decorator';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto'; // DTO for updating role
 import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
 import { InspectorResponseDto } from './dto/inspector-response.dto';
@@ -79,19 +90,8 @@ export class UsersController {
     description:
       'Fetches a list of all user accounts in the system. This endpoint is restricted to users with the ADMIN role.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'List of users.',
-    type: [UserResponseDto],
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized. Authentication token is missing or invalid.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. User does not have the necessary ADMIN role.',
-  })
+  @ApiOkResponse({ description: 'List of users.', type: [UserResponseDto] })
+  @ApiAuthErrors()
   async findAll(): Promise<UserResponseDto[]> {
     this.logger.log(`Admin request: findAll users`);
     const users = await this.usersService.findAll();
@@ -113,15 +113,8 @@ export class UsersController {
     description:
       'Fetches a list of all user accounts specifically designated as inspectors.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'List of inspector users.',
-    type: [UserResponseDto],
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized. Authentication token is missing or invalid.',
-  })
+  @ApiOkResponse({ description: 'List of inspector users.', type: [UserResponseDto] })
+  @ApiAuthErrors()
   async findAllInspectors(): Promise<UserResponseDto[]> {
     this.logger.log(`findAllInspectors users`);
     const users = await this.usersService.findAllInspectors();
@@ -143,12 +136,8 @@ export class UsersController {
     description:
       'Fetches a list of all user accounts with ADMIN or SUPERADMIN roles.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'List of admin and superadmin users.',
-    type: [UserResponseDto],
-  })
-  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiOkResponse({ description: 'List of admin and superadmin users.', type: [UserResponseDto] })
+  @ApiAuthErrors()
   async findAllAdminsAndSuperAdmins(): Promise<UserResponseDto[]> {
     this.logger.log(`Superadmin request: findAllAdminsAndSuperAdmins`);
     const users = await this.usersService.findAllAdminsAndSuperAdmins();
@@ -174,20 +163,10 @@ export class UsersController {
     type: CreateAdminDto,
     description: 'Details for the new admin or superadmin user.',
   })
-  @ApiResponse({
-    status: 201,
-    description: 'The user has been successfully created.',
-    type: UserResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid input data provided.',
-  })
-  @ApiResponse({ status: 403, description: 'Forbidden.' })
-  @ApiResponse({
-    status: 409,
-    description: 'Conflict (email/username exists).',
-  })
+  @ApiCreatedResponse({ description: 'User created.', type: UserResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid input data provided.', type: HttpErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict (email/username exists).', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async createAdminOrSuperAdmin(
     @Body() createAdminDto: CreateAdminDto,
   ): Promise<UserResponseDto> {
@@ -223,23 +202,9 @@ export class UsersController {
     format: 'uuid',
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'User details.',
-    type: UserResponseDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized. Authentication token is missing or invalid.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. User does not have the necessary ADMIN role.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User with the specified ID not found.',
-  })
+  @ApiOkResponse({ description: 'User details.', type: UserResponseDto })
+  @ApiNotFoundResponse({ description: 'User with the specified ID not found.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<UserResponseDto> {
@@ -282,27 +247,10 @@ export class UsersController {
     type: UpdateUserRoleDto,
     description: 'The new role to assign to the user.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'User role updated.',
-    type: UserResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid role provided in the request body.',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized. Authentication token is missing or invalid.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. User does not have the necessary ADMIN role.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User with the specified ID not found.',
-  })
+  @ApiOkResponse({ description: 'User role updated.', type: UserResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid role provided in the request body.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'User with the specified ID not found.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async updateUserRole(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserRoleDto: UpdateUserRoleDto,
@@ -339,21 +287,10 @@ export class UsersController {
     type: CreateInspectorDto,
     description: 'Details for the new inspector user.',
   })
-  @ApiResponse({
-    status: 201,
-    description:
-      'The inspector has been successfully created, including the generated PIN.',
-    type: InspectorResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid input data provided for the new inspector.',
-  })
-  @ApiResponse({ status: 403, description: 'Forbidden.' })
-  @ApiResponse({
-    status: 409,
-    description: 'Conflict (email/username exists).',
-  })
+  @ApiCreatedResponse({ description: 'Inspector created, including the generated PIN.', type: InspectorResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid input data provided for the new inspector.', type: HttpErrorResponseDto })
+  @ApiConflictResponse({ description: 'Conflict (email/username exists).', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async createInspector(
     @Body() createInspectorDto: CreateInspectorDto,
   ): Promise<InspectorResponseDto> {
@@ -393,32 +330,11 @@ export class UsersController {
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @ApiBody({ type: UpdateUserDto, description: 'The updated user details.' })
-  @ApiResponse({
-    status: 200,
-    description: 'User details updated.',
-    type: UserResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid input data provided for the user update.',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized. Authentication token is missing or invalid.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. User does not have the necessary ADMIN role.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User with the specified ID not found.',
-  })
-  @ApiResponse({
-    status: 409,
-    description:
-      'A user with the provided email, username, or wallet address already exists.',
-  })
+  @ApiOkResponse({ description: 'User details updated.', type: UserResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid input data provided for the user update.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'User with the specified ID not found.', type: HttpErrorResponseDto })
+  @ApiConflictResponse({ description: 'A user with the provided email, username, or wallet address already exists.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async updateUser(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserDto: UpdateUserDto,
@@ -459,31 +375,11 @@ export class UsersController {
     type: UpdateInspectorDto,
     description: 'The updated inspector details.',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Inspector details updated.',
-    type: UserResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid input data provided for the inspector update.',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized. Authentication token is missing or invalid.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. User does not have the necessary ADMIN role.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Inspector with the specified ID not found.',
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'A user with the provided email or username already exists.',
-  })
+  @ApiOkResponse({ description: 'Inspector details updated.', type: UserResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid input data provided for the inspector update.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspector with the specified ID not found.', type: HttpErrorResponseDto })
+  @ApiConflictResponse({ description: 'A user with the provided email or username already exists.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async updateInspector(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateInspectorDto: UpdateInspectorDto,
@@ -521,23 +417,9 @@ export class UsersController {
     format: 'uuid',
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'PIN generated successfully.',
-    type: GeneratePinResponseDto,
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized. Authentication token is missing or invalid.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. User does not have the necessary ADMIN role.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'Inspector with the specified ID not found.',
-  })
+  @ApiOkResponse({ description: 'PIN generated successfully.', type: GeneratePinResponseDto })
+  @ApiNotFoundResponse({ description: 'Inspector with the specified ID not found.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async generatePin(
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<GeneratePinResponseDto> {
@@ -571,19 +453,9 @@ export class UsersController {
     format: 'uuid',
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
-  @ApiResponse({ status: 204, description: 'User deleted.' })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized. Authentication token is missing or invalid.',
-  })
-  @ApiResponse({
-    status: 403,
-    description: 'Forbidden. User does not have the necessary ADMIN role.',
-  })
-  @ApiResponse({
-    status: 404,
-    description: 'User with the specified ID not found.',
-  })
+  @ApiNoContentResponse({ description: 'User deleted.' })
+  @ApiNotFoundResponse({ description: 'User with the specified ID not found.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async deleteUser(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     this.logger.warn(`Admin request: DELETE user ${id}`);
     await this.usersService.deleteUser(id);

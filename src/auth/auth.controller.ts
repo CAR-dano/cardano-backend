@@ -33,11 +33,17 @@ import { Response, Request } from 'express';
 import {
   ApiTags,
   ApiOperation,
-  ApiResponse,
+  ApiOkResponse,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
   ApiBody,
   ApiBearerAuth,
   ApiExcludeEndpoint,
+  ApiResponse,
 } from '@nestjs/swagger';
+import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
+import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard'; // Protects profile & logout
 import { LocalAuthGuard } from './guards/local-auth.guard'; // Triggers local strategy for login
 import { Role, User } from '@prisma/client'; // Import Role for interface
@@ -88,19 +94,8 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
   @ApiBody({ type: RegisterUserDto })
-  @ApiResponse({
-    status: HttpStatus.CREATED,
-    description: 'User successfully registered.',
-    type: UserResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.CONFLICT,
-    description: 'Email or Username already exists.',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid input data.',
-  })
+  @ApiCreatedResponse({ description: 'User successfully registered.', type: UserResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid input data.', type: HttpErrorResponseDto })
   async registerLocal(
     @Body() registerUserDto: RegisterUserDto,
   ): Promise<UserResponseDto> {
@@ -131,15 +126,8 @@ export class AuthController {
     summary: 'Login with local credentials (email/username + password)',
   })
   @ApiBody({ type: LoginUserDto })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Login successful, JWT returned.',
-    type: LoginResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'Invalid credentials or inactive account.',
-  })
+  @ApiOkResponse({ description: 'Login successful, JWT returned.', type: LoginResponseDto })
+  @ApiStandardErrors({ forbidden: false, notFound: false })
   async loginLocal(
     @Req() req: AuthenticatedRequest, // Request now has req.user populated by LocalAuthGuard/LocalStrategy
     // @Body() loginUserDto: LoginUserDto // Body is implicitly used by LocalStrategy, no need to inject again unless needed explicitly
@@ -189,15 +177,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login for inspectors with PIN' })
   @ApiBody({ type: LoginInspectorDto })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Login successful, JWT returned.',
-    type: LoginResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'Invalid PIN or inactive account.',
-  })
+  @ApiOkResponse({ description: 'Login successful, JWT returned.', type: LoginResponseDto })
+  @ApiStandardErrors({ forbidden: false, notFound: false })
   async loginInspector(
     @Req() req: AuthenticatedRequest,
   ): Promise<LoginResponseDto> {
@@ -242,14 +223,8 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Obtain a new access token using a refresh token' })
   @ApiBearerAuth('jwt-refresh') // Specify the auth scheme for Swagger
-  @ApiResponse({
-    status: 200,
-    description: 'New tokens generated successfully.',
-  })
-  @ApiResponse({
-    status: 401,
-    description: 'Unauthorized (Invalid or expired refresh token).',
-  })
+  @ApiOkResponse({ description: 'New tokens generated successfully.' })
+  @ApiAuthErrors()
   async refreshTokens(@Req() req: AuthenticatedRequest) {
     if (!req.user) {
       this.logger.error('JwtRefreshGuard succeeded but req.user is missing!');
@@ -331,14 +306,8 @@ export class AuthController {
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout user' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Logout successful (client should clear token).',
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'Unauthorized.',
-  })
+  @ApiOkResponse({ description: 'Logout successful (client should clear token).' })
+  @ApiAuthErrors()
   async logout(@Req() req: AuthenticatedRequest, @Res() res: Response) {
     this.logger.log(`User logged out: ${req.user?.email ?? req.user?.id}`);
 
@@ -389,15 +358,8 @@ export class AuthController {
   @UseGuards(JwtAuthGuard) // Protect with JWT
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @ApiOperation({ summary: 'Get logged-in user profile' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Returns authenticated user profile.',
-    type: UserResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'Unauthorized.',
-  })
+  @ApiOkResponse({ description: 'Returns authenticated user profile.', type: UserResponseDto })
+  @ApiAuthErrors()
   getProfile(@GetUser() user: UserResponseDto): UserResponseDto {
     // Use decorator to get user
     this.logger.log(`Profile requested for user: ${user.email ?? user.id}`);
@@ -416,14 +378,8 @@ export class AuthController {
   @UseGuards(JwtAuthGuard) // Protect with JWT
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @ApiOperation({ summary: 'Check if JWT token is valid' })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Token is valid.',
-  })
-  @ApiResponse({
-    status: HttpStatus.UNAUTHORIZED,
-    description: 'Unauthorized (token is invalid or expired).',
-  })
+  @ApiOkResponse({ description: 'Token is valid.' })
+  @ApiAuthErrors()
   checkTokenValidity(): { message: string } {
     // If the JwtAuthGuard passes, the token is valid.
     // The method body is only executed if the token is valid.

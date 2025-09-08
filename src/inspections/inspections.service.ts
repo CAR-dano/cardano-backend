@@ -43,12 +43,13 @@ import {
   InspectionNftMetadata,
 } from '../blockchain/blockchain.service';
 import { IpfsService } from '../ipfs/ipfs.service';
+import { BackblazeService } from '../common/services/backblaze.service';
 import puppeteer, { Browser } from 'puppeteer'; // Import puppeteer and Browser type
 import { ConfigService } from '@nestjs/config';
 // Define path for archived PDFs (ensure this exists or is created by deployment script/manually)
 const PDF_ARCHIVE_PATH = './pdfarchived';
-// Define public base URL for accessing archived PDFs (should come from config in real app)
-const PDF_PUBLIC_BASE_URL = process.env.PDF_PUBLIC_BASE_URL || '/pdfarchived'; // Example: /pdfarchived if served by Nginx
+// Define public base URL for accessing archived PDFs (kept for backward-compatibility; Backblaze URL is now authoritative)
+// NOTE: PDF_PUBLIC_BASE_URL is no longer used because PDFs are uploaded to Backblaze and the returned URL is used.
 
 interface NftMetadata {
   vehicleNumber: string | null;
@@ -234,6 +235,7 @@ export class InspectionsService {
     private blockchainService: BlockchainService,
     private config: ConfigService,
     private readonly ipfsService: IpfsService,
+    private readonly backblazeService: BackblazeService,
   ) {
     // Ensure the PDF archive directory exists on startup
     void this.ensureDirectoryExists(PDF_ARCHIVE_PATH);
@@ -1516,7 +1518,7 @@ export class InspectionsService {
     url: string,
     baseFileName: string,
     token: string | null,
-  ): Promise<{ pdfPublicUrl: string; pdfCid: string; pdfHashString: string }> {
+  ): Promise<{ pdfPublicUrl: string; pdfCid: string; pdfHashString: string; pdfCloudUrl: string }> {
     const queueStats = this.pdfQueue.stats;
     this.logger.log(
       `Adding PDF generation to queue for ${baseFileName}. Queue status: ${queueStats.running}/${queueStats.queueLength + queueStats.running} (running/total)`,
@@ -1542,9 +1544,30 @@ export class InspectionsService {
       );
 
       const pdfCid = await this.ipfsService.add(pdfBuffer);
-      const pdfFilePath = path.join(PDF_ARCHIVE_PATH, baseFileName);
-      await fs.writeFile(pdfFilePath, pdfBuffer);
-      this.logger.log(`PDF report saved to: ${pdfFilePath}`);
+      // Previously we saved PDFs to local disk. Now upload to Backblaze B2 instead.
+      // const pdfFilePath = path.join(PDF_ARCHIVE_PATH, baseFileName);
+      // await fs.writeFile(pdfFilePath, pdfBuffer);
+      // this.logger.log(`PDF report saved to: ${pdfFilePath}`);
+
+      // Upload buffer to Backblaze and get public URL
+      let uploadedUrl: string;
+      try {
+        uploadedUrl = await this.backblazeService.uploadPdfBuffer(
+          pdfBuffer,
+          baseFileName,
+        );
+        this.logger.log(`PDF uploaded to Backblaze: ${uploadedUrl}`);
+      } catch (uploadErr: unknown) {
+        let uploadMsg: string;
+        if (uploadErr instanceof Error) {
+          uploadMsg = uploadErr.message;
+        } else {
+          uploadMsg = 'Unknown upload error';
+        }
+        this.logger.error(`Failed to upload PDF to Backblaze: ${uploadMsg}`);
+        // Re-throw so calling flow can handle/rollback
+        throw uploadErr as Error;
+      }
 
       const hash = crypto.createHash('sha256');
       hash.update(pdfBuffer);
@@ -1553,14 +1576,16 @@ export class InspectionsService {
         `PDF hash calculated for ${baseFileName}: ${pdfHashString}`,
       );
 
-      const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${baseFileName}`;
+      // Persist proxied path so frontend can fetch via our domain and the proxy.
+      // Store the proxied route under /v1/pdfarchived to minimize path confusion.
+      const pdfPublicUrl = `/v1/pdfarchived/${baseFileName}`;
 
       const finalStats = this.pdfQueue.stats;
       this.logger.log(
         `PDF generation completed for ${baseFileName}. Queue stats: processed=${finalStats.totalProcessed}, errors=${finalStats.totalErrors}`,
       );
 
-      return { pdfPublicUrl, pdfCid, pdfHashString };
+      return { pdfPublicUrl, pdfCid, pdfHashString, pdfCloudUrl: uploadedUrl  };
     });
   }
 
@@ -1849,9 +1874,11 @@ export class InspectionsService {
         const finalUpdateData: Prisma.InspectionUpdateInput = {
           status: InspectionStatus.APPROVED, // Ensure final approved status
           urlPdf: fullPdfResult.pdfPublicUrl,
+          urlPdfCloud: fullPdfResult.pdfCloudUrl,
           pdfFileHash: fullPdfResult.pdfHashString,
           ipfsPdf: `ipfs://${fullPdfResult.pdfCid}`,
           urlPdfNoDocs: noDocsPdfResult.pdfPublicUrl,
+          urlPdfNoDocsCloud: noDocsPdfResult.pdfCloudUrl,
           pdfFileHashNoDocs: noDocsPdfResult.pdfHashString,
           ipfsPdfNoDocs: `ipfs://${noDocsPdfResult.pdfCid}`,
         };

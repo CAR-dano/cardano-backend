@@ -12,12 +12,8 @@
  */
 
 import { Controller, Get, UseGuards, Query, Body } from '@nestjs/common';
-import {
-  ApiBearerAuth,
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-} from '@nestjs/swagger'; // Optional for Swagger documentation
+import { ApiBearerAuth, ApiTags, ApiOperation, ApiOkResponse, ApiBadRequestResponse } from '@nestjs/swagger'; // Optional for Swagger documentation
+import { ApiAuthErrors } from '../common/decorators/api-standard-errors.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Assuming you have a JWT guard
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -29,6 +25,7 @@ import { BranchDistributionResponseDto } from './dto/branch-distribution-respons
 import { InspectorPerformanceResponseDto } from './dto/inspector-performance-response.dto';
 import { Role } from '@prisma/client';
 import { SkipThrottle } from '@nestjs/throttler';
+import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 
 @ApiTags('Dashboard Admin') // For Swagger
 @ApiBearerAuth() // For Swagger, indicates endpoint requires a token
@@ -48,13 +45,9 @@ export class DashboardController {
   @Get('main-stats')
   @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Get main order statistics' })
-  @ApiResponse({
-    status: 200,
-    description: 'Main order statistics successfully retrieved.',
-    type: MainStatsResponseDto,
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiOkResponse({ description: 'Main order statistics successfully retrieved.', type: MainStatsResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid query parameters.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async getMainStats(@Query() query: GetDashboardStatsDto) {
     return this.dashboardService.getMainCounter(query);
   }
@@ -69,13 +62,9 @@ export class DashboardController {
   @Get('order-trend')
   @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Get order trend data' })
-  @ApiResponse({
-    status: 200,
-    description: 'Order trend data successfully retrieved.',
-    type: OrderTrendResponseDto,
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiOkResponse({ description: 'Order trend data successfully retrieved.', type: OrderTrendResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid query parameters.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   getOrderTrend(@Query() query: GetDashboardStatsDto) {
     return this.dashboardService.getOrderTrend(query);
   }
@@ -92,13 +81,9 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Get order distribution by branch',
   })
-  @ApiResponse({
-    status: 200,
-    description: 'Order distribution by branch successfully retrieved.',
-    type: BranchDistributionResponseDto,
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiOkResponse({ description: 'Order distribution by branch successfully retrieved.', type: BranchDistributionResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid query parameters.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async getBranchDistribution(@Query() query: GetDashboardStatsDto) {
     return this.dashboardService.getBranchDistribution(query);
   }
@@ -113,13 +98,9 @@ export class DashboardController {
   @Get('inspector-performance')
   @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Get inspector performance' })
-  @ApiResponse({
-    status: 200,
-    description: 'Inspector performance successfully retrieved.',
-    type: InspectorPerformanceResponseDto,
-  })
-  @ApiResponse({ status: 401, description: 'Unauthorized.' })
-  @ApiResponse({ status: 403, description: 'Forbidden.' })
+  @ApiOkResponse({ description: 'Inspector performance successfully retrieved.', type: InspectorPerformanceResponseDto })
+  @ApiBadRequestResponse({ description: 'Invalid query parameters.', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
   async getInspectorPerformance(@Query() query: GetDashboardStatsDto) {
     return this.dashboardService.getInspectorPerformance(query);
   }

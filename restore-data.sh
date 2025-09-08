@@ -21,6 +21,11 @@ if [ ! -d "$BACKUP_DIR" ]; then
     exit 1
 fi
 
+if ! command -v unzip >/dev/null 2>&1; then
+    echo "❌ 'unzip' command not found. Please install unzip (e.g., apt-get install -y unzip) and retry."
+    exit 1
+fi
+
 echo "🛡️  Starting data restore from: $BACKUP_DIR"
 echo ""
 
@@ -53,17 +58,40 @@ if [ -f "$BACKUP_DIR/.env.backup" ]; then
     echo "✅ .env restored"
 fi
 
-# Restore uploads
-if [ -d "$BACKUP_DIR/uploads" ]; then
-    echo "📁 Restoring uploads directory..."
+# Restore uploads/inspection-photos (prefer zip if available)
+if [ -f "$BACKUP_DIR/inspection-photos.zip" ]; then
+    echo "📁 Restoring uploads/inspection-photos from zip..."
+    rm -rf uploads/inspection-photos 2>/dev/null || true
+    mkdir -p uploads
+    (cd "$BACKUP_DIR" && unzip -oq "inspection-photos.zip")
+    # Zip was created with path 'uploads/inspection-photos', so extraction at root of repo is expected
+    # If extracted into BACKUP_DIR by unzip, move accordingly (handle both cases)
+    if [ -d "$BACKUP_DIR/uploads/inspection-photos" ]; then
+        mkdir -p uploads
+        rm -rf uploads/inspection-photos 2>/dev/null || true
+        mv "$BACKUP_DIR/uploads/inspection-photos" "uploads/" 2>/dev/null || true
+        rmdir "$BACKUP_DIR/uploads" 2>/dev/null || true
+    fi
+    echo "✅ uploads/inspection-photos restored"
+elif [ -d "$BACKUP_DIR/uploads" ]; then
+    echo "📁 Restoring uploads directory (legacy backup)..."
     rm -rf uploads 2>/dev/null || true
     cp -r "$BACKUP_DIR/uploads" ./
     echo "✅ Uploads directory restored"
 fi
 
-# Restore PDF archives
-if [ -d "$BACKUP_DIR/pdfarchived" ]; then
-    echo "📄 Restoring PDF archives..."
+# Restore PDF archives (prefer zip if available)
+if [ -f "$BACKUP_DIR/pdfarchived.zip" ]; then
+    echo "📄 Restoring pdfarchived from zip..."
+    rm -rf pdfarchived 2>/dev/null || true
+    (cd "$BACKUP_DIR" && unzip -oq "pdfarchived.zip")
+    if [ -d "$BACKUP_DIR/pdfarchived" ]; then
+        rm -rf pdfarchived 2>/dev/null || true
+        mv "$BACKUP_DIR/pdfarchived" ./ 2>/dev/null || true
+    fi
+    echo "✅ PDF archives restored"
+elif [ -d "$BACKUP_DIR/pdfarchived" ]; then
+    echo "📄 Restoring PDF archives (legacy backup)..."
     rm -rf pdfarchived 2>/dev/null || true
     cp -r "$BACKUP_DIR/pdfarchived" ./
     echo "✅ PDF archives restored"
@@ -75,6 +103,10 @@ docker compose up -d postgres
 sleep 10
 
 # Restore database
+if [ -f "$BACKUP_DIR/sql.zip" ] && [ ! -f "$BACKUP_DIR/database.sql" ]; then
+    echo "💾 Extracting database dump from sql.zip..."
+    (cd "$BACKUP_DIR" && unzip -oq "sql.zip")
+fi
 if [ -f "$BACKUP_DIR/database.sql" ]; then
     echo "💾 Restoring database..."
     POSTGRES_USER=$(grep POSTGRES_USER .env | cut -d= -f2 2>/dev/null || echo "cardano_user")

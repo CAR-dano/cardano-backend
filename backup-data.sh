@@ -1,11 +1,15 @@
 #!/bin/bash
 
 # Data Backup Script
-# Usage: ./backup-data.sh [environment]
+# Usage:
+#   ./backup-data.sh [environment] [mode]
+#     environment: development|staging|production (default: development)
+#     mode: full|sql-only (default: full)
 
 set -e
 
 ENVIRONMENT=${1:-"development"}
+MODE=${2:-"full"}
 BACKUP_DIR="./backups/$(date +%Y%m%d_%H%M%S)_${ENVIRONMENT}"
 
 echo "🛡️  Starting data backup for: $ENVIRONMENT"
@@ -13,41 +17,62 @@ echo "🛡️  Starting data backup for: $ENVIRONMENT"
 # Create backup directory
 mkdir -p "$BACKUP_DIR"
 
-# Backup .env file
-if [ -f ".env" ]; then
-    echo "📋 Backing up .env file..."
-    cp .env "$BACKUP_DIR/.env.backup"
-    echo "✅ .env backed up"
-else
-    echo "⚠️  No .env file found to backup"
+# Ensure zip is available
+if ! command -v zip >/dev/null 2>&1; then
+    echo "❌ 'zip' command not found. Please install zip (e.g., apt-get install -y zip) and retry."
+    exit 1
 fi
 
-# Backup database
+# Backup .env file (skip if sql-only)
+if [ "$MODE" != "sql-only" ]; then
+  if [ -f ".env" ]; then
+      echo "📋 Backing up .env file..."
+      cp .env "$BACKUP_DIR/.env.backup"
+      echo "✅ .env backed up"
+  else
+      echo "⚠️  No .env file found to backup"
+  fi
+else
+  echo "⏭️  Skipping .env backup (sql-only mode)"
+fi
+
+# Backup database (dump + zip)
 echo "💾 Backing up database..."
 if docker compose ps postgres | grep -q "Up" 2>/dev/null; then
     POSTGRES_USER=$(grep POSTGRES_USER .env | cut -d= -f2 2>/dev/null || echo "cardano_user")
-    docker compose exec -T postgres pg_dumpall -U ${POSTGRES_USER} > "$BACKUP_DIR/database.sql"
-    echo "✅ Database backed up to: $BACKUP_DIR/database.sql"
+    DUMP_PATH="$BACKUP_DIR/database.sql"
+    docker compose exec -T postgres pg_dumpall -U ${POSTGRES_USER} > "$DUMP_PATH"
+    (cd "$BACKUP_DIR" && zip -q -9 "sql.zip" "$(basename "$DUMP_PATH")")
+    rm -f "$DUMP_PATH"
+    echo "✅ Database backed up to zip: $BACKUP_DIR/sql.zip"
 else
     echo "⚠️  Database not running, skipping database backup"
 fi
 
-# Backup uploads directory
-if [ -d "uploads" ]; then
-    echo "📁 Backing up uploads directory..."
-    cp -r uploads "$BACKUP_DIR/uploads"
-    echo "✅ Uploads directory backed up"
+# Backup uploads/inspection-photos as zip (skip if sql-only)
+if [ "$MODE" != "sql-only" ]; then
+  if [ -d "uploads/inspection-photos" ]; then
+      echo "📸 Backing up uploads/inspection-photos..."
+      zip -q -9 -r "$BACKUP_DIR/inspection-photos.zip" "uploads/inspection-photos"
+      echo "✅ inspection-photos zipped to: $BACKUP_DIR/inspection-photos.zip"
+  else
+      echo "⚠️  uploads/inspection-photos not found"
+  fi
 else
-    echo "⚠️  No uploads directory found"
+  echo "⏭️  Skipping uploads backup (sql-only mode)"
 fi
 
-# Backup PDF archives
-if [ -d "pdfarchived" ]; then
-    echo "📄 Backing up PDF archives..."
-    cp -r pdfarchived "$BACKUP_DIR/pdfarchived"
-    echo "✅ PDF archives backed up"
+# Backup PDF archives as zip (skip if sql-only)
+if [ "$MODE" != "sql-only" ]; then
+  if [ -d "pdfarchived" ]; then
+      echo "📄 Backing up pdfarchived directory..."
+      zip -q -9 -r "$BACKUP_DIR/pdfarchived.zip" "pdfarchived"
+      echo "✅ pdfarchived zipped to: $BACKUP_DIR/pdfarchived.zip"
+  else
+      echo "⚠️  No pdfarchived directory found"
+  fi
 else
-    echo "⚠️  No pdfarchived directory found"
+  echo "⏭️  Skipping pdfarchived backup (sql-only mode)"
 fi
 
 # Create backup manifest
@@ -61,18 +86,18 @@ Hostname: $(hostname)
 User: $(whoami)
 
 Contents:
-- .env.backup (if existed)
-- database.sql (PostgreSQL dump)
-- uploads/ directory
-- pdfarchived/ directory
+$( [ "$MODE" != "sql-only" ] && echo "- .env.backup (if existed)" )
+- sql.zip (contains database.sql)
+$( [ "$MODE" != "sql-only" ] && echo "- inspection-photos.zip (contains uploads/inspection-photos)" )
+$( [ "$MODE" != "sql-only" ] && echo "- pdfarchived.zip (contains pdfarchived)" )
 
 Restore Instructions:
 1. Stop application: docker compose down
-2. Restore database: docker compose exec -T postgres psql -U \$POSTGRES_USER < database.sql
-3. Copy uploads: cp -r uploads/ ./
-4. Copy pdfarchived: cp -r pdfarchived/ ./
-5. Copy .env: cp .env.backup .env
-6. Start application: docker compose up -d
+2. Unzip archives at repo root: unzip sql.zip$( [ "$MODE" != "sql-only" ] && echo "; unzip inspection-photos.zip; unzip pdfarchived.zip" )
+3. Restore database: docker compose exec -T postgres psql -U \$POSTGRES_USER < database.sql
+$( [ "$MODE" != "sql-only" ] && echo "4. Ensure uploads exist: mkdir -p uploads; (unzipping should recreate uploads/inspection-photos)" )
+$( [ "$MODE" != "sql-only" ] && echo "5. Copy .env: cp .env.backup .env" )
+$( [ "$MODE" != "sql-only" ] && echo "6." || echo "4.") Start application: docker compose up -d
 EOF
 
 echo ""

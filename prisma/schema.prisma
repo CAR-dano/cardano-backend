@@ -44,6 +44,21 @@ enum InspectionStatus {
   DEACTIVATED  // Status for inspections that are soft-deleted or hidden from public view upon request.
 }
 
+// Paid report purchase lifecycle
+enum PurchaseStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+// Payment gateways (can be expanded)
+enum PaymentGateway {
+  XENDIT
+  MIDTRANS
+}
+
 // Defines the User model, representing users in the system.
 model User {
   id            String    @id // Primary Key: Automatically generated.
@@ -61,12 +76,20 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
+  // --- Paid Reports fields ---
+  credits     Int       @default(0)   // user credit balance
+  creditExpAt DateTime?               // optional: promotional credit expiry
+
   // Relations defined here indicate this User can be linked from the Inspection model
   // The actual foreign keys are defined in the Inspection model.
   inspectionsSubmitted Inspection[] @relation("InspectedBy") // Inspections submitted by this user
   inspectionsReviewed  Inspection[] @relation("ReviewedBy")  // Inspections reviewed by this user
 
   inspectionChangeLogs InspectionChangeLog[] // Relation to InspectionChangeLog records created by this user
+
+  // Paid reports relations
+  purchases         Purchase[]
+  creditConsumptions CreditConsumption[]
 
   inspectionBranchCityId String?               @map("inspection_branch_city_id")
   inspectionBranchCity   InspectionBranchCity? @relation(fields: [inspectionBranchCityId], references: [id], onDelete: SetNull, onUpdate: Cascade)
@@ -140,6 +163,8 @@ model Inspection {
   urlPdfNoDocs       String?        @map("url_pdf_no_docs") @db.VarChar(255)
   ipfsPdfNoDocs      String?        @map("ipfs_pdf_no_docs") @db.VarChar(255)
   pdfFileHashNoDocs  String?        @map("pdf_file_hash_no_docs") @db.VarChar(255)
+  urlPdfCloud        String?        @map("url_pdf_cloud") @db.VarChar(255) // URL PDF full di cloud (Backblaze)
+  urlPdfNoDocsCloud  String?        @map("url_pdf_no_docs_cloud") @db.VarChar(255)// URL PDF non confidential di cloud (Backblaze)
 
   // --- Timestamps ---
   // Automatically set when the record is created.
@@ -154,6 +179,9 @@ model Inspection {
   // --- Additional Fields ---
   // Map of note field paths to their desired font sizes in the report.
   notesFontSizes Json? @default("{}") @map("notes_font_sizes")
+
+  // Paid reports relations
+  creditConsumptions CreditConsumption[]
 
   // --- Database Indexes ---
   // Creates indexes on foreign keys and commonly queried fields for performance.
@@ -257,4 +285,57 @@ model InspectionTarget {
 
   @@unique([period, targetDate]) // Ensure only one target per period per day/week/month
   @@map("inspection_targets")
+}
+
+// ----------------------
+// Paid Reports models
+// ----------------------
+
+model CreditPackage {
+  id          String   @id @default(cuid())
+  credits     Int
+  price       Int      // net price (rupiah)
+  discountPct Int      // 0..100
+  benefits    Json?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  purchases   Purchase[]
+
+  @@map("credit_packages")
+  @@index([isActive])
+}
+
+model Purchase {
+  id            String          @id @default(cuid())
+  userId        String
+  packageId     String
+  gateway       PaymentGateway
+  extInvoiceId  String          @unique // invoice ID from gateway
+  amount        Int
+  status        PurchaseStatus  @default(PENDING)
+  createdAt     DateTime        @default(now())
+  paidAt        DateTime?
+
+  user          User            @relation(fields: [userId], references: [id])
+  creditPackage CreditPackage   @relation(fields: [packageId], references: [id])
+
+  @@map("purchases")
+  @@index([userId, status, createdAt])
+}
+
+model CreditConsumption {
+  id           String     @id @default(cuid())
+  userId       String
+  inspectionId String
+  cost         Int        @default(1)
+  usedAt       DateTime   @default(now())
+  uniqueKey    String     @unique // `${userId}:${inspectionId}`
+
+  user         User       @relation(fields: [userId], references: [id])
+  inspection   Inspection @relation(fields: [inspectionId], references: [id])
+
+  @@map("credit_consumptions")
+  @@index([userId, inspectionId])
 }

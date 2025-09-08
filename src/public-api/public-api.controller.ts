@@ -25,7 +25,9 @@ import {
 } from '@nestjs/common';
 
 // Swagger documentation modules
-import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiParam, ApiResponse, ApiTags, ApiOkResponse, ApiBadRequestResponse, ApiNotFoundResponse, ApiInternalServerErrorResponse } from '@nestjs/swagger';
+import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
+import { ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 
 // Services
 import { UsersService } from '../users/users.service';
@@ -41,6 +43,10 @@ import { InspectionChangeLogResponseDto } from 'src/inspection-change-log/dto/in
 // Prisma types
 import { InspectionChangeLog } from '@prisma/client';
 import { SkipThrottle } from '@nestjs/throttler';
+import { PrismaService } from '../prisma/prisma.service';
+import { BackblazeService } from '../common/services/backblaze.service';
+import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
 
 /**
  * @class PublicApiController
@@ -64,9 +70,111 @@ export class PublicApiController {
     private readonly usersService: UsersService,
     private readonly inspectionsService: InspectionsService,
     private readonly publicApiService: PublicApiService,
+    private readonly prisma: PrismaService,
+    private readonly backblaze: BackblazeService,
+    private readonly config: ConfigService,
   ) {
     // Log controller initialization
     this.logger.log('PublicApiController initialized');
+  }
+
+  /**
+   * Health check endpoint for public consumers.
+   * Returns overall status and component checks (app, db, storage, webhook).
+   */
+  @Get('health')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Health status (Public)',
+    description:
+      'Returns status of application and dependencies: app uptime, database ping, object storage reachability, and optional payment webhook reachability with signature dry-run.',
+  })
+  @ApiOkResponse({ description: 'Health status' })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false })
+  async getHealth() {
+    const startedAt = Date.now();
+    const nowIso = new Date().toISOString();
+
+    // DB ping
+    const dbCheck = await (async () => {
+      const started = Date.now();
+      try {
+        // Simple ping via SELECT 1
+        const res: any = await this.prisma.$queryRaw`SELECT 1 as ok`;
+        const ok = Array.isArray(res) && res.length > 0;
+        return { ok, latencyMs: Date.now() - started };
+      } catch (err: any) {
+        this.logger.error(`Health DB check failed: ${err?.message ?? err}`);
+        return { ok: false, latencyMs: Date.now() - started, error: String(err?.message ?? err) };
+      }
+    })();
+
+    // Object storage head
+    const storageCheck = await (async () => {
+      const started = Date.now();
+      const res = await this.backblaze.headBucket().catch((err) => ({ ok: false, error: String(err) }));
+      return { ...res, latencyMs: Date.now() - started };
+    })();
+
+    // Payment webhook reachability + signature dry-run (optional)
+    const webhookCheck = await (async () => {
+      const url = this.config.get<string>('PAYMENT_WEBHOOK_URL');
+      const secret = this.config.get<string>('PAYMENT_WEBHOOK_SECRET');
+      if (!url) {
+        return { configured: false, ok: false, reason: 'PAYMENT_WEBHOOK_URL not set' };
+      }
+      const headers: Record<string, string> = { 'X-Health-Check': 'true' };
+      let dryRunSignature: string | undefined;
+      if (secret) {
+        // Generic HMAC SHA256 over a stable payload
+        const payload = 'health-check';
+        dryRunSignature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
+        headers['X-Signature'] = dryRunSignature;
+      }
+      // HEAD reachability with timeout
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      try {
+        const resp = await fetch(url, { method: 'HEAD', headers, signal: controller.signal as any });
+        clearTimeout(timeout);
+        return {
+          configured: true,
+          ok: resp.status < 400,
+          statusCode: resp.status,
+          signatureDryRun: Boolean(secret),
+          dryRunSignature,
+        };
+      } catch (err: any) {
+        clearTimeout(timeout);
+        this.logger.warn(`Health webhook HEAD failed: ${String(err?.message ?? err)}`);
+        return {
+          configured: true,
+          ok: false,
+          error: String(err?.message ?? err),
+          signatureDryRun: Boolean(secret),
+          dryRunSignature,
+        };
+      }
+    })();
+
+    // Overall status: ok only if all mandatory checks pass
+    const mandatoryOk = dbCheck.ok && storageCheck.ok !== false; // treat undefined as ok if service not configured
+    const overall = mandatoryOk ? 'ok' : 'degraded';
+
+    return {
+      status: overall,
+      components: {
+        app: {
+          ok: true,
+          timestamp: nowIso,
+          uptimeSec: Math.round(process.uptime()),
+          latencyMs: Date.now() - startedAt,
+        },
+        database: dbCheck,
+        storage: storageCheck,
+        paymentWebhook: webhookCheck,
+      },
+    };
   }
 
   /**
@@ -81,23 +189,8 @@ export class PublicApiController {
     description:
       'Fetches a list of all user accounts specifically designated as inspectors. This endpoint is publicly accessible.',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'List of inspector users.',
-    type: [UserResponseDto],
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Bad Request.',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Not Found.',
-  })
-  @ApiResponse({
-    status: HttpStatus.INTERNAL_SERVER_ERROR,
-    description: 'Internal Server Error.',
-  })
+  @ApiOkResponse({ description: 'List of inspector users.', type: [UserResponseDto] })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async findAllInspectors(): Promise<UserResponseDto[]> {
     // Log the incoming public request
     this.logger.log(`Public request: findAllInspectors users`);
@@ -123,23 +216,8 @@ export class PublicApiController {
     description:
       'Retrieves the 5 most recent inspections with status ARCHIVED, including one photo with the label "Front View", vehicle plate number, vehicle brand, and vehicle type.',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Array of the latest archived inspection summaries.',
-    type: [LatestArchivedInspectionResponseDto],
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Bad Request.',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Not Found.',
-  })
-  @ApiResponse({
-    status: HttpStatus.INTERNAL_SERVER_ERROR,
-    description: 'Internal Server Error (e.g., database error).',
-  })
+  @ApiOkResponse({ description: 'Array of the latest archived inspection summaries.', type: [LatestArchivedInspectionResponseDto] })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async getLatestArchivedInspections(): Promise<
     LatestArchivedInspectionResponseDto[]
   > {
@@ -187,23 +265,8 @@ export class PublicApiController {
     format: 'uuid',
     description: 'The UUID of the inspection to retrieve.',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'The inspection record summary.',
-    type: InspectionResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Bad Request.',
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Inspection not found.',
-  })
-  @ApiResponse({
-    status: HttpStatus.INTERNAL_SERVER_ERROR,
-    description: 'Internal Server Error.',
-  })
+  @ApiOkResponse({ description: 'The inspection record summary.', type: InspectionResponseDto })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async findOne(@Param('id') id: string): Promise<InspectionResponseDto> {
     // Retrieve the inspection using the PublicApiService
     const inspection = await this.publicApiService.findOne(id);
@@ -230,15 +293,8 @@ export class PublicApiController {
     format: 'uuid',
     description: 'The UUID of the inspection to retrieve.',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'The inspection record summary without sensitive documents.',
-    type: InspectionResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Inspection not found.',
-  })
+  @ApiOkResponse({ description: 'The inspection record summary without sensitive documents.', type: InspectionResponseDto })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async findOneWithoutDocuments(
     @Param('id') id: string,
   ): Promise<InspectionResponseDto> {
@@ -266,23 +322,8 @@ export class PublicApiController {
     type: String,
     description: 'The ID of the inspection',
   })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Successfully retrieved inspection change log.',
-    type: [InspectionChangeLogResponseDto],
-  })
-  @ApiResponse({
-    status: HttpStatus.NOT_FOUND,
-    description: 'Inspection not found.',
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Bad Request.',
-  })
-  @ApiResponse({
-    status: HttpStatus.INTERNAL_SERVER_ERROR,
-    description: 'Internal Server Error.',
-  })
+  @ApiOkResponse({ description: 'Successfully retrieved inspection change log.', type: [InspectionChangeLogResponseDto] })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async findChangesByInspectionId(
     @Param('id') inspectionId: string,
   ): Promise<InspectionChangeLog[]> {

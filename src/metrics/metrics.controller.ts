@@ -1,5 +1,6 @@
 import { Controller, Get, Header } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiOkResponse } from '@nestjs/swagger';
+import { ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 import { MetricsService } from './metrics.service';
 
 @ApiTags('Metrics')
@@ -10,10 +11,8 @@ export class MetricsController {
   @Get()
   @Header('Content-Type', 'text/plain')
   @ApiOperation({ summary: 'Get Prometheus metrics' })
-  @ApiResponse({
-    status: 200,
-    description: 'Prometheus metrics in text format',
-  })
+  @ApiOkResponse({ description: 'Prometheus metrics in text format' })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async getMetrics(): Promise<string> {
     return await this.metricsService.getMetrics();
   }

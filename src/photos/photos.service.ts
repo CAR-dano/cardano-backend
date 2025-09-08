@@ -31,13 +31,127 @@ import * as path from 'path';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { PhotoMetadataDto } from './dto/photo-metadata.dto';
+import { BackblazeService } from '../common/services/backblaze.service';
 const UPLOAD_PATH = './uploads/inspection-photos'; // Define consistently
+const LEGACY_UPLOAD_PATH = './uploads/inspection-photo'; // legacy disk folder
 
 @Injectable()
 export class PhotosService {
   private readonly logger = new Logger(PhotosService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly backblaze: BackblazeService,
+  ) {}
+
+  private getMimeFromFilename(name: string, fallback = 'application/octet-stream'): string {
+    const ext = path.extname(name).toLowerCase();
+    switch (ext) {
+      case '.jpg':
+      case '.jpeg':
+        return 'image/jpeg';
+      case '.png':
+        return 'image/png';
+      case '.webp':
+        return 'image/webp';
+      case '.gif':
+        return 'image/gif';
+      default:
+        return fallback;
+    }
+  }
+
+  private generateSafeUniqueName(originalname: string): string {
+    const extension = path.extname(originalname) || '';
+    const base = path.basename(originalname, extension);
+    const safeBase = base.replace(/[^a-z0-9]/gi, '-').toLowerCase() || 'photo';
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
+    return `${safeBase}-${uniqueSuffix}${extension}`;
+  }
+
+  // Map various labels into canonical Indonesian categories
+  private mapCategoryToIndonesian(input?: string | null): string {
+    if (!input) return 'General Wajib';
+    const s = String(input).trim();
+    const lower = s.toLowerCase();
+
+    // If already in our canonical Indonesian set, return as-is (normalize spacing/case later if needed)
+    const canonicalSet = [
+      'Eksterior Tambahan',
+      'Interior Tambahan',
+      'General Wajib',
+      'Mesin Tambahan',
+      'Kaki-kaki Tambahan',
+      'Alat-alat Tambahan',
+      'Foto Dokumen',
+    ];
+    if (canonicalSet.map((c) => c.toLowerCase()).includes(lower)) {
+      // Return properly cased canonical value
+      return canonicalSet.find((c) => c.toLowerCase() === lower) as string;
+    }
+
+    // Normalize common variations and English labels to Indonesian canonical values
+    const normalized = lower.replace(/\s+/g, ' ').trim();
+
+    if (/(^|\b)(eksterior|exterior)(\b|$)/.test(normalized)) return 'Eksterior Tambahan';
+    if (/(^|\b)(interior)(\b|$)/.test(normalized)) return 'Interior Tambahan';
+    if (/(^|\b)(mesin|engine)(\b|$)/.test(normalized)) return 'Mesin Tambahan';
+    if (/(kaki|chassis|sasis|suspensi)/.test(normalized)) return 'Kaki-kaki Tambahan';
+    if (/(alat|tools|tool)/.test(normalized)) return 'Alat-alat Tambahan';
+    if (/(dokumen|document|documents|stnk|bpkb)/.test(normalized)) return 'Foto Dokumen';
+    if (/(wajib|general)/.test(normalized)) return 'General Wajib';
+    return 'General Wajib';
+  }
+
+  // Map category to a path-safe slug (lowercase, no spaces)
+  private mapCategoryToPathSlug(input?: string | null): string {
+    if (!input) return 'general';
+    const s = String(input).trim().toLowerCase();
+    // accept canonical slugs directly
+    if (
+      [
+        'exterior',
+        'interior',
+        'engine',
+        'chassis',
+        'tools',
+        'documents',
+        'document',
+        'general',
+      ].includes(s)
+    ) {
+      return s === 'document' ? 'documents' : s;
+    }
+    // Map Indonesian phrases to slug
+    const normalized = s.replace(/\s+/g, ' ').trim();
+    if (/(^|\b)(eksterior)(\b|$)/.test(normalized)) return 'exterior';
+    if (/(^|\b)(interior)(\b|$)/.test(normalized)) return 'interior';
+    if (/(^|\b)(mesin)(\b|$)/.test(normalized)) return 'engine';
+    if (/(kaki|sasis|suspensi)/.test(normalized)) return 'chassis';
+    if (/(alat)/.test(normalized)) return 'tools';
+    if (/(dokumen|stnk|bpkb)/.test(normalized)) return 'documents';
+    if (/(wajib|general)/.test(normalized)) return 'general';
+    return 'general';
+  }
+
+  private buildRelativeKey(
+    inspectionId: string,
+    category: string,
+    filename: string,
+  ): string {
+    const safeInspectionId = String(inspectionId).replace(/[^a-zA-Z0-9_-]/g, '');
+    const safeCategory = this.mapCategoryToPathSlug(category);
+    return `${safeInspectionId}/${safeCategory}/${filename}`;
+  }
+
+  private async uploadBufferToCloud(
+    buffer: Buffer,
+    filename: string,
+    mimetype?: string,
+  ): Promise<void> {
+    const ct = mimetype || this.getMimeFromFilename(filename);
+    await this.backblaze.uploadImageBuffer(buffer, filename, ct);
+  }
 
   /**
    * Ensures that an inspection with the given ID exists in the database.
@@ -87,14 +201,29 @@ export class PhotosService {
     const isMandatory = dto.isMandatory === 'true';
 
     try {
+      if (!file || !file.buffer) {
+        throw new BadRequestException('Photo file buffer is missing');
+      }
+      const generatedName = this.generateSafeUniqueName(file.originalname);
+      const mappedCategory = this.mapCategoryToIndonesian(dto.category);
+      const relativeKey = this.buildRelativeKey(
+        inspectionId,
+        mappedCategory,
+        generatedName,
+      );
+      await this.uploadBufferToCloud(
+        file.buffer,
+        relativeKey,
+        file.mimetype,
+      );
       return await this.prisma.photo.create({
         data: {
           inspection: { connect: { id: inspectionId } },
-          path: file.filename,
+          path: relativeKey,
           // eslint-disable-next-line prettier/prettier
           label:
             dto.label === '' || dto.label === undefined ? undefined : dto.label,
-          category: dto.category, // Add category
+          category: mappedCategory, // normalized category (Indonesian)
           isMandatory: isMandatory, // Add isMandatory
           originalLabel: null,
           needAttention: needAttention,
@@ -212,10 +341,22 @@ export class PhotosService {
 
       // 4. Handle File Replacement
       if (newPhotoFile) {
+        if (!newPhotoFile.buffer) {
+          throw new BadRequestException('New photo file buffer is missing');
+        }
+        const newName = this.generateSafeUniqueName(newPhotoFile.originalname);
         this.logger.verbose(
-          `New file provided: ${newPhotoFile.filename}. Replacing old file: ${existingPhoto.path}`,
+          `New file provided. Uploading '${newName}' to replace old file: ${existingPhoto.path}`,
         );
-        dataToUpdate.path = newPhotoFile.filename; // Set the new path in the update data
+        // keep the same directory (inspectionId/category) as existing path
+        const dir = path.posix.dirname(existingPhoto.path);
+        const newRelative = dir === '.' ? newName : `${dir}/${newName}`;
+        await this.uploadBufferToCloud(
+          newPhotoFile.buffer,
+          newRelative,
+          newPhotoFile.mimetype,
+        );
+        dataToUpdate.path = newRelative; // Set the new path in the update data
         oldFilePath = existingPhoto.path; // Mark the old file path for deletion AFTER DB update
       }
 
@@ -243,20 +384,23 @@ export class PhotosService {
 
       // 7. Delete Old File (AFTER successful DB update)
       if (oldFilePath) {
-        const fullOldPath = path.join(UPLOAD_PATH, oldFilePath);
-        this.logger.log(`Attempting to delete old file: ${fullOldPath}`);
+        // Try deleting old local file (legacy) if exists; ignore errors
         try {
+          const fullOldPath = path.join(UPLOAD_PATH, oldFilePath);
           await fs.unlink(fullOldPath);
-          this.logger.log(`Successfully deleted old file: ${fullOldPath}`);
-        } catch (fileError: unknown) {
-          // Log the error, but don't fail the overall operation since DB is updated
-          const errorStack =
-            fileError instanceof Error ? fileError.stack : undefined;
-          this.logger.error(
-            `Failed to delete old photo file ${fullOldPath} after updating record ${photoId}`,
-            errorStack,
+        } catch (_) {}
+        // Try delete old cloud object as well
+        try {
+          await this.backblaze.deleteFile(
+            `uploads/inspection-photos/${oldFilePath}`,
           );
-          // TODO: Consider adding a mechanism to retry deletion or flag orphaned files
+          this.logger.log(
+            `Deleted old cloud object: uploads/inspection-photos/${oldFilePath}`,
+          );
+        } catch (cloudErr) {
+          this.logger.warn(
+            `Failed to delete old cloud object '${oldFilePath}': ${cloudErr instanceof Error ? cloudErr.message : String(cloudErr)}`,
+          );
         }
       }
 
@@ -312,20 +456,22 @@ export class PhotosService {
         where: { id: photoId },
       });
 
-      // --- Delete file from local storage ---
-      // IMPORTANT: Only do this if using local diskStorage. Skip if using S3 etc.
-      // Consider error handling here (what if DB delete works but file delete fails?)
-      const filePath = path.join(UPLOAD_PATH, photo.path); // Assuming UPLOAD_PATH is defined globally/imported
+      // Try delete legacy local copy, if any; ignore errors
       try {
+        const filePath = path.join(UPLOAD_PATH, photo.path);
         await fs.unlink(filePath);
-        this.logger.log(`Successfully deleted photo file: ${filePath}`);
-      } catch (fileError: unknown) {
-        // Log the error but maybe don't fail the whole operation if DB record deleted?
-        const errorStack =
-          fileError instanceof Error ? fileError.stack : undefined;
-        this.logger.error(
-          `Failed to delete photo file ${filePath} after deleting DB record ${photoId}`,
-          errorStack,
+      } catch (_) {}
+      // Also try to delete from Backblaze
+      try {
+        await this.backblaze.deleteFile(
+          `uploads/inspection-photos/${photo.path}`,
+        );
+        this.logger.log(
+          `Successfully deleted cloud object: uploads/inspection-photos/${photo.path}`,
+        );
+      } catch (cloudErr: unknown) {
+        this.logger.warn(
+          `Failed to delete cloud object for ${photo.path}: ${cloudErr instanceof Error ? cloudErr.message : String(cloudErr)}`,
         );
       }
       // --- End File Deletion ---
@@ -424,19 +570,34 @@ export class PhotosService {
 
     await this.ensureInspectionExists(inspectionId); // Ensure inspection exists
 
-    // Prepare data for batch creation
+    // Upload to cloud and prepare data for batch creation
+    const relativeKeys: string[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file || !file.buffer) {
+        throw new BadRequestException('One of the photo file buffers is missing');
+      }
+      const name = this.generateSafeUniqueName(file.originalname);
+      const meta = parsedMetadata[i] ?? {};
+      const mappedCategory = this.mapCategoryToIndonesian(meta.category);
+      const relativeKey = this.buildRelativeKey(inspectionId, mappedCategory, name);
+      await this.uploadBufferToCloud(file.buffer, relativeKey, file.mimetype);
+      relativeKeys.push(relativeKey);
+    }
+
     const photosToCreate: Prisma.PhotoCreateManyInput[] = files.map(
       (file, index) => {
-        const meta = parsedMetadata[index];
+        const meta = parsedMetadata[index] ?? {};
+        const mappedCategory = this.mapCategoryToIndonesian(meta.category);
         return {
-          inspectionId: inspectionId, // Link each photo to the inspection
-          path: file.filename,
+          inspectionId: inspectionId,
+          path: relativeKeys[index],
           label:
             meta.label === '' || meta.label === undefined
               ? undefined
               : meta.label,
-          category: meta.category, // Add category
-          isMandatory: meta.isMandatory ?? false, // Add isMandatory
+          category: mappedCategory,
+          isMandatory: meta.isMandatory ?? false,
           originalLabel: null,
           needAttention: meta.needAttention ?? false,
         };

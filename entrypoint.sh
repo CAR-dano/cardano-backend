@@ -6,7 +6,7 @@ set -e
 
 # Run Prisma migrations
 echo "Running Prisma migrations..."
-npx prisma migrate deploy
+./node_modules/.bin/prisma migrate deploy
 
 # Check if migration command was successful
 if [ $? -ne 0 ]; then
