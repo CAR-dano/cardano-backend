@@ -3,6 +3,7 @@
 services:
   # Application - Production optimizations
   app:
+    image: maulanaanjari/inspeksimobil-backend:latest
     restart: always
     environment:
       - NODE_ENV=production

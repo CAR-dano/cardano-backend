@@ -3,6 +3,7 @@
 services:
   # Application - Staging optimizations
   app:
+    image: maulanaanjari/inspeksimobil-backend:latest
     restart: unless-stopped
     environment:
       - NODE_ENV=staging

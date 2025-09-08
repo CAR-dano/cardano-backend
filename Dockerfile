@@ -52,10 +52,16 @@ RUN apk add --no-cache \
     ttf-freefont \
     gcompat \
     udev \
-    xvfb
+    xvfb \
+    openssl \
+    postgresql-libs \
+    libstdc++ \
+    tzdata \
+    dumb-init \
+    wget
 
-# Install OpenSSL and PostgreSQL client libraries, which might be needed for database connections.
-RUN apk add --no-cache openssl postgresql-libs
+ENV NODE_ENV=production \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # New Relic removed: monitoring configuration cleaned up
 
@@ -66,7 +72,8 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 
 # Install only production dependencies to keep the image size minimal.
-RUN npm install --only=production
+# Install only production dependencies deterministically
+RUN npm ci --omit=dev
 
 # Copy built application files from the builder stage.
 COPY --from=builder /usr/src/app/dist ./dist
@@ -74,6 +81,9 @@ COPY --from=builder /usr/src/app/dist ./dist
 # Copy Prisma schema and generated client from the builder stage.
 COPY --from=builder /usr/src/app/prisma ./prisma
 COPY --from=builder /usr/src/app/node_modules/.prisma ./node_modules/.prisma
+# Bring Prisma CLI into runtime without dev install
+COPY --from=builder /usr/src/app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /usr/src/app/node_modules/.bin/prisma ./node_modules/.bin/prisma
 # Copy public assets from the builder stage.
 COPY --from=builder /usr/src/app/public ./public
 
@@ -86,11 +96,15 @@ COPY entrypoint.sh .
 # Make the entrypoint script executable.
 RUN chmod +x entrypoint.sh
 
+# Healthcheck to verify the service is up
+HEALTHCHECK --interval=30s --timeout=5s --retries=5 CMD wget -qO- http://127.0.0.1:3010/public/health || exit 1
+
 # Expose port 3010, indicating that the application listens on this port.
 EXPOSE 3010
 
 # Define the entrypoint script that will be executed when the container starts.
-ENTRYPOINT ["/usr/src/app/entrypoint.sh"]
+# Use dumb-init to handle PID 1 and forward signals cleanly
+ENTRYPOINT ["/usr/bin/dumb-init", "--", "/usr/src/app/entrypoint.sh"]
 
 # Define the default command to run when the container starts, if no command is specified.
 # This runs the compiled main application file.
