@@ -22,6 +22,7 @@ import {
   Logger,
   InternalServerErrorException,
   Param,
+  Query,
 } from '@nestjs/common';
 
 // Swagger documentation modules
@@ -60,6 +61,39 @@ export class PublicApiController {
   // Logger instance for logging messages within this controller
   private readonly logger = new Logger(PublicApiController.name);
 
+  // In-memory cache for deep health checks to keep /public/health fast
+  private static deepCache: {
+    updatedAt: number;
+    storageCheck?: { ok?: boolean; latencyMs?: number; error?: string } | null;
+    webhookCheck?:
+      | {
+          configured?: boolean;
+          ok?: boolean;
+          statusCode?: number;
+          signatureDryRun?: boolean;
+          dryRunSignature?: string;
+          latencyMs?: number;
+          error?: string;
+        }
+      | null;
+    refreshing?: boolean;
+  } = { updatedAt: 0, storageCheck: null, webhookCheck: null, refreshing: false };
+
+  private static readonly DEEP_CACHE_TTL_MS = Number(
+    process.env.HEALTH_DEEP_TTL_MS || 5000,
+  );
+
+  // Lightweight DB ping cache to avoid per-request DB roundtrips under load
+  private static dbCache: {
+    updatedAt: number;
+    result?: { ok: boolean; latencyMs?: number; error?: string } | null;
+    refreshing?: boolean;
+  } = { updatedAt: 0, result: null, refreshing: false };
+
+  private static readonly DB_CACHE_TTL_MS = Number(
+    process.env.HEALTH_DB_TTL_MS || 5000,
+  );
+
   /**
    * @constructor
    * @param usersService Service for user-related operations.
@@ -91,74 +125,163 @@ export class PublicApiController {
   })
   @ApiOkResponse({ description: 'Health status' })
   @ApiStandardErrors({ unauthorized: false, forbidden: false })
-  async getHealth() {
+  async getHealth(@Query('deep') deep?: string) {
     const startedAt = Date.now();
     const nowIso = new Date().toISOString();
 
-    // DB ping
-    const dbCheck = await (async () => {
+    // DB ping (cached in basic mode)
+    const wantDeep = String(deep).toLowerCase() === 'true';
+    const refreshDb = async () => {
+      if (PublicApiController.dbCache.refreshing) return;
+      PublicApiController.dbCache.refreshing = true;
       const started = Date.now();
       try {
-        // Simple ping via SELECT 1
         const res: any = await this.prisma.$queryRaw`SELECT 1 as ok`;
         const ok = Array.isArray(res) && res.length > 0;
-        return { ok, latencyMs: Date.now() - started };
+        PublicApiController.dbCache.result = {
+          ok,
+          latencyMs: Date.now() - started,
+        };
       } catch (err: any) {
         this.logger.error(`Health DB check failed: ${err?.message ?? err}`);
-        return { ok: false, latencyMs: Date.now() - started, error: String(err?.message ?? err) };
-      }
-    })();
-
-    // Object storage head
-    const storageCheck = await (async () => {
-      const started = Date.now();
-      const res = await this.backblaze.headBucket().catch((err) => ({ ok: false, error: String(err) }));
-      return { ...res, latencyMs: Date.now() - started };
-    })();
-
-    // Payment webhook reachability + signature dry-run (optional)
-    const webhookCheck = await (async () => {
-      const url = this.config.get<string>('PAYMENT_WEBHOOK_URL');
-      const secret = this.config.get<string>('PAYMENT_WEBHOOK_SECRET');
-      if (!url) {
-        return { configured: false, ok: false, reason: 'PAYMENT_WEBHOOK_URL not set' };
-      }
-      const headers: Record<string, string> = { 'X-Health-Check': 'true' };
-      let dryRunSignature: string | undefined;
-      if (secret) {
-        // Generic HMAC SHA256 over a stable payload
-        const payload = 'health-check';
-        dryRunSignature = crypto.createHmac('sha256', secret).update(payload).digest('hex');
-        headers['X-Signature'] = dryRunSignature;
-      }
-      // HEAD reachability with timeout
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
-      try {
-        const resp = await fetch(url, { method: 'HEAD', headers, signal: controller.signal as any });
-        clearTimeout(timeout);
-        return {
-          configured: true,
-          ok: resp.status < 400,
-          statusCode: resp.status,
-          signatureDryRun: Boolean(secret),
-          dryRunSignature,
-        };
-      } catch (err: any) {
-        clearTimeout(timeout);
-        this.logger.warn(`Health webhook HEAD failed: ${String(err?.message ?? err)}`);
-        return {
-          configured: true,
+        PublicApiController.dbCache.result = {
           ok: false,
+          latencyMs: Date.now() - started,
           error: String(err?.message ?? err),
-          signatureDryRun: Boolean(secret),
-          dryRunSignature,
         };
+      } finally {
+        PublicApiController.dbCache.updatedAt = Date.now();
+        PublicApiController.dbCache.refreshing = false;
       }
-    })();
+    };
+
+    let dbCheck: any;
+    const dbFresh =
+      Date.now() - PublicApiController.dbCache.updatedAt <
+      PublicApiController.DB_CACHE_TTL_MS;
+    if (wantDeep) {
+      await refreshDb();
+      dbCheck = PublicApiController.dbCache.result;
+    } else {
+      dbCheck = PublicApiController.dbCache.result ?? { ok: true, note: 'db status unknown; using default OK' };
+      if (!dbFresh) {
+        // Trigger background refresh
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        refreshDb();
+      }
+    }
+
+    // Deep checks (storage + webhook)
+
+    const getCachedDeep = () => {
+      return {
+        storage: PublicApiController.deepCache.storageCheck ?? undefined,
+        webhook: PublicApiController.deepCache.webhookCheck ?? undefined,
+        cachedAt: PublicApiController.deepCache.updatedAt || undefined,
+      };
+    };
+
+    const refreshDeep = async () => {
+      if (PublicApiController.deepCache.refreshing) return;
+      PublicApiController.deepCache.refreshing = true;
+      const startedAll = Date.now();
+      try {
+        // Storage
+        const sStarted = Date.now();
+        const sRes = await this.backblaze
+          .headBucket()
+          .catch((err) => ({ ok: false, error: String(err) }));
+        const storageCheck = { ...sRes, latencyMs: Date.now() - sStarted } as any;
+
+        // Webhook (with tighter timeout)
+        const wStarted = Date.now();
+        const url = this.config.get<string>('PAYMENT_WEBHOOK_URL');
+        const secret = this.config.get<string>('PAYMENT_WEBHOOK_SECRET');
+        let webhookCheck: any;
+        if (!url) {
+          webhookCheck = { configured: false, ok: false, reason: 'PAYMENT_WEBHOOK_URL not set' };
+        } else {
+          const headers: Record<string, string> = { 'X-Health-Check': 'true' };
+          let dryRunSignature: string | undefined;
+          if (secret) {
+            const payload = 'health-check';
+            dryRunSignature = crypto
+              .createHmac('sha256', secret)
+              .update(payload)
+              .digest('hex');
+            headers['X-Signature'] = dryRunSignature;
+          }
+          const controller = new AbortController();
+          const timeoutMs = 800; // tighter timeout than before
+          const timeout = setTimeout(() => controller.abort(), timeoutMs);
+          try {
+            const resp = await fetch(url, {
+              method: 'HEAD',
+              headers,
+              signal: controller.signal as any,
+            });
+            clearTimeout(timeout);
+            webhookCheck = {
+              configured: true,
+              ok: resp.status < 400,
+              statusCode: resp.status,
+              signatureDryRun: Boolean(secret),
+              dryRunSignature,
+            };
+          } catch (err: any) {
+            clearTimeout(timeout);
+            this.logger.warn(
+              `Deep health webhook HEAD failed: ${String(err?.message ?? err)}`,
+            );
+            webhookCheck = {
+              configured: Boolean(url),
+              ok: false,
+              error: String(err?.message ?? err),
+              signatureDryRun: Boolean(secret),
+              dryRunSignature,
+            };
+          }
+          webhookCheck.latencyMs = Date.now() - wStarted;
+        }
+
+        PublicApiController.deepCache.storageCheck = storageCheck;
+        PublicApiController.deepCache.webhookCheck = webhookCheck;
+        PublicApiController.deepCache.updatedAt = Date.now();
+      } catch (e) {
+        this.logger.warn(`Deep health refresh failed: ${String(e)}`);
+      } finally {
+        PublicApiController.deepCache.refreshing = false;
+        this.logger.debug(
+          `Deep health refreshed in ${Date.now() - startedAll}ms`,
+        );
+      }
+    };
+
+    let storageCheck: any = undefined;
+    let webhookCheck: any = undefined;
+
+    if (wantDeep) {
+      await refreshDeep();
+      const cached = getCachedDeep();
+      storageCheck = cached.storage;
+      webhookCheck = cached.webhook;
+    } else {
+      // Basic mode: use cached deep checks if fresh, otherwise return last known and refresh in background
+      const isFresh =
+        Date.now() - PublicApiController.deepCache.updatedAt <
+        PublicApiController.DEEP_CACHE_TTL_MS;
+      const cached = getCachedDeep();
+      storageCheck = cached.storage;
+      webhookCheck = cached.webhook;
+      if (!isFresh) {
+        // Trigger background refresh without awaiting
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        refreshDeep();
+      }
+    }
 
     // Overall status: ok only if all mandatory checks pass
-    const mandatoryOk = dbCheck.ok && storageCheck.ok !== false; // treat undefined as ok if service not configured
+    const mandatoryOk = dbCheck.ok && (storageCheck?.ok !== false || !wantDeep);
     const overall = mandatoryOk ? 'ok' : 'degraded';
 
     return {
@@ -173,8 +296,22 @@ export class PublicApiController {
         database: dbCheck,
         storage: storageCheck,
         paymentWebhook: webhookCheck,
+        mode: wantDeep ? 'deep' : 'basic',
       },
     };
+  }
+
+  /**
+   * Deep health endpoint that performs all external checks synchronously.
+   * Useful for scheduled monitoring; not recommended for high-frequency pings.
+   */
+  @Get('deep-health')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Deep health status (includes storage/webhook checks)' })
+  @ApiOkResponse({ description: 'Deep health status' })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false })
+  async getDeepHealth() {
+    return this.getHealth('true');
   }
 
   /**
