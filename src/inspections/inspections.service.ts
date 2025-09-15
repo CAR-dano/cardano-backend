@@ -858,6 +858,7 @@ export class InspectionsService {
         SELECT id
         FROM "inspections"
         WHERE lower(replace("vehiclePlateNumber", ' ', '')) = lower(replace(${vehiclePlateNumber}, ' ', ''))
+          AND "status" = ${InspectionStatus.ARCHIVED}
         LIMIT 1;
       `;
 
@@ -880,6 +881,10 @@ export class InspectionsService {
       this.logger.log(
         `Found inspection ID: ${inspection?.id} for plate number: ${vehiclePlateNumber}`,
       );
+      // Safety check: ensure the inspection is ARCHIVED; otherwise, behave like not found
+      if (!inspection || inspection.status !== InspectionStatus.ARCHIVED) {
+        return null;
+      }
       return inspection;
     } catch (error: unknown) {
       const errorMessage =
