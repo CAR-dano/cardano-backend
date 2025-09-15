@@ -33,6 +33,7 @@ import {
   NotFoundException,
   Res,
   UseGuards, // Import InternalServerErrorException
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -150,16 +151,81 @@ export class InspectionsController {
   @ApiBody({ type: CreateInspectionDto })
   @ApiCreatedResponse({ description: 'The newly created inspection record summary.', type: InspectionResponseDto })
   @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input data).', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   @ApiAuthErrors()
   async create(
     @Body() createInspectionDto: CreateInspectionDto,
     @GetUser('id') inspectorId: string,
+    @Req() req: Request,
   ): Promise<{ id: string }> {
-    const newInspection = await this.inspectionsService.create(
-      createInspectionDto,
-      inspectorId,
+    // Structured request logging (safe subset only)
+    this.logger.log(
+      `[POST /inspections] Create requested by ${inspectorId ?? 'anonymous'}`,
     );
-    return newInspection;
+    this.logger.debug(
+      `Payload snapshot: plate=${createInspectionDto?.vehiclePlateNumber ?? 'N/A'}, date=${createInspectionDto?.inspectionDate ?? 'N/A'}, rating=${createInspectionDto?.overallRating ?? 'N/A'}, reqInspector=${createInspectionDto?.identityDetails?.namaInspektor ?? 'N/A'}, reqBranch=${createInspectionDto?.identityDetails?.cabangInspeksi ?? 'N/A'}`,
+    );
+
+    try {
+      const newInspection = await this.inspectionsService.create(
+        createInspectionDto,
+        inspectorId,
+      );
+      this.logger.log(
+        `[POST /inspections] Created successfully: id=${newInspection.id}`,
+      );
+      return newInspection;
+    } catch (err: any) {
+      // Normalize and enrich error response for better client debugging
+      const path = req?.url ?? '/inspections';
+      const timestamp = new Date().toISOString();
+
+      // Known HttpExceptions: preserve status and convert message to array when needed
+      if (err?.getStatus && err?.getResponse) {
+        const status = err.getStatus();
+        const resp = err.getResponse() as any;
+        const messageRaw =
+          typeof resp === 'string' ? resp : resp?.message ?? err.message;
+        const message = Array.isArray(messageRaw)
+          ? messageRaw
+          : [String(messageRaw ?? 'Request failed')];
+
+        const errorName =
+          (typeof resp === 'object' && resp?.error) || err.name || 'Error';
+
+        const body = {
+          statusCode: status,
+          message,
+          error: errorName,
+          path,
+          timestamp,
+        } as HttpErrorResponseDto;
+
+        this.logger.warn(
+          `[POST /inspections] ${errorName} ${status}: ${message.join(' | ')}`,
+        );
+        // Re-throw with normalized body
+        throw new (err.constructor as any)(body);
+      }
+
+      // Unknown errors — return 500 with normalized body
+      const body = {
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: [err?.message ?? 'Internal server error'],
+        error: 'Internal Server Error',
+        path,
+        timestamp,
+      } as HttpErrorResponseDto;
+
+      const msgArr = Array.isArray(body.message)
+        ? body.message
+        : [String(body.message ?? 'Internal server error')];
+      this.logger.error(
+        `[POST /inspections] Unhandled error: ${msgArr.join(' | ')}`,
+        err?.stack ?? undefined,
+      );
+      throw new InternalServerErrorException(body);
+    }
   }
 
   /**
