@@ -76,7 +76,7 @@ export class ReportsController {
         pretty_id: true,
         vehiclePlateNumber: true,
         vehicleData: true,
-        status: true,
+        inspectionSummary: true,
         urlPdfNoDocs: true,
         urlPdfNoDocsCloud: true,
         photos: {
@@ -129,6 +129,12 @@ export class ReportsController {
         });
 
       (inspection as any).photos = normalized as any;
+    }
+
+    // If user cannot download, omit URL fields from response
+    if (!canDownload) {
+      (inspection as any).urlPdfNoDocs = undefined;
+      (inspection as any).urlPdfNoDocsCloud = undefined;
     }
 
     return {
