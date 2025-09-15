@@ -14,7 +14,7 @@ import { Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
-import { Role } from '@prisma/client';
+import { Role, InspectionStatus } from '@prisma/client';
 import { CreditsService } from '../credits/credits.service';
 import { BackblazeService } from '../common/services/backblaze.service';
 import * as fs from 'fs';
@@ -95,6 +95,11 @@ export class ReportsController {
     });
 
     if (!inspection) throw new NotFoundException('Inspection not found');
+    // Only expose detail when inspection has archived PDF links
+    const status = (inspection as any).status;
+    if (status !== InspectionStatus.ARCHIVED) {
+      throw new NotFoundException('Inspection not found');
+    }
 
     let canDownload = userRole !== Role.CUSTOMER;
     if (userRole === Role.CUSTOMER) {
@@ -168,9 +173,14 @@ export class ReportsController {
   ) {
     const inspection = await this.prisma.inspection.findUnique({
       where: { id },
-      select: { urlPdfNoDocs: true, urlPdfNoDocsCloud: true },
+      select: { status: true, urlPdfNoDocs: true, urlPdfNoDocsCloud: true },
     });
     if (!inspection) throw new NotFoundException('Inspection not found');
+    // Ensure only archived inspections provide downloadable PDF
+    const status = (inspection as any).status;
+    if (status !== InspectionStatus.ARCHIVED) {
+      throw new NotFoundException('Inspection not found');
+    }
 
     // Only no-docs variant is accessible for this endpoint
     const srcUrl = inspection.urlPdfNoDocsCloud || inspection.urlPdfNoDocs;
