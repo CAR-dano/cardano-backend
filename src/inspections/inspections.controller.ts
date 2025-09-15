@@ -29,6 +29,7 @@ import {
   BadRequestException,
   HttpCode,
   HttpStatus,
+  InternalServerErrorException,
   Query,
   NotFoundException,
   Res,
@@ -38,6 +39,10 @@ import { InspectionsService } from './inspections.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { CreateInspectionDto } from './dto/create-inspection.dto';
 import { UpdateInspectionDto } from './dto/update-inspection/update-inspection.dto';
+import {
+  BulkApproveInspectionDto,
+  BulkApproveInspectionResponseDto,
+} from './dto/bulk-approve-inspection.dto';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express'; // NestJS interceptor for handling multiple file fields
 import { diskStorage } from 'multer'; // Storage engine for Multer (file uploads)
 import { extname } from 'path'; // Node.js utility for handling file extensions
@@ -55,6 +60,9 @@ import {
   ApiResponse,
   ApiTags,
   ApiBearerAuth,
+  ApiBadRequestResponse,
+  ApiCreatedResponse,
+  ApiInternalServerErrorResponse,
 } from '@nestjs/swagger';
 import { AddMultiplePhotosDto } from 'src/photos/dto/add-multiple-photos.dto';
 import { AddSinglePhotoDto } from 'src/inspections/dto/add-single-photo.dto';
@@ -68,8 +76,10 @@ import { Req } from '@nestjs/common'; // Import Req decorator
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { FileValidationPipe } from './pipes/file-validation.pipe';
+import { OptionalFileValidationPipe } from './pipes/optional-file-validation.pipe';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { skip } from 'rxjs';
+import { HttpErrorResponseDto } from 'src/common/dto/http-error-response.dto';
 
 // Define an interface for the expected photo metadata structure
 interface PhotoMetadata {
@@ -141,15 +151,9 @@ export class InspectionsController {
       'Creates the initial inspection record containing text and JSON data. This is the first step before uploading photos or archiving. Only accessible by users with the INSPECTOR role.',
   })
   @ApiBody({ type: CreateInspectionDto })
-  @ApiResponse({
-    status: HttpStatus.CREATED,
-    description: 'The newly created inspection record summary.',
-    type: InspectionResponseDto,
-  })
-  @ApiResponse({
-    status: HttpStatus.BAD_REQUEST,
-    description: 'Bad Request (e.g., invalid input data).',
-  })
+  @ApiCreatedResponse({ description: 'The newly created inspection record summary.', type: InspectionResponseDto })
+  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input data).', type: HttpErrorResponseDto })
+  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
     description: 'Unauthorized. User is not authenticated.',
@@ -161,12 +165,76 @@ export class InspectionsController {
   async create(
     @Body() createInspectionDto: CreateInspectionDto,
     @GetUser('id') inspectorId: string,
+    @Req() req: Request,
   ): Promise<{ id: string }> {
-    const newInspection = await this.inspectionsService.create(
-      createInspectionDto,
-      inspectorId,
+    // Structured request logging (safe subset only)
+    this.logger.log(
+      `[POST /inspections] Create requested by ${inspectorId ?? 'anonymous'}`,
     );
-    return newInspection;
+    this.logger.debug(
+      `Payload snapshot: plate=${createInspectionDto?.vehiclePlateNumber ?? 'N/A'}, date=${createInspectionDto?.inspectionDate ?? 'N/A'}, rating=${createInspectionDto?.overallRating ?? 'N/A'}, reqInspector=${(createInspectionDto as any)?.identityDetails?.namaInspektor ?? 'N/A'}, reqBranch=${(createInspectionDto as any)?.identityDetails?.cabangInspeksi ?? 'N/A'}`,
+    );
+
+    try {
+      const newInspection = await this.inspectionsService.create(
+        createInspectionDto,
+        inspectorId,
+      );
+      this.logger.log(
+        `[POST /inspections] Created successfully: id=${newInspection.id}`,
+      );
+      return newInspection;
+    } catch (err: any) {
+      // Normalize and enrich error response for better client debugging
+      const path = req?.url ?? '/inspections';
+      const timestamp = new Date().toISOString();
+
+      // Known HttpExceptions: preserve status and convert message to array when needed
+      if (err?.getStatus && err?.getResponse) {
+        const status = err.getStatus();
+        const resp = err.getResponse() as any;
+        const messageRaw =
+          typeof resp === 'string' ? resp : resp?.message ?? err.message;
+        const message = Array.isArray(messageRaw)
+          ? messageRaw
+          : [String(messageRaw ?? 'Request failed')];
+
+        const errorName =
+          (typeof resp === 'object' && resp?.error) || err.name || 'Error';
+
+        const body = {
+          statusCode: status,
+          message,
+          error: errorName,
+          path,
+          timestamp,
+        } as HttpErrorResponseDto;
+
+        this.logger.warn(
+          `[POST /inspections] ${errorName} ${status}: ${message.join(' | ')}`,
+        );
+        // Re-throw with normalized body
+        throw new (err.constructor as any)(body);
+      }
+
+      // Unknown errors — return 500 with normalized body
+      const body = {
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        message: [err?.message ?? 'Internal server error'],
+        error: 'Internal Server Error',
+        path,
+        timestamp,
+      } as HttpErrorResponseDto;
+
+      const msgArr = Array.isArray(body.message)
+        ? body.message
+        : [String(body.message ?? 'Internal server error')];
+      this.logger.error(
+        `[POST /inspections] Unhandled error: ${msgArr.join(' | ')}`,
+        err?.stack ?? undefined,
+      );
+      throw new InternalServerErrorException(body);
+    }
   }
 
   /**
@@ -533,7 +601,8 @@ export class InspectionsController {
     @Param('photoId', ParseUUIDPipe) photoId: string,
     @Body() updatePhotoDto: UpdatePhotoDto, // Contains optional label/needAttention
     @GetUser('id') userId: string,
-    @UploadedFile(new FileValidationPipe()) newFile?: Express.Multer.File, // Optional new file
+    @UploadedFile(new OptionalFileValidationPipe())
+    newFile?: Express.Multer.File, // Optional new file, validate only if present
   ): Promise<PhotoResponseDto> {
     this.logger.debug('Update DTO:', updatePhotoDto);
     this.logger.debug('New file:', newFile?.filename);
@@ -947,6 +1016,73 @@ export class InspectionsController {
   }
 
   /**
+   * [POST /inspections/bulk-approve]
+   * Bulk approve multiple inspections with enhanced error handling and rollback.
+   * Processes inspections sequentially to avoid race conditions and resource exhaustion.
+   * @param {BulkApproveInspectionDto} bulkApproveDto - Array of inspection IDs to approve.
+   * @returns {Promise<BulkApproveInspectionResponseDto>} Results of bulk approval operation.
+   */
+  @Post('bulk-approve')
+  @Throttle({ default: { limit: 5, ttl: 300000 } }) // More restrictive: 5 requests per 5 minutes
+  @UseGuards(ThrottlerGuard)
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Bulk approve multiple inspections',
+    description:
+      'Approves multiple inspections in sequence with automatic rollback on failure. Maximum 20 inspections per request.',
+  })
+  @ApiBody({
+    type: BulkApproveInspectionDto,
+    description: 'Array of inspection IDs to approve',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Bulk approval results with success/failure details.',
+    type: BulkApproveInspectionResponseDto,
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad Request (e.g., invalid inspection IDs, too many requests).',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
+  async bulkApproveInspections(
+    @Body() bulkApproveDto: BulkApproveInspectionDto,
+    @GetUser('id') reviewerId: string,
+    @Req() req: Request,
+  ): Promise<BulkApproveInspectionResponseDto> {
+    const authHeader = req.headers.authorization;
+    const token = authHeader ? authHeader.split(' ')[1] : null;
+
+    this.logger.log(
+      `Bulk approve requested by ${reviewerId} for ${bulkApproveDto.inspectionIds.length} inspections`,
+    );
+
+    const result = await this.inspectionsService.bulkApproveInspections(
+      bulkApproveDto.inspectionIds,
+      reviewerId,
+      token,
+    );
+
+    // Log summary for monitoring
+    this.logger.log(
+      `Bulk approve completed: ${result.summary.successful}/${result.summary.total} successful`,
+    );
+
+    return result;
+  }
+
+  /**
    * [Old minting method]
    * Initiates the archiving process for an approved inspection.
    * [PUT /inspections/:id/archive]
@@ -1277,5 +1413,174 @@ export class InspectionsController {
       `[SUPERADMIN] Received request to permanently delete inspection ${id}`,
     );
     await this.inspectionsService.deleteInspectionPermanently(id);
+  }
+
+  /**
+   * Reverts the status of an inspection back to NEED_REVIEW.
+   * [PATCH /inspections/:id/revert-to-review]
+   * This endpoint allows SUPERADMIN users to rollback any inspection to NEED_REVIEW status,
+   * regardless of its current status. This is useful when an inspection needs to be re-reviewed
+   * due to errors, changes in requirements, or administrative decisions.
+   * @param {string} id - The UUID of the inspection to rollback.
+   * @param {string} userId - The ID of the SUPERADMIN user performing the action.
+   * @returns {Promise<InspectionResponseDto>} The updated inspection with NEED_REVIEW status.
+   */
+  @Patch(':id/revert-to-review')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Revert inspection status to NEED_REVIEW (Superadmin Only)',
+    description:
+      'Reverts any inspection status back to NEED_REVIEW, allowing it to be reviewed again. This action creates a change log entry and can only be performed by SUPERADMIN users.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'The UUID of the inspection to revert status.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description:
+      'Inspection status successfully reverted to NEED_REVIEW. No response body (204).',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad Request (e.g., inspection already in NEED_REVIEW status).',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the SUPERADMIN role.',
+  })
+  async revertInspectionToReview(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ): Promise<void> {
+    this.logger.log(
+      `[SUPERADMIN] Received request to revert inspection ${id} status to NEED_REVIEW by user ${userId}`,
+    );
+    await this.inspectionsService.rollbackInspectionStatus(id, userId);
+    // Return 204 No Content to save bandwidth — client can fetch updated inspection separately if needed
+    return;
+  }
+
+  /**
+   * Reverts the status of an inspection back to APPROVED if the current status
+   * is ARCHIVED or FAIL_ARCHIVE.
+   * [PATCH /inspections/:id/revert-to-approved]
+   * This endpoint allows SUPERADMIN users to rollback an inspection back to APPROVED,
+   * typically used when an archive/minting result needs to be undone for administrative reasons.
+   */
+  @Patch(':id/revert-to-approved')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Revert inspection status to APPROVED (Superadmin Only)',
+    description:
+      'Reverts an inspection from ARCHIVED or FAIL_ARCHIVE back to APPROVED. This action creates a change log entry and can only be performed by SUPERADMIN users.',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    format: 'uuid',
+    description: 'The UUID of the inspection to revert status.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description:
+      'Inspection status successfully reverted to APPROVED. No response body (204).',
+  })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Bad Request (e.g., inspection not in ARCHIVED or FAIL_ARCHIVE status).',
+  })
+  @ApiResponse({ status: 404, description: 'Inspection not found.' })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the SUPERADMIN role.',
+  })
+  async revertInspectionToApproved(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('id') userId: string,
+  ): Promise<void> {
+    this.logger.log(
+      `[SUPERADMIN] Received request to revert inspection ${id} status to APPROVED by user ${userId}`,
+    );
+    await this.inspectionsService.revertInspectionToApproved(id, userId);
+    // Return 204 No Content to save bandwidth — client can fetch updated inspection separately if needed
+    return;
+  }
+
+  /**
+   * Get current queue statistics for monitoring purposes.
+   * This endpoint provides insights into the current status of PDF generation
+   * and blockchain minting queues to help with debugging UTXO issues.
+   */
+  @Get('queue-stats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get Queue Statistics (SuperAdmin Only)',
+    description:
+      'Retrieves current statistics for PDF generation and blockchain minting queues. Useful for monitoring and debugging purposes.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Queue statistics retrieved successfully.',
+    schema: {
+      type: 'object',
+      properties: {
+        pdfQueue: {
+          type: 'object',
+          properties: {
+            queueLength: { type: 'number' },
+            running: { type: 'number' },
+            totalProcessed: { type: 'number' },
+            totalErrors: { type: 'number' },
+            consecutiveErrors: { type: 'number' },
+            circuitBreakerOpen: { type: 'boolean' },
+          },
+        },
+        blockchainQueue: {
+          type: 'object',
+          properties: {
+            queueLength: { type: 'number' },
+            running: { type: 'number' },
+            totalProcessed: { type: 'number' },
+            totalErrors: { type: 'number' },
+            consecutiveErrors: { type: 'number' },
+            circuitBreakerOpen: { type: 'boolean' },
+          },
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the SUPERADMIN role.',
+  })
+  getQueueStats() {
+    this.logger.log('Received request for queue statistics');
+    return this.inspectionsService.getQueueStats();
   }
 } // End Controller

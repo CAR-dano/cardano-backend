@@ -13,7 +13,7 @@
  * --------------------------------------------------------------------------
  */
 
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
@@ -31,6 +31,8 @@ import { InspectionBranchesModule } from './inspection-branches/inspection-branc
 import { InspectionChangeLogModule } from './inspection-change-log/inspection-change-log.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { IpfsModule } from './ipfs/ipfs.module';
+import { MetricsModule } from './metrics/metrics.module';
+import { MetricsMiddleware } from './metrics/metrics.middleware';
 
 @Module({
   imports: [
@@ -86,7 +88,12 @@ import { IpfsModule } from './ipfs/ipfs.module';
     InspectionBranchesModule,
     DashboardModule,
     IpfsModule,
+    MetricsModule,
   ],
   controllers: [],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(MetricsMiddleware).forRoutes('*');
+  }
+}

@@ -10,6 +10,19 @@ WORKDIR /usr/src/app
 # leveraging Docker's layer caching for faster builds.
 COPY package*.json ./
 
+# Install build tools required to compile native modules during `npm ci` (node-datachannel, etc.).
+# These are installed only in the builder stage so the final image remains lean.
+RUN apk add --no-cache \
+    build-base \
+    python3 \
+    cmake \
+    git \
+    openssl-dev \
+    libc6-compat
+
+# Ensure `python` points to `python3` for node-gyp / cmake-js compatibility
+RUN ln -sf /usr/bin/python3 /usr/bin/python || true
+
 # Install project dependencies. `npm ci` is used for clean and consistent installations in CI/CD environments.
 RUN npm ci
 
@@ -21,7 +34,6 @@ RUN npx prisma generate
 
 # Build the application. This typically compiles TypeScript code into JavaScript.
 RUN npm run build
-
 
 # STAGE 2: Production Stage
 # This stage creates a lean image for production, containing only the necessary runtime components.
@@ -45,6 +57,8 @@ RUN apk add --no-cache \
 # Install OpenSSL and PostgreSQL client libraries, which might be needed for database connections.
 RUN apk add --no-cache openssl postgresql-libs
 
+# New Relic removed: monitoring configuration cleaned up
+
 # Set the working directory for the production stage.
 WORKDIR /usr/src/app
 
@@ -62,6 +76,9 @@ COPY --from=builder /usr/src/app/prisma ./prisma
 COPY --from=builder /usr/src/app/node_modules/.prisma ./node_modules/.prisma
 # Copy public assets from the builder stage.
 COPY --from=builder /usr/src/app/public ./public
+
+# Create necessary directories for runtime
+RUN mkdir -p uploads/inspection-photos pdfarchived
 
 # Copy the entrypoint script into the container.
 COPY entrypoint.sh .

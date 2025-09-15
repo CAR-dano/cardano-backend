@@ -5,6 +5,14 @@
 /generated/
 /pdfarchived/
 /uploads/
+
+# Backup files and directories
+/backups/
+*.backup.*
+*.sql
+*.sql.gz
+db_backup_*
+
 notes.md
 .env.prod
 # Logs
