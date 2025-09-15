@@ -1,15 +1,41 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: credits.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Service managing user credit consumption for paid features
+ * such as downloading no-docs PDF reports. Provides idempotent checks and
+ * atomic charge operation using database transactions.
+ * --------------------------------------------------------------------------
+ */
+
 import { Injectable, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
+/**
+ * @class CreditsService
+ * @description Business logic for checking and consuming credits.
+ */
 @Injectable()
 export class CreditsService {
   private readonly logger = new Logger(CreditsService.name);
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Builds unique consumption key to ensure idempotency per user+inspection.
+   */
   private buildKey(userId: string, inspectionId: string) {
     return `${userId}:${inspectionId}`;
   }
 
+  /**
+   * Checks whether a user has already been charged for a specific inspection.
+   *
+   * @param userId User identifier
+   * @param inspectionId Inspection identifier
+   * @returns True if a consumption record exists
+   */
   async hasConsumption(userId: string, inspectionId: string): Promise<boolean> {
     const uniqueKey = this.buildKey(userId, inspectionId);
     const existing = await this.prisma.creditConsumption.findUnique({ where: { uniqueKey } });
@@ -19,6 +45,12 @@ export class CreditsService {
   /**
    * Atomically deduct 1 credit and write a consumption record.
    * Throws if not enough credits or uniqueKey conflict.
+   *
+   * @param userId User identifier
+   * @param inspectionId Inspection identifier
+   * @param cost Number of credits to deduct (default 1)
+   * @throws BadRequestException if user not found
+   * @throws ForbiddenException if insufficient credits
    */
   async chargeOnce(userId: string, inspectionId: string, cost = 1): Promise<void> {
     const uniqueKey = this.buildKey(userId, inspectionId);
@@ -35,4 +67,3 @@ export class CreditsService {
     this.logger.log(`Charged ${cost} credit(s) for user=${userId} inspection=${inspectionId}`);
   }
 }
-

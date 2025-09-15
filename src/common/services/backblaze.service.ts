@@ -1,3 +1,15 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: services/backblaze.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: S3-compatible client for Backblaze B2 providing uploads,
+ * downloads, listings, deletions, and a health check. Includes retry logic
+ * for transient network errors and constructs public file URLs.
+ * --------------------------------------------------------------------------
+ */
+
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -11,6 +23,10 @@ import {
 import { Readable } from 'stream';
 import type { Express } from 'express';
 
+/**
+ * @class BackblazeService
+ * @description Wrapper around AWS SDK S3 client for Backblaze B2.
+ */
 @Injectable()
 export class BackblazeService {
   private readonly logger = new Logger(BackblazeService.name);
@@ -76,7 +92,9 @@ export class BackblazeService {
     });
   }
 
-  // Helper to stringify errors for better logs
+  /**
+   * Helper to stringify errors for consistent, informative logs.
+   */
   private formatError(err: unknown): string {
     if (err instanceof Error) {
       const anyErr = err as any;
@@ -105,7 +123,9 @@ export class BackblazeService {
     }
   }
 
-  // Wrapper to send S3 commands with retries for transient network errors
+  /**
+   * Sends a command to S3 client with retries for transient network errors.
+   */
   private async sendCommand(cmd: unknown, maxAttempts = 3): Promise<any> {
     let attempt = 0;
     let lastErr: unknown;
@@ -143,7 +163,9 @@ export class BackblazeService {
     throw lastErr;
   }
 
-  // Upload a file (from multer) to Backblaze B2 (S3-compatible)
+  /**
+   * Uploads a file (multer) to Backblaze B2 and returns a public URL.
+   */
   async uploadFile(
     file: Express.Multer.File,
     bucketName?: string,
@@ -181,7 +203,7 @@ export class BackblazeService {
   }
 
   /**
-   * Upload a Buffer directly to the configured bucket. Returns a public URL.
+   * Uploads a Buffer directly to the configured bucket. Returns a public URL.
    */
   async uploadBuffer(
     buffer: Buffer,
@@ -220,9 +242,8 @@ export class BackblazeService {
   }
 
   /**
-   * Upload a PDF buffer into the `pdfarchived/` prefix and return a public URL.
-   * This ensures PDFs are stored under the `pdfarchived` path in the bucket and
-   * the returned URL points to /file/{bucket}/pdfarchived/{filename}.
+   * Uploads a PDF buffer into the `pdfarchived/` prefix and returns a public URL.
+   * Ensures PDFs are stored under the `pdfarchived` path.
    */
   async uploadPdfBuffer(
     buffer: Buffer,
@@ -251,7 +272,7 @@ export class BackblazeService {
   }
 
   /**
-   * Upload an image buffer to `uploads/inspection-photos/{filename}` and return the public URL.
+   * Uploads an image buffer to `uploads/inspection-photos/{filename}` and returns the public URL.
    * Accepts common image MIME types; defaults to application/octet-stream if unknown.
    */
   async uploadImageBuffer(
@@ -279,7 +300,7 @@ export class BackblazeService {
   }
 
   /**
-   * Batch upload image buffers. Returns an array of public URLs in the same order.
+   * Batch uploads image buffers and returns public URLs in the same order.
    */
   async uploadImageBuffers(
     items: { buffer: Buffer; filename: string; contentType?: string }[],
@@ -299,7 +320,9 @@ export class BackblazeService {
     return results;
   }
 
-  // Get an object stream from Backblaze
+  /**
+   * Retrieves an object stream from Backblaze by key.
+   */
   async getFile(
     fileName: string,
     bucketName?: string,
@@ -324,7 +347,9 @@ export class BackblazeService {
     }
   }
 
-  // List files in the bucket
+  /**
+   * Lists object keys in the configured bucket.
+   */
   async listFiles(bucketName?: string) {
     const bucket = bucketName || this.bucketName;
     if (!bucket) throw new Error('Bucket name not configured');
@@ -345,7 +370,9 @@ export class BackblazeService {
     }
   }
 
-  // Delete a file
+  /**
+   * Deletes an object by key from the configured bucket.
+   */
   async deleteFile(fileName: string, bucketName?: string): Promise<void> {
     const bucket = bucketName || this.bucketName;
     if (!bucket) throw new Error('Bucket name not configured');
@@ -367,8 +394,7 @@ export class BackblazeService {
   }
 
   /**
-   * Perform a lightweight connectivity check against the configured bucket.
-   * Uses S3 HeadBucket to verify bucket exists and credentials are valid.
+   * Performs a lightweight connectivity check using S3 HeadBucket.
    */
   async headBucket(bucketName?: string): Promise<{
     ok: boolean;

@@ -1,6 +1,20 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: dto/create-credit-package.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: DTO for creating a credit package from admin panel.
+ * --------------------------------------------------------------------------
+ */
+
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsInt, IsObject, IsOptional, Max, Min } from 'class-validator';
 
+/**
+ * @class CreateCreditPackageDto
+ * @description Payload to create a new credit package.
+ */
 export class CreateCreditPackageDto {
   @ApiProperty({ description: 'Number of credits', example: 100 })
   @IsInt()
@@ -28,4 +42,3 @@ export class CreateCreditPackageDto {
   @IsBoolean()
   isActive?: boolean;
 }
-

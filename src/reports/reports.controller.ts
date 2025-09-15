@@ -1,3 +1,16 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: reports.controller.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: NestJS controller for report-related endpoints.
+ * Exposes endpoints to retrieve report details and to proxy-stream the
+ * no-docs PDF to authorized users, handling credit charging for
+ * CUSTOMER role when applicable.
+ * --------------------------------------------------------------------------
+ */
+
 import { Controller, Get, Post, Param, Res, UseGuards } from '@nestjs/common';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -18,6 +31,10 @@ import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 import { ReportsService } from './reports.service';
 
+/**
+ * @class ReportsController
+ * @description Controller for report endpoints (detail lookup and PDF streaming).
+ */
 @ApiTags('Reports')
 @Controller('reports')
 export class ReportsController {

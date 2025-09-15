@@ -12,6 +12,10 @@
 import { Injectable, Logger, LoggerService, Scope } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+/**
+ * @class AppLoggerService
+ * @description Structured logger with configurable levels, timestamps, and colors.
+ */
 @Injectable({ scope: Scope.TRANSIENT })
 export class AppLoggerService extends Logger implements LoggerService {
   private enabledLevels: Set<string>;

@@ -1,6 +1,20 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: dto/update-credit-package.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: DTO for partially updating an existing credit package.
+ * --------------------------------------------------------------------------
+ */
+
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsInt, IsObject, IsOptional, Max, Min } from 'class-validator';
 
+/**
+ * @class UpdateCreditPackageDto
+ * @description Fields that may be updated on a credit package.
+ */
 export class UpdateCreditPackageDto {
   @ApiPropertyOptional({ description: 'Number of credits', example: 120 })
   @IsOptional()
@@ -31,4 +45,3 @@ export class UpdateCreditPackageDto {
   @IsBoolean()
   isActive?: boolean;
 }
-

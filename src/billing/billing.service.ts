@@ -1,9 +1,24 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: billing.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Service encapsulating billing operations including listing
+ * packages, creating Xendit checkouts, and crediting users on payment.
+ * --------------------------------------------------------------------------
+ */
+
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentGateway, PurchaseStatus } from '@prisma/client';
 import { XenditService } from './payments/xendit.service';
 import { ConfigService } from '@nestjs/config';
 
+/**
+ * @class BillingService
+ * @description Business logic for billing flows and integrations.
+ */
 @Injectable()
 export class BillingService {
   private readonly logger = new Logger(BillingService.name);
@@ -13,6 +28,9 @@ export class BillingService {
     private readonly config: ConfigService,
   ) {}
 
+  /**
+   * Returns all active credit packages ordered by newest first.
+   */
   async listPackages() {
     return this.prisma.creditPackage.findMany({
       where: { isActive: true },
@@ -20,6 +38,15 @@ export class BillingService {
     });
   }
 
+  /**
+   * Creates a pending purchase and corresponding Xendit invoice, then returns
+   * identifiers and payment URL for the client.
+   *
+   * @param userId Buyer user ID
+   * @param packageId Selected credit package ID
+   * @returns Purchase and invoice identifiers with payment URL
+   * @throws BadRequestException When package is unavailable
+   */
   async createCheckout(userId: string, packageId: string) {
     const pkg = await this.prisma.creditPackage.findUnique({ where: { id: packageId } });
     if (!pkg || !pkg.isActive) throw new BadRequestException('Package not available');
@@ -60,6 +87,12 @@ export class BillingService {
     return { purchaseId: purchase.id, extInvoiceId: inv.id, paymentUrl: inv.invoice_url };
   }
 
+  /**
+   * Marks a purchase as PAID by external invoice ID and increments
+   * the buyer's credit balance accordingly. Safe to call repeatedly.
+   *
+   * @param extInvoiceId External invoice ID from Xendit
+   */
   async markPaidByExtInvoiceId(extInvoiceId: string) {
     await this.prisma.$transaction(async (tx) => {
       const p = await tx.purchase.findUnique({
@@ -82,4 +115,3 @@ export class BillingService {
     });
   }
 }
-

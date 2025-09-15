@@ -1,19 +1,45 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: credit-packages.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Service for admin management of credit packages, including
+ * listing, fetching, creating, updating, toggling active state, and deletion.
+ * --------------------------------------------------------------------------
+ */
+
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 
+/**
+ * @class CreditPackagesService
+ * @description Encapsulates data access and mutations for credit packages.
+ */
 @Injectable()
 export class CreditPackagesService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Lists all credit packages ordered by creation time (newest first).
+   */
   async findAll() {
     return this.prisma.creditPackage.findMany({ orderBy: { createdAt: 'desc' } });
   }
 
+  /**
+   * Retrieves a single credit package by ID.
+   *
+   * @param id Package ID
+   */
   async findOne(id: string) {
     return this.prisma.creditPackage.findUnique({ where: { id } });
   }
 
+  /**
+   * Creates a new credit package with the given fields.
+   */
   async create(dto: {
     credits: number;
     price: number;
@@ -32,6 +58,11 @@ export class CreditPackagesService {
     });
   }
 
+  /**
+   * Partially updates a credit package by ID.
+   *
+   * @throws BadRequestException if id missing or dto empty
+   */
   async update(id: string, dto: Partial<{ credits: number; price: number; discountPct: number; benefits: any; isActive: boolean }>) {
     if (!id) throw new BadRequestException('id is required');
     if (!dto || Object.keys(dto).length === 0) {
@@ -50,6 +81,12 @@ export class CreditPackagesService {
     }
   }
 
+  /**
+   * Toggles the active flag of a credit package.
+   *
+   * @throws BadRequestException if id missing
+   * @throws NotFoundException if package not found
+   */
   async toggleActive(id: string) {
     if (!id) throw new BadRequestException('id is required');
     const current = await this.prisma.creditPackage.findUnique({ where: { id } });
@@ -70,6 +107,12 @@ export class CreditPackagesService {
     }
   }
 
+  /**
+   * Deletes a credit package by ID.
+   *
+   * @throws BadRequestException if id missing
+   * @throws NotFoundException if package not found
+   */
   async remove(id: string) {
     if (!id) throw new BadRequestException('id is required');
     try {

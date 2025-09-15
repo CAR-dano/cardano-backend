@@ -1,3 +1,15 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: billing.controller.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: NestJS controller for billing endpoints.
+ * Provides endpoints to list active credit packages, create checkout
+ * (Xendit invoice) for purchasing credits, and handle Xendit webhooks.
+ * --------------------------------------------------------------------------
+ */
+
 import {
   Controller,
   Get,
@@ -18,6 +30,10 @@ import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-stand
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { CheckoutResponseDto } from './dto/checkout-response.dto';
 
+/**
+ * @class BillingController
+ * @description Controller exposing billing operations (packages, checkout, webhook).
+ */
 @ApiTags('Billing')
 @Controller('billing')
 export class BillingController {
@@ -26,6 +42,10 @@ export class BillingController {
     private readonly config: ConfigService,
   ) {}
 
+  /**
+   * Lists all active credit packages available for purchase.
+   * Public endpoint; returns list of packages.
+   */
   @Get('packages')
   @ApiOperation({ summary: 'List active credit packages' })
   @ApiOkResponse({ description: 'Packages list' })
@@ -35,6 +55,14 @@ export class BillingController {
     return { packages: packagesList };
   }
 
+  /**
+   * Creates a checkout session (Xendit invoice) for a selected credit package.
+   * Requires authentication; currently supports Xendit gateway only.
+   *
+   * @param dto Checkout input specifying package and gateway
+   * @param userId Authenticated user ID
+   * @returns CheckoutResponseDto containing purchaseId, extInvoiceId, and paymentUrl
+   */
   @Post('checkout')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JwtAuthGuard')
@@ -54,6 +82,14 @@ export class BillingController {
     return result as CheckoutResponseDto;
   }
 
+  /**
+   * Handles Xendit webhooks. Validates a shared callback token and updates purchase status
+   * when invoice transitions to PAID/SETTLED. Idempotent by design.
+   *
+   * @param body Webhook payload
+   * @param callbackToken Shared secret for validation
+   * @returns Acknowledgement object
+   */
   @Post('webhook/xendit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Xendit webhook handler (idempotent)' })

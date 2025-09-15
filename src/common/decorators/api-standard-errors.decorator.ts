@@ -1,3 +1,14 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: decorators/api-standard-errors.decorator.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Helper decorators to attach common API error responses with
+ * consistent schema and default descriptions across endpoints.
+ * --------------------------------------------------------------------------
+ */
+
 import { applyDecorators } from '@nestjs/common';
 import {
   ApiBadRequestResponse,

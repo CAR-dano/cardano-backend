@@ -1,3 +1,15 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: reports.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Service providing report-related operations such as
+ * resolving report details and streaming no-docs PDF files, including
+ * credit charging logic for CUSTOMER role.
+ * --------------------------------------------------------------------------
+ */
+
 import { Injectable, Logger, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreditsService } from '../credits/credits.service';
@@ -10,6 +22,10 @@ import * as fs from 'fs';
 import { Response } from 'express';
 import { Stream } from 'stream';
 
+/**
+ * @class ReportsService
+ * @description Business logic for report retrieval and PDF streaming.
+ */
 @Injectable()
 export class ReportsService {
   private readonly logger = new Logger(ReportsService.name);
@@ -20,6 +36,17 @@ export class ReportsService {
     private readonly backblaze: BackblazeService,
   ) {}
 
+  /**
+   * Retrieves report details and whether the user can download the no-docs PDF.
+   * For CUSTOMER role, `canDownload` is true only if they have already consumed a credit
+   * for the given inspection report.
+   *
+   * @param id Inspection ID (UUID)
+   * @param userId Current authenticated user ID
+   * @param userRole Current authenticated user role
+   * @returns Report detail payload including `canDownload` and optional credit balance
+   * @throws NotFoundException When inspection is missing or not archived
+   */
   async getDetail(id: string, userId: string, userRole: Role): Promise<ReportDetailResponseDto> {
     const desiredLabels = [
       'Tampak Depan',
@@ -101,6 +128,17 @@ export class ReportsService {
     };
   }
 
+  /**
+   * Streams the no-docs PDF to the client. If the user is a CUSTOMER and has not
+   * yet downloaded this report, charges 1 credit before streaming. Subsequent downloads
+   * are free (idempotent). Tries Backblaze first, then falls back to local storage.
+   *
+   * @param id Inspection ID (UUID)
+   * @param userId Current authenticated user ID
+   * @param userRole Current authenticated user role
+   * @param res Express response for piping the PDF stream
+   * @throws NotFoundException When inspection or PDF file is not found
+   */
   async streamNoDocsPdf(
     id: string,
     userId: string,
@@ -162,4 +200,3 @@ export class ReportsService {
     throw new NotFoundException('PDF file not found');
   }
 }
-
