@@ -25,7 +25,6 @@ import {
   HttpCode,
   HttpStatus,
   NotFoundException,
-  Logger,
   Delete, // Add Delete
   Post, // Import Post
 } from '@nestjs/common';
@@ -63,15 +62,18 @@ import { UpdateInspectorDto } from './dto/update-inspector.dto';
 
 import { CreateAdminDto } from './dto/create-admin.dto'; // Import CreateAdminDto
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { AppLogger } from '../logging/app-logger.service';
 
 @ApiTags('User Management (Admin)') // Tag for documentation
 @ApiBearerAuth('JwtAuthGuard') // Indicate JWT is needed for all endpoints here
 @UseGuards(JwtAuthGuard, RolesGuard) // Apply both guards at the controller level
 @Controller('admin/users') // Base path: /api/v1/admin/users
 export class UsersController {
-  private readonly logger = new Logger(UsersController.name);
+  private readonly logger: AppLogger;
 
-  constructor(private readonly usersService: UsersService) {
+  constructor(private readonly usersService: UsersService, logger: AppLogger) {
+    this.logger = logger;
+    this.logger.setContext(UsersController.name);
     this.logger.log('UsersController initialized (Admin)');
   }
 

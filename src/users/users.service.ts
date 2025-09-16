@@ -16,10 +16,10 @@ import {
   NotFoundException,
   InternalServerErrorException,
   ConflictException, // For handling unique constraint errors
-  Logger,
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { AppLogger } from '../logging/app-logger.service';
 import { PrismaService } from '../prisma/prisma.service'; // Adjust path if needed
 import { User, Role, Prisma } from '@prisma/client';
 import { RegisterUserDto } from '../auth/dto/register-user.dto'; // Import DTO for local registration
@@ -32,14 +32,15 @@ import { CreateAdminDto } from './dto/create-admin.dto'; // Import CreateAdminDt
 
 @Injectable()
 export class UsersService {
-  private readonly logger = new Logger(UsersService.name);
   private readonly saltRounds = 10;
 
   /**
    * Constructs the UsersService and injects the PrismaService for database interactions.
    * @param {PrismaService} prisma - The Prisma database client service.
    */
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private readonly logger: AppLogger) {
+    this.logger.setContext(UsersService.name);
+  }
 
   /**
    * Normalizes an email address to a standard format.

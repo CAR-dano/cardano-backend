@@ -10,7 +10,8 @@
  * --------------------------------------------------------------------------
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { AppLogger } from '../../logging/app-logger.service';
 import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
@@ -29,12 +30,14 @@ import type { Express } from 'express';
  */
 @Injectable()
 export class BackblazeService {
-  private readonly logger = new Logger(BackblazeService.name);
+  private readonly logger: AppLogger;
   private s3Client: S3Client;
   private readonly bucketName: string | undefined;
   private readonly endpoint: string | undefined;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(private readonly config: ConfigService, logger: AppLogger) {
+    this.logger = logger;
+    this.logger.setContext(BackblazeService.name);
     const accessKeyId = this.config.get<string>('STORAGE_APPLICATION_KEY_ID');
     const secretAccessKey = this.config.get<string>('STORAGE_APPLICATION_KEY');
     const region = this.config.get<string>('STORAGE_REGION');

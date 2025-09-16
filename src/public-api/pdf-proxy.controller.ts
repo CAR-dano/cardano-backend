@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Res,
-  NotFoundException,
-  Logger,
-} from '@nestjs/common';
+import { Controller, Get, Param, Res, NotFoundException } from '@nestjs/common';
 import { Response } from 'express';
 import { BackblazeService } from '../common/services/backblaze.service';
 import { Stream } from 'stream';
@@ -14,12 +7,14 @@ import * as path from 'path';
 import { ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
+import { AppLogger } from '../logging/app-logger.service';
 
 @ApiTags('Public PDF')
 @Controller()
 export class PdfProxyController {
-  private readonly logger = new Logger(PdfProxyController.name);
-  constructor(private readonly backblazeService: BackblazeService) {}
+  constructor(private readonly backblazeService: BackblazeService, private readonly logger: AppLogger) {
+    this.logger.setContext(PdfProxyController.name);
+  }
 
   private async streamPdfToResponse(name: string, res: Response) {
     // Map any incoming route name to the bucket key under pdfarchived/

@@ -20,7 +20,6 @@ import {
   Res,
   UseGuards,
   HttpStatus,
-  Logger,
   HttpCode,
   InternalServerErrorException,
   UnauthorizedException, // Import UnauthorizedException
@@ -58,6 +57,7 @@ import { InspectorGuard } from './guards/inspector.guard';
 import { LoginInspectorDto } from './dto/login-inspector.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { AppLogger } from '../logging/app-logger.service';
 
 // Define interface for request object after JWT or Local auth guard runs
 interface AuthenticatedRequest extends Request {
@@ -67,7 +67,7 @@ interface AuthenticatedRequest extends Request {
 @ApiTags('Auth (UI Users)')
 @Controller('auth') // Base path: /api/v1/auth
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
+  private readonly logger: AppLogger;
 
   /**
    * Constructs the AuthController.
@@ -81,7 +81,11 @@ export class AuthController {
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService, // Inject JwtService
-  ) {}
+    logger: AppLogger,
+  ) {
+    this.logger = logger;
+    this.logger.setContext(AuthController.name);
+  }
 
   /**
    * Handles local user registration (Email/Username + Password).

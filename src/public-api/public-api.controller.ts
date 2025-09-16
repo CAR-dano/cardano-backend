@@ -19,7 +19,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Logger,
   InternalServerErrorException,
   Param,
   Query,
@@ -48,6 +47,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BackblazeService } from '../common/services/backblaze.service';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import { AppLogger } from '../logging/app-logger.service';
 
 /**
  * @class PublicApiController
@@ -59,7 +59,7 @@ import * as crypto from 'crypto';
 @Controller('public') // Base path for all routes defined in this controller
 export class PublicApiController {
   // Logger instance for logging messages within this controller
-  private readonly logger = new Logger(PublicApiController.name);
+  private readonly logger: AppLogger;
 
   // In-memory cache for deep health checks to keep /public/health fast
   private static deepCache: {
@@ -107,8 +107,11 @@ export class PublicApiController {
     private readonly prisma: PrismaService,
     private readonly backblaze: BackblazeService,
     private readonly config: ConfigService,
+    logger: AppLogger,
   ) {
     // Log controller initialization
+    this.logger = logger;
+    this.logger.setContext(PublicApiController.name);
     this.logger.log('PublicApiController initialized');
   }
 

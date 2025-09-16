@@ -38,6 +38,8 @@ import { ReportsModule } from './reports/reports.module';
 import { CreditsModule } from './credits/credits.module';
 import { BillingModule } from './billing/billing.module';
 import { CreditPackagesModule } from './credit-packages/credit-packages.module';
+import { AppLoggingModule } from './logging/logging.module';
+import { RequestIdMiddleware } from './logging/request-id.middleware';
 
 @Module({
   imports: [
@@ -76,12 +78,13 @@ import { CreditPackagesModule } from './credit-packages/credit-packages.module';
     CreditsModule,
     BillingModule,
     CreditPackagesModule,
+    AppLoggingModule,
   ],
   controllers: [],
   providers: [],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(MetricsMiddleware).forRoutes('*');
+    consumer.apply(RequestIdMiddleware, MetricsMiddleware).forRoutes('*');
   }
 }

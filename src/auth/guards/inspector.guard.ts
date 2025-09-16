@@ -1,17 +1,12 @@
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  UnauthorizedException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from '../auth.service';
+import { AppLogger } from '../../logging/app-logger.service';
 
 @Injectable()
 export class InspectorGuard implements CanActivate {
-  private readonly logger = new Logger(InspectorGuard.name);
-
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService, private readonly logger: AppLogger) {
+    this.logger.setContext(InspectorGuard.name);
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();

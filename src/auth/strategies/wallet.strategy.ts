@@ -13,15 +13,11 @@
 
 import { Strategy } from 'passport-custom'; // Using passport-custom for flexibility
 import { PassportStrategy } from '@nestjs/passport';
-import {
-  Injectable,
-  UnauthorizedException,
-  Logger,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { AuthService } from '../auth.service';
 import { User } from '@prisma/client';
 import { Request } from 'express'; // Import Request to access body/query
+import { AppLogger } from '../../logging/app-logger.service';
 
 // Define an interface for the expected request body structure
 interface WalletAuthRequestBody {
@@ -32,10 +28,12 @@ interface WalletAuthRequestBody {
 @Injectable()
 // Use a unique name 'wallet' for this strategy
 export class WalletStrategy extends PassportStrategy(Strategy, 'wallet') {
-  private readonly logger = new Logger(WalletStrategy.name);
+  private readonly logger: AppLogger;
 
-  constructor(private authService: AuthService) {
+  constructor(private authService: AuthService, logger: AppLogger) {
     super(); // Call super for passport-custom
+    this.logger = logger;
+    this.logger.setContext(WalletStrategy.name);
     this.logger.log(
       'Wallet Strategy Initialized (Placeholder - Verification Logic Missing!)',
     );

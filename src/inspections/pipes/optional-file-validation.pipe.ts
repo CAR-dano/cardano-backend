@@ -1,11 +1,5 @@
-import {
-  PipeTransform,
-  Injectable,
-  ArgumentMetadata,
-  BadRequestException,
-  InternalServerErrorException,
-  Logger,
-} from '@nestjs/common';
+import { PipeTransform, Injectable, ArgumentMetadata, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { AppLogger } from '../../logging/app-logger.service';
 import * as fs from 'fs/promises';
 import { extname } from 'path';
 
@@ -19,7 +13,9 @@ const ALLOWED_EXTENSIONS = /\.(jpg|jpeg|png)$/i;
  */
 @Injectable()
 export class OptionalFileValidationPipe implements PipeTransform {
-  private readonly logger = new Logger(OptionalFileValidationPipe.name);
+  constructor(private readonly logger?: AppLogger) {
+    this.logger?.setContext(OptionalFileValidationPipe.name);
+  }
 
   async transform(
     file: Express.Multer.File | undefined,
@@ -69,7 +65,8 @@ export class OptionalFileValidationPipe implements PipeTransform {
         );
       }
     } catch (error) {
-      this.logger.error(`Validation failed for ${file.originalname}:`, error as Error);
+      if (this.logger) this.logger.error(`Validation failed for ${file.originalname}: ${(error as Error)?.message}`);
+      else console.error(`Validation failed for ${file.originalname}:`, error);
       if (error instanceof BadRequestException) {
         throw error;
       }
@@ -77,4 +74,3 @@ export class OptionalFileValidationPipe implements PipeTransform {
     }
   }
 }
-

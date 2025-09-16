@@ -10,7 +10,8 @@
  * --------------------------------------------------------------------------
  */
 
-import { Injectable, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { AppLogger } from '../logging/app-logger.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -19,8 +20,9 @@ import { PrismaService } from '../prisma/prisma.service';
  */
 @Injectable()
 export class CreditsService {
-  private readonly logger = new Logger(CreditsService.name);
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly logger: AppLogger) {
+    this.logger.setContext(CreditsService.name);
+  }
 
   /**
    * Builds unique consumption key to ensure idempotency per user+inspection.

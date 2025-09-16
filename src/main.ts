@@ -16,10 +16,13 @@ import { NestFactory } from '@nestjs/core';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder, OpenAPIObject } from '@nestjs/swagger';
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { ValidationPipe } from '@nestjs/common';
+import { Logger } from 'nestjs-pino';
 import { ConfigService } from '@nestjs/config';
 import { json, urlencoded } from 'express';
 import { getLoggerConfig } from './config/logger.config';
+import { HttpLoggingInterceptor } from './logging/http-logging.interceptor';
+import { GlobalExceptionFilter } from './logging/global-exception.filter';
 
 let openApiDocument: OpenAPIObject | null = null;
 
@@ -40,11 +43,13 @@ async function bootstrap() {
   const loggerConfig = getLoggerConfig();
 
   const app = await NestFactory.create(AppModule, {
-    logger: loggerConfig.logLevels, // Set log levels from configuration
+    bufferLogs: true,
   });
+  // use nestjs-pino logger
+  app.useLogger(app.get(Logger));
   app.use(helmet());
   const configService = app.get(ConfigService);
-  const logger = new Logger('Bootstrap - ApiGateway'); // Create a logger instance
+  const logger = app.get(Logger);
 
   logger.log(
     `Logger initialized with levels: [${loggerConfig.logLevels.join(', ')}]`,
@@ -69,6 +74,11 @@ async function bootstrap() {
       disableErrorMessages: false, // Show validation error messages (set true in production if necessary)
     }),
   );
+
+  // Global HTTP access logging
+  app.useGlobalInterceptors(app.get(HttpLoggingInterceptor));
+  // Global structured exception handling
+  app.useGlobalFilters(app.get(GlobalExceptionFilter));
 
   // Enable CORS if frontend and backend have different origins
   const clientUrl = configService.get<string>('CLIENT_BASE_URL');

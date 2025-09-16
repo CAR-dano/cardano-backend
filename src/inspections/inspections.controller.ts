@@ -25,7 +25,6 @@ import {
   UseInterceptors,
   UploadedFiles,
   UploadedFile,
-  Logger,
   BadRequestException,
   HttpCode,
   HttpStatus,
@@ -88,6 +87,7 @@ import { FileValidationPipe } from './pipes/file-validation.pipe';
 import { OptionalFileValidationPipe } from './pipes/optional-file-validation.pipe';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { skip } from 'rxjs';
+import { AppLogger } from '../logging/app-logger.service';
 
 // Define an interface for the expected photo metadata structure
 interface PhotoMetadata {
@@ -114,7 +114,13 @@ const photoStorageConfig = memoryStorage();
 @Controller('inspections')
 export class InspectionsController {
   // Logger instance specific to this controller
-  private readonly logger = new Logger(InspectionsController.name);
+  constructor(
+    private readonly inspectionsService: InspectionsService,
+    private readonly photosService: PhotosService,
+    private readonly logger: AppLogger,
+  ) {
+    this.logger.setContext(InspectionsController.name);
+  }
 
   /**
    * Constructs the InspectionsController.
@@ -122,10 +128,7 @@ export class InspectionsController {
    * @param inspectionsService Service for core inspection logic.
    * @param photosService Service specifically for handling photo operations.
    */
-  constructor(
-    private readonly inspectionsService: InspectionsService,
-    private readonly photosService: PhotosService,
-  ) {}
+  
 
   /**
    * Handles the creation of a new inspection record.

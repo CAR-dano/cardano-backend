@@ -10,7 +10,9 @@
  * --------------------------------------------------------------------------
  */
 
-import { Injectable, Logger, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import { Injectable, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import { AppLogger } from '../logging/app-logger.service';
+import { AuditLoggerService } from '../logging/audit-logger.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreditsService } from '../credits/credits.service';
 import { BackblazeService } from '../common/services/backblaze.service';
@@ -28,13 +30,15 @@ import { Stream } from 'stream';
  */
 @Injectable()
 export class ReportsService {
-  private readonly logger = new Logger(ReportsService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly credits: CreditsService,
     private readonly backblaze: BackblazeService,
-  ) {}
+    private readonly logger: AppLogger,
+    private readonly audit: AuditLoggerService,
+  ) {
+    this.logger.setContext?.(ReportsService.name as any);
+  }
 
   /**
    * Retrieves report details and whether the user can download the no-docs PDF.
@@ -162,6 +166,16 @@ export class ReportsService {
       if (!has) {
         try {
           await this.credits.chargeOnce(userId, id, 1);
+          this.audit.log({
+            rid: (res as any)?.req?.id || 'n/a',
+            actorId: userId,
+            actorRole: 'CUSTOMER',
+            action: 'DOWNLOAD',
+            resource: 'report_pdf_no_docs',
+            subjectId: id,
+            result: 'SUCCESS',
+            ip: (res as any)?.req?.ip,
+          });
         } catch (e: any) {
           if (e?.message === 'INSUFFICIENT_CREDITS' || e?.response?.message === 'INSUFFICIENT_CREDITS') {
             throw new HttpException(
@@ -186,7 +200,7 @@ export class ReportsService {
         return;
       }
     } catch (err: any) {
-      this.logger.warn(`Backblaze getFile failed for ${key}: ${err?.message ?? err}`);
+      this.logger.warn({ key, err }, 'Backblaze getFile failed');
     }
 
     const localPath = path.resolve(process.cwd(), 'pdfarchived', path.basename(filename));

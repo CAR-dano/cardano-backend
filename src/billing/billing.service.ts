@@ -9,7 +9,8 @@
  * --------------------------------------------------------------------------
  */
 
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { AppLogger } from '../logging/app-logger.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentGateway, PurchaseStatus } from '@prisma/client';
 import { XenditService } from './payments/xendit.service';
@@ -21,12 +22,14 @@ import { ConfigService } from '@nestjs/config';
  */
 @Injectable()
 export class BillingService {
-  private readonly logger = new Logger(BillingService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly xendit: XenditService,
     private readonly config: ConfigService,
-  ) {}
+    private readonly logger: AppLogger,
+  ) {
+    this.logger.setContext(BillingService.name);
+  }
 
   /**
    * Returns all active credit packages ordered by newest first.

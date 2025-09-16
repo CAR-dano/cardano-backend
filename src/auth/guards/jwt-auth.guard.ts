@@ -11,20 +11,19 @@
  * --------------------------------------------------------------------------
  */
 
-import {
-  Injectable,
-  ExecutionContext,
-  UnauthorizedException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Observable } from 'rxjs';
 import { JsonWebTokenError, TokenExpiredError } from '@nestjs/jwt';
+import { AppLogger } from '../../logging/app-logger.service';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
   // Use the strategy name 'jwt'
-  private readonly logger = new Logger(JwtAuthGuard.name);
+  constructor(private readonly logger: AppLogger) {
+    super();
+    this.logger.setContext(JwtAuthGuard.name);
+  }
 
   /**
    * Overrides canActivate to provide more detailed logging before strategy execution.

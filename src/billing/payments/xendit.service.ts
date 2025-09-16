@@ -9,8 +9,9 @@
  * --------------------------------------------------------------------------
  */
 
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AppLogger } from '../../logging/app-logger.service';
 
 /** Input payload for creating Xendit invoice */
 interface CreateInvoiceInput {
@@ -36,9 +37,9 @@ interface CreateInvoiceResponse {
  */
 @Injectable()
 export class XenditService {
-  private readonly logger = new Logger(XenditService.name);
   private readonly apiKey: string | undefined;
-  constructor(private readonly config: ConfigService) {
+  constructor(private readonly config: ConfigService, private readonly logger: AppLogger) {
+    this.logger.setContext(XenditService.name);
     this.apiKey = this.config.get<string>('XENDIT_API_KEY');
   }
 

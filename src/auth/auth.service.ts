@@ -14,10 +14,10 @@
 
 import {
   Injectable,
-  Logger,
   InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { AppLogger } from '../logging/app-logger.service';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service'; // To find users
 import { ConfigService } from '@nestjs/config';
@@ -29,14 +29,15 @@ import { PrismaService } from '../prisma/prisma.service'; // Import PrismaServic
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-
   constructor(
     private readonly usersService: UsersService, // Service to interact with user data
     private readonly jwtService: JwtService, // Service to create JWTs
     private readonly configService: ConfigService, // Service to access environment variables
     private readonly prisma: PrismaService, // Inject PrismaService
-  ) {}
+    private readonly logger: AppLogger,
+  ) {
+    this.logger.setContext(AuthService.name);
+  }
 
   /**
    * Validates a user based on local credentials (email/username and password).

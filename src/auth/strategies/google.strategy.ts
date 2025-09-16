@@ -13,16 +13,17 @@
 
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, VerifyCallback, Profile } from 'passport-google-oauth20'; // Google strategy components
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config'; // For Google credentials
 import { AuthService } from '../auth.service'; // For user validation/creation logic
 import { User } from '@prisma/client'; // Import Role for type safety
+import { AppLogger } from '../../logging/app-logger.service';
 
 @Injectable()
 // Define the strategy, extending PassportStrategy with the base Google Strategy
 // and naming it 'google'. This name is used in AuthGuard('google').
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
-  private readonly logger = new Logger(GoogleStrategy.name);
+  private readonly logger: AppLogger;
 
   /**
    * Injects ConfigService for Google API credentials and AuthService for user processing.
@@ -37,6 +38,7 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   constructor(
     private readonly configService: ConfigService,
     private readonly authService: AuthService,
+    logger: AppLogger,
   ) {
     super({
       clientID: configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
@@ -44,6 +46,8 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       callbackURL: configService.getOrThrow<string>('GOOGLE_CALLBACK_URL'),
       scope: ['email', 'profile'], // Request email and basic profile info
     });
+    this.logger = logger;
+    this.logger.setContext(GoogleStrategy.name);
     this.logger.log('Google Strategy Initialized');
   }
 

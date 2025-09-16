@@ -14,13 +14,13 @@
 
 import {
   Injectable,
-  Logger,
   InternalServerErrorException,
   BadRequestException,
   NotFoundException,
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
+import { AppLogger } from '../logging/app-logger.service';
 import { PrismaService } from '../prisma/prisma.service'; // Service for Prisma client interaction
 import { CreateInspectionDto } from './dto/create-inspection.dto'; // DTO for incoming creation data
 import { UpdateInspectionDto } from './dto/update-inspection/update-inspection.dto';
@@ -224,7 +224,7 @@ class BlockchainMintingQueue {
 @Injectable()
 export class InspectionsService {
   // Initialize a logger for this service context
-  private readonly logger = new Logger(InspectionsService.name);
+  private readonly logger: AppLogger;
   // PDF generation queue to limit concurrent operations
   private readonly pdfQueue = new PdfGenerationQueue(5); // Increased to 5 for large bulk operations
   // Blockchain minting queue to prevent UTXO conflicts
@@ -236,7 +236,10 @@ export class InspectionsService {
     private config: ConfigService,
     private readonly ipfsService: IpfsService,
     private readonly backblazeService: BackblazeService,
+    logger: AppLogger,
   ) {
+    this.logger = logger;
+    this.logger.setContext(InspectionsService.name);
     // Ensure the PDF archive directory exists on startup
     void this.ensureDirectoryExists(PDF_ARCHIVE_PATH);
   }
