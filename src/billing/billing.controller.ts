@@ -37,6 +37,10 @@ import { CheckoutResponseDto } from './dto/checkout-response.dto';
 @ApiTags('Billing')
 @Controller('billing')
 export class BillingController {
+  // In-memory idempotency set for webhook event keys with TTL cleanup
+  private static processedEvents: Map<string, number> = new Map();
+  private static readonly EVENT_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+
   constructor(
     private readonly billing: BillingService,
     private readonly config: ConfigService,
@@ -110,9 +114,31 @@ export class BillingController {
     const status = (data.status || body?.status || '').toUpperCase();
     if (!invoiceId) return { ok: true };
 
+    // Derive an event key for per-event idempotency
+    const eventParts = [
+      invoiceId,
+      status,
+      data.event || body?.event || '',
+      data.payment_id || body?.payment_id || '',
+      data.updated || body?.updated || data.paid_at || body?.paid_at || '',
+    ];
+    const eventKey = eventParts.filter(Boolean).join(':');
+
+    // Cleanup old entries
+    const now = Date.now();
+    for (const [k, ts] of BillingController.processedEvents.entries()) {
+      if (now - ts > BillingController.EVENT_TTL_MS) BillingController.processedEvents.delete(k);
+    }
+
+    if (eventKey && BillingController.processedEvents.has(eventKey)) {
+      // Already processed this exact event recently
+      return { ok: true, duplicate: true };
+    }
+
     if (status === 'PAID' || status === 'SETTLED') {
       await this.billing.markPaidByExtInvoiceId(invoiceId);
     }
+    if (eventKey) BillingController.processedEvents.set(eventKey, now);
     return { ok: true };
   }
 }

@@ -417,4 +417,37 @@ export class BackblazeService {
       return { ok: false, bucket, endpoint: this.endpoint, error: msg };
     }
   }
+
+  /**
+   * Generates a pre-signed URL for downloading a file by key with a short TTL.
+   * Useful to allow clients to fetch directly from Backblaze without proxying.
+   */
+  async getPresignedUrl(
+    fileName: string,
+    expiresInSec: number,
+    bucketName?: string,
+  ): Promise<string> {
+    const bucket = bucketName || this.bucketName;
+    if (!bucket) throw new Error('Bucket name not configured');
+    const cmd = new GetObjectCommand({ Bucket: bucket, Key: fileName });
+    try {
+      // Lazy load presigner to avoid hard dependency when package is unavailable
+      let getSignedUrlFn: any;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        getSignedUrlFn = require('@aws-sdk/s3-request-presigner').getSignedUrl;
+      } catch (e) {
+        this.logger.warn('s3-request-presigner package not available; cannot generate S3 presigned URL');
+        throw new Error('PRESIGNER_NOT_AVAILABLE');
+      }
+      const url = await getSignedUrlFn(this.s3Client, cmd, { expiresIn: Math.max(1, Math.min(7 * 24 * 3600, expiresInSec)) });
+      this.logger.debug(`getPresignedUrl: generated signed URL for '${fileName}' (ttl=${expiresInSec}s)`);
+      return url;
+    } catch (err: unknown) {
+      this.logger.error(
+        `getPresignedUrl: failed for key='${fileName}' in bucket='${bucket}': ${this.formatError(err)}`,
+      );
+      throw err;
+    }
+  }
 }

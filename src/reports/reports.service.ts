@@ -23,6 +23,8 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { Response } from 'express';
 import { Stream } from 'stream';
+import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
 
 /**
  * @class ReportsService
@@ -36,6 +38,7 @@ export class ReportsService {
     private readonly backblaze: BackblazeService,
     private readonly logger: AppLogger,
     private readonly audit: AuditLoggerService,
+    private readonly config: ConfigService,
   ) {
     this.logger.setContext?.(ReportsService.name as any);
   }
@@ -226,5 +229,88 @@ export class ReportsService {
     }
 
     throw new NotFoundException('PDF file not found');
+  }
+
+  /**
+   * Returns a presigned URL (cloud) or a short-lived signed local proxy URL to download PDF.
+   * Performs the same credit charging/idempotency checks as streaming endpoint.
+   */
+  async getPresignedDownloadUrl(
+    id: string,
+    userId: string,
+    userRole: Role,
+  ): Promise<{ url: string; ttlSec: number; source: 'cloud' | 'local' }>
+  {
+    const inspection = await this.prisma.inspection.findUnique({
+      where: { id },
+      select: { status: true, urlPdfNoDocs: true, urlPdfNoDocsCloud: true },
+    });
+    if (!inspection) throw new NotFoundException('Inspection not found');
+    if ((inspection as any).status !== InspectionStatus.ARCHIVED) {
+      throw new NotFoundException('Inspection not found');
+    }
+
+    const srcUrl = inspection.urlPdfNoDocsCloud || inspection.urlPdfNoDocs;
+    if (!srcUrl) throw new NotFoundException('No no-docs PDF available');
+
+    if (userRole === Role.CUSTOMER) {
+      const has = await this.credits.hasConsumption(userId, id);
+      if (!has) {
+        try {
+          await this.credits.chargeOnce(userId, id, 1);
+        } catch (e: any) {
+          if (e?.message === 'INSUFFICIENT_CREDITS' || e?.response?.message === 'INSUFFICIENT_CREDITS') {
+            throw new HttpException(
+              { reason: 'INSUFFICIENT_CREDITS', next: '/billing/packages' },
+              HttpStatus.PAYMENT_REQUIRED,
+            );
+          }
+          throw e;
+        }
+      }
+    }
+
+    const ttlSec = Number(this.config.get<string>('REPORT_DL_TTL_SEC') || '60');
+    const filename = path.basename(srcUrl);
+    const key = filename.startsWith('pdfarchived/') ? filename : `pdfarchived/${filename}`;
+
+    if (inspection.urlPdfNoDocsCloud) {
+      try {
+        // Generate S3/Backblaze presigned URL
+        const url = await this.backblaze.getPresignedUrl(key, ttlSec);
+        this.audit.log({
+          rid: 'n/a',
+          actorId: userId,
+          actorRole: userRole,
+          action: 'REPORT_DL_URL_ISSUED',
+          resource: 'report_pdf_no_docs',
+          subjectId: id,
+          result: 'SUCCESS',
+          meta: { source: 'cloud', ttlSec },
+        });
+        return { url, ttlSec, source: 'cloud' };
+      } catch (err: any) {
+        // Fallback to local signed proxy if presigner unavailable
+        this.logger.warn(`Presigned S3 URL failed; falling back to local signed URL: ${String(err?.message ?? err)}`);
+      }
+    }
+
+    // Local fallback: sign our private proxy URL
+    const secret = this.config.get<string>('REPORT_DL_SECRET') || '';
+    const base = this.config.get<string>('URL') || '';
+    const exp = Date.now() + ttlSec * 1000;
+    const sig = crypto.createHmac('sha256', secret).update(`${filename}.${exp}`).digest('hex');
+    const url = `${base.replace(/\/$/, '')}/v1/private/pdfarchived/${encodeURIComponent(filename)}?exp=${exp}&sig=${sig}`;
+    this.audit.log({
+      rid: 'n/a',
+      actorId: userId,
+      actorRole: userRole,
+      action: 'REPORT_DL_URL_ISSUED',
+      resource: 'report_pdf_no_docs',
+      subjectId: id,
+      result: 'SUCCESS',
+      meta: { source: 'local', ttlSec },
+    });
+    return { url, ttlSec, source: 'local' };
   }
 }

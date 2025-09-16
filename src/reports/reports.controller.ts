@@ -30,6 +30,7 @@ import { ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, A
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 import { ReportsService } from './reports.service';
+import { ApiCreatedResponse } from '@nestjs/swagger';
 
 /**
  * @class ReportsController
@@ -81,5 +82,27 @@ export class ReportsController {
     @Res() res: Response,
   ) {
     return this.reportsService.streamNoDocsPdf(id, userId, userRole, res);
+  }
+
+  /**
+   * POST /reports/:id/download-url — returns a short-lived presigned URL
+   * Prefer using this endpoint to let clients download directly from storage.
+   */
+  @Post(':id/download-url')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JwtAuthGuard')
+  @ApiOperation({ summary: 'Get presigned URL to download no-docs PDF' })
+  @ApiParam({ name: 'id', description: 'Inspection ID (UUID)' })
+  @ApiOkResponse({ description: 'Presigned URL issued' })
+  @ApiResponse({ status: 402, description: 'Payment Required (insufficient credits for customer)' })
+  @ApiNotFoundResponse({ description: 'No no-docs PDF available or file missing', type: HttpErrorResponseDto })
+  @ApiAuthErrors()
+  async downloadUrl(
+    @Param('id') id: string,
+    @GetUser('id') userId: string,
+    @GetUser('role') userRole: Role,
+  ) {
+    const result = await this.reportsService.getPresignedDownloadUrl(id, userId, userRole);
+    return result;
   }
 }
