@@ -14,6 +14,7 @@ import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/com
 import { AppLogger } from '../logging/app-logger.service';
 import { AuditLoggerService } from '../logging/audit-logger.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 
 /**
  * @class CreditsService
@@ -57,25 +58,35 @@ export class CreditsService {
    */
   async chargeOnce(userId: string, inspectionId: string, cost = 1): Promise<void> {
     const uniqueKey = this.buildKey(userId, inspectionId);
-    await this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({ where: { id: userId }, select: { credits: true } });
-      if (!user) throw new BadRequestException('User not found');
-      if ((user.credits ?? 0) < cost) throw new ForbiddenException('INSUFFICIENT_CREDITS');
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.findUnique({ where: { id: userId }, select: { credits: true } });
+        if (!user) throw new BadRequestException('User not found');
+        if ((user.credits ?? 0) < cost) throw new ForbiddenException('INSUFFICIENT_CREDITS');
 
-      await tx.user.update({ where: { id: userId }, data: { credits: { decrement: cost } } });
-      await tx.creditConsumption.create({
-        data: { userId, inspectionId, cost, uniqueKey },
+        await tx.user.update({ where: { id: userId }, data: { credits: { decrement: cost } } });
+        await tx.creditConsumption.create({ data: { userId, inspectionId, cost, uniqueKey } });
       });
-    });
-    this.logger.log(`Charged ${cost} credit(s) for user=${userId} inspection=${inspectionId}`);
-    this.audit.log({
-      rid: 'n/a',
-      actorId: userId,
-      action: 'CREDITS_CHARGED',
-      resource: 'credit',
-      subjectId: inspectionId,
-      result: 'SUCCESS',
-      meta: { cost },
-    });
+      this.logger.log(`Charged ${cost} credit(s) for user=${userId} inspection=${inspectionId}`);
+      this.audit.log({
+        rid: 'n/a',
+        actorId: userId,
+        action: 'CREDITS_CHARGED',
+        resource: 'credit',
+        subjectId: inspectionId,
+        result: 'SUCCESS',
+        meta: { cost },
+      });
+    } catch (err: any) {
+      // If unique key already exists (race), treat as idempotent success
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        this.logger.warn(`chargeOnce idempotent: unique consumption exists for ${uniqueKey}`);
+        return; // consider success
+      }
+      throw err;
+    }
   }
 }

@@ -128,4 +128,69 @@ export class BillingService {
       });
     });
   }
+
+  /**
+   * Marks a purchase as EXPIRED by external invoice ID. Idempotent.
+   */
+  async markExpiredByExtInvoiceId(extInvoiceId: string) {
+    const p = await this.prisma.purchase.findUnique({ where: { extInvoiceId } });
+    if (!p) throw new BadRequestException('Purchase not found');
+    if (p.status === PurchaseStatus.EXPIRED) return;
+    if (p.status === PurchaseStatus.PAID) return; // do not overwrite paid
+    await this.prisma.purchase.update({ where: { id: p.id }, data: { status: PurchaseStatus.EXPIRED } });
+    this.audit.log({
+      rid: 'n/a',
+      actorId: p.userId,
+      action: 'PURCHASE_EXPIRED',
+      resource: 'credit_purchase',
+      subjectId: p.id,
+      result: 'SUCCESS',
+      meta: { extInvoiceId },
+    });
+  }
+
+  /**
+   * Marks a purchase as FAILED by external invoice ID. Idempotent.
+   */
+  async markFailedByExtInvoiceId(extInvoiceId: string) {
+    const p = await this.prisma.purchase.findUnique({ where: { extInvoiceId } });
+    if (!p) throw new BadRequestException('Purchase not found');
+    if (p.status === PurchaseStatus.FAILED) return;
+    if (p.status === PurchaseStatus.PAID) return; // do not overwrite paid
+    await this.prisma.purchase.update({ where: { id: p.id }, data: { status: PurchaseStatus.FAILED } });
+    this.audit.log({
+      rid: 'n/a',
+      actorId: p.userId,
+      action: 'PURCHASE_FAILED',
+      resource: 'credit_purchase',
+      subjectId: p.id,
+      result: 'SUCCESS',
+      meta: { extInvoiceId },
+    });
+  }
+
+  /** Returns one purchase (with package) for the current user (or any if admin). */
+  async getPurchaseById(id: string, requesterId: string, requesterRole: string) {
+    const p = await this.prisma.purchase.findUnique({
+      where: { id },
+      include: { creditPackage: true },
+    });
+    if (!p) throw new BadRequestException('Purchase not found');
+    // If not admin/superadmin, ensure ownership
+    if (!['ADMIN', 'SUPERADMIN'].includes(requesterRole) && p.userId !== requesterId) {
+      throw new BadRequestException('Purchase not found');
+    }
+    return p;
+  }
+
+  /** Lists recent purchases for the current user (most recent first). */
+  async listMyPurchases(userId: string, limit = 10) {
+    const lim = Math.max(1, Math.min(100, Number(limit) || 10));
+    return this.prisma.purchase.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: lim,
+      include: { creditPackage: true },
+    });
+  }
 }

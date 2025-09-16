@@ -19,6 +19,8 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Param,
+  Query,
 } from '@nestjs/common';
 import { BillingService } from './billing.service';
 import { CheckoutDto, BillingGateway } from './dto/checkout.dto';
@@ -30,6 +32,9 @@ import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-stand
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { CheckoutResponseDto } from './dto/checkout-response.dto';
 import { WebhookEventsService } from './webhook-events.service';
+import { Role } from '@prisma/client';
+import { ApiParam, ApiQuery } from '@nestjs/swagger';
+import { PurchaseItemResponseDto, PurchaseListResponseDto } from './dto/purchase-response.dto';
 
 /**
  * @class BillingController
@@ -144,7 +149,60 @@ export class BillingController {
         // Reply OK to avoid excessive retries if purchase update is already applied
         return { ok: true, error: true };
       }
+    } else if (status === 'EXPIRED') {
+      try {
+        await this.billing.markExpiredByExtInvoiceId(invoiceId);
+        if (rec.id) await this.webhookEvents.markProcessed(rec.id, 'SUCCESS');
+      } catch (err: any) {
+        if (rec.id) await this.webhookEvents.markError(rec.id, String(err?.message ?? err));
+        return { ok: true, error: true };
+      }
+    } else if (status === 'FAILED') {
+      try {
+        await this.billing.markFailedByExtInvoiceId(invoiceId);
+        if (rec.id) await this.webhookEvents.markProcessed(rec.id, 'SUCCESS');
+      } catch (err: any) {
+        if (rec.id) await this.webhookEvents.markError(rec.id, String(err?.message ?? err));
+        return { ok: true, error: true };
+      }
     }
     return { ok: true };
+  }
+
+  /**
+   * Returns a single purchase (with package info). Non-admins can only fetch their own.
+   */
+  @Get('purchases/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JwtAuthGuard')
+  @ApiOperation({ summary: 'Get purchase detail (current user or admin)' })
+  @ApiParam({ name: 'id', description: 'Purchase ID' })
+  @ApiOkResponse({ description: 'Purchase found', type: PurchaseItemResponseDto })
+  @ApiAuthErrors()
+  async getPurchase(
+    @Param('id') id: string,
+    @GetUser('id') userId: string,
+    @GetUser('role') role: Role,
+  ) {
+    const p = await this.billing.getPurchaseById(id, userId, role);
+    return new PurchaseItemResponseDto(p);
+  }
+
+  /**
+   * Lists recent purchases for the current user (most recent first).
+   */
+  @Get('purchases')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JwtAuthGuard')
+  @ApiOperation({ summary: 'List recent purchases for current user' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max items (1-100), default 10' })
+  @ApiOkResponse({ description: 'Purchases list', type: PurchaseListResponseDto })
+  @ApiAuthErrors()
+  async listPurchases(
+    @Query('limit') limit: string,
+    @GetUser('id') userId: string,
+  ) {
+    const list = await this.billing.listMyPurchases(userId, Number(limit));
+    return new PurchaseListResponseDto(list);
   }
 }
