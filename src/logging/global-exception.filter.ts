@@ -47,6 +47,16 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       base.error = 'Internal Server Error';
     }
 
+    // Normalize Validation (400) messages to array of strings
+    if (status === HttpStatus.BAD_REQUEST) {
+      const normalizeToArray = (val: unknown): string[] => {
+        if (Array.isArray(val)) return val.map((v) => String(v));
+        if (val == null) return ['Bad Request'];
+        return [String(val)];
+      };
+      base.message = normalizeToArray((base as any).message);
+    }
+
     // Log structured error (with correlation id if present)
     const logPayload = {
       rid: req?.id || req?.headers?.['x-request-id'],
@@ -71,4 +81,3 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     res.status(status).json(base);
   }
 }
-
