@@ -11,7 +11,7 @@
  * --------------------------------------------------------------------------
  */
 
-import { Controller, Get, Post, Param, Res, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Res, UseGuards, Query } from '@nestjs/common';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -30,7 +30,8 @@ import { ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, A
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 import { ReportsService } from './reports.service';
-import { ApiCreatedResponse } from '@nestjs/swagger';
+import { ApiCreatedResponse, ApiQuery } from '@nestjs/swagger';
+import { ReportDownloadsResponseDto } from './dto/report-downloads-response.dto';
 
 /**
  * @class ReportsController
@@ -104,5 +105,23 @@ export class ReportsController {
   ) {
     const result = await this.reportsService.getPresignedDownloadUrl(id, userId, userRole);
     return result;
+  }
+
+  /**
+   * GET /reports/downloads — list user's downloaded reports (credit consumptions)
+   */
+  @Get('downloads')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JwtAuthGuard')
+  @ApiOperation({ summary: 'List downloaded reports (history) for current user' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Max items (1-100), default 10' })
+  @ApiOkResponse({ description: 'Downloads list', type: ReportDownloadsResponseDto })
+  @ApiAuthErrors()
+  async listDownloads(
+    @GetUser('id') userId: string,
+    @Query('limit') limit?: string,
+  ) {
+    const items = await this.reportsService.listDownloads(userId, Number(limit));
+    return new ReportDownloadsResponseDto(items as any);
   }
 }

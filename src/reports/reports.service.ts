@@ -25,6 +25,7 @@ import { Response } from 'express';
 import { Stream } from 'stream';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
+import { ReportDownloadItemDto } from './dto/report-downloads-response.dto';
 
 /**
  * @class ReportsService
@@ -312,5 +313,39 @@ export class ReportsService {
       meta: { source: 'local', ttlSec },
     });
     return { url, ttlSec, source: 'local' };
+  }
+
+  /**
+   * Lists user's downloaded reports (credit consumptions) with inspection summary.
+   */
+  async listDownloads(userId: string, limit = 10): Promise<ReportDownloadItemDto[]> {
+    const take = Math.max(1, Math.min(100, Number(limit) || 10));
+    const rows = await this.prisma.creditConsumption.findMany({
+      where: { userId },
+      orderBy: { usedAt: 'desc' },
+      take,
+      select: {
+        id: true,
+        cost: true,
+        usedAt: true,
+        inspection: {
+          select: {
+            id: true,
+            pretty_id: true,
+            vehiclePlateNumber: true,
+            status: true,
+            urlPdfNoDocs: true,
+            urlPdfNoDocsCloud: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+    return rows.map((r: any) => ({
+      id: r.id,
+      cost: r.cost,
+      usedAt: r.usedAt,
+      inspection: r.inspection,
+    }));
   }
 }
