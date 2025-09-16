@@ -14,6 +14,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { BillingController } from './billing.controller';
 import { BillingService } from './billing.service';
 import { XenditService } from './payments/xendit.service';
+import { WebhookEventsService } from './webhook-events.service';
 
 /**
  * @module BillingModule
@@ -22,6 +23,6 @@ import { XenditService } from './payments/xendit.service';
 @Module({
   imports: [PrismaModule],
   controllers: [BillingController],
-  providers: [BillingService, XenditService],
+  providers: [BillingService, XenditService, WebhookEventsService],
 })
 export class BillingModule {}

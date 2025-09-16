@@ -29,6 +29,7 @@ import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse, ApiTags, ApiCreatedR
 import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { CheckoutResponseDto } from './dto/checkout-response.dto';
+import { WebhookEventsService } from './webhook-events.service';
 
 /**
  * @class BillingController
@@ -37,13 +38,10 @@ import { CheckoutResponseDto } from './dto/checkout-response.dto';
 @ApiTags('Billing')
 @Controller('billing')
 export class BillingController {
-  // In-memory idempotency set for webhook event keys with TTL cleanup
-  private static processedEvents: Map<string, number> = new Map();
-  private static readonly EVENT_TTL_MS = 24 * 60 * 60 * 1000; // 24h
-
   constructor(
     private readonly billing: BillingService,
     private readonly config: ConfigService,
+    private readonly webhookEvents: WebhookEventsService,
   ) {}
 
   /**
@@ -114,31 +112,39 @@ export class BillingController {
     const status = (data.status || body?.status || '').toUpperCase();
     if (!invoiceId) return { ok: true };
 
-    // Derive an event key for per-event idempotency
-    const eventParts = [
-      invoiceId,
-      status,
-      data.event || body?.event || '',
-      data.payment_id || body?.payment_id || '',
-      data.updated || body?.updated || data.paid_at || body?.paid_at || '',
-    ];
-    const eventKey = eventParts.filter(Boolean).join(':');
+    // Build persistent idempotency key
+    const eventType: string | undefined = data.event || body?.event || undefined;
+    const timeKey = data.updated || body?.updated || data.paid_at || body?.paid_at || '';
+    const eventKey = ['XENDIT', invoiceId, (eventType || status).toUpperCase(), timeKey].filter(Boolean).join(':');
 
-    // Cleanup old entries
-    const now = Date.now();
-    for (const [k, ts] of BillingController.processedEvents.entries()) {
-      if (now - ts > BillingController.EVENT_TTL_MS) BillingController.processedEvents.delete(k);
+    // Record or short-circuit on duplicates
+    let rec: { isDuplicate: boolean; id?: string };
+    try {
+      rec = await this.webhookEvents.recordNewOrDuplicate({
+        dedupeKey: eventKey,
+        gateway: 'XENDIT',
+        extInvoiceId: invoiceId,
+        eventType: eventType || `INVOICE_${status}`,
+        payload: body,
+        headers: undefined,
+        payloadHash: undefined,
+      });
+    } catch (_e) {
+      // If DB is not ready, proceed but still rely on business idempotency
+      rec = { isDuplicate: false };
     }
-
-    if (eventKey && BillingController.processedEvents.has(eventKey)) {
-      // Already processed this exact event recently
-      return { ok: true, duplicate: true };
-    }
+    if (rec.isDuplicate) return { ok: true, duplicate: true };
 
     if (status === 'PAID' || status === 'SETTLED') {
-      await this.billing.markPaidByExtInvoiceId(invoiceId);
+      try {
+        await this.billing.markPaidByExtInvoiceId(invoiceId);
+        if (rec.id) await this.webhookEvents.markProcessed(rec.id, 'SUCCESS');
+      } catch (err: any) {
+        if (rec.id) await this.webhookEvents.markError(rec.id, String(err?.message ?? err));
+        // Reply OK to avoid excessive retries if purchase update is already applied
+        return { ok: true, error: true };
+      }
     }
-    if (eventKey) BillingController.processedEvents.set(eventKey, now);
     return { ok: true };
   }
 }
