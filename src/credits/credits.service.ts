@@ -12,6 +12,7 @@
 
 import { Injectable, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { AppLogger } from '../logging/app-logger.service';
+import { AuditLoggerService } from '../logging/audit-logger.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -20,7 +21,7 @@ import { PrismaService } from '../prisma/prisma.service';
  */
 @Injectable()
 export class CreditsService {
-  constructor(private readonly prisma: PrismaService, private readonly logger: AppLogger) {
+  constructor(private readonly prisma: PrismaService, private readonly logger: AppLogger, private readonly audit: AuditLoggerService) {
     this.logger.setContext(CreditsService.name);
   }
 
@@ -67,5 +68,14 @@ export class CreditsService {
       });
     });
     this.logger.log(`Charged ${cost} credit(s) for user=${userId} inspection=${inspectionId}`);
+    this.audit.log({
+      rid: 'n/a',
+      actorId: userId,
+      action: 'CREDITS_CHARGED',
+      resource: 'credit',
+      subjectId: inspectionId,
+      result: 'SUCCESS',
+      meta: { cost },
+    });
   }
 }

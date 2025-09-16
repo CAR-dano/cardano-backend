@@ -44,6 +44,7 @@ import {
 } from '../blockchain/blockchain.service';
 import { IpfsService } from '../ipfs/ipfs.service';
 import { BackblazeService } from '../common/services/backblaze.service';
+import { AuditLoggerService } from '../logging/audit-logger.service';
 import puppeteer, { Browser } from 'puppeteer'; // Import puppeteer and Browser type
 import { ConfigService } from '@nestjs/config';
 // Define path for archived PDFs (ensure this exists or is created by deployment script/manually)
@@ -237,6 +238,7 @@ export class InspectionsService {
     private readonly ipfsService: IpfsService,
     private readonly backblazeService: BackblazeService,
     logger: AppLogger,
+    private readonly audit: AuditLoggerService,
   ) {
     this.logger = logger;
     this.logger.setContext(InspectionsService.name);
@@ -1878,6 +1880,26 @@ export class InspectionsService {
           this._generateAndSavePdf(noDocsPdfUrl, noDocsPdfFileName, token),
         ]);
 
+        // Audit: PDFs uploaded (implies generated)
+        this.audit.log({
+          rid: 'n/a',
+          actorId: reviewerId,
+          action: 'PDF_UPLOADED',
+          resource: 'inspection',
+          subjectId: inspectionId,
+          result: 'SUCCESS',
+          meta: { type: 'FULL', file: fullPdfFileName, url: fullPdfResult.pdfCloudUrl },
+        });
+        this.audit.log({
+          rid: 'n/a',
+          actorId: reviewerId,
+          action: 'PDF_UPLOADED',
+          resource: 'inspection',
+          subjectId: inspectionId,
+          result: 'SUCCESS',
+          meta: { type: 'NO_DOCS', file: noDocsPdfFileName, url: noDocsPdfResult.pdfCloudUrl },
+        });
+
         // --- Final Database Update with PDF info and Final Status ---
         const finalUpdateData: Prisma.InspectionUpdateInput = {
           status: InspectionStatus.APPROVED, // Ensure final approved status
@@ -2413,6 +2435,16 @@ export class InspectionsService {
         this.logger.log(
           `Blockchain interaction SUCCESS for inspection ${inspectionId}`,
         );
+        // Audit: mint success
+        this.audit.log({
+          rid: 'n/a',
+          actorId: userId,
+          action: 'MINT_SUCCESS',
+          resource: 'inspection',
+          subjectId: inspectionId,
+          result: 'SUCCESS',
+          meta: { txHash: blockchainResult?.txHash, assetId: blockchainResult?.assetId },
+        });
       } catch (blockchainError: unknown) {
         const errorMessage =
           blockchainError instanceof Error
@@ -2427,6 +2459,16 @@ export class InspectionsService {
           errorStack,
         );
         blockchainSuccess = false;
+        // Audit: mint failure
+        this.audit.log({
+          rid: 'n/a',
+          actorId: userId,
+          action: 'MINT_FAILURE',
+          resource: 'inspection',
+          subjectId: inspectionId,
+          result: 'FAILURE',
+          reason: errorMessage,
+        });
       }
 
       // 3. Update Inspection Record in DB (Final Status)

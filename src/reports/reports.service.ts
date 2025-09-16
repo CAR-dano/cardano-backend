@@ -166,16 +166,6 @@ export class ReportsService {
       if (!has) {
         try {
           await this.credits.chargeOnce(userId, id, 1);
-          this.audit.log({
-            rid: (res as any)?.req?.id || 'n/a',
-            actorId: userId,
-            actorRole: 'CUSTOMER',
-            action: 'DOWNLOAD',
-            resource: 'report_pdf_no_docs',
-            subjectId: id,
-            result: 'SUCCESS',
-            ip: (res as any)?.req?.ip,
-          });
         } catch (e: any) {
           if (e?.message === 'INSUFFICIENT_CREDITS' || e?.response?.message === 'INSUFFICIENT_CREDITS') {
             throw new HttpException(
@@ -196,6 +186,17 @@ export class ReportsService {
       if (stream) {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Cache-Control', 'private, max-age=0');
+        this.audit.log({
+          rid: (res as any)?.req?.id || 'n/a',
+          actorId: userId,
+          actorRole: userRole,
+          action: 'REPORT_DOWNLOAD',
+          resource: 'report_pdf_no_docs',
+          subjectId: id,
+          result: 'SUCCESS',
+          ip: (res as any)?.req?.ip,
+          meta: { source: 'cloud' },
+        });
         stream.pipe(res);
         return;
       }
@@ -207,6 +208,17 @@ export class ReportsService {
     if (fs.existsSync(localPath)) {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Cache-Control', 'private, max-age=0');
+      this.audit.log({
+        rid: (res as any)?.req?.id || 'n/a',
+        actorId: userId,
+        actorRole: userRole,
+        action: 'REPORT_DOWNLOAD',
+        resource: 'report_pdf_no_docs',
+        subjectId: id,
+        result: 'SUCCESS',
+        ip: (res as any)?.req?.ip,
+        meta: { source: 'local' },
+      });
       fs.createReadStream(localPath).pipe(res);
       return;
     }

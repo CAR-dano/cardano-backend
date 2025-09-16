@@ -11,6 +11,7 @@
 
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { AppLogger } from '../logging/app-logger.service';
+import { AuditLoggerService } from '../logging/audit-logger.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentGateway, PurchaseStatus } from '@prisma/client';
 import { XenditService } from './payments/xendit.service';
@@ -27,6 +28,7 @@ export class BillingService {
     private readonly xendit: XenditService,
     private readonly config: ConfigService,
     private readonly logger: AppLogger,
+    private readonly audit: AuditLoggerService,
   ) {
     this.logger.setContext(BillingService.name);
   }
@@ -114,6 +116,15 @@ export class BillingService {
       await tx.user.update({
         where: { id: p.userId },
         data: { credits: { increment: p.creditPackage.credits } },
+      });
+      this.audit.log({
+        rid: 'n/a',
+        actorId: p.userId,
+        action: 'PURCHASE_PAID',
+        resource: 'credit_purchase',
+        subjectId: p.id,
+        result: 'SUCCESS',
+        meta: { extInvoiceId, credits: p.creditPackage.credits, amount: p.amount },
       });
     });
   }
