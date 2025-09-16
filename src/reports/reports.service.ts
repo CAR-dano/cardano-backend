@@ -64,10 +64,12 @@ export class ReportsService {
       select: {
         id: true,
         pretty_id: true,
+        status: true,
         vehiclePlateNumber: true,
         vehicleData: true,
         urlPdfNoDocs: true,
         urlPdfNoDocsCloud: true,
+        inspectionSummary: true,
         photos: {
           where: { label: { in: desiredLabels } },
           orderBy: { createdAt: 'asc' },

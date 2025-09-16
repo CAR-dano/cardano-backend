@@ -638,12 +638,17 @@ export class InspectionsController {
   @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
   async searchByVehicleNumber(
     @Query('vehicleNumber') vehicleNumber: string,
+    @GetUser('id') userId: string,
+    @GetUser('role') userRole: Role,
   ): Promise<InspectionResponseDto> {
     this.logger.log(
       `[GET /inspections/search] Searching for vehicle number: ${vehicleNumber}`,
     );
-    const inspection =
-      await this.inspectionsService.findByVehiclePlateNumber(vehicleNumber);
+    const inspection = await this.inspectionsService.findByVehiclePlateNumber(
+      vehicleNumber,
+      userId,
+      userRole,
+    );
 
     if (!inspection) {
       throw new NotFoundException(
