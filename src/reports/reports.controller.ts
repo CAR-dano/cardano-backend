@@ -114,14 +114,46 @@ export class ReportsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JwtAuthGuard')
   @ApiOperation({ summary: 'List downloaded reports (history) for current user' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Max items (1-100), default 10' })
-  @ApiOkResponse({ description: 'Downloads list', type: ReportDownloadsResponseDto })
+  @ApiQuery({ name: 'startDate', required: false, description: 'Filter start (ISO date/time)' })
+  @ApiQuery({ name: 'endDate', required: false, description: 'Filter end (ISO date/time)' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (1-based). Defaults to 1.' })
+  @ApiQuery({ name: 'pageSize', required: false, type: Number, description: 'Items per page (1-100). Defaults to 10.' })
+  @ApiOkResponse({
+    description: 'Paginated downloads list with metadata',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { $ref: '#/components/schemas/ReportDownloadItemDto' },
+        },
+        meta: {
+          type: 'object',
+          properties: {
+            total: { type: 'number' },
+            page: { type: 'number' },
+            pageSize: { type: 'number' },
+            totalPages: { type: 'number' },
+          },
+        },
+      },
+    },
+  })
   @ApiAuthErrors()
   async listDownloads(
     @GetUser('id') userId: string,
-    @Query('limit') limit?: string,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
   ) {
-    const items = await this.reportsService.listDownloads(userId, Number(limit));
-    return new ReportDownloadsResponseDto(items as any);
+    const parsedPage = Number(page || 1);
+    const parsedPageSize = Number(pageSize || 10);
+    return this.reportsService.listDownloadsWithMeta(userId, {
+      startDate,
+      endDate,
+      page: parsedPage,
+      pageSize: parsedPageSize,
+    });
   }
 }

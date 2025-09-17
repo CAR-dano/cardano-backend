@@ -316,36 +316,56 @@ export class ReportsService {
   }
 
   /**
-   * Lists user's downloaded reports (credit consumptions) with inspection summary.
+   * Lists user's downloaded reports (credit consumptions) with inspection summary, with
+   * optional date range and pagination.
    */
-  async listDownloads(userId: string, limit = 10): Promise<ReportDownloadItemDto[]> {
-    const take = Math.max(1, Math.min(100, Number(limit) || 10));
-    const rows = await this.prisma.creditConsumption.findMany({
-      where: { userId },
-      orderBy: { usedAt: 'desc' },
-      take,
-      select: {
-        id: true,
-        cost: true,
-        usedAt: true,
-        inspection: {
-          select: {
-            id: true,
-            pretty_id: true,
-            vehiclePlateNumber: true,
-            status: true,
-            urlPdfNoDocs: true,
-            urlPdfNoDocsCloud: true,
-            createdAt: true,
+  async listDownloadsWithMeta(
+    userId: string,
+    opts: { startDate?: string | Date; endDate?: string | Date; page?: number; pageSize?: number } = {},
+  ): Promise<{ data: ReportDownloadItemDto[]; meta: { total: number; page: number; pageSize: number; totalPages: number } }>
+  {
+    const page = Math.max(1, Number(opts.page || 1));
+    const pageSize = Math.max(1, Math.min(100, Number(opts.pageSize || 10)));
+    const where: any = { userId };
+    if (opts.startDate || opts.endDate) {
+      where.usedAt = {} as any;
+      if (opts.startDate) (where.usedAt as any).gte = new Date(opts.startDate);
+      if (opts.endDate) (where.usedAt as any).lte = new Date(opts.endDate);
+    }
+
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.creditConsumption.count({ where }),
+      this.prisma.creditConsumption.findMany({
+        where,
+        orderBy: { usedAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        select: {
+          id: true,
+          cost: true,
+          usedAt: true,
+          inspection: {
+            select: {
+              id: true,
+              pretty_id: true,
+              vehiclePlateNumber: true,
+              status: true,
+              urlPdfNoDocs: true,
+              urlPdfNoDocsCloud: true,
+              createdAt: true,
+            },
           },
         },
-      },
-    });
-    return rows.map((r: any) => ({
+      }),
+    ]);
+
+    const data: ReportDownloadItemDto[] = rows.map((r: any) => ({
       id: r.id,
       cost: r.cost,
       usedAt: r.usedAt,
       inspection: r.inspection,
     }));
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    return { data, meta: { total, page, pageSize, totalPages } };
   }
 }
