@@ -21,9 +21,15 @@ import { ConfigService } from '@nestjs/config';
 import { AuthGuard } from '@nestjs/passport'; // Need AuthGuard for canActivate mock/override
 import { JwtAuthGuard } from './guards/jwt-auth.guard'; // Need JwtAuthGuard for canActivate mock/override
 import { Request, Response } from 'express'; // Import Express types
-import { Role } from '@prisma/client'; // Import Role enum
+import { Role, User } from '@prisma/client'; // Import Role enum
 import { UserResponseDto } from '../users/dto/user-response.dto'; // Import UserResponseDto
 import { GetUser } from './decorators/get-user.decorator'; // Import GetUser decorator
+import { UsersService } from '../users/users.service';
+import { JwtService } from '@nestjs/jwt';
+import { AppLogger } from '../logging/app-logger.service';
+import { AuditLoggerService } from '../logging/audit-logger.service';
+import { InternalServerErrorException } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 interface AuthenticatedRequest extends Request {
   user?: UserResponseDto; // Use UserResponseDto structure here
@@ -37,8 +43,18 @@ interface AuthenticatedRequest extends Request {
  */
 const mockAuthService = {
   login: jest.fn(),
+  linkGoogleAccount: jest.fn(),
+  blacklistToken: jest.fn(),
   // validateUserGoogle is called within GoogleStrategy, not directly by controller
   // logout (if server-side logic existed) would be mocked here
+};
+
+const mockUsersService = {
+  updateSelfProfile: jest.fn(),
+  changePassword: jest.fn(),
+  updateProfilePhoto: jest.fn(),
+  removeProfilePhoto: jest.fn(),
+  linkWalletAddress: jest.fn(),
 };
 
 /**
@@ -50,31 +66,73 @@ const mockConfigService = {
   getOrThrow: jest.fn(),
 };
 
+const mockJwtService = {
+  decode: jest.fn(),
+};
+
+const mockAuditLogger = {
+  log: jest.fn(),
+};
+
+const mockAppLogger = {
+  setContext: jest.fn(),
+  log: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+};
+
 /**
  * Mock object for Express Response.
  * Provides Jest mock functions for methods used by the controller like
  * redirect, cookie, clearCookie, status, and json.
  */
-const mockResponse = {
-  redirect: jest.fn(),
-  cookie: jest.fn(),
-  clearCookie: jest.fn(),
-  status: jest.fn().mockReturnThis(), // Allows chaining like .status(200).json(...)
-  json: jest.fn(),
-} as unknown as Response; // Use 'as unknown as Response' to satisfy type checking
+const createMockResponse = (): Response =>
+  ({
+    redirect: jest.fn(),
+    cookie: jest.fn(),
+    clearCookie: jest.fn(),
+    status: jest.fn().mockReturnThis(),
+    json: jest.fn(),
+  } as unknown as Response);
 
-/**
- * Mock object for Express Request.
- * We will add the 'user' property dynamically in tests where needed.
- */
-const mockRequest = {} as Request;
+const createMockRequest = (): Request => ({}) as Request;
+
+let mockResponse: Response;
+let mockRequest: Request;
+
+const createUserEntity = (overrides: Partial<User> = {}): User =>
+  ({
+    id: 'user-123',
+    email: 'user@example.com',
+    username: 'testuser',
+    password: null,
+    name: 'Test User',
+    walletAddress: null,
+    whatsappNumber: null,
+    googleId: null,
+    pin: null,
+    refreshToken: null,
+    role: Role.CUSTOMER,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    inspectionBranchCityId: null,
+    credits: 0,
+    creditExpAt: null,
+    profilePhotoUrl: '',
+    profilePhotoStorageKey: null,
+    googleAvatarUrl: null,
+    ...overrides,
+  }) as unknown as User;
+
+const createUserDto = (overrides: Partial<User> = {}): UserResponseDto =>
+  new UserResponseDto(createUserEntity(overrides));
 
 // Helper to create a request with a user object
 const createMockRequestWithUser = (
   user: UserResponseDto,
 ): AuthenticatedRequest =>
   ({
-    ...mockRequest,
     user,
   }) as AuthenticatedRequest;
 
@@ -93,12 +151,17 @@ describe('AuthController', () => {
    * as the guard functionality itself is tested separately or in E2E tests.
    */
   beforeEach(async () => {
+    jest.clearAllMocks();
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController], // Provide the controller to be tested
       providers: [
-        // Provide mocks for injected services
         { provide: AuthService, useValue: mockAuthService },
+        { provide: UsersService, useValue: mockUsersService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: JwtService, useValue: mockJwtService },
+        { provide: AppLogger, useValue: mockAppLogger },
+        { provide: AuditLoggerService, useValue: mockAuditLogger },
       ],
     })
       // Override guards for unit testing - assume they allow access
@@ -106,15 +169,14 @@ describe('AuthController', () => {
       .useValue({ canActivate: jest.fn(() => true) }) // Mock Google Guard
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: jest.fn(() => true) }) // Mock JWT Guard
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: jest.fn(() => true) }) // Mock throttling guard
       .compile();
 
     // Retrieve instances from the testing module
     controller = module.get<AuthController>(AuthController);
-    // authService = module.get<AuthService>(AuthService); // Removed assignment
-    // configService = module.get<ConfigService>(ConfigService); // Removed assignment
-
-    // Reset mocks before each test
-    jest.clearAllMocks();
+    mockResponse = createMockResponse();
+    mockRequest = createMockRequest();
   });
 
   /**
@@ -155,16 +217,13 @@ describe('AuthController', () => {
    */
   /*
   describe('googleAuthRedirect', () => {
-    const mockUser: UserResponseDto = { // Use UserResponseDto structure
+    const mockUser = createUserDto({
       id: 'user-123',
       email: 'test@example.com',
       name: 'Test User',
       role: Role.CUSTOMER,
-      username: 'testuser', // Added required fields from UserResponseDto
-      walletAddress: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+      username: 'testuser',
+    });
     const mockRequestWithAuthUser = createMockRequestWithUser(mockUser);
     const mockAccessToken = { accessToken: 'mock-jwt-token' };
     const mockClientUrl = 'http://localhost:3001'; // Example frontend URL
@@ -184,8 +243,8 @@ describe('AuthController', () => {
       );
 
       // Assert
-      expect(authService.login).toHaveBeenCalledWith(mockUser);
-      expect(configService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
+      expect(mockAuthService.login).toHaveBeenCalledWith(mockUser);
+      expect(mockConfigService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
       expect(mockResponse.redirect).toHaveBeenCalledWith(
         `${mockClientUrl}/auth/callback?token=${mockAccessToken.accessToken}`,
       );
@@ -203,8 +262,8 @@ describe('AuthController', () => {
       await controller.googleAuthRedirect(mockRequestWithoutUser, mockResponse);
 
       // Assert
-      expect(authService.login).not.toHaveBeenCalled(); // Login should not be called
-      expect(configService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
+      expect(mockAuthService.login).not.toHaveBeenCalled(); // Login should not be called
+      expect(mockConfigService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
       expect(mockResponse.redirect).toHaveBeenCalledWith(
         `${mockClientUrl}/login?error=AuthenticationFailed`,
       );
@@ -223,8 +282,8 @@ describe('AuthController', () => {
       await controller.googleAuthRedirect(reqWithUser, mockResponse);
 
       // Assert
-      expect(authService.login).toHaveBeenCalledWith(mockUser);
-      expect(configService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
+      expect(mockAuthService.login).toHaveBeenCalledWith(mockUser);
+      expect(mockConfigService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
       expect(mockResponse.redirect).toHaveBeenCalledWith(
         `${mockClientUrl}/auth/callback?token=${mockAccessToken.accessToken}`,
       );
@@ -273,17 +332,13 @@ describe('AuthController', () => {
    * Test suite for the POST /auth/logout endpoint.
    */
   describe('logout', () => {
-    const mockUser: UserResponseDto = {
+    const mockUser = createUserDto({
       id: 'user-123',
       email: 'test@example.com',
       name: 'Test User',
       role: Role.CUSTOMER,
       username: 'testcustomer',
-      walletAddress: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    const mockRequestWithAuthUser = createMockRequestWithUser(mockUser);
+    });
 
     /**
      * Tests the basic logout functionality for stateless JWT.
@@ -294,16 +349,24 @@ describe('AuthController', () => {
      * @param res The mock response object.
      */
     it('should return OK status and success message for stateless JWT logout', async () => {
-      // Arrange: mockResponse already configured for status().json()
+      const request = {
+        ...createMockRequestWithUser(mockUser),
+        headers: { authorization: 'Bearer mocktoken' },
+      } as AuthenticatedRequest;
 
-      // Act
-      await controller.logout(mockRequestWithAuthUser, mockResponse);
+      mockJwtService.decode.mockReturnValue({
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      });
 
-      // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(200); // Use numeric status code
+      await controller.logout(request, mockResponse);
+
+      expect(mockJwtService.decode).toHaveBeenCalledWith('mocktoken');
+      expect(mockAuthService.blacklistToken).toHaveBeenCalledWith(
+        'mocktoken',
+        expect.any(Date),
+      );
       expect(mockResponse.json).toHaveBeenCalledWith({
-        message:
-          'Logout successful. Please clear your token/session on the client side.',
+        message: 'Logout successful. Token has been invalidated on the server.',
       });
     });
 
@@ -339,16 +402,13 @@ describe('AuthController', () => {
    * Test suite for the GET /auth/profile endpoint.
    */
   describe('getProfile', () => {
-    const mockUser: UserResponseDto = {
+    const mockUser = createUserDto({
       id: 'user-123',
       email: 'test@example.com',
       name: 'Test User',
       role: Role.ADMIN,
-      username: 'testadmin', // Added required fields from UserResponseDto
-      walletAddress: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+      username: 'testadmin',
+    });
 
     // Mock the @GetUser() decorator for this test suite
     // This is a common pattern to mock custom decorators in NestJS tests
@@ -376,10 +436,307 @@ describe('AuthController', () => {
 
       // Act: Call the controller method. The actual request object passed here
       // doesn't matter as the decorator is mocked.
-      const result = controller.getProfile({} as AuthenticatedRequest); // Pass a dummy request
+      const result = controller.getProfile(mockUser);
 
       // Assert: Check if the returned result is the same as the mock user object
       expect(result).toEqual(mockUser);
+    });
+  });
+
+  describe('updateProfile', () => {
+    const authUser = { id: 'user-123', role: Role.CUSTOMER } as any;
+    const dto = { name: 'Updated Name', whatsappNumber: '+628123456789' };
+
+    it('should call UsersService and return updated profile response', async () => {
+      const updatedUser = {
+        id: authUser.id,
+        email: 'user@example.com',
+        username: null,
+        password: null,
+        name: dto.name,
+        walletAddress: null,
+        whatsappNumber: dto.whatsappNumber,
+        googleId: null,
+        pin: null,
+        refreshToken: null,
+        role: Role.CUSTOMER,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        inspectionBranchCityId: null,
+        credits: 0,
+        creditExpAt: null,
+        profilePhotoUrl: '',
+        profilePhotoStorageKey: null,
+        googleAvatarUrl: null,
+      } as any;
+
+      mockUsersService.updateSelfProfile.mockResolvedValue(updatedUser);
+
+      const result = await controller.updateProfile(
+        { id: 'req-1' } as any,
+        authUser,
+        dto,
+      );
+
+      expect(mockUsersService.updateSelfProfile).toHaveBeenCalledWith(
+        authUser.id,
+        dto,
+      );
+      expect(mockAuditLogger.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PROFILE_UPDATE',
+          actorId: authUser.id,
+          meta: expect.objectContaining({
+            changedFields: expect.arrayContaining(['name', 'whatsappNumber']),
+          }),
+        }),
+      );
+      expect(result).toEqual(new UserResponseDto(updatedUser));
+    });
+  });
+
+  describe('changePassword', () => {
+    const authUser = { id: 'user-123', role: Role.CUSTOMER } as any;
+
+    it('should trigger password change and return success message', async () => {
+      mockUsersService.changePassword.mockResolvedValue({
+        id: authUser.id,
+        email: 'user@example.com',
+        username: null,
+        password: null,
+        name: 'User',
+        walletAddress: null,
+        whatsappNumber: null,
+        googleId: null,
+        pin: null,
+        refreshToken: null,
+        role: Role.CUSTOMER,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        inspectionBranchCityId: null,
+        credits: 0,
+        creditExpAt: null,
+        profilePhotoUrl: '',
+        profilePhotoStorageKey: null,
+        googleAvatarUrl: null,
+      } as any);
+
+      const result = await controller.changePassword(
+        { id: 'req-2' } as any,
+        authUser,
+        { currentPassword: 'OldPass123', newPassword: 'NewPass123' },
+      );
+
+      expect(mockUsersService.changePassword).toHaveBeenCalledWith(
+        authUser.id,
+        'OldPass123',
+        'NewPass123',
+      );
+      expect(mockAuditLogger.log).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'PASSWORD_CHANGE', actorId: authUser.id }),
+      );
+      expect(result).toEqual({ message: 'Password updated successfully.' });
+    });
+  });
+
+  describe('uploadProfilePhoto', () => {
+    const authUser = { id: 'user-123', role: Role.CUSTOMER } as any;
+
+    it('should upload profile photo and return updated user DTO', async () => {
+      const updatedUser = {
+        id: authUser.id,
+        email: 'user@example.com',
+        username: null,
+        password: null,
+        name: 'User',
+        walletAddress: null,
+        whatsappNumber: null,
+        googleId: null,
+        pin: null,
+        refreshToken: null,
+        role: Role.CUSTOMER,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        inspectionBranchCityId: null,
+        credits: 0,
+        creditExpAt: null,
+        profilePhotoUrl: 'https://cdn.example.com/photo.jpg',
+        profilePhotoStorageKey: 'uploads/profile-photos/user-123/avatar.jpg',
+        googleAvatarUrl: null,
+      } as any;
+      const mockFile = {
+        originalname: 'avatar.jpg',
+        buffer: Buffer.from('mock'),
+        mimetype: 'image/jpeg',
+      } as any;
+
+      mockUsersService.updateProfilePhoto.mockResolvedValue(updatedUser);
+
+      const result = await controller.uploadProfilePhoto(
+        { id: 'req-3' } as any,
+        authUser,
+        mockFile,
+      );
+
+      expect(mockUsersService.updateProfilePhoto).toHaveBeenCalledWith(
+        authUser.id,
+        mockFile,
+      );
+      expect(mockAuditLogger.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PROFILE_PHOTO_UPLOAD',
+          actorId: authUser.id,
+        }),
+      );
+      expect(result).toEqual(new UserResponseDto(updatedUser));
+    });
+  });
+
+  describe('removeProfilePhoto', () => {
+    const authUser = { id: 'user-123', role: Role.CUSTOMER } as any;
+
+    it('should remove profile photo and return updated user DTO', async () => {
+      const updatedUser = {
+        id: authUser.id,
+        email: 'user@example.com',
+        username: null,
+        password: null,
+        name: 'User',
+        walletAddress: null,
+        whatsappNumber: null,
+        googleId: 'google-123',
+        pin: null,
+        refreshToken: null,
+        role: Role.CUSTOMER,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        inspectionBranchCityId: null,
+        credits: 0,
+        creditExpAt: null,
+        profilePhotoUrl: 'https://googleusercontent.com/avatar.jpg',
+        profilePhotoStorageKey: null,
+        googleAvatarUrl: 'https://googleusercontent.com/avatar.jpg',
+      } as any;
+
+      mockUsersService.removeProfilePhoto.mockResolvedValue(updatedUser);
+
+      const result = await controller.removeProfilePhoto(
+        { id: 'req-4' } as any,
+        authUser,
+      );
+
+      expect(mockUsersService.removeProfilePhoto).toHaveBeenCalledWith(
+        authUser.id,
+      );
+      expect(mockAuditLogger.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'PROFILE_PHOTO_REMOVE',
+          actorId: authUser.id,
+        }),
+      );
+      expect(result).toEqual(new UserResponseDto(updatedUser));
+    });
+  });
+
+  describe('linkGoogleAccount', () => {
+    const authUser = { id: 'user-123', role: Role.CUSTOMER } as any;
+
+    it('should link google account via AuthService and return DTO', async () => {
+      const linkedUser = {
+        id: authUser.id,
+        email: 'user@example.com',
+        username: null,
+        password: null,
+        name: 'User',
+        walletAddress: null,
+        whatsappNumber: null,
+        googleId: 'google-123',
+        pin: null,
+        refreshToken: null,
+        role: Role.CUSTOMER,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        inspectionBranchCityId: null,
+        credits: 0,
+        creditExpAt: null,
+        profilePhotoUrl: 'https://avatar.example.com',
+        profilePhotoStorageKey: null,
+        googleAvatarUrl: 'https://avatar.example.com',
+      } as any;
+
+      mockAuthService.linkGoogleAccount.mockResolvedValue(linkedUser);
+
+      const result = await controller.linkGoogleAccount(
+        { id: 'req-5' } as any,
+        authUser,
+        { idToken: 'google-id-token' },
+      );
+
+      expect(mockAuthService.linkGoogleAccount).toHaveBeenCalledWith(
+        authUser.id,
+        'google-id-token',
+      );
+      expect(mockAuditLogger.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'GOOGLE_LINK',
+          actorId: authUser.id,
+        }),
+      );
+      expect(result).toEqual(new UserResponseDto(linkedUser));
+    });
+  });
+
+  describe('linkWallet', () => {
+    const authUser = { id: 'user-123', role: Role.CUSTOMER } as any;
+
+    it('should link wallet via UsersService and return DTO', async () => {
+      const linkedUser = {
+        id: authUser.id,
+        email: 'user@example.com',
+        username: null,
+        password: null,
+        name: 'User',
+        walletAddress: 'addr1qx2...',
+        whatsappNumber: null,
+        googleId: null,
+        pin: null,
+        refreshToken: null,
+        role: Role.CUSTOMER,
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        inspectionBranchCityId: null,
+        credits: 0,
+        creditExpAt: null,
+        profilePhotoUrl: '',
+        profilePhotoStorageKey: null,
+        googleAvatarUrl: null,
+      } as any;
+
+      mockUsersService.linkWalletAddress.mockResolvedValue(linkedUser);
+
+      const result = await controller.linkWallet(
+        { id: 'req-6' } as any,
+        authUser,
+        { walletAddress: 'addr1qx2...' },
+      );
+
+      expect(mockUsersService.linkWalletAddress).toHaveBeenCalledWith(
+        authUser.id,
+        'addr1qx2...',
+      );
+      expect(mockAuditLogger.log).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: 'WALLET_LINK',
+          actorId: authUser.id,
+        }),
+      );
+      expect(result).toEqual(new UserResponseDto(linkedUser));
     });
   });
 });
