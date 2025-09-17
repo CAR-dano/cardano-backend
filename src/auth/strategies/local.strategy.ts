@@ -11,16 +11,17 @@
 
 import { Strategy } from 'passport-local'; // Import Local Strategy definition
 import { PassportStrategy } from '@nestjs/passport'; // Base class for NestJS Passport strategies
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from '../auth.service'; // Service containing validation logic
 import { User } from '@prisma/client'; // Import User type for return value structure
+import { AppLogger } from '../../logging/app-logger.service';
 
 @Injectable()
 // Define the strategy class, extending PassportStrategy with the base Local Strategy
 // and giving it the unique name 'local'. This name is used in AuthGuard('local').
 export class LocalStrategy extends PassportStrategy(Strategy, 'local') {
   // Initialize logger for this strategy context
-  private readonly logger = new Logger(LocalStrategy.name);
+  private readonly logger: AppLogger;
 
   /**
    * Injects AuthService to perform the actual user credential validation.
@@ -32,11 +33,13 @@ export class LocalStrategy extends PassportStrategy(Strategy, 'local') {
    *
    * @param {AuthService} authService - The authentication service instance.
    */
-  constructor(private authService: AuthService) {
+  constructor(private authService: AuthService, logger: AppLogger) {
     super({
       usernameField: 'loginIdentifier', // Corresponds to the field in LoginUserDto
       passwordField: 'password',
     });
+    this.logger = logger;
+    this.logger.setContext(LocalStrategy.name);
     this.logger.log('Local Strategy Initialized');
   }
 

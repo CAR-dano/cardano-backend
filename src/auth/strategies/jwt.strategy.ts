@@ -13,19 +13,20 @@
 
 import { ExtractJwt, Strategy } from 'passport-jwt'; // Import JWT Strategy components
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config'; // Needed for JWT secret
 import { UsersService } from '../../users/users.service'; // Needed to find user by ID
 import { JwtPayload } from '../interfaces/jwt-payload.interface'; // Type definition for the decoded payload
 import { User } from '@prisma/client'; // Prisma User type
 import { AuthService } from '../auth.service'; // Import AuthService
 import { Request } from 'express'; // Import Request type
+import { AppLogger } from '../../logging/app-logger.service';
 
 @Injectable()
 // Define the strategy, extending PassportStrategy with the base JWT Strategy.
 // The default name 'jwt' is implicitly used by JwtAuthGuard unless specified otherwise.
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
-  private readonly logger = new Logger(JwtStrategy.name);
+  private readonly logger: AppLogger;
 
   /**
    * Injects ConfigService to retrieve the JWT secret and UsersService to find the user.
@@ -42,13 +43,17 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
     private readonly authService: AuthService, // Inject AuthService
+    logger: AppLogger,
   ) {
+    
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(), // Standard extraction method
       ignoreExpiration: false, // Validate token expiration
       secretOrKey: configService.getOrThrow<string>('JWT_SECRET'), // Get secret from config
       passReqToCallback: true, // Pass the request to the validate method
     });
+    this.logger = logger;
+    this.logger.setContext(JwtStrategy.name);
     this.logger.log('JWT Strategy Initialized');
   }
 

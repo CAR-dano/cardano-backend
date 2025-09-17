@@ -1,203 +1,51 @@
-# Panduan Konfigurasi Logging untuk CAR-dano Backend
+# Panduan Logging (nestjs-pino)
 
-## Overview
+## Ringkas
+- Logger: nestjs-pino (JSON terstruktur; pretty-print di dev)
+- Wrapper: `AppLogger` menjaga API `.log/.warn/.error/.verbose/.debug`
+- Correlation: `x-request-id` otomatis via middleware; dibawa ke log
+- Redaction: header sensitif, token, password, secret disensor
+- Filter global: error terstruktur + respons disanitasi
 
-Aplikasi CAR-dano Backend sekarang telah dikonfigurasi dengan sistem logging yang fleksibel yang dapat dikontrol melalui environment variables. Anda dapat mengatur level log yang ingin ditampilkan di terminal sesuai kebutuhan.
-
-## Konfigurasi Environment Variables
-
-Tambahkan variabel berikut ke file `.env` Anda:
-
+## Env Vars Utama
 ```bash
-# Level logging (error, warn, info, debug, verbose)
+# Level pino: error | warn | info | debug | trace
 LOG_LEVEL=info
-
-# Enable/disable timestamp (true/false)
-LOG_TIMESTAMP=true
-
-# Enable/disable colors (true/false)
-LOG_COLORS=true
-
-# Environment mode
-NODE_ENV=development
+NODE_ENV=development # pretty-print non-prod
 ```
 
-## Level Logging yang Tersedia
+## Pemakaian di Code
+Inject dan set context sekali di constructor:
+```ts
+import { AppLogger } from '../logging/app-logger.service';
 
-### 1. `error` - Hanya Error
-
-Hanya menampilkan pesan error critical.
-
-```bash
-LOG_LEVEL=error
-```
-
-### 2. `warn` - Error + Warning
-
-Menampilkan error dan peringatan.
-
-```bash
-LOG_LEVEL=warn
-```
-
-### 3. `info` - Error + Warning + Info (Default)
-
-Menampilkan error, warning, dan informasi umum.
-
-```bash
-LOG_LEVEL=info
-```
-
-### 4. `debug` - Error + Warning + Info + Debug
-
-Menampilkan semua level di atas plus debug information.
-
-```bash
-LOG_LEVEL=debug
-```
-
-### 5. `verbose` - Semua Level
-
-Menampilkan semua level logging termasuk verbose.
-
-```bash
-LOG_LEVEL=verbose
-```
-
-## Contoh Penggunaan
-
-### Untuk Production (Minimal Logging)
-
-```bash
-NODE_ENV=production
-LOG_LEVEL=error
-LOG_TIMESTAMP=true
-LOG_COLORS=false
-```
-
-### Untuk Development (Debug)
-
-```bash
-NODE_ENV=development
-LOG_LEVEL=debug
-LOG_TIMESTAMP=true
-LOG_COLORS=true
-```
-
-### Untuk Testing (Hanya Error)
-
-```bash
-NODE_ENV=test
-LOG_LEVEL=error
-LOG_TIMESTAMP=false
-LOG_COLORS=false
-```
-
-## Penggunaan dalam Code
-
-### Basic Logging
-
-```typescript
-import { Logger } from '@nestjs/common';
-
-export class SomeService {
-  private readonly logger = new Logger(SomeService.name);
-
-  someMethod() {
-    this.logger.log('Info message'); // Akan muncul jika LOG_LEVEL=info atau lebih
-    this.logger.warn('Warning message'); // Akan muncul jika LOG_LEVEL=warn atau lebih
-    this.logger.error('Error message'); // Akan muncul jika LOG_LEVEL=error atau lebih
-    this.logger.debug('Debug message'); // Akan muncul jika LOG_LEVEL=debug atau lebih
-    this.logger.verbose('Verbose message'); // Akan muncul jika LOG_LEVEL=verbose
+@Injectable()
+export class ExampleService {
+  constructor(private readonly logger: AppLogger) {
+    this.logger.setContext(ExampleService.name);
+  }
+  doWork() {
+    this.logger.log('start');     // => pino info
+    this.logger.verbose('detail'); // => pino debug
+    this.logger.warn('caution');
+    this.logger.error('failed');
   }
 }
 ```
 
-### Advanced Logging dengan Custom Service
+Untuk controller/guard/strategy sama pola-nya: injeksi `AppLogger`, panggil `setContext()`.
 
-```typescript
-import { AppLoggerService } from '../common/services/app-logger.service';
+## HTTP Access Log
+Sudah global via `HttpLoggingInterceptor` dengan field: `requestId`, `method`, `url`, `statusCode`, `ms`, `userId`.
 
-export class SomeService {
-  constructor(private readonly appLogger: AppLoggerService) {
-    this.appLogger.setContext(SomeService.name);
-  }
+## Exception Filter
+Global structured errors: body `{ statusCode, message, error, path, timestamp }`. Stack hanya di log, tidak dikirim ke klien.
 
-  someMethod() {
-    // Basic logging
-    this.appLogger.log('Operation started');
+## Audit Log
+Gunakan `AuditLoggerService.log({ rid, actorId, action, resource, subjectId, result, ... })` untuk event sensitif.
 
-    // Structured logging dengan metadata
-    this.appLogger.logWithMetadata('info', 'User action', {
-      userId: '123',
-      action: 'login',
-      ip: '192.168.1.1',
-    });
-
-    // HTTP request logging
-    this.appLogger.logHttpRequest('POST', '/api/v1/auth/login', 200, 150);
-
-    // Database operation logging
-    this.appLogger.logDatabaseOperation('SELECT', 'users', 25);
-  }
-}
-```
-
-## Testing Konfigurasi
-
-Untuk menguji konfigurasi logging:
-
-1. **Test dengan level error saja:**
-
-   ```bash
-   LOG_LEVEL=error npm run start:dev
-   ```
-
-2. **Test dengan level warning:**
-
-   ```bash
-   LOG_LEVEL=warn npm run start:dev
-   ```
-
-3. **Test dengan level debug:**
-   ```bash
-   LOG_LEVEL=debug npm run start:dev
-   ```
-
-## Output Examples
-
-### LOG_LEVEL=error
-
-```
-[ApiGateway] 14/08/2025, 10:30:00 ERROR [Bootstrap - ApiGateway] Database connection failed
-```
-
-### LOG_LEVEL=warn
-
-```
-[ApiGateway] 14/08/2025, 10:30:00 ERROR [Bootstrap - ApiGateway] Database connection failed
-[ApiGateway] 14/08/2025, 10:30:01 WARN [Bootstrap - ApiGateway] CLIENT_BASE_URL not set in .env
-```
-
-### LOG_LEVEL=info
-
-```
-[ApiGateway] 14/08/2025, 10:30:00 ERROR [Bootstrap - ApiGateway] Database connection failed
-[ApiGateway] 14/08/2025, 10:30:01 WARN [Bootstrap - ApiGateway] CLIENT_BASE_URL not set in .env
-[ApiGateway] 14/08/2025, 10:30:02 LOG [Bootstrap - ApiGateway] Logger initialized with levels: [error, warn, log]
-[ApiGateway] 14/08/2025, 10:30:03 LOG [Bootstrap - ApiGateway] 🚀 API Gateway running on: http://localhost:3000/api/v1
-```
-
-### LOG_LEVEL=debug
-
-```
-[ApiGateway] 14/08/2025, 10:30:00 ERROR [Bootstrap - ApiGateway] Database connection failed
-[ApiGateway] 14/08/2025, 10:30:01 WARN [Bootstrap - ApiGateway] CLIENT_BASE_URL not set in .env
-[ApiGateway] 14/08/2025, 10:30:02 LOG [Bootstrap - ApiGateway] Logger initialized with levels: [error, warn, log, debug]
-[ApiGateway] 14/08/2025, 10:30:03 LOG [Bootstrap - ApiGateway] 🚀 API Gateway running on: http://localhost:3000/api/v1
-[ApiGateway] 14/08/2025, 10:30:04 DEBUG [Database] Connection established to PostgreSQL
-[ApiGateway] 14/08/2025, 10:30:05 DEBUG [AuthGuard] JWT validation successful for user ID: 123
-```
+## Output
+- Dev: pretty-print; Prod: JSON line per event (siap dikirim ke ELK/Datadog/SIEM).
 
 ## Environment-specific Defaults
 

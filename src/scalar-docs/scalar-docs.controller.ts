@@ -9,24 +9,20 @@
  * --------------------------------------------------------------------------
  */
 
-import {
-  Controller,
-  Get,
-  Res,
-  Logger,
-  NotFoundException,
-  InternalServerErrorException, // Import InternalServerErrorException
-} from '@nestjs/common';
+import { Controller, Get, Res, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { Response } from 'express';
 import * as path from 'path';
 import * as fs from 'fs';
 import { getOpenApiDocument } from '../main'; // Import the function to get the generated document
 import { SkipThrottle } from '@nestjs/throttler';
+import { AppLogger } from '../logging/app-logger.service';
 
 @SkipThrottle()
 @Controller()
 export class ScalarDocsController {
-  private readonly logger = new Logger(ScalarDocsController.name);
+  constructor(private readonly logger: AppLogger) {
+    this.logger.setContext(ScalarDocsController.name);
+  }
 
   /**
    * Retrieves the generated OpenAPI specification document.

@@ -14,13 +14,13 @@
 
 import {
   Injectable,
-  Logger,
   InternalServerErrorException,
   BadRequestException,
   NotFoundException,
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
+import { AppLogger } from '../logging/app-logger.service';
 import { PrismaService } from '../prisma/prisma.service'; // Service for Prisma client interaction
 import { CreateInspectionDto } from './dto/create-inspection.dto'; // DTO for incoming creation data
 import { UpdateInspectionDto } from './dto/update-inspection/update-inspection.dto';
@@ -44,6 +44,8 @@ import {
 } from '../blockchain/blockchain.service';
 import { IpfsService } from '../ipfs/ipfs.service';
 import { BackblazeService } from '../common/services/backblaze.service';
+import { AuditLoggerService } from '../logging/audit-logger.service';
+import { CreditsService } from '../credits/credits.service';
 import puppeteer, { Browser } from 'puppeteer'; // Import puppeteer and Browser type
 import { ConfigService } from '@nestjs/config';
 // Define path for archived PDFs (ensure this exists or is created by deployment script/manually)
@@ -224,7 +226,7 @@ class BlockchainMintingQueue {
 @Injectable()
 export class InspectionsService {
   // Initialize a logger for this service context
-  private readonly logger = new Logger(InspectionsService.name);
+  private readonly logger: AppLogger;
   // PDF generation queue to limit concurrent operations
   private readonly pdfQueue = new PdfGenerationQueue(5); // Increased to 5 for large bulk operations
   // Blockchain minting queue to prevent UTXO conflicts
@@ -236,7 +238,12 @@ export class InspectionsService {
     private config: ConfigService,
     private readonly ipfsService: IpfsService,
     private readonly backblazeService: BackblazeService,
+    logger: AppLogger,
+    private readonly audit: AuditLoggerService,
+    private readonly credits: CreditsService,
   ) {
+    this.logger = logger;
+    this.logger.setContext(InspectionsService.name);
     // Ensure the PDF archive directory exists on startup
     void this.ensureDirectoryExists(PDF_ARCHIVE_PATH);
   }
@@ -845,7 +852,28 @@ export class InspectionsService {
    */
   async findByVehiclePlateNumber(
     vehiclePlateNumber: string,
-  ): Promise<Inspection | null> {
+    userId?: string,
+    userRole?: Role,
+  ): Promise<
+    | (Pick<
+        Inspection,
+        | 'id'
+        | 'pretty_id'
+        | 'vehiclePlateNumber'
+        | 'vehicleData'
+        | 'inspectionSummary'
+        | 'urlPdfNoDocs'
+        | 'urlPdfNoDocsCloud'
+      > & {
+        photos: Array<
+          Pick<
+            Photo,
+            'id' | 'path' | 'label' | 'originalLabel' | 'needAttention' | 'createdAt'
+          >
+        >;
+      })
+    | null
+  > {
     this.logger.log(
       `Searching for inspection by vehicle plate number: ${vehiclePlateNumber}`,
     );
@@ -858,6 +886,7 @@ export class InspectionsService {
         SELECT id
         FROM "inspections"
         WHERE lower(replace("vehiclePlateNumber", ' ', '')) = lower(replace(${vehiclePlateNumber}, ' ', ''))
+          AND "status"::text = ${InspectionStatus.ARCHIVED}
         LIMIT 1;
       `;
 
@@ -871,15 +900,74 @@ export class InspectionsService {
       const inspectionId = idResult[0].id;
 
       // Now fetch the full inspection object with relations using the ID
+      // Align returned shape with ReportsService.getDetail (limit fields)
+      const desiredLabels = [
+        'Tampak Depan',
+        'Tampak Samping Kanan',
+        'Tampak Samping Kiri',
+        'Tampak Belakang',
+      ];
+
       const inspection = await this.prisma.inspection.findUnique({
         where: { id: inspectionId },
-        include: { photos: true }, // Include related photos
-        // include: { inspector: true, reviewer: true } // Include related users if needed
+        select: {
+          id: true,
+          status: true,
+          pretty_id: true,
+          vehiclePlateNumber: true,
+          vehicleData: true,
+          inspectionSummary: true,
+          urlPdfNoDocs: true,
+          urlPdfNoDocsCloud: true,
+          photos: {
+            where: { label: { in: desiredLabels } },
+            orderBy: { createdAt: 'asc' },
+            select: {
+              id: true,
+              path: true,
+              label: true,
+              originalLabel: true,
+              needAttention: true,
+              createdAt: true,
+            },
+          },
+        },
       });
 
       this.logger.log(
         `Found inspection ID: ${inspection?.id} for plate number: ${vehiclePlateNumber}`,
       );
+      // Photos ordering priority similar to getDetail
+      if (inspection && Array.isArray((inspection as any).photos)) {
+        (inspection as any).photos = (inspection as any).photos.sort(
+          (a: any, b: any) => {
+            const ai = desiredLabels.indexOf(a?.label ?? '');
+            const bi = desiredLabels.indexOf(b?.label ?? '');
+            const an = ai === -1 ? Number.MAX_SAFE_INTEGER : ai;
+            const bn = bi === -1 ? Number.MAX_SAFE_INTEGER : bi;
+            return an - bn;
+          },
+        );
+      }
+
+      // At this point, the raw query already constrained to ARCHIVED
+      if (!inspection) return null;
+
+      // Hide no-docs URLs for CUSTOMER unless they have consumed a credit
+      let canDownload = (userRole && userRole !== Role.CUSTOMER) ?? false;
+      if (userRole === Role.CUSTOMER && userId) {
+        try {
+          const consumed = await this.credits.hasConsumption(userId, inspection.id);
+          canDownload = consumed;
+        } catch (e) {
+          // Fail closed: if credit check fails, hide URLs
+          canDownload = false;
+        }
+      }
+      if (!canDownload) {
+        (inspection as any).urlPdfNoDocs = undefined;
+        (inspection as any).urlPdfNoDocsCloud = undefined;
+      }
       return inspection;
     } catch (error: unknown) {
       const errorMessage =
@@ -1870,6 +1958,26 @@ export class InspectionsService {
           this._generateAndSavePdf(noDocsPdfUrl, noDocsPdfFileName, token),
         ]);
 
+        // Audit: PDFs uploaded (implies generated)
+        this.audit.log({
+          rid: 'n/a',
+          actorId: reviewerId,
+          action: 'PDF_UPLOADED',
+          resource: 'inspection',
+          subjectId: inspectionId,
+          result: 'SUCCESS',
+          meta: { type: 'FULL', file: fullPdfFileName, url: fullPdfResult.pdfCloudUrl },
+        });
+        this.audit.log({
+          rid: 'n/a',
+          actorId: reviewerId,
+          action: 'PDF_UPLOADED',
+          resource: 'inspection',
+          subjectId: inspectionId,
+          result: 'SUCCESS',
+          meta: { type: 'NO_DOCS', file: noDocsPdfFileName, url: noDocsPdfResult.pdfCloudUrl },
+        });
+
         // --- Final Database Update with PDF info and Final Status ---
         const finalUpdateData: Prisma.InspectionUpdateInput = {
           status: InspectionStatus.APPROVED, // Ensure final approved status
@@ -2405,6 +2513,16 @@ export class InspectionsService {
         this.logger.log(
           `Blockchain interaction SUCCESS for inspection ${inspectionId}`,
         );
+        // Audit: mint success
+        this.audit.log({
+          rid: 'n/a',
+          actorId: userId,
+          action: 'MINT_SUCCESS',
+          resource: 'inspection',
+          subjectId: inspectionId,
+          result: 'SUCCESS',
+          meta: { txHash: blockchainResult?.txHash, assetId: blockchainResult?.assetId },
+        });
       } catch (blockchainError: unknown) {
         const errorMessage =
           blockchainError instanceof Error
@@ -2419,6 +2537,16 @@ export class InspectionsService {
           errorStack,
         );
         blockchainSuccess = false;
+        // Audit: mint failure
+        this.audit.log({
+          rid: 'n/a',
+          actorId: userId,
+          action: 'MINT_FAILURE',
+          resource: 'inspection',
+          subjectId: inspectionId,
+          result: 'FAILURE',
+          reason: errorMessage,
+        });
       }
 
       // 3. Update Inspection Record in DB (Final Status)

@@ -1,7 +1,23 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: dto/report-detail-response.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: DTOs representing report detail payloads, including the
+ * inspection summary, key photos, download eligibility, and optional
+ * customer credit balance.
+ * --------------------------------------------------------------------------
+ */
+
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { InspectionStatus } from '@prisma/client';
 import { PhotoResponseDto } from '../../photos/dto/photo-response.dto';
 
+/**
+ * @class ReportDetailInspectionDto
+ * @description Subset of inspection fields exposed in report detail.
+ */
 export class ReportDetailInspectionDto {
   @ApiProperty({ format: 'uuid' })
   id!: string;
@@ -37,6 +53,10 @@ export class ReportDetailInspectionDto {
   photos?: PhotoResponseDto[];
 }
 
+/**
+ * @class ReportDetailResponseDto
+ * @description Response payload for report detail endpoint.
+ */
 export class ReportDetailResponseDto {
   @ApiProperty({ type: ReportDetailInspectionDto })
   inspection!: ReportDetailInspectionDto;

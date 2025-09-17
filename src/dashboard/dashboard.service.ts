@@ -11,7 +11,8 @@
  * --------------------------------------------------------------------------
  */
 
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { AppLogger } from '../logging/app-logger.service';
 import { GetDashboardStatsDto } from './dto/get-dashboard-stats.dto';
 import {
   InspectorPerformanceItemDto,
@@ -61,8 +62,9 @@ interface DateRange {
 
 @Injectable()
 export class DashboardService {
-  private readonly logger = new Logger(DashboardService.name);
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly logger: AppLogger) {
+    this.logger.setContext(DashboardService.name);
+  }
 
   /**
    * Calculates the percentage change between a current and previous value.

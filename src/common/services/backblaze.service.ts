@@ -1,4 +1,17 @@
-import { Injectable, Logger } from '@nestjs/common';
+/*
+ * --------------------------------------------------------------------------
+ * File: services/backblaze.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: S3-compatible client for Backblaze B2 providing uploads,
+ * downloads, listings, deletions, and a health check. Includes retry logic
+ * for transient network errors and constructs public file URLs.
+ * --------------------------------------------------------------------------
+ */
+
+import { Injectable } from '@nestjs/common';
+import { AppLogger } from '../../logging/app-logger.service';
 import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
@@ -11,14 +24,20 @@ import {
 import { Readable } from 'stream';
 import type { Express } from 'express';
 
+/**
+ * @class BackblazeService
+ * @description Wrapper around AWS SDK S3 client for Backblaze B2.
+ */
 @Injectable()
 export class BackblazeService {
-  private readonly logger = new Logger(BackblazeService.name);
+  private readonly logger: AppLogger;
   private s3Client: S3Client;
   private readonly bucketName: string | undefined;
   private readonly endpoint: string | undefined;
 
-  constructor(private readonly config: ConfigService) {
+  constructor(private readonly config: ConfigService, logger: AppLogger) {
+    this.logger = logger;
+    this.logger.setContext(BackblazeService.name);
     const accessKeyId = this.config.get<string>('STORAGE_APPLICATION_KEY_ID');
     const secretAccessKey = this.config.get<string>('STORAGE_APPLICATION_KEY');
     const region = this.config.get<string>('STORAGE_REGION');
@@ -76,7 +95,9 @@ export class BackblazeService {
     });
   }
 
-  // Helper to stringify errors for better logs
+  /**
+   * Helper to stringify errors for consistent, informative logs.
+   */
   private formatError(err: unknown): string {
     if (err instanceof Error) {
       const anyErr = err as any;
@@ -105,7 +126,9 @@ export class BackblazeService {
     }
   }
 
-  // Wrapper to send S3 commands with retries for transient network errors
+  /**
+   * Sends a command to S3 client with retries for transient network errors.
+   */
   private async sendCommand(cmd: unknown, maxAttempts = 3): Promise<any> {
     let attempt = 0;
     let lastErr: unknown;
@@ -143,7 +166,9 @@ export class BackblazeService {
     throw lastErr;
   }
 
-  // Upload a file (from multer) to Backblaze B2 (S3-compatible)
+  /**
+   * Uploads a file (multer) to Backblaze B2 and returns a public URL.
+   */
   async uploadFile(
     file: Express.Multer.File,
     bucketName?: string,
@@ -181,7 +206,7 @@ export class BackblazeService {
   }
 
   /**
-   * Upload a Buffer directly to the configured bucket. Returns a public URL.
+   * Uploads a Buffer directly to the configured bucket. Returns a public URL.
    */
   async uploadBuffer(
     buffer: Buffer,
@@ -220,9 +245,8 @@ export class BackblazeService {
   }
 
   /**
-   * Upload a PDF buffer into the `pdfarchived/` prefix and return a public URL.
-   * This ensures PDFs are stored under the `pdfarchived` path in the bucket and
-   * the returned URL points to /file/{bucket}/pdfarchived/{filename}.
+   * Uploads a PDF buffer into the `pdfarchived/` prefix and returns a public URL.
+   * Ensures PDFs are stored under the `pdfarchived` path.
    */
   async uploadPdfBuffer(
     buffer: Buffer,
@@ -251,7 +275,7 @@ export class BackblazeService {
   }
 
   /**
-   * Upload an image buffer to `uploads/inspection-photos/{filename}` and return the public URL.
+   * Uploads an image buffer to `uploads/inspection-photos/{filename}` and returns the public URL.
    * Accepts common image MIME types; defaults to application/octet-stream if unknown.
    */
   async uploadImageBuffer(
@@ -279,7 +303,7 @@ export class BackblazeService {
   }
 
   /**
-   * Batch upload image buffers. Returns an array of public URLs in the same order.
+   * Batch uploads image buffers and returns public URLs in the same order.
    */
   async uploadImageBuffers(
     items: { buffer: Buffer; filename: string; contentType?: string }[],
@@ -299,7 +323,9 @@ export class BackblazeService {
     return results;
   }
 
-  // Get an object stream from Backblaze
+  /**
+   * Retrieves an object stream from Backblaze by key.
+   */
   async getFile(
     fileName: string,
     bucketName?: string,
@@ -324,7 +350,9 @@ export class BackblazeService {
     }
   }
 
-  // List files in the bucket
+  /**
+   * Lists object keys in the configured bucket.
+   */
   async listFiles(bucketName?: string) {
     const bucket = bucketName || this.bucketName;
     if (!bucket) throw new Error('Bucket name not configured');
@@ -345,7 +373,9 @@ export class BackblazeService {
     }
   }
 
-  // Delete a file
+  /**
+   * Deletes an object by key from the configured bucket.
+   */
   async deleteFile(fileName: string, bucketName?: string): Promise<void> {
     const bucket = bucketName || this.bucketName;
     if (!bucket) throw new Error('Bucket name not configured');
@@ -367,8 +397,7 @@ export class BackblazeService {
   }
 
   /**
-   * Perform a lightweight connectivity check against the configured bucket.
-   * Uses S3 HeadBucket to verify bucket exists and credentials are valid.
+   * Performs a lightweight connectivity check using S3 HeadBucket.
    */
   async headBucket(bucketName?: string): Promise<{
     ok: boolean;
@@ -386,6 +415,39 @@ export class BackblazeService {
       const msg = this.formatError(err);
       this.logger.error(`headBucket: failed: ${msg}`);
       return { ok: false, bucket, endpoint: this.endpoint, error: msg };
+    }
+  }
+
+  /**
+   * Generates a pre-signed URL for downloading a file by key with a short TTL.
+   * Useful to allow clients to fetch directly from Backblaze without proxying.
+   */
+  async getPresignedUrl(
+    fileName: string,
+    expiresInSec: number,
+    bucketName?: string,
+  ): Promise<string> {
+    const bucket = bucketName || this.bucketName;
+    if (!bucket) throw new Error('Bucket name not configured');
+    const cmd = new GetObjectCommand({ Bucket: bucket, Key: fileName });
+    try {
+      // Lazy load presigner to avoid hard dependency when package is unavailable
+      let getSignedUrlFn: any;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        getSignedUrlFn = require('@aws-sdk/s3-request-presigner').getSignedUrl;
+      } catch (e) {
+        this.logger.warn('s3-request-presigner package not available; cannot generate S3 presigned URL');
+        throw new Error('PRESIGNER_NOT_AVAILABLE');
+      }
+      const url = await getSignedUrlFn(this.s3Client, cmd, { expiresIn: Math.max(1, Math.min(7 * 24 * 3600, expiresInSec)) });
+      this.logger.debug(`getPresignedUrl: generated signed URL for '${fileName}' (ttl=${expiresInSec}s)`);
+      return url;
+    } catch (err: unknown) {
+      this.logger.error(
+        `getPresignedUrl: failed for key='${fileName}' in bucket='${bucket}': ${this.formatError(err)}`,
+      );
+      throw err;
     }
   }
 }

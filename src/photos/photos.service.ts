@@ -16,11 +16,11 @@
 
 import {
   Injectable,
-  Logger,
   InternalServerErrorException,
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { AppLogger } from '../logging/app-logger.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { Photo, Prisma } from '@prisma/client';
 import { AddPhotoDto } from './dto/add-photo.dto';
@@ -37,12 +37,13 @@ const LEGACY_UPLOAD_PATH = './uploads/inspection-photo'; // legacy disk folder
 
 @Injectable()
 export class PhotosService {
-  private readonly logger = new Logger(PhotosService.name);
-
   constructor(
     private prisma: PrismaService,
     private readonly backblaze: BackblazeService,
-  ) {}
+    private readonly logger: AppLogger,
+  ) {
+    this.logger.setContext(PhotosService.name);
+  }
 
   private getMimeFromFilename(name: string, fallback = 'application/octet-stream'): string {
     const ext = path.extname(name).toLowerCase();

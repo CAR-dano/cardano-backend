@@ -1,6 +1,20 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: dto/credit-package-response.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: DTO representing a credit package entity returned to clients.
+ * --------------------------------------------------------------------------
+ */
+
 import { ApiProperty } from '@nestjs/swagger';
 import { CreditPackage } from '@prisma/client';
 
+/**
+ * @class CreditPackageResponseDto
+ * @description Standard shape for returning credit package data.
+ */
 export class CreditPackageResponseDto {
   @ApiProperty() id: string;
   @ApiProperty() credits: number;
@@ -23,4 +37,3 @@ export class CreditPackageResponseDto {
     this.updatedAt = entity.updatedAt as any;
   }
 }
-

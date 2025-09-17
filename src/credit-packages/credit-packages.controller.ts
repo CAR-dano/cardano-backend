@@ -1,3 +1,15 @@
+/*
+ * --------------------------------------------------------------------------
+ * File: credit-packages.controller.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Admin controller for managing credit packages. Supports list,
+ * fetch by ID, create, partial update, toggle active state, and delete.
+ * Requires ADMIN/SUPERADMIN with JWT auth.
+ * --------------------------------------------------------------------------
+ */
+
 import {
   Body,
   Controller,
@@ -37,6 +49,10 @@ import { CreditPackageItemResponseDto } from './dto/credit-package-item-response
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 
+/**
+ * @class CreditPackagesController
+ * @description Admin endpoints for credit package management.
+ */
 @ApiTags('Credit Packages')
 @Controller('admin/credit-packages')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -45,6 +61,9 @@ import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-stand
 export class CreditPackagesController {
   constructor(private readonly service: CreditPackagesService) {}
 
+  /**
+   * Lists all credit packages, active and inactive, newest first.
+   */
   @Get()
   @ApiOperation({ summary: 'List all credit packages (active & inactive)' })
   @ApiOkResponse({ description: 'Packages list returned.', type: CreditPackageListResponseDto })
@@ -56,6 +75,11 @@ export class CreditPackagesController {
     );
   }
 
+  /**
+   * Retrieves a specific credit package by ID.
+   *
+   * @param id Package ID
+   */
   @Get(':id')
   @ApiOperation({ summary: 'Get credit package by ID' })
   @ApiOkResponse({ description: 'Credit package found.', type: CreditPackageItemResponseDto })
@@ -67,6 +91,11 @@ export class CreditPackagesController {
     return new CreditPackageItemResponseDto(new CreditPackageResponseDto(pkg));
   }
 
+  /**
+   * Creates a new credit package.
+   *
+   * @param dto Payload defining credits, price, discount, etc.
+   */
   @Post()
   @ApiOperation({ summary: 'Create a new credit package' })
   @ApiCreatedResponse({ description: 'Credit package created', type: CreditPackageItemResponseDto })
@@ -77,6 +106,12 @@ export class CreditPackagesController {
     return new CreditPackageItemResponseDto(new CreditPackageResponseDto(created));
   }
 
+  /**
+   * Partially updates an existing credit package.
+   *
+   * @param id Package ID
+   * @param dto Fields to update
+   */
   @Patch(':id')
   @ApiOperation({ summary: 'Update credit package (partial)' })
   @ApiOkResponse({ description: 'Credit package updated', type: CreditPackageItemResponseDto })
@@ -88,6 +123,11 @@ export class CreditPackagesController {
     return new CreditPackageItemResponseDto(new CreditPackageResponseDto(updated));
   }
 
+  /**
+   * Toggles the `isActive` state for a package.
+   *
+   * @param id Package ID
+   */
   @Patch(':id/active')
   @ApiOperation({ summary: 'Toggle active state (activate if inactive, and vice versa)' })
   @ApiOkResponse({ description: 'Toggled active state', type: CreditPackageItemResponseDto })
@@ -98,6 +138,11 @@ export class CreditPackagesController {
     return new CreditPackageItemResponseDto(new CreditPackageResponseDto(updated));
   }
 
+  /**
+   * Deletes a credit package by ID.
+   *
+   * @param id Package ID
+   */
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a credit package' })
   @ApiNoContentResponse({ description: 'Credit package deleted' })

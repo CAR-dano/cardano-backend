@@ -20,7 +20,6 @@ import {
   Res,
   UseGuards,
   HttpStatus,
-  Logger,
   HttpCode,
   InternalServerErrorException,
   UnauthorizedException, // Import UnauthorizedException
@@ -58,6 +57,8 @@ import { InspectorGuard } from './guards/inspector.guard';
 import { LoginInspectorDto } from './dto/login-inspector.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { AppLogger } from '../logging/app-logger.service';
+import { AuditLoggerService } from '../logging/audit-logger.service';
 
 // Define interface for request object after JWT or Local auth guard runs
 interface AuthenticatedRequest extends Request {
@@ -67,7 +68,7 @@ interface AuthenticatedRequest extends Request {
 @ApiTags('Auth (UI Users)')
 @Controller('auth') // Base path: /api/v1/auth
 export class AuthController {
-  private readonly logger = new Logger(AuthController.name);
+  private readonly logger: AppLogger;
 
   /**
    * Constructs the AuthController.
@@ -81,7 +82,12 @@ export class AuthController {
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService, // Inject JwtService
-  ) {}
+    logger: AppLogger,
+    private readonly audit: AuditLoggerService,
+  ) {
+    this.logger = logger;
+    this.logger.setContext(AuthController.name);
+  }
 
   /**
    * Handles local user registration (Email/Username + Password).
@@ -147,13 +153,22 @@ export class AuthController {
       );
     }
 
-    this.logger.log(
-      `User logged in locally: ${req.user?.email ?? req.user?.username}`,
-    );
+    this.logger.log(`User logged in locally: ${req.user?.email ?? req.user?.username}`);
     // req.user contains the validated user object returned by LocalStrategy.validate
     const { accessToken, refreshToken } = await this.authService.login(
       req.user as any,
     ); // Generate JWT
+    // Audit
+    this.audit.log({
+      rid: (req as any)?.id || 'n/a',
+      actorId: (req.user as any).id,
+      action: 'LOGIN',
+      resource: 'user',
+      subjectId: (req.user as any).id,
+      result: 'SUCCESS',
+      ip: (req as any)?.ip,
+      meta: { method: 'local' },
+    });
     return {
       accessToken,
       refreshToken,
@@ -202,6 +217,16 @@ export class AuthController {
     const { accessToken, refreshToken } = await this.authService.login(
       req.user as any,
     );
+    this.audit.log({
+      rid: (req as any)?.id || 'n/a',
+      actorId: (req.user as any).id,
+      action: 'LOGIN',
+      resource: 'user',
+      subjectId: (req.user as any).id,
+      result: 'SUCCESS',
+      ip: (req as any)?.ip,
+      meta: { method: 'inspector_pin' },
+    });
     return {
       accessToken,
       refreshToken,

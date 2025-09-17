@@ -1,4 +1,4 @@
-import { Controller, Get, Logger, NotFoundException, Param, Res, Req } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Param, Res, Req } from '@nestjs/common';
 import { Response } from 'express';
 import { BackblazeService } from '../common/services/backblaze.service';
 import * as fs from 'fs';
@@ -6,12 +6,14 @@ import * as path from 'path';
 import { ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
+import { AppLogger } from '../logging/app-logger.service';
 
 @ApiTags('Public Photos')
 @Controller()
 export class PhotoProxyController {
-  private readonly logger = new Logger(PhotoProxyController.name);
-  constructor(private readonly backblazeService: BackblazeService) {}
+  constructor(private readonly backblazeService: BackblazeService, private readonly logger: AppLogger) {
+    this.logger.setContext(PhotoProxyController.name);
+  }
 
   private contentTypeFor(name?: string): string {
     const n = name || '';

@@ -11,23 +11,18 @@
  * --------------------------------------------------------------------------
  */
 
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core'; // Helper to read metadata
 import { Role } from '@prisma/client'; // User Role enum
 import { ROLES_KEY } from '../decorators/roles.decorator'; // Key to access metadata
+import { AppLogger } from '../../logging/app-logger.service';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  private readonly logger = new Logger(RolesGuard.name);
-
-  // Inject Reflector to access decorator metadata
-  constructor(private reflector: Reflector) {}
+  // Inject Reflector and Logger to access decorator metadata
+  constructor(private reflector: Reflector, private readonly logger: AppLogger) {
+    this.logger.setContext(RolesGuard.name);
+  }
 
   /**
    * Determines if the current authenticated user has one of the roles required

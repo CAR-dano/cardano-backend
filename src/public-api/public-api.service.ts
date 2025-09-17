@@ -13,11 +13,11 @@
 // NestJS common imports
 import {
   Injectable,
-  Logger,
   InternalServerErrorException,
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
+import { AppLogger } from '../logging/app-logger.service';
 
 // Prisma client imports for database models and types
 import { Inspection, Prisma, InspectionChangeLog } from '@prisma/client';
@@ -33,14 +33,16 @@ import { PrismaService } from '../prisma/prisma.service';
 @Injectable()
 export class PublicApiService {
   // Initialize a logger for this service context
-  private readonly logger = new Logger(PublicApiService.name);
+  constructor(private prisma: PrismaService, private readonly logger: AppLogger) {
+    this.logger.setContext(PublicApiService.name);
+  }
 
   /**
    * Constructor for PublicApiService.
    * Injects the PrismaService dependency.
    * @param prisma - The PrismaService instance for database interactions.
    */
-  constructor(private prisma: PrismaService) {}
+  
 
   /**
    * Retrieves a single inspection by its unique ID.

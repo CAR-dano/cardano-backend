@@ -1,11 +1,4 @@
-import {
-  Controller,
-  Get,
-  Param,
-  Res,
-  NotFoundException,
-  Logger,
-} from '@nestjs/common';
+import { Controller, Get, Param, Res, NotFoundException, Query, BadRequestException } from '@nestjs/common';
 import { Response } from 'express';
 import { BackblazeService } from '../common/services/backblaze.service';
 import { Stream } from 'stream';
@@ -14,12 +7,20 @@ import * as path from 'path';
 import { ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
+import { AppLogger } from '../logging/app-logger.service';
+import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
 
 @ApiTags('Public PDF')
 @Controller()
 export class PdfProxyController {
-  private readonly logger = new Logger(PdfProxyController.name);
-  constructor(private readonly backblazeService: BackblazeService) {}
+  constructor(
+    private readonly backblazeService: BackblazeService,
+    private readonly logger: AppLogger,
+    private readonly config: ConfigService,
+  ) {
+    this.logger.setContext(PdfProxyController.name);
+  }
 
   private async streamPdfToResponse(name: string, res: Response) {
     // Map any incoming route name to the bucket key under pdfarchived/
@@ -77,4 +78,34 @@ export class PdfProxyController {
   }
 
   // Note: single /pdf/:name route already defined above
+
+  /**
+   * Private signed endpoint for local/backblaze fallback streaming.
+   * Validates HMAC signature and expiration before streaming the file.
+   * Signature format: sig = HMAC_SHA256(secret, `${name}.${exp}`)
+   */
+  @Get('private/pdfarchived/:name')
+  @ApiOperation({ summary: 'Private signed PDF stream (validates HMAC + exp)' })
+  @ApiOkResponse({ description: 'PDF stream' })
+  @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'PDF not found' })
+  async proxyPrivatePdf(
+    @Param('name') name: string,
+    @Query('exp') exp: string,
+    @Query('sig') sig: string,
+    @Res() res: Response,
+  ) {
+    const secret = this.config.get<string>('REPORT_DL_SECRET') || '';
+    const ttlStr = this.config.get<string>('REPORT_DL_TTL_SEC') || '60';
+    if (!secret) throw new BadRequestException('Signing secret not configured');
+    const expNum = Number(exp);
+    if (!exp || !Number.isFinite(expNum)) throw new BadRequestException('Invalid exp');
+    if (Date.now() > expNum) throw new BadRequestException('URL expired');
+    if (expNum - Date.now() > (Number(ttlStr) + 5) * 1000) {
+      throw new BadRequestException('exp too far in the future');
+    }
+    const expected = crypto.createHmac('sha256', secret).update(`${name}.${exp}`).digest('hex');
+    if (sig !== expected) throw new BadRequestException('Invalid signature');
+
+    return this.streamPdfToResponse(name, res);
+  }
 }

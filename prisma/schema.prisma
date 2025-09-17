@@ -339,3 +339,26 @@ model CreditConsumption {
   @@map("credit_consumptions")
   @@index([userId, inspectionId])
 }
+
+// Stores incoming payment webhook events for persistent idempotency and auditing
+model WebhookEvent {
+  id           String   @id @default(cuid())
+  gateway      String   // e.g., 'XENDIT'
+  extInvoiceId String
+  eventType    String?
+  dedupeKey    String   @unique // stable unique key per event
+  payloadHash  String?  // SHA-256 of raw payload (optional)
+  payload      Json?
+  headers      Json?
+  attempts     Int      @default(0)
+  receivedAt   DateTime @default(now())
+  processedAt  DateTime?
+  result       String?
+  error        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([extInvoiceId, receivedAt])
+  @@index([processedAt])
+  @@map("webhook_events")
+}

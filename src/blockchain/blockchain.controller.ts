@@ -11,14 +11,7 @@
  */
 
 // NestJS common modules
-import {
-  Controller,
-  Get,
-  Param,
-  Logger,
-  HttpStatus,
-  UseGuards,
-} from '@nestjs/common';
+import { Controller, Get, Param, HttpStatus, UseGuards } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 // Local services
@@ -32,13 +25,14 @@ import { NftDataResponseDto } from './dto/nft-data-response.dto';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiOkResponse, ApiBadRequestResponse, ApiNotFoundResponse } from '@nestjs/swagger';
 import { ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
+import { AppLogger } from '../logging/app-logger.service';
 
 @ApiTags('Blockchain Operations')
 @Controller('blockchain') // Base path: /api/v1/blockchain
 export class BlockchainController {
-  private readonly logger = new Logger(BlockchainController.name);
-
-  constructor(private readonly blockchainService: BlockchainService) {}
+  constructor(private readonly blockchainService: BlockchainService, private readonly logger: AppLogger) {
+    this.logger.setContext(BlockchainController.name);
+  }
 
   /**
    * Retrieves transaction metadata from Blockfrost using the transaction hash.

@@ -11,13 +11,17 @@
  * --------------------------------------------------------------------------
  */
 
-import { Injectable, ExecutionContext, Logger } from '@nestjs/common';
+import { Injectable, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Observable } from 'rxjs';
+import { AppLogger } from '../../logging/app-logger.service';
 
 @Injectable()
 export class LocalAuthGuard extends AuthGuard('local') {
-  private readonly logger = new Logger(LocalAuthGuard.name);
+  constructor(private readonly logger: AppLogger) {
+    super();
+    this.logger.setContext(LocalAuthGuard.name);
+  }
 
   /**
    * Overrides canActivate for logging purposes before strategy execution.

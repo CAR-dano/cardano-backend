@@ -19,12 +19,13 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { PhotosModule } from '../photos/photos.module';
 import { BlockchainModule } from '../blockchain/blockchain.module';
 import { IpfsModule } from '../ipfs/ipfs.module';
+import { CreditsModule } from '../credits/credits.module';
 
 /**
  * NestJS module for inspection-related features.
  */
 @Module({
-  imports: [PrismaModule, PhotosModule, BlockchainModule, IpfsModule],
+  imports: [PrismaModule, PhotosModule, BlockchainModule, IpfsModule, CreditsModule],
   controllers: [InspectionsController],
   providers: [InspectionsService],
   exports: [InspectionsService],

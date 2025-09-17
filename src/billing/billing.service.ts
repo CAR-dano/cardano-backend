@@ -1,18 +1,41 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+/*
+ * --------------------------------------------------------------------------
+ * File: billing.service.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ * Description: Service encapsulating billing operations including listing
+ * packages, creating Xendit checkouts, and crediting users on payment.
+ * --------------------------------------------------------------------------
+ */
+
+import { Injectable, BadRequestException } from '@nestjs/common';
+import { AppLogger } from '../logging/app-logger.service';
+import { AuditLoggerService } from '../logging/audit-logger.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PaymentGateway, PurchaseStatus } from '@prisma/client';
 import { XenditService } from './payments/xendit.service';
 import { ConfigService } from '@nestjs/config';
 
+/**
+ * @class BillingService
+ * @description Business logic for billing flows and integrations.
+ */
 @Injectable()
 export class BillingService {
-  private readonly logger = new Logger(BillingService.name);
   constructor(
     private readonly prisma: PrismaService,
     private readonly xendit: XenditService,
     private readonly config: ConfigService,
-  ) {}
+    private readonly logger: AppLogger,
+    private readonly audit: AuditLoggerService,
+  ) {
+    this.logger.setContext(BillingService.name);
+  }
 
+  /**
+   * Returns all active credit packages ordered by newest first.
+   */
   async listPackages() {
     return this.prisma.creditPackage.findMany({
       where: { isActive: true },
@@ -20,6 +43,15 @@ export class BillingService {
     });
   }
 
+  /**
+   * Creates a pending purchase and corresponding Xendit invoice, then returns
+   * identifiers and payment URL for the client.
+   *
+   * @param userId Buyer user ID
+   * @param packageId Selected credit package ID
+   * @returns Purchase and invoice identifiers with payment URL
+   * @throws BadRequestException When package is unavailable
+   */
   async createCheckout(userId: string, packageId: string) {
     const pkg = await this.prisma.creditPackage.findUnique({ where: { id: packageId } });
     if (!pkg || !pkg.isActive) throw new BadRequestException('Package not available');
@@ -60,6 +92,12 @@ export class BillingService {
     return { purchaseId: purchase.id, extInvoiceId: inv.id, paymentUrl: inv.invoice_url };
   }
 
+  /**
+   * Marks a purchase as PAID by external invoice ID and increments
+   * the buyer's credit balance accordingly. Safe to call repeatedly.
+   *
+   * @param extInvoiceId External invoice ID from Xendit
+   */
   async markPaidByExtInvoiceId(extInvoiceId: string) {
     await this.prisma.$transaction(async (tx) => {
       const p = await tx.purchase.findUnique({
@@ -79,7 +117,80 @@ export class BillingService {
         where: { id: p.userId },
         data: { credits: { increment: p.creditPackage.credits } },
       });
+      this.audit.log({
+        rid: 'n/a',
+        actorId: p.userId,
+        action: 'PURCHASE_PAID',
+        resource: 'credit_purchase',
+        subjectId: p.id,
+        result: 'SUCCESS',
+        meta: { extInvoiceId, credits: p.creditPackage.credits, amount: p.amount },
+      });
+    });
+  }
+
+  /**
+   * Marks a purchase as EXPIRED by external invoice ID. Idempotent.
+   */
+  async markExpiredByExtInvoiceId(extInvoiceId: string) {
+    const p = await this.prisma.purchase.findUnique({ where: { extInvoiceId } });
+    if (!p) throw new BadRequestException('Purchase not found');
+    if (p.status === PurchaseStatus.EXPIRED) return;
+    if (p.status === PurchaseStatus.PAID) return; // do not overwrite paid
+    await this.prisma.purchase.update({ where: { id: p.id }, data: { status: PurchaseStatus.EXPIRED } });
+    this.audit.log({
+      rid: 'n/a',
+      actorId: p.userId,
+      action: 'PURCHASE_EXPIRED',
+      resource: 'credit_purchase',
+      subjectId: p.id,
+      result: 'SUCCESS',
+      meta: { extInvoiceId },
+    });
+  }
+
+  /**
+   * Marks a purchase as FAILED by external invoice ID. Idempotent.
+   */
+  async markFailedByExtInvoiceId(extInvoiceId: string) {
+    const p = await this.prisma.purchase.findUnique({ where: { extInvoiceId } });
+    if (!p) throw new BadRequestException('Purchase not found');
+    if (p.status === PurchaseStatus.FAILED) return;
+    if (p.status === PurchaseStatus.PAID) return; // do not overwrite paid
+    await this.prisma.purchase.update({ where: { id: p.id }, data: { status: PurchaseStatus.FAILED } });
+    this.audit.log({
+      rid: 'n/a',
+      actorId: p.userId,
+      action: 'PURCHASE_FAILED',
+      resource: 'credit_purchase',
+      subjectId: p.id,
+      result: 'SUCCESS',
+      meta: { extInvoiceId },
+    });
+  }
+
+  /** Returns one purchase (with package) for the current user (or any if admin). */
+  async getPurchaseById(id: string, requesterId: string, requesterRole: string) {
+    const p = await this.prisma.purchase.findUnique({
+      where: { id },
+      include: { creditPackage: true },
+    });
+    if (!p) throw new BadRequestException('Purchase not found');
+    // If not admin/superadmin, ensure ownership
+    if (!['ADMIN', 'SUPERADMIN'].includes(requesterRole) && p.userId !== requesterId) {
+      throw new BadRequestException('Purchase not found');
+    }
+    return p;
+  }
+
+  /** Lists recent purchases for the current user (most recent first). */
+  async listMyPurchases(userId: string, limit = 10) {
+    const lim = Math.max(1, Math.min(100, Number(limit) || 10));
+    return this.prisma.purchase.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: lim,
+      include: { creditPackage: true },
     });
   }
 }
-

@@ -1,11 +1,5 @@
-import {
-  PipeTransform,
-  Injectable,
-  ArgumentMetadata,
-  BadRequestException,
-  InternalServerErrorException,
-  Logger,
-} from '@nestjs/common';
+import { PipeTransform, Injectable, ArgumentMetadata, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { AppLogger } from '../../logging/app-logger.service';
 import * as fs from 'fs/promises';
 import { extname } from 'path';
 
@@ -15,7 +9,9 @@ const ALLOWED_EXTENSIONS = /\.(jpg|jpeg|png)$/i;
 
 @Injectable()
 export class FileValidationPipe implements PipeTransform {
-  private readonly logger = new Logger(FileValidationPipe.name);
+  constructor(private readonly logger?: AppLogger) {
+    this.logger?.setContext(FileValidationPipe.name);
+  }
 
   async transform(
     files: Express.Multer.File | Express.Multer.File[],
@@ -79,7 +75,8 @@ export class FileValidationPipe implements PipeTransform {
         );
       }
     } catch (error) {
-      this.logger.error(`Validation failed for ${file.originalname}:`, error);
+      if (this.logger) this.logger.error(`Validation failed for ${file.originalname}: ${(error as Error)?.message}`);
+      else console.error(`Validation failed for ${file.originalname}:`, error);
       if (error instanceof BadRequestException) {
         throw error;
       }
@@ -95,7 +92,8 @@ export class FileValidationPipe implements PipeTransform {
     try {
       await fs.unlink(filePath);
     } catch (error) {
-      this.logger.error(`Failed to clean up file: ${filePath}`, error);
+      if (this.logger) this.logger.error(`Failed to clean up file: ${filePath}`);
+      else console.error(`Failed to clean up file: ${filePath}`);
     }
   }
 }

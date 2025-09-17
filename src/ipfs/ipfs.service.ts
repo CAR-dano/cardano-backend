@@ -10,7 +10,8 @@
  */
 
 // NestJS common modules
-import { Injectable, OnModuleInit, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
+import { AppLogger } from '../logging/app-logger.service';
 import { ConfigService } from '@nestjs/config';
 
 // Third-party libraries
@@ -19,7 +20,6 @@ import { create, IPFSHTTPClient } from 'ipfs-http-client';
 @Injectable()
 export class IpfsService implements OnModuleInit {
   // Logger instance for logging messages
-  private readonly logger = new Logger(IpfsService.name);
   // IPFS client instance
   private ipfs: IPFSHTTPClient;
 
@@ -27,7 +27,9 @@ export class IpfsService implements OnModuleInit {
    * Constructs the IpfsService.
    * @param configService Service for accessing configuration values.
    */
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService, private readonly logger: AppLogger) {
+    this.logger.setContext(IpfsService.name);
+  }
 
   /**
    * Initializes the module and connects to the IPFS node.
@@ -49,7 +51,7 @@ export class IpfsService implements OnModuleInit {
 
     this.ipfs = create({ url: apiUrl });
 
-    console.log(`Connecting to IPFS API at: ${apiUrl}`);
+    this.logger.log(`Connecting to IPFS API at: ${apiUrl}`);
   }
 
   /**
@@ -69,7 +71,7 @@ export class IpfsService implements OnModuleInit {
       return result.path;
     } catch (error) {
       // Log error if file addition fails
-      this.logger.error('Failed to add file to IPFS', error);
+      this.logger.error('Failed to add file to IPFS', (error as Error)?.stack);
       // Re-throw the error
       throw error;
     }

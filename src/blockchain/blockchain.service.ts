@@ -12,14 +12,15 @@
 // NestJS Common Modules, Decorators, and Exceptions
 import {
   Injectable,
-  Logger,
   InternalServerErrorException,
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
+import { AppLogger } from '../logging/app-logger.service';
 
 // NestJS Config Module
 import { ConfigService } from '@nestjs/config';
+import { PinoLogger } from 'nestjs-pino';
 
 // Mesh SDK Core Library for blockchain interactions
 import {
@@ -130,7 +131,7 @@ export class BlockchainService {
     }
     return m;
   }
-  private readonly logger = new Logger(BlockchainService.name);
+  private readonly logger: AppLogger;
   private readonly blockfrostProvider: BlockfrostProvider;
   private readonly wallet: MeshWallet; // Use AppWallet type for better type safety
   private readonly apiKey: string;
@@ -156,7 +157,9 @@ export class BlockchainService {
    * @param configService The NestJS ConfigService for accessing environment variables.
    * @throws Error if BLOCKFROST_ENV is unsupported or WALLET_SECRET_KEY is not set.
    */
-  constructor(private configService: ConfigService) {
+  constructor(private configService: ConfigService, logger: AppLogger) {
+    this.logger = logger;
+    this.logger.setContext(BlockchainService.name);
     // Determine Blockfrost environment and base URL
     const blockfrostEnv = this.configService.getOrThrow<
       'preview' | 'preprod' | 'mainnet'

@@ -10,13 +10,17 @@
  * NOTE: Requires WalletStrategy and underlying signature verification to be fully implemented.
  * --------------------------------------------------------------------------
  */
-import { Injectable, ExecutionContext, Logger } from '@nestjs/common';
+import { Injectable, ExecutionContext } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Observable } from 'rxjs';
+import { AppLogger } from '../../logging/app-logger.service';
 
 @Injectable()
 export class WalletAuthGuard extends AuthGuard('wallet') {
-  private readonly logger = new Logger(WalletAuthGuard.name);
+  constructor(private readonly logger: AppLogger) {
+    super();
+    this.logger.setContext(WalletAuthGuard.name);
+  }
 
   /**
    * Determines if the request can be activated by the wallet authentication strategy.
