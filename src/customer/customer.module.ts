@@ -14,10 +14,12 @@ import { CustomerReportsService } from './customer-reports.service';
 import { ReportsModule } from '../reports/reports.module';
 import { CreditsModule } from '../credits/credits.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { CustomerVehiclesController } from './customer-vehicles.controller';
+import { CustomerVehiclesService } from './customer-vehicles.service';
 
 @Module({
   imports: [PrismaModule, ReportsModule, CreditsModule],
-  controllers: [CustomerReportsController],
-  providers: [CustomerReportsService],
+  controllers: [CustomerReportsController, CustomerVehiclesController],
+  providers: [CustomerReportsService, CustomerVehiclesService],
 })
 export class CustomerModule {}

@@ -59,6 +59,34 @@ enum PaymentGateway {
   MIDTRANS
 }
 
+enum VehicleTransmission {
+  MANUAL
+  AUTOMATIC
+}
+
+enum VehicleType {
+  SEDAN
+  SUV
+  HATCHBACK
+  MPV
+  TRUCK
+  VAN
+  MOTORCYCLE
+  OTHER
+}
+
+enum VehiclePhotoType {
+  FRONT
+  BACK
+  LEFT
+  RIGHT
+  INTERIOR
+  EXTERIOR
+  ENGINE
+  DOCUMENT
+  OTHER
+}
+
 enum BlockchainTaskStatus {
   PENDING
   PROCESSING
@@ -110,6 +138,7 @@ model User {
 
   inspectionBranchCityId String?               @map("inspection_branch_city_id")
   inspectionBranchCity   InspectionBranchCity? @relation(fields: [inspectionBranchCityId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  customerVehicles       CustomerVehicle[]
   @@map("users") // Explicit table name
 }
 
@@ -154,6 +183,50 @@ model UtxoLock {
   @@index([expiresAt], name: "utxo_locks_expiresAt_idx")
   @@index([lockedBy], name: "utxo_locks_lockedBy_idx")
   @@map("utxo_locks")
+}
+
+/// Customer registered vehicle metadata (owned by User)
+model CustomerVehicle {
+  id             String               @id @default(uuid())
+  userId         String               @map("user_id")
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plateNumber    String               @map("plate_number") @db.VarChar(32)
+  year           Int
+  transmission   VehicleTransmission
+  vehicleType    VehicleType          @map("vehicle_type")
+  brand          String               @db.VarChar(100)
+  model          String               @db.VarChar(100)
+  color          String               @db.VarChar(100)
+  specification  String?              @db.Text
+  serviceHistory String?              @map("service_history") @db.Text
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  photos CustomerVehiclePhoto[]
+
+  @@unique([userId, plateNumber])
+  @@index([userId])
+  @@map("customer_vehicles")
+}
+
+/// Photos associated with a customer vehicle
+model CustomerVehiclePhoto {
+  id           String             @id @default(uuid())
+  vehicleId    String             @map("vehicle_id")
+  vehicle      CustomerVehicle    @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  type         VehiclePhotoType
+  label        String?            @db.VarChar(100)
+  category     String?            @db.VarChar(100)
+  path         String             @db.VarChar(255)
+  storageKey   String?            @map("storage_key") @db.VarChar(255)
+  contentType  String?            @map("content_type") @db.VarChar(100)
+  isPrimary    Boolean            @map("is_primary") @default(false)
+  displayOrder Int                @map("display_order") @default(0)
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  @@index([vehicleId])
+  @@map("customer_vehicle_photos")
 }
 
 // Defines the Inspection model, representing a single vehicle inspection record.
