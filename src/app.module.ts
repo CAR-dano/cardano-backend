@@ -39,6 +39,7 @@ import { CreditsModule } from './credits/credits.module';
 import { BillingModule } from './billing/billing.module';
 import { CreditPackagesModule } from './credit-packages/credit-packages.module';
 import { AppLoggingModule } from './logging/logging.module';
+import { CustomerModule } from './customer/customer.module';
 import { RequestIdMiddleware } from './logging/request-id.middleware';
 
 @Module({
@@ -79,6 +80,7 @@ import { RequestIdMiddleware } from './logging/request-id.middleware';
     BillingModule,
     CreditPackagesModule,
     AppLoggingModule,
+    CustomerModule,
   ],
   controllers: [],
   providers: [],

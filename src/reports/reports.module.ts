@@ -24,5 +24,6 @@ import { CommonModule } from '../common/common.module';
   imports: [PrismaModule, CreditsModule, CommonModule],
   controllers: [ReportsController],
   providers: [ReportsService],
+  exports: [ReportsService],
 })
 export class ReportsModule {}
