@@ -45,7 +45,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     private readonly authService: AuthService, // Inject AuthService
     logger: AppLogger,
   ) {
-    
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(), // Standard extraction method
       ignoreExpiration: false, // Validate token expiration

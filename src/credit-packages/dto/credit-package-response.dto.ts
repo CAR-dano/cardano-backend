@@ -20,7 +20,10 @@ export class CreditPackageResponseDto {
   @ApiProperty() credits: number;
   @ApiProperty() price: number;
   @ApiProperty() discountPct: number;
-  @ApiProperty({ required: false, nullable: true }) benefits?: Record<string, any> | null;
+  @ApiProperty({ required: false, nullable: true }) benefits?: Record<
+    string,
+    any
+  > | null;
   @ApiProperty() isActive: boolean;
   @ApiProperty() createdAt: Date;
   @ApiProperty() updatedAt: Date;

@@ -23,6 +23,10 @@ import {
   HttpCode,
   InternalServerErrorException,
   UnauthorizedException, // Import UnauthorizedException
+  Patch,
+  Delete,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
@@ -40,8 +44,12 @@ import {
   ApiBearerAuth,
   ApiExcludeEndpoint,
   ApiResponse,
+  ApiConsumes,
 } from '@nestjs/swagger';
-import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
+import {
+  ApiAuthErrors,
+  ApiStandardErrors,
+} from '../common/decorators/api-standard-errors.decorator';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard'; // Protects profile & logout
 import { LocalAuthGuard } from './guards/local-auth.guard'; // Triggers local strategy for login
@@ -59,6 +67,16 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { AppLogger } from '../logging/app-logger.service';
 import { AuditLoggerService } from '../logging/audit-logger.service';
+import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { LinkGoogleDto } from './dto/link-google.dto';
+import { LinkWalletDto } from './dto/link-wallet.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { FileValidationPipe } from '../inspections/pipes/file-validation.pipe';
+import { memoryStorage } from 'multer';
+import type { Express } from 'express';
+
+const profilePhotoStorage = memoryStorage();
 
 // Define interface for request object after JWT or Local auth guard runs
 interface AuthenticatedRequest extends Request {
@@ -100,8 +118,14 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
   @ApiBody({ type: RegisterUserDto })
-  @ApiCreatedResponse({ description: 'User successfully registered.', type: UserResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid input data.', type: HttpErrorResponseDto })
+  @ApiCreatedResponse({
+    description: 'User successfully registered.',
+    type: UserResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid input data.',
+    type: HttpErrorResponseDto,
+  })
   async registerLocal(
     @Body() registerUserDto: RegisterUserDto,
   ): Promise<UserResponseDto> {
@@ -132,7 +156,10 @@ export class AuthController {
     summary: 'Login with local credentials (email/username + password)',
   })
   @ApiBody({ type: LoginUserDto })
-  @ApiOkResponse({ description: 'Login successful, JWT returned.', type: LoginResponseDto })
+  @ApiOkResponse({
+    description: 'Login successful, JWT returned.',
+    type: LoginResponseDto,
+  })
   @ApiStandardErrors({ forbidden: false, notFound: false })
   async loginLocal(
     @Req() req: AuthenticatedRequest, // Request now has req.user populated by LocalAuthGuard/LocalStrategy
@@ -153,7 +180,9 @@ export class AuthController {
       );
     }
 
-    this.logger.log(`User logged in locally: ${req.user?.email ?? req.user?.username}`);
+    this.logger.log(
+      `User logged in locally: ${req.user?.email ?? req.user?.username}`,
+    );
     // req.user contains the validated user object returned by LocalStrategy.validate
     const { accessToken, refreshToken } = await this.authService.login(
       req.user as any,
@@ -192,7 +221,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login for inspectors with PIN' })
   @ApiBody({ type: LoginInspectorDto })
-  @ApiOkResponse({ description: 'Login successful, JWT returned.', type: LoginResponseDto })
+  @ApiOkResponse({
+    description: 'Login successful, JWT returned.',
+    type: LoginResponseDto,
+  })
   @ApiStandardErrors({ forbidden: false, notFound: false })
   async loginInspector(
     @Req() req: AuthenticatedRequest,
@@ -331,7 +363,9 @@ export class AuthController {
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout user' })
-  @ApiOkResponse({ description: 'Logout successful (client should clear token).' })
+  @ApiOkResponse({
+    description: 'Logout successful (client should clear token).',
+  })
   @ApiAuthErrors()
   async logout(@Req() req: AuthenticatedRequest, @Res() res: Response) {
     this.logger.log(`User logged out: ${req.user?.email ?? req.user?.id}`);
@@ -345,7 +379,7 @@ export class AuthController {
 
     try {
       // Decode the token to get its expiration time
-      const decodedToken = this.jwtService.decode(token) as { exp: number };
+      const decodedToken = this.jwtService.decode(token);
       if (!decodedToken || !decodedToken.exp) {
         this.logger.warn(
           'Logout failed: Invalid token format (missing expiration).',
@@ -383,13 +417,232 @@ export class AuthController {
   @UseGuards(JwtAuthGuard) // Protect with JWT
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @ApiOperation({ summary: 'Get logged-in user profile' })
-  @ApiOkResponse({ description: 'Returns authenticated user profile.', type: UserResponseDto })
+  @ApiOkResponse({
+    description: 'Returns authenticated user profile.',
+    type: UserResponseDto,
+  })
   @ApiAuthErrors()
   getProfile(@GetUser() user: UserResponseDto): UserResponseDto {
     // Use decorator to get user
     this.logger.log(`Profile requested for user: ${user.email ?? user.id}`);
     // The 'user' object here is already filtered by JwtStrategy/UserResponseDto structure
     return user;
+  }
+
+  @Patch('profile')
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JwtAuthGuard')
+  @ApiOperation({ summary: 'Update logged-in user profile information' })
+  @ApiOkResponse({ description: 'Updated profile.', type: UserResponseDto })
+  @ApiBadRequestResponse({
+    description: 'Invalid profile payload.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiAuthErrors()
+  async updateProfile(
+    @Req() req: AuthenticatedRequest,
+    @GetUser() authUser: any,
+    @Body() dto: UpdateProfileDto,
+  ): Promise<UserResponseDto> {
+    const updated = await this.usersService.updateSelfProfile(authUser.id, dto);
+
+    const changedFields = Object.entries(dto)
+      .filter(([, value]) => value !== undefined && value !== null)
+      .map(([key]) => key);
+
+    this.audit.log({
+      rid: (req as any)?.id || 'n/a',
+      actorId: authUser.id,
+      actorRole: authUser.role,
+      action: 'PROFILE_UPDATE',
+      resource: 'user_profile',
+      subjectId: authUser.id,
+      result: 'SUCCESS',
+      meta: { changedFields },
+    });
+
+    return new UserResponseDto(updated as any);
+  }
+
+  @Patch('profile/password')
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JwtAuthGuard')
+  @ApiOperation({ summary: 'Change password for logged-in user' })
+  @ApiOkResponse({ description: 'Password updated successfully.' })
+  @ApiBadRequestResponse({
+    description: 'Invalid password payload.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiAuthErrors()
+  async changePassword(
+    @Req() req: AuthenticatedRequest,
+    @GetUser() authUser: any,
+    @Body() dto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    await this.usersService.changePassword(
+      authUser.id,
+      dto.currentPassword,
+      dto.newPassword,
+    );
+
+    this.audit.log({
+      rid: (req as any)?.id || 'n/a',
+      actorId: authUser.id,
+      actorRole: authUser.role,
+      action: 'PASSWORD_CHANGE',
+      resource: 'user_profile',
+      subjectId: authUser.id,
+      result: 'SUCCESS',
+    });
+
+    return { message: 'Password updated successfully.' };
+  }
+
+  @Post('profile/photo')
+  @Throttle({ default: { limit: 12, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @UseGuards(JwtAuthGuard)
+  @UseInterceptors(FileInterceptor('photo', { storage: profilePhotoStorage }))
+  @ApiBearerAuth('JwtAuthGuard')
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload or replace profile photo' })
+  @ApiOkResponse({
+    description: 'Updated user profile with new photo.',
+    type: UserResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid file upload.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiAuthErrors()
+  async uploadProfilePhoto(
+    @Req() req: AuthenticatedRequest,
+    @GetUser() authUser: any,
+    @UploadedFile(new FileValidationPipe()) file: Express.Multer.File,
+  ): Promise<UserResponseDto> {
+    const updated = await this.usersService.updateProfilePhoto(
+      authUser.id,
+      file,
+    );
+
+    this.audit.log({
+      rid: (req as any)?.id || 'n/a',
+      actorId: authUser.id,
+      actorRole: authUser.role,
+      action: 'PROFILE_PHOTO_UPLOAD',
+      resource: 'user_profile_photo',
+      subjectId: authUser.id,
+      result: 'SUCCESS',
+    });
+
+    return new UserResponseDto(updated as any);
+  }
+
+  @Delete('profile/photo')
+  @Throttle({ default: { limit: 12, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JwtAuthGuard')
+  @ApiOperation({ summary: 'Remove custom profile photo' })
+  @ApiOkResponse({
+    description: 'Profile photo removed.',
+    type: UserResponseDto,
+  })
+  @ApiAuthErrors()
+  async removeProfilePhoto(
+    @Req() req: AuthenticatedRequest,
+    @GetUser() authUser: any,
+  ): Promise<UserResponseDto> {
+    const updated = await this.usersService.removeProfilePhoto(authUser.id);
+
+    this.audit.log({
+      rid: (req as any)?.id || 'n/a',
+      actorId: authUser.id,
+      actorRole: authUser.role,
+      action: 'PROFILE_PHOTO_REMOVE',
+      resource: 'user_profile_photo',
+      subjectId: authUser.id,
+      result: 'SUCCESS',
+    });
+
+    return new UserResponseDto(updated as any);
+  }
+
+  @Post('profile/link/google')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JwtAuthGuard')
+  @ApiOperation({ summary: 'Link Google account to the current user' })
+  @ApiOkResponse({
+    description: 'Google account linked.',
+    type: UserResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid Google token.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiAuthErrors()
+  async linkGoogleAccount(
+    @Req() req: AuthenticatedRequest,
+    @GetUser() authUser: any,
+    @Body() dto: LinkGoogleDto,
+  ): Promise<UserResponseDto> {
+    const updated = await this.authService.linkGoogleAccount(
+      authUser.id,
+      dto.idToken,
+    );
+
+    this.audit.log({
+      rid: (req as any)?.id || 'n/a',
+      actorId: authUser.id,
+      actorRole: authUser.role,
+      action: 'GOOGLE_LINK',
+      resource: 'user_social_link',
+      subjectId: authUser.id,
+      result: 'SUCCESS',
+    });
+
+    return new UserResponseDto(updated as any);
+  }
+
+  @Post('profile/link/wallet')
+  @Throttle({ default: { limit: 6, ttl: 60000 } })
+  @UseGuards(ThrottlerGuard)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JwtAuthGuard')
+  @ApiOperation({ summary: 'Link Cardano wallet address to the current user' })
+  @ApiOkResponse({ description: 'Wallet linked.', type: UserResponseDto })
+  @ApiBadRequestResponse({
+    description: 'Invalid wallet payload.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiAuthErrors()
+  async linkWallet(
+    @Req() req: AuthenticatedRequest,
+    @GetUser() authUser: any,
+    @Body() dto: LinkWalletDto,
+  ): Promise<UserResponseDto> {
+    const updated = await this.usersService.linkWalletAddress(
+      authUser.id,
+      dto.walletAddress,
+    );
+
+    this.audit.log({
+      rid: (req as any)?.id || 'n/a',
+      actorId: authUser.id,
+      actorRole: authUser.role,
+      action: 'WALLET_LINK',
+      resource: 'user_wallet',
+      subjectId: authUser.id,
+      result: 'SUCCESS',
+    });
+
+    return new UserResponseDto(updated as any);
   }
 
   /**
@@ -411,43 +664,4 @@ export class AuthController {
     this.logger.log('Token validity check successful.');
     return { message: 'Token is valid.' };
   }
-
-  // --- Placeholder Endpoints for Account Linking (Implement Later) ---
-
-  // @Post('link/google')
-  // @UseGuards(JwtAuthGuard)
-  // @ApiBearerAuth('JwtAuthGuard')
-  // @ApiOperation({ summary: 'Link Google Account to current user' })
-  // async linkGoogle(/* ... receive google token/data ... */, @GetUser() user: UserResponseDto) {
-  //   // Placeholder for linking a Google account to the current user.
-  //   // It would typically involve verifying a Google token and updating the user's profile.
-  //   // const googleProfile = await verifyGoogleToken(googleToken);
-  //   // return this.usersService.linkGoogleAccount(user.id, googleProfile.id, googleProfile.email);
-  // }
-
-  // @Post('link/wallet')
-  // @UseGuards(JwtAuthGuard)
-  // @ApiBearerAuth('JwtAuthGuard')
-  // @ApiOperation({ summary: 'Link Cardano Wallet to current user' })
-  // @ApiBody({ type: LinkWalletDto }) // Assuming LinkWalletDto exists
-  // async linkWallet(@Body() linkWalletDto: LinkWalletDto, @GetUser('id') userId: string) {
-  //   // Placeholder for linking a Cardano wallet to the current user.
-  //   // It would typically involve verifying the wallet address and updating the user's profile.
-  //   // return this.usersService.linkWalletAddress(userId, linkWalletDto.walletAddress);
-  // }
-
-  // --- Placeholder Endpoint for Wallet Login (Implement Later) ---
-
-  // @Post('login/wallet')
-  // @UseGuards(WalletAuthGuard) // Use the (placeholder) wallet guard
-  // @HttpCode(HttpStatus.OK)
-  // @ApiOperation({ summary: 'Login with Cardano Wallet Signature' })
-  // @ApiBody({ type: LoginWalletDto })
-  // async loginWallet(@Req() req: AuthenticatedRequest): Promise<LoginResponseDto> {
-  //    // Placeholder for logging in with a Cardano wallet signature.
-  //    // It would typically involve verifying the signature and generating a JWT.
-  //    this.logger.log(`User logged in via wallet: ${req.user?.walletAddress}`);
-  //    const { accessToken } = await this.authService.login(req.user);
-  //    return { accessToken, user: new UserResponseDto(req.user as User) };
-  // }
 }

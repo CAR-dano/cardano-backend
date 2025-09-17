@@ -25,7 +25,13 @@ import { CreditsModule } from '../credits/credits.module';
  * NestJS module for inspection-related features.
  */
 @Module({
-  imports: [PrismaModule, PhotosModule, BlockchainModule, IpfsModule, CreditsModule],
+  imports: [
+    PrismaModule,
+    PhotosModule,
+    BlockchainModule,
+    IpfsModule,
+    CreditsModule,
+  ],
   controllers: [InspectionsController],
   providers: [InspectionsService],
   exports: [InspectionsService],

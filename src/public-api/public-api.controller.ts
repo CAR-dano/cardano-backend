@@ -25,7 +25,16 @@ import {
 } from '@nestjs/common';
 
 // Swagger documentation modules
-import { ApiOperation, ApiParam, ApiResponse, ApiTags, ApiOkResponse, ApiBadRequestResponse, ApiNotFoundResponse, ApiInternalServerErrorResponse } from '@nestjs/swagger';
+import {
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiTags,
+  ApiOkResponse,
+  ApiBadRequestResponse,
+  ApiNotFoundResponse,
+  ApiInternalServerErrorResponse,
+} from '@nestjs/swagger';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 
@@ -65,19 +74,22 @@ export class PublicApiController {
   private static deepCache: {
     updatedAt: number;
     storageCheck?: { ok?: boolean; latencyMs?: number; error?: string } | null;
-    webhookCheck?:
-      | {
-          configured?: boolean;
-          ok?: boolean;
-          statusCode?: number;
-          signatureDryRun?: boolean;
-          dryRunSignature?: string;
-          latencyMs?: number;
-          error?: string;
-        }
-      | null;
+    webhookCheck?: {
+      configured?: boolean;
+      ok?: boolean;
+      statusCode?: number;
+      signatureDryRun?: boolean;
+      dryRunSignature?: string;
+      latencyMs?: number;
+      error?: string;
+    } | null;
     refreshing?: boolean;
-  } = { updatedAt: 0, storageCheck: null, webhookCheck: null, refreshing: false };
+  } = {
+    updatedAt: 0,
+    storageCheck: null,
+    webhookCheck: null,
+    refreshing: false,
+  };
 
   private static readonly DEEP_CACHE_TTL_MS = Number(
     process.env.HEALTH_DEEP_TTL_MS || 5000,
@@ -166,7 +178,10 @@ export class PublicApiController {
       await refreshDb();
       dbCheck = PublicApiController.dbCache.result;
     } else {
-      dbCheck = PublicApiController.dbCache.result ?? { ok: true, note: 'db status unknown; using default OK' };
+      dbCheck = PublicApiController.dbCache.result ?? {
+        ok: true,
+        note: 'db status unknown; using default OK',
+      };
       if (!dbFresh) {
         // Trigger background refresh
         // eslint-disable-next-line @typescript-eslint/no-floating-promises
@@ -194,7 +209,10 @@ export class PublicApiController {
         const sRes = await this.backblaze
           .headBucket()
           .catch((err) => ({ ok: false, error: String(err) }));
-        const storageCheck = { ...sRes, latencyMs: Date.now() - sStarted } as any;
+        const storageCheck = {
+          ...sRes,
+          latencyMs: Date.now() - sStarted,
+        } as any;
 
         // Webhook (with tighter timeout)
         const wStarted = Date.now();
@@ -202,7 +220,11 @@ export class PublicApiController {
         const secret = this.config.get<string>('PAYMENT_WEBHOOK_SECRET');
         let webhookCheck: any;
         if (!url) {
-          webhookCheck = { configured: false, ok: false, reason: 'PAYMENT_WEBHOOK_URL not set' };
+          webhookCheck = {
+            configured: false,
+            ok: false,
+            reason: 'PAYMENT_WEBHOOK_URL not set',
+          };
         } else {
           const headers: Record<string, string> = { 'X-Health-Check': 'true' };
           let dryRunSignature: string | undefined;
@@ -310,7 +332,9 @@ export class PublicApiController {
    */
   @Get('deep-health')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Deep health status (includes storage/webhook checks)' })
+  @ApiOperation({
+    summary: 'Deep health status (includes storage/webhook checks)',
+  })
   @ApiOkResponse({ description: 'Deep health status' })
   @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async getDeepHealth() {
@@ -329,7 +353,10 @@ export class PublicApiController {
     description:
       'Fetches a list of all user accounts specifically designated as inspectors. This endpoint is publicly accessible.',
   })
-  @ApiOkResponse({ description: 'List of inspector users.', type: [UserResponseDto] })
+  @ApiOkResponse({
+    description: 'List of inspector users.',
+    type: [UserResponseDto],
+  })
   @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async findAllInspectors(): Promise<UserResponseDto[]> {
     // Log the incoming public request
@@ -356,7 +383,10 @@ export class PublicApiController {
     description:
       'Retrieves the 5 most recent inspections with status ARCHIVED, including one photo with the label "Front View", vehicle plate number, vehicle brand, and vehicle type.',
   })
-  @ApiOkResponse({ description: 'Array of the latest archived inspection summaries.', type: [LatestArchivedInspectionResponseDto] })
+  @ApiOkResponse({
+    description: 'Array of the latest archived inspection summaries.',
+    type: [LatestArchivedInspectionResponseDto],
+  })
   @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async getLatestArchivedInspections(): Promise<
     LatestArchivedInspectionResponseDto[]
@@ -405,7 +435,10 @@ export class PublicApiController {
     format: 'uuid',
     description: 'The UUID of the inspection to retrieve.',
   })
-  @ApiOkResponse({ description: 'The inspection record summary.', type: InspectionResponseDto })
+  @ApiOkResponse({
+    description: 'The inspection record summary.',
+    type: InspectionResponseDto,
+  })
   @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async findOne(@Param('id') id: string): Promise<InspectionResponseDto> {
     // Retrieve the inspection using the PublicApiService
@@ -433,7 +466,10 @@ export class PublicApiController {
     format: 'uuid',
     description: 'The UUID of the inspection to retrieve.',
   })
-  @ApiOkResponse({ description: 'The inspection record summary without sensitive documents.', type: InspectionResponseDto })
+  @ApiOkResponse({
+    description: 'The inspection record summary without sensitive documents.',
+    type: InspectionResponseDto,
+  })
   @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async findOneWithoutDocuments(
     @Param('id') id: string,
@@ -462,7 +498,10 @@ export class PublicApiController {
     type: String,
     description: 'The ID of the inspection',
   })
-  @ApiOkResponse({ description: 'Successfully retrieved inspection change log.', type: [InspectionChangeLogResponseDto] })
+  @ApiOkResponse({
+    description: 'Successfully retrieved inspection change log.',
+    type: [InspectionChangeLogResponseDto],
+  })
   @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async findChangesByInspectionId(
     @Param('id') inspectionId: string,

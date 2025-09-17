@@ -27,7 +27,10 @@ export class IpfsService implements OnModuleInit {
    * Constructs the IpfsService.
    * @param configService Service for accessing configuration values.
    */
-  constructor(private configService: ConfigService, private readonly logger: AppLogger) {
+  constructor(
+    private configService: ConfigService,
+    private readonly logger: AppLogger,
+  ) {
     this.logger.setContext(IpfsService.name);
   }
 

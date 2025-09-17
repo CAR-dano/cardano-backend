@@ -47,7 +47,10 @@ import { CreditPackageResponseDto } from './dto/credit-package-response.dto';
 import { CreditPackageListResponseDto } from './dto/credit-package-list-response.dto';
 import { CreditPackageItemResponseDto } from './dto/credit-package-item-response.dto';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
-import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
+import {
+  ApiAuthErrors,
+  ApiStandardErrors,
+} from '../common/decorators/api-standard-errors.decorator';
 
 /**
  * @class CreditPackagesController
@@ -66,7 +69,10 @@ export class CreditPackagesController {
    */
   @Get()
   @ApiOperation({ summary: 'List all credit packages (active & inactive)' })
-  @ApiOkResponse({ description: 'Packages list returned.', type: CreditPackageListResponseDto })
+  @ApiOkResponse({
+    description: 'Packages list returned.',
+    type: CreditPackageListResponseDto,
+  })
   @ApiAuthErrors()
   async findAll() {
     const packagesList = await this.service.findAll();
@@ -82,8 +88,14 @@ export class CreditPackagesController {
    */
   @Get(':id')
   @ApiOperation({ summary: 'Get credit package by ID' })
-  @ApiOkResponse({ description: 'Credit package found.', type: CreditPackageItemResponseDto })
-  @ApiNotFoundResponse({ description: 'Credit package not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Credit package found.',
+    type: CreditPackageItemResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Credit package not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async findOne(@Param('id') id: string) {
     const pkg = await this.service.findOne(id);
@@ -98,12 +110,20 @@ export class CreditPackagesController {
    */
   @Post()
   @ApiOperation({ summary: 'Create a new credit package' })
-  @ApiCreatedResponse({ description: 'Credit package created', type: CreditPackageItemResponseDto })
-  @ApiBadRequestResponse({ description: 'Validation failed or bad payload.', type: HttpErrorResponseDto })
+  @ApiCreatedResponse({
+    description: 'Credit package created',
+    type: CreditPackageItemResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Validation failed or bad payload.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async create(@Body() dto: CreateCreditPackageDto) {
     const created = await this.service.create(dto);
-    return new CreditPackageItemResponseDto(new CreditPackageResponseDto(created));
+    return new CreditPackageItemResponseDto(
+      new CreditPackageResponseDto(created),
+    );
   }
 
   /**
@@ -114,13 +134,24 @@ export class CreditPackagesController {
    */
   @Patch(':id')
   @ApiOperation({ summary: 'Update credit package (partial)' })
-  @ApiOkResponse({ description: 'Credit package updated', type: CreditPackageItemResponseDto })
-  @ApiBadRequestResponse({ description: 'No fields provided or validation failed.', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Credit package not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Credit package updated',
+    type: CreditPackageItemResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'No fields provided or validation failed.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Credit package not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async update(@Param('id') id: string, @Body() dto: UpdateCreditPackageDto) {
     const updated = await this.service.update(id, dto);
-    return new CreditPackageItemResponseDto(new CreditPackageResponseDto(updated));
+    return new CreditPackageItemResponseDto(
+      new CreditPackageResponseDto(updated),
+    );
   }
 
   /**
@@ -129,13 +160,23 @@ export class CreditPackagesController {
    * @param id Package ID
    */
   @Patch(':id/active')
-  @ApiOperation({ summary: 'Toggle active state (activate if inactive, and vice versa)' })
-  @ApiOkResponse({ description: 'Toggled active state', type: CreditPackageItemResponseDto })
-  @ApiNotFoundResponse({ description: 'Credit package not found.', type: HttpErrorResponseDto })
+  @ApiOperation({
+    summary: 'Toggle active state (activate if inactive, and vice versa)',
+  })
+  @ApiOkResponse({
+    description: 'Toggled active state',
+    type: CreditPackageItemResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Credit package not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async toggleActive(@Param('id') id: string) {
     const updated = await this.service.toggleActive(id);
-    return new CreditPackageItemResponseDto(new CreditPackageResponseDto(updated));
+    return new CreditPackageItemResponseDto(
+      new CreditPackageResponseDto(updated),
+    );
   }
 
   /**
@@ -146,7 +187,10 @@ export class CreditPackagesController {
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a credit package' })
   @ApiNoContentResponse({ description: 'Credit package deleted' })
-  @ApiNotFoundResponse({ description: 'Credit package not found.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({
+    description: 'Credit package not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id') id: string): Promise<void> {

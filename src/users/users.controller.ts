@@ -71,7 +71,10 @@ import { AppLogger } from '../logging/app-logger.service';
 export class UsersController {
   private readonly logger: AppLogger;
 
-  constructor(private readonly usersService: UsersService, logger: AppLogger) {
+  constructor(
+    private readonly usersService: UsersService,
+    logger: AppLogger,
+  ) {
     this.logger = logger;
     this.logger.setContext(UsersController.name);
     this.logger.log('UsersController initialized (Admin)');
@@ -115,7 +118,10 @@ export class UsersController {
     description:
       'Fetches a list of all user accounts specifically designated as inspectors.',
   })
-  @ApiOkResponse({ description: 'List of inspector users.', type: [UserResponseDto] })
+  @ApiOkResponse({
+    description: 'List of inspector users.',
+    type: [UserResponseDto],
+  })
   @ApiAuthErrors()
   async findAllInspectors(): Promise<UserResponseDto[]> {
     this.logger.log(`findAllInspectors users`);
@@ -138,7 +144,10 @@ export class UsersController {
     description:
       'Fetches a list of all user accounts with ADMIN or SUPERADMIN roles.',
   })
-  @ApiOkResponse({ description: 'List of admin and superadmin users.', type: [UserResponseDto] })
+  @ApiOkResponse({
+    description: 'List of admin and superadmin users.',
+    type: [UserResponseDto],
+  })
   @ApiAuthErrors()
   async findAllAdminsAndSuperAdmins(): Promise<UserResponseDto[]> {
     this.logger.log(`Superadmin request: findAllAdminsAndSuperAdmins`);
@@ -166,8 +175,14 @@ export class UsersController {
     description: 'Details for the new admin or superadmin user.',
   })
   @ApiCreatedResponse({ description: 'User created.', type: UserResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid input data provided.', type: HttpErrorResponseDto })
-  @ApiConflictResponse({ description: 'Conflict (email/username exists).', type: HttpErrorResponseDto })
+  @ApiBadRequestResponse({
+    description: 'Invalid input data provided.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiConflictResponse({
+    description: 'Conflict (email/username exists).',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async createAdminOrSuperAdmin(
     @Body() createAdminDto: CreateAdminDto,
@@ -205,7 +220,10 @@ export class UsersController {
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @ApiOkResponse({ description: 'User details.', type: UserResponseDto })
-  @ApiNotFoundResponse({ description: 'User with the specified ID not found.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({
+    description: 'User with the specified ID not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -250,8 +268,14 @@ export class UsersController {
     description: 'The new role to assign to the user.',
   })
   @ApiOkResponse({ description: 'User role updated.', type: UserResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid role provided in the request body.', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'User with the specified ID not found.', type: HttpErrorResponseDto })
+  @ApiBadRequestResponse({
+    description: 'Invalid role provided in the request body.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'User with the specified ID not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async updateUserRole(
     @Param('id', ParseUUIDPipe) id: string,
@@ -289,9 +313,18 @@ export class UsersController {
     type: CreateInspectorDto,
     description: 'Details for the new inspector user.',
   })
-  @ApiCreatedResponse({ description: 'Inspector created, including the generated PIN.', type: InspectorResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid input data provided for the new inspector.', type: HttpErrorResponseDto })
-  @ApiConflictResponse({ description: 'Conflict (email/username exists).', type: HttpErrorResponseDto })
+  @ApiCreatedResponse({
+    description: 'Inspector created, including the generated PIN.',
+    type: InspectorResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid input data provided for the new inspector.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiConflictResponse({
+    description: 'Conflict (email/username exists).',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async createInspector(
     @Body() createInspectorDto: CreateInspectorDto,
@@ -332,10 +365,23 @@ export class UsersController {
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @ApiBody({ type: UpdateUserDto, description: 'The updated user details.' })
-  @ApiOkResponse({ description: 'User details updated.', type: UserResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid input data provided for the user update.', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'User with the specified ID not found.', type: HttpErrorResponseDto })
-  @ApiConflictResponse({ description: 'A user with the provided email, username, or wallet address already exists.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'User details updated.',
+    type: UserResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid input data provided for the user update.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'User with the specified ID not found.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiConflictResponse({
+    description:
+      'A user with the provided email, username, or wallet address already exists.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async updateUser(
     @Param('id', ParseUUIDPipe) id: string,
@@ -377,10 +423,22 @@ export class UsersController {
     type: UpdateInspectorDto,
     description: 'The updated inspector details.',
   })
-  @ApiOkResponse({ description: 'Inspector details updated.', type: UserResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid input data provided for the inspector update.', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspector with the specified ID not found.', type: HttpErrorResponseDto })
-  @ApiConflictResponse({ description: 'A user with the provided email or username already exists.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Inspector details updated.',
+    type: UserResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid input data provided for the inspector update.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspector with the specified ID not found.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiConflictResponse({
+    description: 'A user with the provided email or username already exists.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async updateInspector(
     @Param('id', ParseUUIDPipe) id: string,
@@ -419,8 +477,14 @@ export class UsersController {
     format: 'uuid',
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
-  @ApiOkResponse({ description: 'PIN generated successfully.', type: GeneratePinResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspector with the specified ID not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'PIN generated successfully.',
+    type: GeneratePinResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspector with the specified ID not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async generatePin(
     @Param('id', ParseUUIDPipe) id: string,
@@ -456,7 +520,10 @@ export class UsersController {
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
   })
   @ApiNoContentResponse({ description: 'User deleted.' })
-  @ApiNotFoundResponse({ description: 'User with the specified ID not found.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({
+    description: 'User with the specified ID not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async deleteUser(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     this.logger.warn(`Admin request: DELETE user ${id}`);

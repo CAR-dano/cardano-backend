@@ -13,7 +13,16 @@
 import { Controller, Get, Param, UseGuards, HttpStatus } from '@nestjs/common';
 import { InspectionChangeLogService } from './inspection-change-log.service';
 import { InspectionChangeLog, Role } from '@prisma/client';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiBearerAuth, ApiNotFoundResponse, ApiUnauthorizedResponse, ApiForbiddenResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiBearerAuth,
+  ApiNotFoundResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+} from '@nestjs/swagger';
 import { ApiAuthErrors } from '../common/decorators/api-standard-errors.decorator';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { InspectionChangeLogResponseDto } from './dto/inspection-change-log-response.dto';
@@ -54,8 +63,14 @@ export class InspectionChangeLogController {
     type: String,
     description: 'The ID of the inspection',
   })
-  @ApiOkResponse({ description: 'Successfully retrieved inspection change log.', type: [InspectionChangeLogResponseDto] })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Successfully retrieved inspection change log.',
+    type: [InspectionChangeLogResponseDto],
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async findByInspectionId(
     @Param('inspectionId') inspectionId: string,

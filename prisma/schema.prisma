@@ -59,6 +59,20 @@ enum PaymentGateway {
   MIDTRANS
 }
 
+enum BlockchainTaskStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum BlockchainTaskType {
+  MINT_NFT
+  BULK_MINT
+  BURN_NFT
+}
+
 // Defines the User model, representing users in the system.
 model User {
   id            String    @id // Primary Key: Automatically generated.
@@ -71,6 +85,9 @@ model User {
   whatsappNumber String?   @map("whatsapp_number")
   walletAddress String?   @unique // Optional: Only present if user login/link via Wallet. Must be unique if present.
   googleId      String?   @unique // Optional: Only present if the user logged in/linked via Google. Must be unique if present.
+  googleAvatarUrl String?  @map("google_avatar_url") @db.VarChar(512)
+  profilePhotoUrl String   @default("") @map("profile_photo_url") @db.VarChar(512)
+  profilePhotoStorageKey String? @map("profile_photo_storage_key") @db.VarChar(255)
   role          Role      @default(CUSTOMER)
   isActive      Boolean   @default(true) @map("is_active")
   createdAt     DateTime  @default(now())
@@ -94,6 +111,49 @@ model User {
   inspectionBranchCityId String?               @map("inspection_branch_city_id")
   inspectionBranchCity   InspectionBranchCity? @relation(fields: [inspectionBranchCityId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   @@map("users") // Explicit table name
+}
+
+model BlockchainQueue {
+  id             String                @id
+  taskType       BlockchainTaskType    @map("taskType")
+  payload        Json
+  status         BlockchainTaskStatus  @default(PENDING)
+  attempts       Int                   @default(0)
+  maxRetries     Int                   @default(3) @map("maxRetries")
+  lockedUtxos    String[]              @map("lockedUtxos")
+  lastError      String?               @map("lastError") @db.Text
+  errorStack     String?               @map("errorStack") @db.Text
+  processAt      DateTime              @default(now()) @map("processAt")
+  startedAt      DateTime?             @map("startedAt")
+  completedAt    DateTime?             @map("completedAt")
+  resultTxHash   String?               @map("resultTxHash")
+  resultAssetId  String?               @map("resultAssetId")
+  createdAt      DateTime              @default(now()) @map("createdAt")
+  updatedAt      DateTime              @updatedAt @map("updatedAt")
+  inspectionId   String?               @map("inspectionId")
+  inspection     Inspection?           @relation("InspectionBlockchainQueue", fields: [inspectionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([status, processAt], name: "blockchain_queue_status_processAt_idx")
+  @@index([taskType, status], name: "blockchain_queue_taskType_status_idx")
+  @@map("blockchain_queue")
+}
+
+model UtxoLock {
+  id          String   @id
+  utxoKey     String   @unique(map: "utxo_locks_utxoKey_key") @map("utxoKey")
+  lockedBy    String   @map("lockedBy")
+  lockedAt    DateTime @default(now()) @map("lockedAt")
+  expiresAt   DateTime @map("expiresAt")
+  txHash      String   @map("txHash")
+  outputIndex Int      @map("outputIndex")
+  amount      String
+  address     String
+  createdAt   DateTime @default(now()) @map("createdAt")
+  updatedAt   DateTime @updatedAt @map("updatedAt")
+
+  @@index([expiresAt], name: "utxo_locks_expiresAt_idx")
+  @@index([lockedBy], name: "utxo_locks_lockedBy_idx")
+  @@map("utxo_locks")
 }
 
 // Defines the Inspection model, representing a single vehicle inspection record.
@@ -182,6 +242,8 @@ model Inspection {
 
   // Paid reports relations
   creditConsumptions CreditConsumption[]
+
+  blockchainQueueJobs BlockchainQueue[] @relation("InspectionBlockchainQueue")
 
   // --- Database Indexes ---
   // Creates indexes on foreign keys and commonly queried fields for performance.

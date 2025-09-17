@@ -45,7 +45,10 @@ export class PhotosService {
     this.logger.setContext(PhotosService.name);
   }
 
-  private getMimeFromFilename(name: string, fallback = 'application/octet-stream'): string {
+  private getMimeFromFilename(
+    name: string,
+    fallback = 'application/octet-stream',
+  ): string {
     const ext = path.extname(name).toLowerCase();
     switch (ext) {
       case '.jpg':
@@ -94,12 +97,15 @@ export class PhotosService {
     // Normalize common variations and English labels to Indonesian canonical values
     const normalized = lower.replace(/\s+/g, ' ').trim();
 
-    if (/(^|\b)(eksterior|exterior)(\b|$)/.test(normalized)) return 'Eksterior Tambahan';
+    if (/(^|\b)(eksterior|exterior)(\b|$)/.test(normalized))
+      return 'Eksterior Tambahan';
     if (/(^|\b)(interior)(\b|$)/.test(normalized)) return 'Interior Tambahan';
     if (/(^|\b)(mesin|engine)(\b|$)/.test(normalized)) return 'Mesin Tambahan';
-    if (/(kaki|chassis|sasis|suspensi)/.test(normalized)) return 'Kaki-kaki Tambahan';
+    if (/(kaki|chassis|sasis|suspensi)/.test(normalized))
+      return 'Kaki-kaki Tambahan';
     if (/(alat|tools|tool)/.test(normalized)) return 'Alat-alat Tambahan';
-    if (/(dokumen|document|documents|stnk|bpkb)/.test(normalized)) return 'Foto Dokumen';
+    if (/(dokumen|document|documents|stnk|bpkb)/.test(normalized))
+      return 'Foto Dokumen';
     if (/(wajib|general)/.test(normalized)) return 'General Wajib';
     return 'General Wajib';
   }
@@ -140,7 +146,10 @@ export class PhotosService {
     category: string,
     filename: string,
   ): string {
-    const safeInspectionId = String(inspectionId).replace(/[^a-zA-Z0-9_-]/g, '');
+    const safeInspectionId = String(inspectionId).replace(
+      /[^a-zA-Z0-9_-]/g,
+      '',
+    );
     const safeCategory = this.mapCategoryToPathSlug(category);
     return `${safeInspectionId}/${safeCategory}/${filename}`;
   }
@@ -212,16 +221,12 @@ export class PhotosService {
         mappedCategory,
         generatedName,
       );
-      await this.uploadBufferToCloud(
-        file.buffer,
-        relativeKey,
-        file.mimetype,
-      );
+      await this.uploadBufferToCloud(file.buffer, relativeKey, file.mimetype);
       return await this.prisma.photo.create({
         data: {
           inspection: { connect: { id: inspectionId } },
           path: relativeKey,
-          // eslint-disable-next-line prettier/prettier
+
           label:
             dto.label === '' || dto.label === undefined ? undefined : dto.label,
           category: mappedCategory, // normalized category (Indonesian)
@@ -576,12 +581,18 @@ export class PhotosService {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (!file || !file.buffer) {
-        throw new BadRequestException('One of the photo file buffers is missing');
+        throw new BadRequestException(
+          'One of the photo file buffers is missing',
+        );
       }
       const name = this.generateSafeUniqueName(file.originalname);
       const meta = parsedMetadata[i] ?? {};
       const mappedCategory = this.mapCategoryToIndonesian(meta.category);
-      const relativeKey = this.buildRelativeKey(inspectionId, mappedCategory, name);
+      const relativeKey = this.buildRelativeKey(
+        inspectionId,
+        mappedCategory,
+        name,
+      );
       await this.uploadBufferToCloud(file.buffer, relativeKey, file.mimetype);
       relativeKeys.push(relativeKey);
     }

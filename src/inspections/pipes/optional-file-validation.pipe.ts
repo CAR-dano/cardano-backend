@@ -1,4 +1,10 @@
-import { PipeTransform, Injectable, ArgumentMetadata, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import {
+  PipeTransform,
+  Injectable,
+  ArgumentMetadata,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { AppLogger } from '../../logging/app-logger.service';
 import * as fs from 'fs/promises';
 import { extname } from 'path';
@@ -42,7 +48,10 @@ export class OptionalFileValidationPipe implements PipeTransform {
       );
     }
 
-    if (!ALLOWED_MIME_TYPES.test(file.mimetype) || !ALLOWED_EXTENSIONS.test(extname(file.originalname))) {
+    if (
+      !ALLOWED_MIME_TYPES.test(file.mimetype) ||
+      !ALLOWED_EXTENSIONS.test(extname(file.originalname))
+    ) {
       throw new BadRequestException(
         `File "${file.originalname}" has an invalid type. Only JPG, JPEG, and PNG are allowed.`,
       );
@@ -53,7 +62,8 @@ export class OptionalFileValidationPipe implements PipeTransform {
         'import("file-type")',
       ) as Promise<typeof import('file-type')>);
 
-      const buffer = file.buffer || (file.path ? await fs.readFile(file.path) : undefined);
+      const buffer =
+        file.buffer || (file.path ? await fs.readFile(file.path) : undefined);
       if (!buffer) {
         throw new BadRequestException('File buffer is missing');
       }
@@ -65,7 +75,10 @@ export class OptionalFileValidationPipe implements PipeTransform {
         );
       }
     } catch (error) {
-      if (this.logger) this.logger.error(`Validation failed for ${file.originalname}: ${(error as Error)?.message}`);
+      if (this.logger)
+        this.logger.error(
+          `Validation failed for ${file.originalname}: ${(error as Error)?.message}`,
+        );
       else console.error(`Validation failed for ${file.originalname}:`, error);
       if (error instanceof BadRequestException) {
         throw error;

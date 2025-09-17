@@ -22,7 +22,15 @@ import { TransactionMetadataResponseDto } from './dto/transaction-metadata-respo
 import { NftDataResponseDto } from './dto/nft-data-response.dto';
 
 // Swagger API documentation
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiOkResponse, ApiBadRequestResponse, ApiNotFoundResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiOkResponse,
+  ApiBadRequestResponse,
+  ApiNotFoundResponse,
+} from '@nestjs/swagger';
 import { ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { AppLogger } from '../logging/app-logger.service';
@@ -30,7 +38,10 @@ import { AppLogger } from '../logging/app-logger.service';
 @ApiTags('Blockchain Operations')
 @Controller('blockchain') // Base path: /api/v1/blockchain
 export class BlockchainController {
-  constructor(private readonly blockchainService: BlockchainService, private readonly logger: AppLogger) {
+  constructor(
+    private readonly blockchainService: BlockchainService,
+    private readonly logger: AppLogger,
+  ) {
     this.logger.setContext(BlockchainController.name);
   }
 
@@ -56,9 +67,18 @@ export class BlockchainController {
     description: 'Cardano transaction hash',
     type: String,
   })
-  @ApiOkResponse({ description: 'Metadata retrieved successfully.', type: [TransactionMetadataResponseDto] })
-  @ApiBadRequestResponse({ description: 'Bad Request (Missing txHash).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Transaction or metadata not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Metadata retrieved successfully.',
+    type: [TransactionMetadataResponseDto],
+  })
+  @ApiBadRequestResponse({
+    description: 'Bad Request (Missing txHash).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Transaction or metadata not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async getTransactionMetadata(
     @Param('txHash') txHash: string,
@@ -89,9 +109,18 @@ export class BlockchainController {
     description: 'Full Cardano Asset ID (PolicyID + HexAssetName)',
     type: String,
   })
-  @ApiOkResponse({ description: 'Asset data retrieved successfully.', type: NftDataResponseDto })
-  @ApiBadRequestResponse({ description: 'Bad Request (Missing assetId).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Asset not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Asset data retrieved successfully.',
+    type: NftDataResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Bad Request (Missing assetId).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Asset not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiStandardErrors({ unauthorized: false, forbidden: false })
   async getNftData(
     @Param('assetId') assetId: string,

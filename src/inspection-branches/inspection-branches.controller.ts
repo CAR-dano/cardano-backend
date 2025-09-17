@@ -77,8 +77,14 @@ export class InspectionBranchesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new inspection branch city' })
   @ApiBody({ type: CreateInspectionBranchCityDto })
-  @ApiCreatedResponse({ description: 'Created.', type: InspectionBranchCityResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid input data.', type: HttpErrorResponseDto })
+  @ApiCreatedResponse({
+    description: 'Created.',
+    type: InspectionBranchCityResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid input data.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async create(
     @Body() createInspectionBranchCityDto: CreateInspectionBranchCityDto,
@@ -96,7 +102,10 @@ export class InspectionBranchesController {
   @Get()
   @SkipThrottle()
   @ApiOperation({ summary: 'Get all inspection branch cities' })
-  @ApiOkResponse({ description: 'List of all inspection branch cities.', type: [InspectionBranchCityResponseDto] })
+  @ApiOkResponse({
+    description: 'List of all inspection branch cities.',
+    type: [InspectionBranchCityResponseDto],
+  })
   async findAll() {
     return await this.inspectionBranchesService.findAll();
   }
@@ -117,8 +126,14 @@ export class InspectionBranchesController {
     type: String,
     description: 'Inspection branch city ID',
   })
-  @ApiOkResponse({ description: 'The inspection branch city details.', type: InspectionBranchCityResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection branch city not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'The inspection branch city details.',
+    type: InspectionBranchCityResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection branch city not found.',
+    type: HttpErrorResponseDto,
+  })
   async findOne(@Param('id') id: string) {
     return this.inspectionBranchesService.findOne(id);
   }
@@ -148,9 +163,18 @@ export class InspectionBranchesController {
     description: 'Inspection branch city ID',
   })
   @ApiBody({ type: UpdateInspectionBranchCityDto })
-  @ApiOkResponse({ description: 'Updated.', type: InspectionBranchCityResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid input data.', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection branch city not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Updated.',
+    type: InspectionBranchCityResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid input data.',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection branch city not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async update(
     @Param('id') id: string,
@@ -185,7 +209,10 @@ export class InspectionBranchesController {
     description: 'Inspection branch city ID',
   })
   @ApiOkResponse({ description: 'Deleted.' })
-  @ApiNotFoundResponse({ description: 'Inspection branch city not found.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({
+    description: 'Inspection branch city not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async remove(@Param('id') id: string) {
     return await this.inspectionBranchesService.remove(id);
@@ -215,8 +242,14 @@ export class InspectionBranchesController {
     type: String,
     description: 'Inspection branch city ID',
   })
-  @ApiOkResponse({ description: 'Active state updated.', type: InspectionBranchCityResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection branch city not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Active state updated.',
+    type: InspectionBranchCityResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection branch city not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async toggleActive(@Param('id') id: string) {
     return await this.inspectionBranchesService.toggleActive(id);

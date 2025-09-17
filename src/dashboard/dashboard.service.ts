@@ -62,7 +62,10 @@ interface DateRange {
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService, private readonly logger: AppLogger) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly logger: AppLogger,
+  ) {
     this.logger.setContext(DashboardService.name);
   }
 

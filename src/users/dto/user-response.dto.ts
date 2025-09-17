@@ -56,6 +56,27 @@ export class UserResponseDto {
   walletAddress: string | null;
 
   /**
+   * URL of the user's active profile photo. Null means no custom photo has been set.
+   */
+  @ApiProperty({ description: 'User profile photo URL', nullable: true })
+  profilePhotoUrl: string | null;
+
+  /**
+   * URL of the Google avatar (used as fallback when no custom profile photo is present).
+   */
+  @ApiProperty({
+    description: 'Google avatar URL for fallback',
+    nullable: true,
+  })
+  googleAvatarUrl: string | null;
+
+  /**
+   * Indicates whether the user has linked a Google account.
+   */
+  @ApiProperty({ description: 'Flag indicating Google account linkage' })
+  isGoogleLinked: boolean;
+
+  /**
    * The user's WhatsApp number. Can be null if not provided.
    */
   @ApiProperty({ description: "User's WhatsApp number", nullable: true })
@@ -108,6 +129,13 @@ export class UserResponseDto {
     this.username = user.username;
     this.name = user.name;
     this.walletAddress = user.walletAddress;
+    this.profilePhotoUrl = user.profilePhotoUrl?.trim()
+      ? user.profilePhotoUrl
+      : null;
+    this.googleAvatarUrl = user.googleAvatarUrl?.trim()
+      ? user.googleAvatarUrl
+      : null;
+    this.isGoogleLinked = Boolean(user.googleId);
     this.whatsappNumber = user.whatsappNumber;
     this.role = user.role;
     this.isActive = user.isActive;

@@ -43,7 +43,18 @@ import { AppLogger } from './app-logger.service';
       },
     }),
   ],
-  providers: [HttpLoggingInterceptor, AuditLoggerService, GlobalExceptionFilter, AppLogger],
-  exports: [HttpLoggingInterceptor, AuditLoggerService, GlobalExceptionFilter, AppLogger, LoggerModule],
+  providers: [
+    HttpLoggingInterceptor,
+    AuditLoggerService,
+    GlobalExceptionFilter,
+    AppLogger,
+  ],
+  exports: [
+    HttpLoggingInterceptor,
+    AuditLoggerService,
+    GlobalExceptionFilter,
+    AppLogger,
+    LoggerModule,
+  ],
 })
 export class AppLoggingModule {}

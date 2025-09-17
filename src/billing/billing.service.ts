@@ -53,8 +53,11 @@ export class BillingService {
    * @throws BadRequestException When package is unavailable
    */
   async createCheckout(userId: string, packageId: string) {
-    const pkg = await this.prisma.creditPackage.findUnique({ where: { id: packageId } });
-    if (!pkg || !pkg.isActive) throw new BadRequestException('Package not available');
+    const pkg = await this.prisma.creditPackage.findUnique({
+      where: { id: packageId },
+    });
+    if (!pkg || !pkg.isActive)
+      throw new BadRequestException('Package not available');
 
     // Create Purchase pending
     const purchase = await this.prisma.purchase.create({
@@ -69,10 +72,14 @@ export class BillingService {
     });
 
     // Build Xendit invoice
-    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { email: true, name: true } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, name: true },
+    });
     const successUrl = this.config.get<string>('PAYMENT_RETURN_URL') || '';
     const webhookUrl = this.config.get<string>('PAYMENT_WEBHOOK_URL') || '';
-    const callbackToken = this.config.get<string>('XENDIT_CALLBACK_TOKEN') || undefined;
+    const callbackToken =
+      this.config.get<string>('XENDIT_CALLBACK_TOKEN') || undefined;
     const inv = await this.xendit.createInvoice({
       external_id: purchase.id,
       amount: pkg.price,
@@ -89,7 +96,11 @@ export class BillingService {
       data: { extInvoiceId: inv.id },
     });
 
-    return { purchaseId: purchase.id, extInvoiceId: inv.id, paymentUrl: inv.invoice_url };
+    return {
+      purchaseId: purchase.id,
+      extInvoiceId: inv.id,
+      paymentUrl: inv.invoice_url,
+    };
   }
 
   /**
@@ -124,7 +135,11 @@ export class BillingService {
         resource: 'credit_purchase',
         subjectId: p.id,
         result: 'SUCCESS',
-        meta: { extInvoiceId, credits: p.creditPackage.credits, amount: p.amount },
+        meta: {
+          extInvoiceId,
+          credits: p.creditPackage.credits,
+          amount: p.amount,
+        },
       });
     });
   }
@@ -133,11 +148,16 @@ export class BillingService {
    * Marks a purchase as EXPIRED by external invoice ID. Idempotent.
    */
   async markExpiredByExtInvoiceId(extInvoiceId: string) {
-    const p = await this.prisma.purchase.findUnique({ where: { extInvoiceId } });
+    const p = await this.prisma.purchase.findUnique({
+      where: { extInvoiceId },
+    });
     if (!p) throw new BadRequestException('Purchase not found');
     if (p.status === PurchaseStatus.EXPIRED) return;
     if (p.status === PurchaseStatus.PAID) return; // do not overwrite paid
-    await this.prisma.purchase.update({ where: { id: p.id }, data: { status: PurchaseStatus.EXPIRED } });
+    await this.prisma.purchase.update({
+      where: { id: p.id },
+      data: { status: PurchaseStatus.EXPIRED },
+    });
     this.audit.log({
       rid: 'n/a',
       actorId: p.userId,
@@ -153,11 +173,16 @@ export class BillingService {
    * Marks a purchase as FAILED by external invoice ID. Idempotent.
    */
   async markFailedByExtInvoiceId(extInvoiceId: string) {
-    const p = await this.prisma.purchase.findUnique({ where: { extInvoiceId } });
+    const p = await this.prisma.purchase.findUnique({
+      where: { extInvoiceId },
+    });
     if (!p) throw new BadRequestException('Purchase not found');
     if (p.status === PurchaseStatus.FAILED) return;
     if (p.status === PurchaseStatus.PAID) return; // do not overwrite paid
-    await this.prisma.purchase.update({ where: { id: p.id }, data: { status: PurchaseStatus.FAILED } });
+    await this.prisma.purchase.update({
+      where: { id: p.id },
+      data: { status: PurchaseStatus.FAILED },
+    });
     this.audit.log({
       rid: 'n/a',
       actorId: p.userId,
@@ -170,14 +195,21 @@ export class BillingService {
   }
 
   /** Returns one purchase (with package) for the current user (or any if admin). */
-  async getPurchaseById(id: string, requesterId: string, requesterRole: string) {
+  async getPurchaseById(
+    id: string,
+    requesterId: string,
+    requesterRole: string,
+  ) {
     const p = await this.prisma.purchase.findUnique({
       where: { id },
       include: { creditPackage: true },
     });
     if (!p) throw new BadRequestException('Purchase not found');
     // If not admin/superadmin, ensure ownership
-    if (!['ADMIN', 'SUPERADMIN'].includes(requesterRole) && p.userId !== requesterId) {
+    if (
+      !['ADMIN', 'SUPERADMIN'].includes(requesterRole) &&
+      p.userId !== requesterId
+    ) {
       throw new BadRequestException('Purchase not found');
     }
     return p;

@@ -56,4 +56,3 @@ export class ReportDownloadsResponseDto {
     this.downloads = items;
   }
 }
-

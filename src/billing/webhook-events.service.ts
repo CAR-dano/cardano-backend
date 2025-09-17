@@ -25,12 +25,16 @@ interface RecordInput {
 
 @Injectable()
 export class WebhookEventsService {
-  constructor(private readonly prisma: PrismaService, private readonly logger: AppLogger) {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly logger: AppLogger,
+  ) {
     this.logger.setContext(WebhookEventsService.name);
   }
 
-  async recordNewOrDuplicate(input: RecordInput): Promise<{ isDuplicate: boolean; id?: string }>
-  {
+  async recordNewOrDuplicate(
+    input: RecordInput,
+  ): Promise<{ isDuplicate: boolean; id?: string }> {
     try {
       const created = await (this.prisma as any).webhookEvent.create({
         data: {
@@ -47,11 +51,18 @@ export class WebhookEventsService {
       this.logger.log(`WebhookEvent created: ${input.dedupeKey}`);
       return { isDuplicate: false, id: created.id as string };
     } catch (err: any) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-        this.logger.debug(`Duplicate webhook event ignored: ${input.dedupeKey}`);
+      if (
+        err instanceof Prisma.PrismaClientKnownRequestError &&
+        err.code === 'P2002'
+      ) {
+        this.logger.debug(
+          `Duplicate webhook event ignored: ${input.dedupeKey}`,
+        );
         return { isDuplicate: true };
       }
-      this.logger.error(`recordNewOrDuplicate failed: ${String(err?.message ?? err)}`);
+      this.logger.error(
+        `recordNewOrDuplicate failed: ${String(err?.message ?? err)}`,
+      );
       throw err;
     }
   }
@@ -70,4 +81,3 @@ export class WebhookEventsService {
     });
   }
 }
-

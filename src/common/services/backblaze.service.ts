@@ -35,7 +35,10 @@ export class BackblazeService {
   private readonly bucketName: string | undefined;
   private readonly endpoint: string | undefined;
 
-  constructor(private readonly config: ConfigService, logger: AppLogger) {
+  constructor(
+    private readonly config: ConfigService,
+    logger: AppLogger,
+  ) {
     this.logger = logger;
     this.logger.setContext(BackblazeService.name);
     const accessKeyId = this.config.get<string>('STORAGE_APPLICATION_KEY_ID');
@@ -198,11 +201,13 @@ export class BackblazeService {
       throw err;
     }
 
-  // Construct a public URL using STORAGE_FILE_ENDPOINT or fallback to default Backblaze file endpoint.
-  const fileEndpoint = this.config.get<string>('STORAGE_FILE_ENDPOINT') || `https://f005.backblazeb2.com`;
-  const publicUrl = `${fileEndpoint}/file/${bucket}/${encodeURIComponent(key)}`;
-  this.logger.debug(`uploadFile: public URL for '${key}' => ${publicUrl}`);
-  return publicUrl;
+    // Construct a public URL using STORAGE_FILE_ENDPOINT or fallback to default Backblaze file endpoint.
+    const fileEndpoint =
+      this.config.get<string>('STORAGE_FILE_ENDPOINT') ||
+      `https://f005.backblazeb2.com`;
+    const publicUrl = `${fileEndpoint}/file/${bucket}/${encodeURIComponent(key)}`;
+    this.logger.debug(`uploadFile: public URL for '${key}' => ${publicUrl}`);
+    return publicUrl;
   }
 
   /**
@@ -238,10 +243,12 @@ export class BackblazeService {
       throw err;
     }
 
-  const fileEndpoint = this.config.get<string>('STORAGE_FILE_ENDPOINT') || `https://f005.backblazeb2.com`;
-  const publicUrl = `${fileEndpoint}/file/${bucket}/${encodeURIComponent(key)}`;
-  this.logger.debug(`uploadBuffer: public URL for '${key}' => ${publicUrl}`);
-  return publicUrl;
+    const fileEndpoint =
+      this.config.get<string>('STORAGE_FILE_ENDPOINT') ||
+      `https://f005.backblazeb2.com`;
+    const publicUrl = `${fileEndpoint}/file/${bucket}/${encodeURIComponent(key)}`;
+    this.logger.debug(`uploadBuffer: public URL for '${key}' => ${publicUrl}`);
+    return publicUrl;
   }
 
   /**
@@ -434,14 +441,19 @@ export class BackblazeService {
       // Lazy load presigner to avoid hard dependency when package is unavailable
       let getSignedUrlFn: any;
       try {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
         getSignedUrlFn = require('@aws-sdk/s3-request-presigner').getSignedUrl;
       } catch (e) {
-        this.logger.warn('s3-request-presigner package not available; cannot generate S3 presigned URL');
+        this.logger.warn(
+          's3-request-presigner package not available; cannot generate S3 presigned URL',
+        );
         throw new Error('PRESIGNER_NOT_AVAILABLE');
       }
-      const url = await getSignedUrlFn(this.s3Client, cmd, { expiresIn: Math.max(1, Math.min(7 * 24 * 3600, expiresInSec)) });
-      this.logger.debug(`getPresignedUrl: generated signed URL for '${fileName}' (ttl=${expiresInSec}s)`);
+      const url = await getSignedUrlFn(this.s3Client, cmd, {
+        expiresIn: Math.max(1, Math.min(7 * 24 * 3600, expiresInSec)),
+      });
+      this.logger.debug(
+        `getPresignedUrl: generated signed URL for '${fileName}' (ttl=${expiresInSec}s)`,
+      );
       return url;
     } catch (err: unknown) {
       this.logger.error(

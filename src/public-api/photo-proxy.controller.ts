@@ -1,9 +1,22 @@
-import { Controller, Get, NotFoundException, Param, Res, Req } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Res,
+  Req,
+} from '@nestjs/common';
 import { Response } from 'express';
 import { BackblazeService } from '../common/services/backblaze.service';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiInternalServerErrorResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 import { AppLogger } from '../logging/app-logger.service';
@@ -11,7 +24,10 @@ import { AppLogger } from '../logging/app-logger.service';
 @ApiTags('Public Photos')
 @Controller()
 export class PhotoProxyController {
-  constructor(private readonly backblazeService: BackblazeService, private readonly logger: AppLogger) {
+  constructor(
+    private readonly backblazeService: BackblazeService,
+    private readonly logger: AppLogger,
+  ) {
     this.logger.setContext(PhotoProxyController.name);
   }
 
@@ -41,8 +57,18 @@ export class PhotoProxyController {
     const safe = name.replace(/^\/+/, '').replace(/\\/g, '/');
     if (safe.includes('..')) throw new NotFoundException('Photo not found');
     const ct = this.contentTypeFor(safe);
-    const localPath = path.resolve(process.cwd(), 'uploads', 'inspection-photos', safe);
-    const legacyLocalPath = path.resolve(process.cwd(), 'uploads', 'inspection-photo', safe); // legacy
+    const localPath = path.resolve(
+      process.cwd(),
+      'uploads',
+      'inspection-photos',
+      safe,
+    );
+    const legacyLocalPath = path.resolve(
+      process.cwd(),
+      'uploads',
+      'inspection-photo',
+      safe,
+    ); // legacy
 
     // First try local (new folder)
     if (fs.existsSync(localPath)) {
@@ -70,7 +96,9 @@ export class PhotoProxyController {
 
     // Finally try legacy local folder
     if (fs.existsSync(legacyLocalPath)) {
-      this.logger.log(`Serving legacy photo from local disk: ${legacyLocalPath}`);
+      this.logger.log(
+        `Serving legacy photo from local disk: ${legacyLocalPath}`,
+      );
       res.setHeader('Content-Type', ct);
       res.setHeader('Cache-Control', 'public, max-age=3600');
       return fs.createReadStream(legacyLocalPath).pipe(res);
@@ -91,7 +119,11 @@ export class PhotoProxyController {
   @Get('uploads/inspection-photos/*path')
   @ApiOperation({ summary: 'Stream an inspection photo by wildcard path' })
   @ApiOkResponse({ description: 'Photo stream' })
-  @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'Photo not found' })
+  @ApiStandardErrors({
+    unauthorized: false,
+    forbidden: false,
+    notFound: 'Photo not found',
+  })
   async proxyUploadsWildcard(
     @Param('path') path: any,
     @Res() res: Response,
@@ -115,7 +147,11 @@ export class PhotoProxyController {
   @Get('uploads/inspection-photos/:name')
   @ApiOperation({ summary: 'Stream an inspection photo by name' })
   @ApiOkResponse({ description: 'Photo stream' })
-  @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'Photo not found' })
+  @ApiStandardErrors({
+    unauthorized: false,
+    forbidden: false,
+    notFound: 'Photo not found',
+  })
   async proxyUploadsByName(@Param('name') name: string, @Res() res: Response) {
     return this.streamPhoto(name, res);
   }

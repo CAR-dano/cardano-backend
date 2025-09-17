@@ -33,7 +33,10 @@ import { PrismaService } from '../prisma/prisma.service';
 @Injectable()
 export class PublicApiService {
   // Initialize a logger for this service context
-  constructor(private prisma: PrismaService, private readonly logger: AppLogger) {
+  constructor(
+    private prisma: PrismaService,
+    private readonly logger: AppLogger,
+  ) {
     this.logger.setContext(PublicApiService.name);
   }
 
@@ -42,7 +45,6 @@ export class PublicApiService {
    * Injects the PrismaService dependency.
    * @param prisma - The PrismaService instance for database interactions.
    */
-  
 
   /**
    * Retrieves a single inspection by its unique ID.

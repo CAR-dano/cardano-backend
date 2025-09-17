@@ -1,10 +1,24 @@
-import { Controller, Get, Param, Res, NotFoundException, Query, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Res,
+  NotFoundException,
+  Query,
+  BadRequestException,
+} from '@nestjs/common';
 import { Response } from 'express';
 import { BackblazeService } from '../common/services/backblaze.service';
 import { Stream } from 'stream';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ApiInternalServerErrorResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiInternalServerErrorResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
 import { AppLogger } from '../logging/app-logger.service';
@@ -39,9 +53,10 @@ export class PdfProxyController {
         // Pipe the S3/Backblaze stream to the response
         stream.pipe(res);
       }
-
     } catch (err) {
-      this.logger.warn(`File not found in Backblaze, will try local: ${err instanceof Error ? err.message : String(err)}`);
+      this.logger.warn(
+        `File not found in Backblaze, will try local: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
 
     // 2. If not found in the cloud, check file in local folder VPS
@@ -61,9 +76,15 @@ export class PdfProxyController {
 
   // Canonical route: use /pdfarchived to minimize confusion
   @Get('pdfarchived/:name')
-  @ApiOperation({ summary: 'Stream a PDF (Backblaze/local fallback) under /pdfarchived' })
+  @ApiOperation({
+    summary: 'Stream a PDF (Backblaze/local fallback) under /pdfarchived',
+  })
   @ApiOkResponse({ description: 'PDF stream' })
-  @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'PDF not found' })
+  @ApiStandardErrors({
+    unauthorized: false,
+    forbidden: false,
+    notFound: 'PDF not found',
+  })
   async proxyPdfArchived(@Param('name') name: string, @Res() res: Response) {
     return this.streamPdfToResponse(name, res);
   }
@@ -72,7 +93,11 @@ export class PdfProxyController {
   @Get('pdf/:name')
   @ApiOperation({ summary: 'Alias: Stream PDF by name under /pdf (compat)' })
   @ApiOkResponse({ description: 'PDF stream' })
-  @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'PDF not found' })
+  @ApiStandardErrors({
+    unauthorized: false,
+    forbidden: false,
+    notFound: 'PDF not found',
+  })
   async proxyPdfAlias(@Param('name') name: string, @Res() res: Response) {
     return this.streamPdfToResponse(name, res);
   }
@@ -87,7 +112,11 @@ export class PdfProxyController {
   @Get('private/pdfarchived/:name')
   @ApiOperation({ summary: 'Private signed PDF stream (validates HMAC + exp)' })
   @ApiOkResponse({ description: 'PDF stream' })
-  @ApiStandardErrors({ unauthorized: false, forbidden: false, notFound: 'PDF not found' })
+  @ApiStandardErrors({
+    unauthorized: false,
+    forbidden: false,
+    notFound: 'PDF not found',
+  })
   async proxyPrivatePdf(
     @Param('name') name: string,
     @Query('exp') exp: string,
@@ -98,12 +127,16 @@ export class PdfProxyController {
     const ttlStr = this.config.get<string>('REPORT_DL_TTL_SEC') || '60';
     if (!secret) throw new BadRequestException('Signing secret not configured');
     const expNum = Number(exp);
-    if (!exp || !Number.isFinite(expNum)) throw new BadRequestException('Invalid exp');
+    if (!exp || !Number.isFinite(expNum))
+      throw new BadRequestException('Invalid exp');
     if (Date.now() > expNum) throw new BadRequestException('URL expired');
     if (expNum - Date.now() > (Number(ttlStr) + 5) * 1000) {
       throw new BadRequestException('exp too far in the future');
     }
-    const expected = crypto.createHmac('sha256', secret).update(`${name}.${exp}`).digest('hex');
+    const expected = crypto
+      .createHmac('sha256', secret)
+      .update(`${name}.${exp}`)
+      .digest('hex');
     if (sig !== expected) throw new BadRequestException('Invalid signature');
 
     return this.streamPdfToResponse(name, res);

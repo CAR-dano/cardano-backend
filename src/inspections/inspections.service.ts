@@ -810,8 +810,8 @@ export class InspectionsService {
     }
 
     // If both are objects and we haven't reached max depth for specific path logging
-    const oldObj = oldJsonValue as Record<string, Prisma.JsonValue>;
-    const newObj = newJsonValue as Record<string, Prisma.JsonValue>;
+    const oldObj = oldJsonValue;
+    const newObj = newJsonValue;
 
     // Iterate ONLY through keys present in the new (update DTO) object.
     // We only care about what the user *intends* to change or set.
@@ -868,7 +868,12 @@ export class InspectionsService {
         photos: Array<
           Pick<
             Photo,
-            'id' | 'path' | 'label' | 'originalLabel' | 'needAttention' | 'createdAt'
+            | 'id'
+            | 'path'
+            | 'label'
+            | 'originalLabel'
+            | 'needAttention'
+            | 'createdAt'
           >
         >;
       })
@@ -957,7 +962,10 @@ export class InspectionsService {
       let canDownload = (userRole && userRole !== Role.CUSTOMER) ?? false;
       if (userRole === Role.CUSTOMER && userId) {
         try {
-          const consumed = await this.credits.hasConsumption(userId, inspection.id);
+          const consumed = await this.credits.hasConsumption(
+            userId,
+            inspection.id,
+          );
           canDownload = consumed;
         } catch (e) {
           // Fail closed: if credit check fails, hide URLs
@@ -1254,9 +1262,7 @@ export class InspectionsService {
       const dtoKey = key;
       const newValue = updateInspectionDto[dtoKey]; // Value from the DTO
       // Access existingInspection using bracket notation with keyof Inspection type assertion
-      const oldValue = (existingInspection as Inspection)[
-        dtoKey as keyof Inspection
-      ]; // Current value from DB
+      const oldValue = existingInspection[dtoKey as keyof Inspection]; // Current value from DB
 
       if (newValue === undefined) continue; // Skip if DTO field is undefined (not meant to be updated)
       // Skip inspectorId, branchCityId, and identityDetails as they are handled separately/specifically
@@ -1606,7 +1612,12 @@ export class InspectionsService {
     url: string,
     baseFileName: string,
     token: string | null,
-  ): Promise<{ pdfPublicUrl: string; pdfCid: string; pdfHashString: string; pdfCloudUrl: string }> {
+  ): Promise<{
+    pdfPublicUrl: string;
+    pdfCid: string;
+    pdfHashString: string;
+    pdfCloudUrl: string;
+  }> {
     const queueStats = this.pdfQueue.stats;
     this.logger.log(
       `Adding PDF generation to queue for ${baseFileName}. Queue status: ${queueStats.running}/${queueStats.queueLength + queueStats.running} (running/total)`,
@@ -1673,7 +1684,7 @@ export class InspectionsService {
         `PDF generation completed for ${baseFileName}. Queue stats: processed=${finalStats.totalProcessed}, errors=${finalStats.totalErrors}`,
       );
 
-      return { pdfPublicUrl, pdfCid, pdfHashString, pdfCloudUrl: uploadedUrl  };
+      return { pdfPublicUrl, pdfCid, pdfHashString, pdfCloudUrl: uploadedUrl };
     });
   }
 
@@ -1873,7 +1884,7 @@ export class InspectionsService {
               ) {
                 if (typeof value === 'string') {
                   try {
-                    current[lastPart] = JSON.parse(value as string); // Explicitly cast value to string
+                    current[lastPart] = JSON.parse(value); // Explicitly cast value to string
                     this.logger.log(
                       `Parsed inspectionSummary.estimasiPerbaikan as JSON for inspection ${inspectionId}`,
                     );
@@ -1966,7 +1977,11 @@ export class InspectionsService {
           resource: 'inspection',
           subjectId: inspectionId,
           result: 'SUCCESS',
-          meta: { type: 'FULL', file: fullPdfFileName, url: fullPdfResult.pdfCloudUrl },
+          meta: {
+            type: 'FULL',
+            file: fullPdfFileName,
+            url: fullPdfResult.pdfCloudUrl,
+          },
         });
         this.audit.log({
           rid: 'n/a',
@@ -1975,7 +1990,11 @@ export class InspectionsService {
           resource: 'inspection',
           subjectId: inspectionId,
           result: 'SUCCESS',
-          meta: { type: 'NO_DOCS', file: noDocsPdfFileName, url: noDocsPdfResult.pdfCloudUrl },
+          meta: {
+            type: 'NO_DOCS',
+            file: noDocsPdfFileName,
+            url: noDocsPdfResult.pdfCloudUrl,
+          },
         });
 
         // --- Final Database Update with PDF info and Final Status ---
@@ -2417,9 +2436,10 @@ export class InspectionsService {
         let vehicleDataObj: Record<string, unknown> = {};
         try {
           if (typeof inspection.vehicleData === 'string') {
-            vehicleDataObj = JSON.parse(
-              inspection.vehicleData as string,
-            ) as Record<string, unknown>;
+            vehicleDataObj = JSON.parse(inspection.vehicleData) as Record<
+              string,
+              unknown
+            >;
           } else if (
             inspection.vehicleData &&
             typeof inspection.vehicleData === 'object'
@@ -2521,7 +2541,10 @@ export class InspectionsService {
           resource: 'inspection',
           subjectId: inspectionId,
           result: 'SUCCESS',
-          meta: { txHash: blockchainResult?.txHash, assetId: blockchainResult?.assetId },
+          meta: {
+            txHash: blockchainResult?.txHash,
+            assetId: blockchainResult?.assetId,
+          },
         });
       } catch (blockchainError: unknown) {
         const errorMessage =

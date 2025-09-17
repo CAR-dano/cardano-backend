@@ -11,22 +11,21 @@ export class AppLogger {
 
   // Aliases to ease migration from Nest Logger
   log(message: any, ...optionalParams: any[]) {
-    this.pino.info(message as any, ...optionalParams);
+    this.pino.info(message, ...optionalParams);
   }
   verbose(message: any, ...optionalParams: any[]) {
-    this.pino.debug(message as any, ...optionalParams);
+    this.pino.debug(message, ...optionalParams);
   }
   debug(message: any, ...optionalParams: any[]) {
-    this.pino.debug(message as any, ...optionalParams);
+    this.pino.debug(message, ...optionalParams);
   }
   info(message: any, ...optionalParams: any[]) {
-    this.pino.info(message as any, ...optionalParams);
+    this.pino.info(message, ...optionalParams);
   }
   warn(message: any, ...optionalParams: any[]) {
-    this.pino.warn(message as any, ...optionalParams);
+    this.pino.warn(message, ...optionalParams);
   }
   error(message: any, ...optionalParams: any[]) {
-    this.pino.error(message as any, ...optionalParams);
+    this.pino.error(message, ...optionalParams);
   }
 }
-

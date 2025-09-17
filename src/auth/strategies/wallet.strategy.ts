@@ -13,7 +13,11 @@
 
 import { Strategy } from 'passport-custom'; // Using passport-custom for flexibility
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { AuthService } from '../auth.service';
 import { User } from '@prisma/client';
 import { Request } from 'express'; // Import Request to access body/query
@@ -30,7 +34,10 @@ interface WalletAuthRequestBody {
 export class WalletStrategy extends PassportStrategy(Strategy, 'wallet') {
   private readonly logger: AppLogger;
 
-  constructor(private authService: AuthService, logger: AppLogger) {
+  constructor(
+    private authService: AuthService,
+    logger: AppLogger,
+  ) {
     super(); // Call super for passport-custom
     this.logger = logger;
     this.logger.setContext(WalletStrategy.name);

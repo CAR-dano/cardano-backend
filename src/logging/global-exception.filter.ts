@@ -19,7 +19,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     const isHttp = exception instanceof HttpException;
     const status: number = isHttp
-      ? (exception as HttpException).getStatus()
+      ? exception.getStatus()
       : HttpStatus.INTERNAL_SERVER_ERROR;
 
     // Build safe client response
@@ -32,7 +32,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     };
 
     if (isHttp) {
-      const resp = (exception as HttpException).getResponse();
+      const resp = exception.getResponse();
       if (typeof resp === 'string') {
         base.message = resp;
         base.error = (exception as any)?.name || base.error;

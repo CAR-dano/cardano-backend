@@ -38,7 +38,10 @@ interface CreateInvoiceResponse {
 @Injectable()
 export class XenditService {
   private readonly apiKey: string | undefined;
-  constructor(private readonly config: ConfigService, private readonly logger: AppLogger) {
+  constructor(
+    private readonly config: ConfigService,
+    private readonly logger: AppLogger,
+  ) {
     this.logger.setContext(XenditService.name);
     this.apiKey = this.config.get<string>('XENDIT_API_KEY');
   }
@@ -62,7 +65,9 @@ export class XenditService {
    * @param input Invoice fields including external_id, amount, and optional metadata
    * @returns Minimal response including invoice id and payment URL
    */
-  async createInvoice(input: CreateInvoiceInput): Promise<CreateInvoiceResponse> {
+  async createInvoice(
+    input: CreateInvoiceInput,
+  ): Promise<CreateInvoiceResponse> {
     const url = 'https://api.xendit.co/v2/invoices';
     const res = await fetch(url, {
       method: 'POST',

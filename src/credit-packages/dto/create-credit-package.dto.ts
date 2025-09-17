@@ -9,7 +9,14 @@
  */
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsInt, IsObject, IsOptional, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsInt,
+  IsObject,
+  IsOptional,
+  Max,
+  Min,
+} from 'class-validator';
 
 /**
  * @class CreateCreditPackageDto
@@ -32,12 +39,18 @@ export class CreateCreditPackageDto {
   @Max(100)
   discountPct!: number;
 
-  @ApiPropertyOptional({ description: 'Arbitrary benefits JSON', example: { note: 'promo sept' } })
+  @ApiPropertyOptional({
+    description: 'Arbitrary benefits JSON',
+    example: { note: 'promo sept' },
+  })
   @IsOptional()
   @IsObject()
   benefits?: Record<string, any> | null;
 
-  @ApiPropertyOptional({ description: 'Whether the package is active', default: true })
+  @ApiPropertyOptional({
+    description: 'Whether the package is active',
+    default: true,
+  })
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;

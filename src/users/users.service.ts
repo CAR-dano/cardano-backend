@@ -29,6 +29,9 @@ import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import Creat
 import { UpdateInspectorDto } from './dto/update-inspector.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 import { CreateAdminDto } from './dto/create-admin.dto'; // Import CreateAdminDto
+import { BackblazeService } from '../common/services/backblaze.service';
+import * as path from 'path';
+import type { Express } from 'express';
 
 @Injectable()
 export class UsersService {
@@ -38,8 +41,28 @@ export class UsersService {
    * Constructs the UsersService and injects the PrismaService for database interactions.
    * @param {PrismaService} prisma - The Prisma database client service.
    */
-  constructor(private prisma: PrismaService, private readonly logger: AppLogger) {
+  constructor(
+    private prisma: PrismaService,
+    private readonly logger: AppLogger,
+    private readonly backblaze: BackblazeService,
+  ) {
     this.logger.setContext(UsersService.name);
+  }
+
+  private buildProfilePhotoKey(
+    userId: string,
+    originalFileName: string,
+  ): string {
+    const ext = (path.extname(originalFileName) || '.jpg').toLowerCase();
+    const safeExt = ['.jpg', '.jpeg', '.png', '.webp'].includes(ext)
+      ? ext
+      : '.jpg';
+    const uniqueName = `${uuidv4()}${safeExt}`;
+    return `uploads/profile-photos/${userId}/${uniqueName}`;
+  }
+
+  private hasCustomProfilePhoto(user: User): boolean {
+    return Boolean(user.profilePhotoStorageKey);
   }
 
   /**
@@ -356,10 +379,12 @@ export class UsersService {
     id: string;
     emails?: { value: string; verified?: boolean }[];
     displayName?: string;
+    photos?: { value?: string | null }[];
   }): Promise<User> {
     const googleId = profile.id;
-    const email = profile.emails?.[0]?.value; // Ensure lowercase email
+    const email = profile.emails?.[0]?.value;
     const name = profile.displayName;
+    const avatar = profile.photos?.[0]?.value ?? null;
 
     if (!email) {
       this.logger.error('Google profile validation failed: Email missing.');
@@ -373,53 +398,104 @@ export class UsersService {
     this.logger.log(
       `Attempting find/create user for Google profile ID: ${googleId}, normalized email: ${normalizedEmail}`,
     );
+
     try {
-      // Upsert: Find by email. If found, update googleId. If not found, create new user.
-      const user = await this.prisma.user.upsert({
+      const existingByGoogle = await this.prisma.user.findUnique({
+        where: { googleId },
+      });
+
+      if (
+        existingByGoogle &&
+        this.normalizeEmail(existingByGoogle.email ?? '') !== normalizedEmail
+      ) {
+        this.logger.warn(
+          `Google ID ${googleId} already linked to another email (${existingByGoogle.email}).`,
+        );
+        throw new ConflictException(
+          'This Google account is already linked to another user.',
+        );
+      }
+
+      const existingByEmail = await this.prisma.user.findUnique({
         where: { email: normalizedEmail },
-        update: {
-          googleId: googleId, // Add googleId if user already exists via email/username
-          // Optionally update name if provided by Google and different/missing locally
-          // name: name ? name : undefined, // Example: only update if Google provides a name
-        },
-        create: {
-          id: uuidv4(), // Generate a UUID for the new user
+      });
+
+      if (existingByEmail) {
+        if (existingByEmail.googleId && existingByEmail.googleId !== googleId) {
+          this.logger.warn(
+            `User ${existingByEmail.id} already linked to Google ID ${existingByEmail.googleId} (different from ${googleId}).`,
+          );
+          throw new ConflictException(
+            'This email address is already linked to another Google account.',
+          );
+        }
+
+        const shouldUpdateName = Boolean(name) && !existingByEmail.name;
+        const shouldUpdateProfilePhoto =
+          Boolean(avatar) &&
+          !this.hasCustomProfilePhoto(existingByEmail) &&
+          (!existingByEmail.profilePhotoUrl ||
+            existingByEmail.profilePhotoUrl.trim().length === 0 ||
+            existingByEmail.profilePhotoUrl ===
+              existingByEmail.googleAvatarUrl);
+
+        const updatedUser = await this.prisma.user.update({
+          where: { id: existingByEmail.id },
+          data: {
+            googleId,
+            ...(shouldUpdateName ? { name } : {}),
+            ...(avatar ? { googleAvatarUrl: avatar } : {}),
+            ...(shouldUpdateProfilePhoto && avatar
+              ? { profilePhotoUrl: avatar, profilePhotoStorageKey: null }
+              : {}),
+          },
+        });
+
+        this.logger.log(
+          `Updated existing user ${updatedUser.id} with Google profile ${googleId}.`,
+        );
+        return updatedUser;
+      }
+
+      const newUser = await this.prisma.user.create({
+        data: {
+          id: uuidv4(),
           email: normalizedEmail,
-          googleId: googleId,
-          name: name || `User_${googleId.substring(0, 6)}`, // Provide a default name if missing
-          // username and password will be null
-          // role defaults to CUSTOMER
+          googleId,
+          name: name || `User_${googleId.substring(0, 6)}`,
+          googleAvatarUrl: avatar,
+          profilePhotoUrl: avatar ?? '',
         },
       });
+
       this.logger.log(
-        `Successfully found/created user ID: ${user.id} for Google profile.`,
+        `Created new user ${newUser.id} from Google profile ${googleId}.`,
       );
-      return user;
+      return newUser;
     } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError) {
+        if (error.code === 'P2002') {
+          this.logger.warn(
+            `Unique constraint violation during Google profile processing: ${String(error.meta?.target)}`,
+          );
+          throw new ConflictException(
+            'This Google account or email is already linked to another user.',
+          );
+        }
+      }
+      if (error instanceof ConflictException) throw error;
+
       if (error instanceof Error) {
         this.logger.error(
-          `Error during upsert for Google profile ${googleId}: ${error.message}`,
+          `Error processing Google profile ${googleId}: ${error.message}`,
           error.stack,
         );
       } else {
         this.logger.error(
-          `Unknown error during upsert for Google profile ${googleId}: ${String(error)}`,
+          `Unknown error processing Google profile ${googleId}: ${String(error)}`,
         );
       }
-      // Handle potential unique constraint violation if googleId already exists for *another* email
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        this.logger.warn(
-          `Unique constraint violation during Google upsert: ${String(error.meta?.target)}`,
-        );
-        // This likely means the googleId is already linked to a DIFFERENT email
-        // Or the email provided by google is somehow linked to a different googleId
-        throw new ConflictException(
-          'This Google account or email is already linked to another user.',
-        );
-      }
+
       throw new InternalServerErrorException(
         'Could not process Google user profile due to database error.',
       );
@@ -508,6 +584,8 @@ export class UsersService {
     userId: string,
     googleId: string,
     googleEmail: string,
+    avatarUrl?: string | null,
+    displayName?: string | null,
   ): Promise<User> {
     this.logger.log(
       `User ${userId} attempting to link Google ID: ${googleId} (Email: ${googleEmail})`,
@@ -560,9 +638,19 @@ export class UsersService {
 
     // 5. Perform the update
     try {
+      const shouldUpdateProfilePhoto =
+        avatarUrl && !this.hasCustomProfilePhoto(userToUpdate);
+
       const updatedUser = await this.prisma.user.update({
         where: { id: userId },
-        data: { googleId: googleId },
+        data: {
+          googleId: googleId,
+          ...(avatarUrl ? { googleAvatarUrl: avatarUrl } : {}),
+          ...(shouldUpdateProfilePhoto
+            ? { profilePhotoUrl: avatarUrl, profilePhotoStorageKey: null }
+            : {}),
+          ...(displayName && !userToUpdate.name ? { name: displayName } : {}),
+        },
       });
       this.logger.log(
         `Successfully linked Google ID ${googleId} to user ${userId}.`,
@@ -678,6 +766,207 @@ export class UsersService {
       }
       throw new InternalServerErrorException('Could not link wallet address.');
     }
+  }
+
+  async updateSelfProfile(
+    userId: string,
+    profile: {
+      name?: string;
+      whatsappNumber?: string;
+    },
+  ): Promise<User> {
+    this.logger.log(`User ${userId} updating own profile.`);
+
+    const data: Prisma.UserUpdateInput = {};
+    if (profile.name !== undefined) data.name = profile.name;
+    if (profile.whatsappNumber !== undefined)
+      data.whatsappNumber = profile.whatsappNumber;
+
+    if (Object.keys(data).length === 0) {
+      this.logger.debug(
+        `No profile fields provided for update by user ${userId}. Returning current state.`,
+      );
+      const existing = await this.findById(userId);
+      if (!existing)
+        throw new NotFoundException(`User with ID "${userId}" not found.`);
+      return existing;
+    }
+
+    try {
+      return await this.prisma.user.update({
+        where: { id: userId },
+        data,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2025'
+      ) {
+        throw new NotFoundException(`User with ID "${userId}" not found.`);
+      }
+      if (error instanceof Error) {
+        this.logger.error(
+          `Failed to update profile for user ${userId}: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown error updating profile for user ${userId}: ${String(error)}`,
+        );
+      }
+      throw new InternalServerErrorException('Could not update user profile.');
+    }
+  }
+
+  async changePassword(
+    userId: string,
+    currentPassword: string | undefined,
+    newPassword: string,
+  ): Promise<User> {
+    this.logger.log(`User ${userId} attempting to change password.`);
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        password: true,
+        refreshToken: true,
+        googleId: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException(`User with ID "${userId}" not found.`);
+    }
+
+    if (user.password) {
+      if (!currentPassword) {
+        throw new BadRequestException('Current password is required.');
+      }
+
+      const matches = await bcrypt.compare(currentPassword, user.password);
+      if (!matches) {
+        this.logger.warn(`User ${userId} provided incorrect current password.`);
+        throw new ForbiddenException('Current password is incorrect.');
+      }
+    }
+
+    const hashed = await bcrypt.hash(newPassword, this.saltRounds);
+
+    try {
+      return await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          password: hashed,
+          refreshToken: null,
+        },
+      });
+    } catch (error) {
+      if (error instanceof Error) {
+        this.logger.error(
+          `Failed to change password for user ${userId}: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown error while changing password for user ${userId}: ${String(error)}`,
+        );
+      }
+      throw new InternalServerErrorException('Could not update password.');
+    }
+  }
+
+  async updateProfilePhoto(
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<User> {
+    this.logger.log(`User ${userId} uploading profile photo.`);
+
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Profile photo file buffer is missing.');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`User with ID "${userId}" not found.`);
+    }
+
+    const key = this.buildProfilePhotoKey(
+      userId,
+      file.originalname || 'avatar',
+    );
+
+    let publicUrl: string;
+    try {
+      publicUrl = await this.backblaze.uploadBuffer(
+        file.buffer,
+        key,
+        file.mimetype || 'image/jpeg',
+      );
+    } catch (error) {
+      if (error instanceof Error) {
+        this.logger.error(
+          `Failed to upload profile photo for user ${userId}: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown error uploading profile photo for user ${userId}: ${String(error)}`,
+        );
+      }
+      throw new InternalServerErrorException('Failed to store profile photo.');
+    }
+
+    if (user.profilePhotoStorageKey) {
+      try {
+        await this.backblaze.deleteFile(user.profilePhotoStorageKey);
+      } catch (error) {
+        if (error instanceof Error) {
+          this.logger.warn(
+            `Failed to delete old profile photo (${user.profilePhotoStorageKey}) for user ${userId}: ${error.message}`,
+          );
+        }
+      }
+    }
+
+    return await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        profilePhotoUrl: publicUrl,
+        profilePhotoStorageKey: key,
+      },
+    });
+  }
+
+  async removeProfilePhoto(userId: string): Promise<User> {
+    this.logger.log(`User ${userId} removing profile photo.`);
+
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException(`User with ID "${userId}" not found.`);
+    }
+
+    if (user.profilePhotoStorageKey) {
+      try {
+        await this.backblaze.deleteFile(user.profilePhotoStorageKey);
+      } catch (error) {
+        if (error instanceof Error) {
+          this.logger.warn(
+            `Failed to delete stored profile photo ${user.profilePhotoStorageKey} for user ${userId}: ${error.message}`,
+          );
+        }
+      }
+    }
+
+    const fallbackUrl = user.googleAvatarUrl ?? '';
+
+    return await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        profilePhotoUrl: fallbackUrl,
+        profilePhotoStorageKey: null,
+      },
+    });
   }
 
   /**

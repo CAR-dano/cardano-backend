@@ -38,10 +38,16 @@ export class ReportDetailInspectionDto {
   @ApiProperty({ enum: Object.values(InspectionStatus) })
   status!: InspectionStatus;
 
-  @ApiPropertyOptional({ nullable: true, description: 'Legacy/public path to no-docs PDF' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Legacy/public path to no-docs PDF',
+  })
   urlPdfNoDocs?: string | null;
 
-  @ApiPropertyOptional({ nullable: true, description: 'Cloud URL to no-docs PDF (Backblaze)' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Cloud URL to no-docs PDF (Backblaze)',
+  })
   urlPdfNoDocsCloud?: string | null;
 
   @ApiPropertyOptional({
@@ -64,6 +70,9 @@ export class ReportDetailResponseDto {
   @ApiProperty({ description: 'Whether current user can download now' })
   canDownload!: boolean;
 
-  @ApiPropertyOptional({ description: 'Customer credit balance (only for CUSTOMER)', nullable: true })
+  @ApiPropertyOptional({
+    description: 'Customer credit balance (only for CUSTOMER)',
+    nullable: true,
+  })
   userCreditBalance?: number;
 }

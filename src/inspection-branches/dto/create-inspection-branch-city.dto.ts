@@ -10,7 +10,13 @@
  * --------------------------------------------------------------------------
  */
 
-import { IsString, IsNotEmpty, MaxLength, IsBoolean, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  MaxLength,
+  IsBoolean,
+  IsOptional,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 /**

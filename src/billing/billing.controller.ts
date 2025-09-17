@@ -27,14 +27,30 @@ import { CheckoutDto, BillingGateway } from './dto/checkout.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
 import { ConfigService } from '@nestjs/config';
-import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse, ApiTags, ApiCreatedResponse, ApiBadRequestResponse, ApiInternalServerErrorResponse, ApiOkResponse } from '@nestjs/swagger';
-import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
+import {
+  ApiBearerAuth,
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiCreatedResponse,
+  ApiBadRequestResponse,
+  ApiInternalServerErrorResponse,
+  ApiOkResponse,
+} from '@nestjs/swagger';
+import {
+  ApiAuthErrors,
+  ApiStandardErrors,
+} from '../common/decorators/api-standard-errors.decorator';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
 import { CheckoutResponseDto } from './dto/checkout-response.dto';
 import { WebhookEventsService } from './webhook-events.service';
 import { Role } from '@prisma/client';
 import { ApiParam, ApiQuery } from '@nestjs/swagger';
-import { PurchaseItemResponseDto, PurchaseListResponseDto } from './dto/purchase-response.dto';
+import {
+  PurchaseItemResponseDto,
+  PurchaseListResponseDto,
+} from './dto/purchase-response.dto';
 
 /**
  * @class BillingController
@@ -73,15 +89,20 @@ export class BillingController {
   @Post('checkout')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JwtAuthGuard')
-  @ApiOperation({ summary: 'Create checkout (Xendit invoice) for a credit package' })
+  @ApiOperation({
+    summary: 'Create checkout (Xendit invoice) for a credit package',
+  })
   @ApiBody({ type: CheckoutDto })
-  @ApiCreatedResponse({ description: 'Checkout created; returns payment URL', type: CheckoutResponseDto })
-  @ApiBadRequestResponse({ description: 'Validation failed or bad payload.', type: HttpErrorResponseDto })
+  @ApiCreatedResponse({
+    description: 'Checkout created; returns payment URL',
+    type: CheckoutResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Validation failed or bad payload.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
-  async checkout(
-    @Body() dto: CheckoutDto,
-    @GetUser('id') userId: string,
-  ) {
+  async checkout(@Body() dto: CheckoutDto, @GetUser('id') userId: string) {
     if (dto.gateway !== BillingGateway.XENDIT) {
       throw new Error('Only XENDIT gateway is supported');
     }
@@ -118,9 +139,18 @@ export class BillingController {
     if (!invoiceId) return { ok: true };
 
     // Build persistent idempotency key
-    const eventType: string | undefined = data.event || body?.event || undefined;
-    const timeKey = data.updated || body?.updated || data.paid_at || body?.paid_at || '';
-    const eventKey = ['XENDIT', invoiceId, (eventType || status).toUpperCase(), timeKey].filter(Boolean).join(':');
+    const eventType: string | undefined =
+      data.event || body?.event || undefined;
+    const timeKey =
+      data.updated || body?.updated || data.paid_at || body?.paid_at || '';
+    const eventKey = [
+      'XENDIT',
+      invoiceId,
+      (eventType || status).toUpperCase(),
+      timeKey,
+    ]
+      .filter(Boolean)
+      .join(':');
 
     // Record or short-circuit on duplicates
     let rec: { isDuplicate: boolean; id?: string };
@@ -145,7 +175,11 @@ export class BillingController {
         await this.billing.markPaidByExtInvoiceId(invoiceId);
         if (rec.id) await this.webhookEvents.markProcessed(rec.id, 'SUCCESS');
       } catch (err: any) {
-        if (rec.id) await this.webhookEvents.markError(rec.id, String(err?.message ?? err));
+        if (rec.id)
+          await this.webhookEvents.markError(
+            rec.id,
+            String(err?.message ?? err),
+          );
         // Reply OK to avoid excessive retries if purchase update is already applied
         return { ok: true, error: true };
       }
@@ -154,7 +188,11 @@ export class BillingController {
         await this.billing.markExpiredByExtInvoiceId(invoiceId);
         if (rec.id) await this.webhookEvents.markProcessed(rec.id, 'SUCCESS');
       } catch (err: any) {
-        if (rec.id) await this.webhookEvents.markError(rec.id, String(err?.message ?? err));
+        if (rec.id)
+          await this.webhookEvents.markError(
+            rec.id,
+            String(err?.message ?? err),
+          );
         return { ok: true, error: true };
       }
     } else if (status === 'FAILED') {
@@ -162,7 +200,11 @@ export class BillingController {
         await this.billing.markFailedByExtInvoiceId(invoiceId);
         if (rec.id) await this.webhookEvents.markProcessed(rec.id, 'SUCCESS');
       } catch (err: any) {
-        if (rec.id) await this.webhookEvents.markError(rec.id, String(err?.message ?? err));
+        if (rec.id)
+          await this.webhookEvents.markError(
+            rec.id,
+            String(err?.message ?? err),
+          );
         return { ok: true, error: true };
       }
     }
@@ -177,7 +219,10 @@ export class BillingController {
   @ApiBearerAuth('JwtAuthGuard')
   @ApiOperation({ summary: 'Get purchase detail (current user or admin)' })
   @ApiParam({ name: 'id', description: 'Purchase ID' })
-  @ApiOkResponse({ description: 'Purchase found', type: PurchaseItemResponseDto })
+  @ApiOkResponse({
+    description: 'Purchase found',
+    type: PurchaseItemResponseDto,
+  })
   @ApiAuthErrors()
   async getPurchase(
     @Param('id') id: string,
@@ -195,8 +240,15 @@ export class BillingController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JwtAuthGuard')
   @ApiOperation({ summary: 'List recent purchases for current user' })
-  @ApiQuery({ name: 'limit', required: false, description: 'Max items (1-100), default 10' })
-  @ApiOkResponse({ description: 'Purchases list', type: PurchaseListResponseDto })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    description: 'Max items (1-100), default 10',
+  })
+  @ApiOkResponse({
+    description: 'Purchases list',
+    type: PurchaseListResponseDto,
+  })
   @ApiAuthErrors()
   async listPurchases(
     @Query('limit') limit: string,

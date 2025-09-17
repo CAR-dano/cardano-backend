@@ -28,7 +28,9 @@ export class PurchaseResponseDto {
   @ApiProperty()
   extInvoiceId!: string;
 
-  @ApiProperty({ description: 'Amount in smallest currency unit (e.g., rupiah)' })
+  @ApiProperty({
+    description: 'Amount in smallest currency unit (e.g., rupiah)',
+  })
   amount!: number;
 
   @ApiProperty({ enum: Object.values(PurchaseStatus) })
@@ -53,7 +55,8 @@ export class PurchaseResponseDto {
     this.status = p.status;
     this.createdAt = p.createdAt;
     this.paidAt = p.paidAt ?? null;
-    if (p.creditPackage) this.creditPackage = new CreditPackageResponseDto(p.creditPackage);
+    if (p.creditPackage)
+      this.creditPackage = new CreditPackageResponseDto(p.creditPackage);
   }
 }
 
@@ -74,4 +77,3 @@ export class PurchaseListResponseDto {
     this.purchases = list.map((p) => new PurchaseResponseDto(p));
   }
 }
-

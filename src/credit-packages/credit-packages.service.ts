@@ -9,7 +9,11 @@
  * --------------------------------------------------------------------------
  */
 
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Prisma } from '@prisma/client';
 
@@ -25,7 +29,9 @@ export class CreditPackagesService {
    * Lists all credit packages ordered by creation time (newest first).
    */
   async findAll() {
-    return this.prisma.creditPackage.findMany({ orderBy: { createdAt: 'desc' } });
+    return this.prisma.creditPackage.findMany({
+      orderBy: { createdAt: 'desc' },
+    });
   }
 
   /**
@@ -52,7 +58,8 @@ export class CreditPackagesService {
         credits: dto.credits,
         price: dto.price,
         discountPct: dto.discountPct,
-        benefits: dto.benefits !== undefined ? (dto.benefits as any) : undefined,
+        benefits:
+          dto.benefits !== undefined ? (dto.benefits as any) : undefined,
         isActive: dto.isActive ?? true,
       },
     });
@@ -63,13 +70,25 @@ export class CreditPackagesService {
    *
    * @throws BadRequestException if id missing or dto empty
    */
-  async update(id: string, dto: Partial<{ credits: number; price: number; discountPct: number; benefits: any; isActive: boolean }>) {
+  async update(
+    id: string,
+    dto: Partial<{
+      credits: number;
+      price: number;
+      discountPct: number;
+      benefits: any;
+      isActive: boolean;
+    }>,
+  ) {
     if (!id) throw new BadRequestException('id is required');
     if (!dto || Object.keys(dto).length === 0) {
       throw new BadRequestException('No fields provided for update');
     }
     try {
-      return await this.prisma.creditPackage.update({ where: { id }, data: dto });
+      return await this.prisma.creditPackage.update({
+        where: { id },
+        data: dto,
+      });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -89,7 +108,9 @@ export class CreditPackagesService {
    */
   async toggleActive(id: string) {
     if (!id) throw new BadRequestException('id is required');
-    const current = await this.prisma.creditPackage.findUnique({ where: { id } });
+    const current = await this.prisma.creditPackage.findUnique({
+      where: { id },
+    });
     if (!current) throw new NotFoundException('Credit package not found');
     try {
       return await this.prisma.creditPackage.update({

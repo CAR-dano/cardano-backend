@@ -33,7 +33,10 @@ export class LocalStrategy extends PassportStrategy(Strategy, 'local') {
    *
    * @param {AuthService} authService - The authentication service instance.
    */
-  constructor(private authService: AuthService, logger: AppLogger) {
+  constructor(
+    private authService: AuthService,
+    logger: AppLogger,
+  ) {
     super({
       usernameField: 'loginIdentifier', // Corresponds to the field in LoginUserDto
       passwordField: 'password',

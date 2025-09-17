@@ -10,7 +10,12 @@
  * --------------------------------------------------------------------------
  */
 
-import { Injectable, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { AppLogger } from '../logging/app-logger.service';
 import { AuditLoggerService } from '../logging/audit-logger.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -55,7 +60,11 @@ export class ReportsService {
    * @returns Report detail payload including `canDownload` and optional credit balance
    * @throws NotFoundException When inspection is missing or not archived
    */
-  async getDetail(id: string, userId: string, userRole: Role): Promise<ReportDetailResponseDto> {
+  async getDetail(
+    id: string,
+    userId: string,
+    userRole: Role,
+  ): Promise<ReportDetailResponseDto> {
     const desiredLabels = [
       'Tampak Depan',
       'Tampak Samping Kanan',
@@ -107,15 +116,16 @@ export class ReportsService {
 
     if (inspection && (inspection as any).photos) {
       const normalized = (inspection as any).photos
-        .map((p: any) =>
-          new PhotoResponseDto({
-            id: p.id,
-            path: p.path,
-            label: p.label ?? 'Tambahan',
-            originalLabel: p.originalLabel ?? null,
-            needAttention: p.needAttention ?? false,
-            createdAt: p.createdAt,
-          } as any),
+        .map(
+          (p: any) =>
+            new PhotoResponseDto({
+              id: p.id,
+              path: p.path,
+              label: p.label ?? 'Tambahan',
+              originalLabel: p.originalLabel ?? null,
+              needAttention: p.needAttention ?? false,
+              createdAt: p.createdAt,
+            } as any),
         )
         .sort((a: any, b: any) => {
           const ai = desiredLabels.indexOf(a.label ?? '');
@@ -123,7 +133,7 @@ export class ReportsService {
           return ai - bi;
         });
 
-      (inspection as any).photos = normalized as any;
+      (inspection as any).photos = normalized;
     }
 
     if (!canDownload) {
@@ -132,9 +142,10 @@ export class ReportsService {
     }
 
     return {
-      inspection: (inspection as unknown) as any,
+      inspection: inspection as unknown as any,
       canDownload,
-      userCreditBalance: userRole === Role.CUSTOMER ? user?.credits ?? 0 : undefined,
+      userCreditBalance:
+        userRole === Role.CUSTOMER ? (user?.credits ?? 0) : undefined,
     };
   }
 
@@ -173,7 +184,10 @@ export class ReportsService {
         try {
           await this.credits.chargeOnce(userId, id, 1);
         } catch (e: any) {
-          if (e?.message === 'INSUFFICIENT_CREDITS' || e?.response?.message === 'INSUFFICIENT_CREDITS') {
+          if (
+            e?.message === 'INSUFFICIENT_CREDITS' ||
+            e?.response?.message === 'INSUFFICIENT_CREDITS'
+          ) {
             throw new HttpException(
               { reason: 'INSUFFICIENT_CREDITS', next: '/billing/packages' },
               HttpStatus.PAYMENT_REQUIRED,
@@ -185,7 +199,9 @@ export class ReportsService {
     }
 
     const filename = path.basename(srcUrl);
-    const key = filename.startsWith('pdfarchived/') ? filename : `pdfarchived/${filename}`;
+    const key = filename.startsWith('pdfarchived/')
+      ? filename
+      : `pdfarchived/${filename}`;
 
     try {
       const stream: Stream | undefined = await this.backblaze.getFile(key);
@@ -210,7 +226,11 @@ export class ReportsService {
       this.logger.warn({ key, err }, 'Backblaze getFile failed');
     }
 
-    const localPath = path.resolve(process.cwd(), 'pdfarchived', path.basename(filename));
+    const localPath = path.resolve(
+      process.cwd(),
+      'pdfarchived',
+      path.basename(filename),
+    );
     if (fs.existsSync(localPath)) {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Cache-Control', 'private, max-age=0');
@@ -240,8 +260,7 @@ export class ReportsService {
     id: string,
     userId: string,
     userRole: Role,
-  ): Promise<{ url: string; ttlSec: number; source: 'cloud' | 'local' }>
-  {
+  ): Promise<{ url: string; ttlSec: number; source: 'cloud' | 'local' }> {
     const inspection = await this.prisma.inspection.findUnique({
       where: { id },
       select: { status: true, urlPdfNoDocs: true, urlPdfNoDocsCloud: true },
@@ -260,7 +279,10 @@ export class ReportsService {
         try {
           await this.credits.chargeOnce(userId, id, 1);
         } catch (e: any) {
-          if (e?.message === 'INSUFFICIENT_CREDITS' || e?.response?.message === 'INSUFFICIENT_CREDITS') {
+          if (
+            e?.message === 'INSUFFICIENT_CREDITS' ||
+            e?.response?.message === 'INSUFFICIENT_CREDITS'
+          ) {
             throw new HttpException(
               { reason: 'INSUFFICIENT_CREDITS', next: '/billing/packages' },
               HttpStatus.PAYMENT_REQUIRED,
@@ -273,7 +295,9 @@ export class ReportsService {
 
     const ttlSec = Number(this.config.get<string>('REPORT_DL_TTL_SEC') || '60');
     const filename = path.basename(srcUrl);
-    const key = filename.startsWith('pdfarchived/') ? filename : `pdfarchived/${filename}`;
+    const key = filename.startsWith('pdfarchived/')
+      ? filename
+      : `pdfarchived/${filename}`;
 
     if (inspection.urlPdfNoDocsCloud) {
       try {
@@ -292,7 +316,9 @@ export class ReportsService {
         return { url, ttlSec, source: 'cloud' };
       } catch (err: any) {
         // Fallback to local signed proxy if presigner unavailable
-        this.logger.warn(`Presigned S3 URL failed; falling back to local signed URL: ${String(err?.message ?? err)}`);
+        this.logger.warn(
+          `Presigned S3 URL failed; falling back to local signed URL: ${String(err?.message ?? err)}`,
+        );
       }
     }
 
@@ -300,7 +326,10 @@ export class ReportsService {
     const secret = this.config.get<string>('REPORT_DL_SECRET') || '';
     const base = this.config.get<string>('URL') || '';
     const exp = Date.now() + ttlSec * 1000;
-    const sig = crypto.createHmac('sha256', secret).update(`${filename}.${exp}`).digest('hex');
+    const sig = crypto
+      .createHmac('sha256', secret)
+      .update(`${filename}.${exp}`)
+      .digest('hex');
     const url = `${base.replace(/\/$/, '')}/v1/private/pdfarchived/${encodeURIComponent(filename)}?exp=${exp}&sig=${sig}`;
     this.audit.log({
       rid: 'n/a',
@@ -321,16 +350,23 @@ export class ReportsService {
    */
   async listDownloadsWithMeta(
     userId: string,
-    opts: { startDate?: string | Date; endDate?: string | Date; page?: number; pageSize?: number } = {},
-  ): Promise<{ data: ReportDownloadItemDto[]; meta: { total: number; page: number; pageSize: number; totalPages: number } }>
-  {
+    opts: {
+      startDate?: string | Date;
+      endDate?: string | Date;
+      page?: number;
+      pageSize?: number;
+    } = {},
+  ): Promise<{
+    data: ReportDownloadItemDto[];
+    meta: { total: number; page: number; pageSize: number; totalPages: number };
+  }> {
     const page = Math.max(1, Number(opts.page || 1));
     const pageSize = Math.max(1, Math.min(100, Number(opts.pageSize || 10)));
     const where: any = { userId };
     if (opts.startDate || opts.endDate) {
       where.usedAt = {} as any;
-      if (opts.startDate) (where.usedAt as any).gte = new Date(opts.startDate);
-      if (opts.endDate) (where.usedAt as any).lte = new Date(opts.endDate);
+      if (opts.startDate) where.usedAt.gte = new Date(opts.startDate);
+      if (opts.endDate) where.usedAt.lte = new Date(opts.endDate);
     }
 
     const [total, rows] = await this.prisma.$transaction([

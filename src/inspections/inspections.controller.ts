@@ -128,7 +128,6 @@ export class InspectionsController {
    * @param inspectionsService Service for core inspection logic.
    * @param photosService Service specifically for handling photo operations.
    */
-  
 
   /**
    * Handles the creation of a new inspection record.
@@ -152,9 +151,18 @@ export class InspectionsController {
       'Creates the initial inspection record containing text and JSON data. This is the first step before uploading photos or archiving. Only accessible by users with the INSPECTOR role.',
   })
   @ApiBody({ type: CreateInspectionDto })
-  @ApiCreatedResponse({ description: 'The newly created inspection record summary.', type: InspectionResponseDto })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input data).', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiCreatedResponse({
+    description: 'The newly created inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Bad Request (e.g., invalid input data).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Unexpected server error.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async create(
     @Body() createInspectionDto: CreateInspectionDto,
@@ -186,9 +194,9 @@ export class InspectionsController {
       // Known HttpExceptions: preserve status and convert message to array when needed
       if (err?.getStatus && err?.getResponse) {
         const status = err.getStatus();
-        const resp = err.getResponse() as any;
+        const resp = err.getResponse();
         const messageRaw =
-          typeof resp === 'string' ? resp : resp?.message ?? err.message;
+          typeof resp === 'string' ? resp : (resp?.message ?? err.message);
         const message = Array.isArray(messageRaw)
           ? messageRaw
           : [String(messageRaw ?? 'Request failed')];
@@ -208,7 +216,7 @@ export class InspectionsController {
           `[POST /inspections] ${errorName} ${status}: ${message.join(' | ')}`,
         );
         // Re-throw with normalized body
-        throw new (err.constructor as any)(body);
+        throw new err.constructor(body);
       }
 
       // Unknown errors — return 500 with normalized body
@@ -267,8 +275,14 @@ export class InspectionsController {
       },
     },
   })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input data).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiBadRequestResponse({
+    description: 'Bad Request (e.g., invalid input data).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async update(
@@ -342,9 +356,19 @@ export class InspectionsController {
     },
     description: 'Metadata and photo files for the batch upload.',
   })
-  @ApiCreatedResponse({ description: 'Array of created photo record summaries.', type: [PhotoResponseDto] })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input, no files provided, invalid file type).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiCreatedResponse({
+    description: 'Array of created photo record summaries.',
+    type: [PhotoResponseDto],
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Bad Request (e.g., invalid input, no files provided, invalid file type).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async addMultiplePhotos(
     @Param('id') id: string,
@@ -402,9 +426,19 @@ export class InspectionsController {
     description:
       'Metadata (label, needAttention) and photo file for the upload.',
   })
-  @ApiCreatedResponse({ description: 'The created photo record summary.', type: PhotoResponseDto })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input, no file provided, invalid file type).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiCreatedResponse({
+    description: 'The created photo record summary.',
+    type: PhotoResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Bad Request (e.g., invalid input, no file provided, invalid file type).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async addSinglePhoto(
     @Param('id') id: string,
@@ -475,8 +509,14 @@ export class InspectionsController {
     format: 'uuid',
     description: 'Inspection ID',
   })
-  @ApiOkResponse({ description: 'Array of photo record summaries.', type: [PhotoResponseDto] })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Array of photo record summaries.',
+    type: [PhotoResponseDto],
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async getPhotosForInspection(
@@ -533,9 +573,18 @@ export class InspectionsController {
     description:
       'Optional metadata updates (label, needAttention) and/or a new photo file.',
   })
-  @ApiOkResponse({ description: 'The updated photo record summary.', type: PhotoResponseDto })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input, invalid file type).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection or Photo not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'The updated photo record summary.',
+    type: PhotoResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Bad Request (e.g., invalid input, invalid file type).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection or Photo not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async updatePhoto(
@@ -594,8 +643,13 @@ export class InspectionsController {
     format: 'uuid',
     description: 'Photo ID',
   })
-  @ApiNoContentResponse({ description: 'Photo deleted successfully (No Content).' })
-  @ApiNotFoundResponse({ description: 'Photo not found.', type: HttpErrorResponseDto })
+  @ApiNoContentResponse({
+    description: 'Photo deleted successfully (No Content).',
+  })
+  @ApiNotFoundResponse({
+    description: 'Photo not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async deletePhoto(
@@ -634,8 +688,14 @@ export class InspectionsController {
     type: String,
     description: 'The vehicle plate number to search for (e.g., "AB 1234 CD").',
   })
-  @ApiOkResponse({ description: 'The found inspection record summary.', type: InspectionResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'The found inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   async searchByVehicleNumber(
     @Query('vehicleNumber') vehicleNumber: string,
     @GetUser('id') userId: string,
@@ -684,7 +744,11 @@ export class InspectionsController {
     description:
       'The keyword to search for (e.g., "Avanza", "AB 1234 CD", "pending").',
   })
-  @ApiOkResponse({ description: 'A list of found inspection records. Returns an empty array if no matches are found.', type: [InspectionResponseDto] })
+  @ApiOkResponse({
+    description:
+      'A list of found inspection records. Returns an empty array if no matches are found.',
+    type: [InspectionResponseDto],
+  })
   @ApiAuthErrors()
   async searchByKeyword(
     @Query('q') keyword: string,
@@ -850,8 +914,14 @@ export class InspectionsController {
     enum: Role,
     description: 'Filter inspection visibility by user role.',
   })
-  @ApiOkResponse({ description: 'The inspection record summary.', type: InspectionResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'The inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findOne(
@@ -889,9 +959,18 @@ export class InspectionsController {
     format: 'uuid',
     description: 'Inspection ID',
   })
-  @ApiOkResponse({ description: 'The approved inspection record summary.', type: InspectionResponseDto })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid state).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'The approved inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Bad Request (e.g., invalid state).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async approveInspection(
@@ -933,8 +1012,15 @@ export class InspectionsController {
     type: BulkApproveInspectionDto,
     description: 'Array of inspection IDs to approve',
   })
-  @ApiOkResponse({ description: 'Bulk approval results with success/failure details.', type: BulkApproveInspectionResponseDto })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid inspection IDs, too many requests).', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Bulk approval results with success/failure details.',
+    type: BulkApproveInspectionResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Bad Request (e.g., invalid inspection IDs, too many requests).',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async bulkApproveInspections(
     @Body() bulkApproveDto: BulkApproveInspectionDto,
@@ -992,9 +1078,18 @@ export class InspectionsController {
     format: 'uuid',
     description: 'Inspection ID',
   })
-  @ApiOkResponse({ description: 'Inspection archived successfully.', type: InspectionResponseDto })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid URL, inspection not approved).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Inspection archived successfully.',
+    type: InspectionResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Bad Request (e.g., invalid URL, inspection not approved).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async processToArchive(
     @Param('id') id: string,
@@ -1025,9 +1120,19 @@ export class InspectionsController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Step 1 - Build Unsigned Archive Transaction' })
   @ApiBody({ type: BuildMintRequestDto })
-  @ApiCreatedResponse({ description: 'The unsigned transaction details for archiving.', type: BuildMintTxResponseDto })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input data, missing adminAddress).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiCreatedResponse({
+    description: 'The unsigned transaction details for archiving.',
+    type: BuildMintTxResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Bad Request (e.g., invalid input data, missing adminAddress).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async buildArchiveTransaction(
     @Param('id') id: string,
@@ -1060,9 +1165,18 @@ export class InspectionsController {
   @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Step 2 - Confirm and Save Minting Results' })
-  @ApiOkResponse({ description: 'Updated inspection after confirming archive.', type: InspectionResponseDto })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input data).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Updated inspection after confirming archive.',
+    type: InspectionResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Bad Request (e.g., invalid input data).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async confirmArchive(
     @Param('id') id: string,
@@ -1098,9 +1212,18 @@ export class InspectionsController {
     format: 'uuid',
     description: 'Inspection ID',
   })
-  @ApiOkResponse({ description: 'The deactivated inspection record summary.', type: InspectionResponseDto })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid state).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'The deactivated inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Bad Request (e.g., invalid state).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async deactivateArchive(
@@ -1137,9 +1260,18 @@ export class InspectionsController {
     format: 'uuid',
     description: 'Inspection ID',
   })
-  @ApiOkResponse({ description: 'The activated inspection record summary.', type: InspectionResponseDto })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid state).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'The activated inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Bad Request (e.g., invalid state).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async activateArchive(
@@ -1178,7 +1310,10 @@ export class InspectionsController {
     description: 'The UUID of the inspection to delete permanently.',
   })
   @ApiNoContentResponse({ description: 'Inspection deleted successfully.' })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async deleteInspectionPermanently(
     @Param('id', ParseUUIDPipe) id: string,
@@ -1215,9 +1350,17 @@ export class InspectionsController {
     format: 'uuid',
     description: 'The UUID of the inspection to revert status.',
   })
-  @ApiNoContentResponse({ description: 'Inspection status reverted to NEED_REVIEW.' })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., already in NEED_REVIEW).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiNoContentResponse({
+    description: 'Inspection status reverted to NEED_REVIEW.',
+  })
+  @ApiBadRequestResponse({
+    description: 'Bad Request (e.g., already in NEED_REVIEW).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async revertInspectionToReview(
     @Param('id', ParseUUIDPipe) id: string,
@@ -1254,9 +1397,17 @@ export class InspectionsController {
     format: 'uuid',
     description: 'The UUID of the inspection to revert status.',
   })
-  @ApiNoContentResponse({ description: 'Inspection status reverted to APPROVED.' })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., not in ARCHIVED/FAIL_ARCHIVE).', type: HttpErrorResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found.', type: HttpErrorResponseDto })
+  @ApiNoContentResponse({
+    description: 'Inspection status reverted to APPROVED.',
+  })
+  @ApiBadRequestResponse({
+    description: 'Bad Request (e.g., not in ARCHIVED/FAIL_ARCHIVE).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async revertInspectionToApproved(
     @Param('id', ParseUUIDPipe) id: string,

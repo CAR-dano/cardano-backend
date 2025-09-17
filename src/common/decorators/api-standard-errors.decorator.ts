@@ -133,8 +133,17 @@ export function ApiStandardErrors(opts: ApiStandardErrorsOptions = {}) {
  */
 export function ApiAuthErrors() {
   return applyDecorators(
-    ApiUnauthorizedResponse({ description: 'Missing or invalid JWT.', type: HttpErrorResponseDto }),
-    ApiForbiddenResponse({ description: 'User lacks required role.', type: HttpErrorResponseDto }),
-    ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto }),
+    ApiUnauthorizedResponse({
+      description: 'Missing or invalid JWT.',
+      type: HttpErrorResponseDto,
+    }),
+    ApiForbiddenResponse({
+      description: 'User lacks required role.',
+      type: HttpErrorResponseDto,
+    }),
+    ApiInternalServerErrorResponse({
+      description: 'Unexpected server error.',
+      type: HttpErrorResponseDto,
+    }),
   );
 }

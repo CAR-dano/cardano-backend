@@ -25,7 +25,7 @@ export class BusinessMetricsInterceptor implements NestInterceptor {
   constructor(private readonly metricsService: MetricsService) {}
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
-    const request = context.switchToHttp().getRequest() as RequestWithUrl;
+    const request = context.switchToHttp().getRequest();
     const endpoint = String(request.url || '');
 
     return next.handle().pipe(

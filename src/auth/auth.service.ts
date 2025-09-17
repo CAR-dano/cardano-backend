@@ -26,6 +26,7 @@ import { JwtPayload } from './interfaces/jwt-payload.interface'; // JWT payload 
 import { Profile } from 'passport-google-oauth20'; // Google profile type
 import * as bcrypt from 'bcrypt'; // For password comparison
 import { PrismaService } from '../prisma/prisma.service'; // Import PrismaService
+import { OAuth2Client } from 'google-auth-library';
 
 @Injectable()
 export class AuthService {
@@ -37,6 +38,17 @@ export class AuthService {
     private readonly logger: AppLogger,
   ) {
     this.logger.setContext(AuthService.name);
+  }
+
+  private googleClient?: OAuth2Client;
+
+  private getGoogleClient(): OAuth2Client {
+    if (!this.googleClient) {
+      const clientId =
+        this.configService.getOrThrow<string>('GOOGLE_CLIENT_ID');
+      this.googleClient = new OAuth2Client(clientId);
+    }
+    return this.googleClient;
   }
 
   /**
@@ -178,6 +190,7 @@ export class AuthService {
         id: profile.id,
         emails: profile.emails,
         displayName: profile.displayName,
+        photos: profile.photos,
       });
       this.logger.log(
         `Google profile validated successfully for user ID: ${user.id}`,
@@ -194,6 +207,59 @@ export class AuthService {
         'Failed to validate Google user profile.',
       );
     }
+  }
+
+  async verifyGoogleIdToken(idToken: string): Promise<{
+    googleId: string;
+    email: string;
+    emailVerified: boolean;
+    avatarUrl?: string | null;
+    name?: string | null;
+  }> {
+    const audience = this.configService.getOrThrow<string>('GOOGLE_CLIENT_ID');
+    try {
+      const ticket = await this.getGoogleClient().verifyIdToken({
+        idToken,
+        audience,
+      });
+      const payload = ticket.getPayload();
+
+      if (!payload?.sub || !payload.email) {
+        throw new UnauthorizedException('Invalid Google token payload.');
+      }
+
+      return {
+        googleId: payload.sub,
+        email: payload.email,
+        emailVerified: payload.email_verified !== false,
+        avatarUrl: payload.picture ?? null,
+        name: payload.name ?? null,
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
+
+      if (error instanceof Error) {
+        this.logger.warn(`Failed to verify Google ID token: ${error.message}`);
+      }
+      throw new UnauthorizedException('Invalid Google ID token.');
+    }
+  }
+
+  async linkGoogleAccount(userId: string, idToken: string): Promise<User> {
+    const { googleId, email, emailVerified, avatarUrl, name } =
+      await this.verifyGoogleIdToken(idToken);
+
+    if (!emailVerified) {
+      throw new UnauthorizedException('Google email is not verified.');
+    }
+
+    return this.usersService.linkGoogleAccount(
+      userId,
+      googleId,
+      email,
+      avatarUrl,
+      name,
+    );
   }
 
   /**

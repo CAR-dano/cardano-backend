@@ -11,7 +11,15 @@
  * --------------------------------------------------------------------------
  */
 
-import { Controller, Get, Post, Param, Res, UseGuards, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Res,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
 import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -26,9 +34,18 @@ import {
   ApiOkResponse,
 } from '@nestjs/swagger';
 import { ReportDetailResponseDto } from './dto/report-detail-response.dto';
-import { ApiBadRequestResponse, ApiUnauthorizedResponse, ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiNotFoundResponse } from '@nestjs/swagger';
+import {
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiInternalServerErrorResponse,
+  ApiNotFoundResponse,
+} from '@nestjs/swagger';
 import { HttpErrorResponseDto } from '../common/dto/http-error-response.dto';
-import { ApiAuthErrors, ApiStandardErrors } from '../common/decorators/api-standard-errors.decorator';
+import {
+  ApiAuthErrors,
+  ApiStandardErrors,
+} from '../common/decorators/api-standard-errors.decorator';
 import { ReportsService } from './reports.service';
 import { ApiCreatedResponse, ApiQuery } from '@nestjs/swagger';
 import { ReportDownloadsResponseDto } from './dto/report-downloads-response.dto';
@@ -50,8 +67,14 @@ export class ReportsController {
   @ApiBearerAuth('JwtAuthGuard')
   @ApiOperation({ summary: 'Get report detail with download status' })
   @ApiParam({ name: 'id', description: 'Inspection ID (UUID)' })
-  @ApiOkResponse({ description: 'Report detail and canDownload flag', type: ReportDetailResponseDto })
-  @ApiNotFoundResponse({ description: 'Inspection not found', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Report detail and canDownload flag',
+    type: ReportDetailResponseDto,
+  })
+  @ApiNotFoundResponse({
+    description: 'Inspection not found',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async getDetail(
     @Param('id') id: string,
@@ -69,12 +92,21 @@ export class ReportsController {
   @Post(':id/download')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JwtAuthGuard')
-  @ApiOperation({ summary: 'Download no-docs PDF (charges 1 credit for customer on first download)' })
+  @ApiOperation({
+    summary:
+      'Download no-docs PDF (charges 1 credit for customer on first download)',
+  })
   @ApiParam({ name: 'id', description: 'Inspection ID (UUID)' })
   @ApiProduces('application/pdf')
   @ApiOkResponse({ description: 'PDF stream (application/pdf)' })
-  @ApiResponse({ status: 402, description: 'Payment Required (insufficient credits for customer)' })
-  @ApiNotFoundResponse({ description: 'No no-docs PDF available or file missing', type: HttpErrorResponseDto })
+  @ApiResponse({
+    status: 402,
+    description: 'Payment Required (insufficient credits for customer)',
+  })
+  @ApiNotFoundResponse({
+    description: 'No no-docs PDF available or file missing',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async download(
     @Param('id') id: string,
@@ -95,15 +127,25 @@ export class ReportsController {
   @ApiOperation({ summary: 'Get presigned URL to download no-docs PDF' })
   @ApiParam({ name: 'id', description: 'Inspection ID (UUID)' })
   @ApiOkResponse({ description: 'Presigned URL issued' })
-  @ApiResponse({ status: 402, description: 'Payment Required (insufficient credits for customer)' })
-  @ApiNotFoundResponse({ description: 'No no-docs PDF available or file missing', type: HttpErrorResponseDto })
+  @ApiResponse({
+    status: 402,
+    description: 'Payment Required (insufficient credits for customer)',
+  })
+  @ApiNotFoundResponse({
+    description: 'No no-docs PDF available or file missing',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async downloadUrl(
     @Param('id') id: string,
     @GetUser('id') userId: string,
     @GetUser('role') userRole: Role,
   ) {
-    const result = await this.reportsService.getPresignedDownloadUrl(id, userId, userRole);
+    const result = await this.reportsService.getPresignedDownloadUrl(
+      id,
+      userId,
+      userRole,
+    );
     return result;
   }
 
@@ -113,11 +155,31 @@ export class ReportsController {
   @Get('downloads')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('JwtAuthGuard')
-  @ApiOperation({ summary: 'List downloaded reports (history) for current user' })
-  @ApiQuery({ name: 'startDate', required: false, description: 'Filter start (ISO date/time)' })
-  @ApiQuery({ name: 'endDate', required: false, description: 'Filter end (ISO date/time)' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (1-based). Defaults to 1.' })
-  @ApiQuery({ name: 'pageSize', required: false, type: Number, description: 'Items per page (1-100). Defaults to 10.' })
+  @ApiOperation({
+    summary: 'List downloaded reports (history) for current user',
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Filter start (ISO date/time)',
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'Filter end (ISO date/time)',
+  })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Page number (1-based). Defaults to 1.',
+  })
+  @ApiQuery({
+    name: 'pageSize',
+    required: false,
+    type: Number,
+    description: 'Items per page (1-100). Defaults to 10.',
+  })
   @ApiOkResponse({
     description: 'Paginated downloads list with metadata',
     schema: {

@@ -22,7 +22,11 @@ export class HttpErrorResponseDto {
   @ApiProperty({
     oneOf: [
       { type: 'string', example: 'Bad Request' },
-      { type: 'array', items: { type: 'string' }, example: ['field is required'] },
+      {
+        type: 'array',
+        items: { type: 'string' },
+        example: ['field is required'],
+      },
     ],
     description: 'Error message (string or array of messages)',
   })
@@ -31,9 +35,15 @@ export class HttpErrorResponseDto {
   @ApiProperty({ example: 'Bad Request', description: 'Error type summary' })
   error!: string;
 
-  @ApiPropertyOptional({ example: '/admin/credit-packages', description: 'Request path' })
+  @ApiPropertyOptional({
+    example: '/admin/credit-packages',
+    description: 'Request path',
+  })
   path?: string;
 
-  @ApiPropertyOptional({ example: '2025-01-01T00:00:00.000Z', description: 'Error timestamp (ISO)' })
+  @ApiPropertyOptional({
+    example: '2025-01-01T00:00:00.000Z',
+    description: 'Error timestamp (ISO)',
+  })
   timestamp?: string;
 }

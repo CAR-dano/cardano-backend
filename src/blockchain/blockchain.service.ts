@@ -157,7 +157,10 @@ export class BlockchainService {
    * @param configService The NestJS ConfigService for accessing environment variables.
    * @throws Error if BLOCKFROST_ENV is unsupported or WALLET_SECRET_KEY is not set.
    */
-  constructor(private configService: ConfigService, logger: AppLogger) {
+  constructor(
+    private configService: ConfigService,
+    logger: AppLogger,
+  ) {
     this.logger = logger;
     this.logger.setContext(BlockchainService.name);
     // Determine Blockfrost environment and base URL
@@ -321,7 +324,7 @@ export class BlockchainService {
               typeof tx.output === 'function' ? tx.output() : tx.output;
             if (!output) return null;
 
-            const amt = (output as TxOutput).amount;
+            const amt = output.amount;
 
             // Case 1: amount is an array of { unit, quantity }
             if (Array.isArray(amt)) {
@@ -336,7 +339,7 @@ export class BlockchainService {
 
             // Case 2: amount is a map/object like { lovelace: '12345', "policy...": '1' }
             if (amt && typeof amt === 'object' && !Array.isArray(amt)) {
-              const asObj = amt as Record<string, unknown>;
+              const asObj = amt;
               if (Object.prototype.hasOwnProperty.call(asObj, 'lovelace')) {
                 const v = asObj['lovelace'];
                 const n = Number(v);

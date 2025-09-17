@@ -12,7 +12,13 @@
  */
 
 import { Controller, Get, UseGuards, Query, Body } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags, ApiOperation, ApiOkResponse, ApiBadRequestResponse } from '@nestjs/swagger'; // Optional for Swagger documentation
+import {
+  ApiBearerAuth,
+  ApiTags,
+  ApiOperation,
+  ApiOkResponse,
+  ApiBadRequestResponse,
+} from '@nestjs/swagger'; // Optional for Swagger documentation
 import { ApiAuthErrors } from '../common/decorators/api-standard-errors.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Assuming you have a JWT guard
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -45,8 +51,14 @@ export class DashboardController {
   @Get('main-stats')
   @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Get main order statistics' })
-  @ApiOkResponse({ description: 'Main order statistics successfully retrieved.', type: MainStatsResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid query parameters.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Main order statistics successfully retrieved.',
+    type: MainStatsResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid query parameters.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async getMainStats(@Query() query: GetDashboardStatsDto) {
     return this.dashboardService.getMainCounter(query);
@@ -62,8 +74,14 @@ export class DashboardController {
   @Get('order-trend')
   @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Get order trend data' })
-  @ApiOkResponse({ description: 'Order trend data successfully retrieved.', type: OrderTrendResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid query parameters.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Order trend data successfully retrieved.',
+    type: OrderTrendResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid query parameters.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   getOrderTrend(@Query() query: GetDashboardStatsDto) {
     return this.dashboardService.getOrderTrend(query);
@@ -81,8 +99,14 @@ export class DashboardController {
   @ApiOperation({
     summary: 'Get order distribution by branch',
   })
-  @ApiOkResponse({ description: 'Order distribution by branch successfully retrieved.', type: BranchDistributionResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid query parameters.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Order distribution by branch successfully retrieved.',
+    type: BranchDistributionResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid query parameters.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async getBranchDistribution(@Query() query: GetDashboardStatsDto) {
     return this.dashboardService.getBranchDistribution(query);
@@ -98,8 +122,14 @@ export class DashboardController {
   @Get('inspector-performance')
   @Roles(Role.ADMIN, Role.SUPERADMIN)
   @ApiOperation({ summary: 'Get inspector performance' })
-  @ApiOkResponse({ description: 'Inspector performance successfully retrieved.', type: InspectorPerformanceResponseDto })
-  @ApiBadRequestResponse({ description: 'Invalid query parameters.', type: HttpErrorResponseDto })
+  @ApiOkResponse({
+    description: 'Inspector performance successfully retrieved.',
+    type: InspectorPerformanceResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid query parameters.',
+    type: HttpErrorResponseDto,
+  })
   @ApiAuthErrors()
   async getInspectorPerformance(@Query() query: GetDashboardStatsDto) {
     return this.dashboardService.getInspectorPerformance(query);

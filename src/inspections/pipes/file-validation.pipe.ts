@@ -1,4 +1,10 @@
-import { PipeTransform, Injectable, ArgumentMetadata, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import {
+  PipeTransform,
+  Injectable,
+  ArgumentMetadata,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { AppLogger } from '../../logging/app-logger.service';
 import * as fs from 'fs/promises';
 import { extname } from 'path';
@@ -51,7 +57,10 @@ export class FileValidationPipe implements PipeTransform {
     }
 
     // 3. Mimetype and Extension Validation
-    if (!ALLOWED_MIME_TYPES.test(file.mimetype) || !ALLOWED_EXTENSIONS.test(extname(file.originalname))) {
+    if (
+      !ALLOWED_MIME_TYPES.test(file.mimetype) ||
+      !ALLOWED_EXTENSIONS.test(extname(file.originalname))
+    ) {
       throw new BadRequestException(
         `File "${file.originalname}" has an invalid type. Only JPG, JPEG, PNG, and GIF are allowed.`,
       );
@@ -63,7 +72,8 @@ export class FileValidationPipe implements PipeTransform {
         'import("file-type")',
       ) as Promise<typeof import('file-type')>);
 
-      const buffer = file.buffer || (file.path ? await fs.readFile(file.path) : undefined);
+      const buffer =
+        file.buffer || (file.path ? await fs.readFile(file.path) : undefined);
       if (!buffer) {
         throw new BadRequestException('File buffer is missing');
       }
@@ -75,7 +85,10 @@ export class FileValidationPipe implements PipeTransform {
         );
       }
     } catch (error) {
-      if (this.logger) this.logger.error(`Validation failed for ${file.originalname}: ${(error as Error)?.message}`);
+      if (this.logger)
+        this.logger.error(
+          `Validation failed for ${file.originalname}: ${(error as Error)?.message}`,
+        );
       else console.error(`Validation failed for ${file.originalname}:`, error);
       if (error instanceof BadRequestException) {
         throw error;
@@ -92,7 +105,8 @@ export class FileValidationPipe implements PipeTransform {
     try {
       await fs.unlink(filePath);
     } catch (error) {
-      if (this.logger) this.logger.error(`Failed to clean up file: ${filePath}`);
+      if (this.logger)
+        this.logger.error(`Failed to clean up file: ${filePath}`);
       else console.error(`Failed to clean up file: ${filePath}`);
     }
   }
