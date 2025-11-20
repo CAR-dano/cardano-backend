@@ -2820,13 +2820,15 @@ export class InspectionsService {
 
     // 2. Correctly construct file paths based on user's clarification
     const filePathsToDelete: string[] = [];
-    const UPLOAD_PATH = './uploads/inspection-photos';
+    const UPLOAD_ROOT = './uploads';
     const PDF_ARCHIVE_PATH = './pdfarchived';
 
     inspection.photos.forEach((photo) => {
       if (photo.path) {
-        // photo.url is just the filename, join it with the upload path
-        filePathsToDelete.push(path.join(UPLOAD_PATH, photo.path));
+        const relativePath = photo.path.startsWith('inspection-photos')
+          ? photo.path
+          : path.join('inspection-photos', photo.path);
+        filePathsToDelete.push(path.join(UPLOAD_ROOT, relativePath));
       }
     });
     if (inspection.urlPdf) {

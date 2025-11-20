@@ -31,13 +31,271 @@ import * as path from 'path';
 import { validate } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 import { PhotoMetadataDto } from './dto/photo-metadata.dto';
-const UPLOAD_PATH = './uploads/inspection-photos'; // Define consistently
+import { randomUUID } from 'crypto';
+import { ConfigService } from '@nestjs/config';
+import {
+  BackblazeService,
+  BackblazeUploadResult,
+} from '../backblaze/backblaze.service';
+import { MetricsService } from '../metrics/metrics.service';
+
+const LOCAL_UPLOAD_ROOT = './uploads';
+const LOCAL_INSPECTION_DIRECTORY = 'inspection-photos';
 
 @Injectable()
 export class PhotosService {
   private readonly logger = new Logger(PhotosService.name);
+  private readonly useBackblaze: boolean;
+  private readonly localPublicBaseUrl: string;
+  private backblazeMisconfigurationLogged = false;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly configService: ConfigService,
+    private readonly backblazeService: BackblazeService,
+    private readonly metrics: MetricsService,
+  ) {
+    this.useBackblaze =
+      this.configService.get<string>('USE_BACKBLAZE_PHOTOS') === 'true';
+    this.localPublicBaseUrl = this.configService.get<string>(
+      'LOCAL_PHOTO_BASE_URL',
+    ) || '/uploads';
+  }
+
+  private shouldUseBackblaze(): boolean {
+    if (!this.useBackblaze) {
+      return false;
+    }
+
+    if (!this.backblazeService.isConfigured()) {
+      if (!this.backblazeMisconfigurationLogged) {
+        this.logger.error(
+          'USE_BACKBLAZE_PHOTOS is enabled but Backblaze credentials are missing. Falling back to local storage.',
+        );
+        this.backblazeMisconfigurationLogged = true;
+      }
+      return false;
+    }
+
+    return true;
+  }
+
+  private generateStorageKey(
+    inspectionId: string,
+    originalName: string,
+  ): string {
+    const sanitized = originalName
+      .split('.')[0]
+      .replace(/[^a-z0-9]+/gi, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+      .toLowerCase();
+    const extension = path.extname(originalName) || '.jpg';
+    const timestamp = new Date();
+    const folder = `${timestamp.getUTCFullYear()}/${String(
+      timestamp.getUTCMonth() + 1,
+    ).padStart(2, '0')}`;
+    const uniqueSuffix = randomUUID().split('-')[0];
+    return `${LOCAL_INSPECTION_DIRECTORY}/${folder}/${inspectionId}-${sanitized}-${Date.now()}-${uniqueSuffix}${extension}`;
+  }
+
+  private buildLocalPublicUrl(relativePath: string): string {
+    const normalizedBase = this.localPublicBaseUrl.replace(/\/$/, '');
+    return `${normalizedBase}/${relativePath.replace(/\\/g, '/')}`;
+  }
+
+  private resolvePublicUrl(photo: Photo): string | null {
+    if (photo.publicUrl) {
+      if (/^https?:\/\//i.test(photo.publicUrl)) {
+        return photo.publicUrl;
+      }
+      return this.buildLocalPublicUrl(photo.publicUrl);
+    }
+
+    if (!photo.path) {
+      return null;
+    }
+
+    if (/^https?:\/\//i.test(photo.path)) {
+      return photo.path;
+    }
+
+    const relativePath = photo.path.startsWith(LOCAL_INSPECTION_DIRECTORY)
+      ? photo.path
+      : path.join(LOCAL_INSPECTION_DIRECTORY, photo.path);
+    return this.buildLocalPublicUrl(relativePath);
+  }
+
+  private withPublicUrl(photo: Photo): Photo {
+    const publicUrl = this.resolvePublicUrl(photo);
+    if (publicUrl === photo.publicUrl) {
+      return photo;
+    }
+    return { ...photo, publicUrl };
+  }
+
+  private async persistPhotoBuffer(
+    inspectionId: string,
+    file: Express.Multer.File,
+  ): Promise<{
+    storagePath: string;
+    publicUrl: string;
+    backblazeMetadata: Pick<
+      BackblazeUploadResult,
+      'fileId' | 'fileName'
+    > | null;
+  }> {
+    if (!file || !file.buffer) {
+      throw new BadRequestException('Uploaded file buffer is missing.');
+    }
+
+    const storageKey = this.generateStorageKey(
+      inspectionId,
+      file.originalname,
+    );
+    const useBackblaze = this.shouldUseBackblaze();
+    const provider = useBackblaze ? 'backblaze' : 'local';
+    const startTime = Date.now();
+
+    if (useBackblaze) {
+      try {
+        const result = await this.backblazeService.uploadPhotoBuffer(
+          file.buffer,
+          storageKey,
+          file.mimetype,
+        );
+        this.metrics.recordPhotoUpload(
+          provider,
+          true,
+          Date.now() - startTime,
+        );
+
+        return {
+          storagePath: storageKey,
+          publicUrl: result.publicUrl,
+          backblazeMetadata: { fileId: result.fileId, fileName: result.fileName },
+        };
+      } catch (error) {
+        this.metrics.recordPhotoUpload(
+          provider,
+          false,
+          Date.now() - startTime,
+        );
+        this.logger.error(
+          `Failed to upload photo to Backblaze for inspection ${inspectionId}: ${
+            (error as Error)?.message || error
+          }`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        throw new InternalServerErrorException(
+          'Failed to upload photo to Backblaze.',
+        );
+      }
+    }
+
+    // Local fallback storage
+    try {
+      const absolutePath = path.join(LOCAL_UPLOAD_ROOT, storageKey);
+      await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+      await fs.writeFile(absolutePath, file.buffer);
+      this.metrics.recordPhotoUpload(
+        provider,
+        true,
+        Date.now() - startTime,
+      );
+
+      return {
+        storagePath: storageKey,
+        publicUrl: this.buildLocalPublicUrl(storageKey),
+        backblazeMetadata: null,
+      };
+    } catch (error) {
+      this.metrics.recordPhotoUpload(
+        provider,
+        false,
+        Date.now() - startTime,
+      );
+      throw error;
+    }
+  }
+
+  private async deleteFromStorage(
+    photo: Pick<Photo, 'path' | 'backblazeFileId' | 'backblazeFileName'>,
+  ): Promise<void> {
+    if (photo.backblazeFileId && photo.backblazeFileName) {
+      try {
+        await this.backblazeService.deleteFile(
+          photo.backblazeFileId,
+          photo.backblazeFileName,
+        );
+        this.metrics.recordPhotoDelete('backblaze', true);
+      } catch (error) {
+        this.metrics.recordPhotoDelete('backblaze', false);
+        this.logger.error(
+          `Failed to delete Backblaze photo ${photo.backblazeFileName}: ${
+            (error as Error)?.message || error
+          }`,
+          error instanceof Error ? error.stack : undefined,
+        );
+        throw error;
+      }
+      return;
+    }
+
+    if (photo.path) {
+      const relativePath = photo.path.startsWith(LOCAL_INSPECTION_DIRECTORY)
+        ? photo.path
+        : path.join(LOCAL_INSPECTION_DIRECTORY, photo.path);
+      const localPath = path.join(LOCAL_UPLOAD_ROOT, relativePath);
+      try {
+        await fs.unlink(localPath);
+        this.metrics.recordPhotoDelete('local', true);
+      } catch (fileError: unknown) {
+        const err = fileError as NodeJS.ErrnoException;
+        if (err?.code !== 'ENOENT') {
+          this.metrics.recordPhotoDelete('local', false);
+          throw fileError;
+        }
+        this.logger.warn(
+          `Local photo ${localPath} already removed. Skipping deletion.`,
+        );
+        this.metrics.recordPhotoDelete('local', true);
+      }
+    }
+  }
+
+  private async cleanupPersisted(
+    storagePath: string,
+    backblazeMetadata: Pick<BackblazeUploadResult, 'fileId' | 'fileName'> | null,
+  ): Promise<void> {
+    if (backblazeMetadata) {
+      try {
+        await this.backblazeService.deleteFile(
+          backblazeMetadata.fileId,
+          backblazeMetadata.fileName,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Failed to cleanup Backblaze upload ${backblazeMetadata.fileName}: ${
+            (error as Error)?.message || error
+          }`,
+        );
+      }
+      return;
+    }
+
+    const localPath = path.join(LOCAL_UPLOAD_ROOT, storagePath);
+    try {
+      await fs.unlink(localPath);
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err?.code !== 'ENOENT') {
+        this.logger.warn(
+          `Failed to remove local file ${localPath} during cleanup: ${err?.message}`,
+        );
+      }
+    }
+  }
 
   /**
    * Ensures that an inspection with the given ID exists in the database.
@@ -86,11 +344,16 @@ export class PhotosService {
     const needAttention = dto.needAttention === 'true';
     const isMandatory = dto.isMandatory === 'true';
 
+    const persisted = await this.persistPhotoBuffer(inspectionId, file);
+
     try {
-      return await this.prisma.photo.create({
+      const created = await this.prisma.photo.create({
         data: {
           inspection: { connect: { id: inspectionId } },
-          path: file.filename,
+          path: persisted.storagePath,
+          publicUrl: persisted.publicUrl,
+          backblazeFileId: persisted.backblazeMetadata?.fileId,
+          backblazeFileName: persisted.backblazeMetadata?.fileName,
           // eslint-disable-next-line prettier/prettier
           label:
             dto.label === '' || dto.label === undefined ? undefined : dto.label,
@@ -100,7 +363,12 @@ export class PhotosService {
           needAttention: needAttention,
         },
       });
+      return this.withPublicUrl(created);
     } catch (error: unknown) {
+      await this.cleanupPersisted(
+        persisted.storagePath,
+        persisted.backblazeMetadata,
+      );
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
@@ -126,10 +394,11 @@ export class PhotosService {
     this.logger.log(`Retrieving all photos for inspection ID: ${inspectionId}`);
     await this.ensureInspectionExists(inspectionId); // Ensure inspection exists
     try {
-      return await this.prisma.photo.findMany({
+      const photos = await this.prisma.photo.findMany({
         where: { inspectionId: inspectionId },
         orderBy: { createdAt: 'asc' }, // Order by creation time
       });
+      return photos.map((photo) => this.withPublicUrl(photo));
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
@@ -183,7 +452,6 @@ export class PhotosService {
 
       // 2. Prepare data for update object
       const dataToUpdate: Prisma.PhotoUpdateInput = {};
-      let oldFilePath: string | null = null; // Store path of file to be deleted
 
       // 3. Handle Metadata Update
       if (updatePhotoDto.label !== undefined) {
@@ -211,13 +479,32 @@ export class PhotosService {
       }
 
       // 4. Handle File Replacement
-      if (newPhotoFile) {
-        this.logger.verbose(
-          `New file provided: ${newPhotoFile.filename}. Replacing old file: ${existingPhoto.path}`,
-        );
-        dataToUpdate.path = newPhotoFile.filename; // Set the new path in the update data
-        oldFilePath = existingPhoto.path; // Mark the old file path for deletion AFTER DB update
-      }
+      let persistedReplacement:
+        | {
+            storagePath: string;
+            publicUrl: string;
+            backblazeMetadata: Pick<
+              BackblazeUploadResult,
+              'fileId' | 'fileName'
+            > | null;
+          }
+        | null = null;
+
+        if (newPhotoFile) {
+          this.logger.verbose(
+            `New file provided for photo ${photoId}. Replacing old file: ${existingPhoto.path}`,
+          );
+          persistedReplacement = await this.persistPhotoBuffer(
+            inspectionId,
+            newPhotoFile,
+          );
+          dataToUpdate.path = persistedReplacement.storagePath;
+          dataToUpdate.publicUrl = persistedReplacement.publicUrl;
+          dataToUpdate.backblazeFileId =
+            persistedReplacement.backblazeMetadata?.fileId ?? null;
+          dataToUpdate.backblazeFileName =
+            persistedReplacement.backblazeMetadata?.fileName ?? null;
+        }
 
       // 5. Check if there's anything to update
       if (Object.keys(dataToUpdate).length === 0) {
@@ -235,32 +522,36 @@ export class PhotosService {
         `Data prepared for Prisma update on photo ${photoId}:`,
         JSON.stringify(dataToUpdate),
       );
-      const updatedPhoto = await this.prisma.photo.update({
-        where: { id: photoId },
-        data: dataToUpdate,
-      });
-      this.logger.log(`Successfully updated photo record ID: ${photoId}`);
+      try {
+        const updatedPhoto = await this.prisma.photo.update({
+          where: { id: photoId },
+          data: dataToUpdate,
+        });
+        this.logger.log(`Successfully updated photo record ID: ${photoId}`);
 
-      // 7. Delete Old File (AFTER successful DB update)
-      if (oldFilePath) {
-        const fullOldPath = path.join(UPLOAD_PATH, oldFilePath);
-        this.logger.log(`Attempting to delete old file: ${fullOldPath}`);
-        try {
-          await fs.unlink(fullOldPath);
-          this.logger.log(`Successfully deleted old file: ${fullOldPath}`);
-        } catch (fileError: unknown) {
-          // Log the error, but don't fail the overall operation since DB is updated
-          const errorStack =
-            fileError instanceof Error ? fileError.stack : undefined;
-          this.logger.error(
-            `Failed to delete old photo file ${fullOldPath} after updating record ${photoId}`,
-            errorStack,
-          );
-          // TODO: Consider adding a mechanism to retry deletion or flag orphaned files
+        if (newPhotoFile) {
+          await this.deleteFromStorage(existingPhoto).catch((fileError) => {
+            const errorStack =
+              fileError instanceof Error ? fileError.stack : undefined;
+            this.logger.error(
+              `Failed to delete old photo asset for record ${photoId}: ${
+                (fileError as Error)?.message || fileError
+              }`,
+              errorStack,
+            );
+          });
         }
-      }
 
-      return updatedPhoto;
+        return this.withPublicUrl(updatedPhoto);
+      } catch (error) {
+        if (persistedReplacement) {
+          await this.cleanupPersisted(
+            persistedReplacement.storagePath,
+            persistedReplacement.backblazeMetadata,
+          );
+        }
+        throw error;
+      }
     } catch (error: unknown) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -304,7 +595,11 @@ export class PhotosService {
       // Find the photo first to get its path for deletion
       const photo = await this.prisma.photo.findUniqueOrThrow({
         where: { id: photoId },
-        select: { path: true }, // Only need the path
+        select: {
+          path: true,
+          backblazeFileId: true,
+          backblazeFileName: true,
+        }, // Only need the storage information
       });
 
       // Delete the database record
@@ -312,23 +607,16 @@ export class PhotosService {
         where: { id: photoId },
       });
 
-      // --- Delete file from local storage ---
-      // IMPORTANT: Only do this if using local diskStorage. Skip if using S3 etc.
-      // Consider error handling here (what if DB delete works but file delete fails?)
-      const filePath = path.join(UPLOAD_PATH, photo.path); // Assuming UPLOAD_PATH is defined globally/imported
-      try {
-        await fs.unlink(filePath);
-        this.logger.log(`Successfully deleted photo file: ${filePath}`);
-      } catch (fileError: unknown) {
-        // Log the error but maybe don't fail the whole operation if DB record deleted?
+      await this.deleteFromStorage(photo).catch((fileError) => {
         const errorStack =
           fileError instanceof Error ? fileError.stack : undefined;
         this.logger.error(
-          `Failed to delete photo file ${filePath} after deleting DB record ${photoId}`,
+          `Failed to delete stored asset for photo ${photoId}: ${
+            (fileError as Error)?.message || fileError
+          }`,
           errorStack,
         );
-      }
-      // --- End File Deletion ---
+      });
 
       this.logger.log(`Successfully deleted photo record ID: ${photoId}`);
     } catch (error: unknown) {
@@ -424,54 +712,67 @@ export class PhotosService {
 
     await this.ensureInspectionExists(inspectionId); // Ensure inspection exists
 
-    // Prepare data for batch creation
-    const photosToCreate: Prisma.PhotoCreateManyInput[] = files.map(
-      (file, index) => {
-        const meta = parsedMetadata[index];
-        return {
-          inspectionId: inspectionId, // Link each photo to the inspection
-          path: file.filename,
-          label:
-            meta.label === '' || meta.label === undefined
-              ? undefined
-              : meta.label,
-          category: meta.category, // Add category
-          isMandatory: meta.isMandatory ?? false, // Add isMandatory
-          originalLabel: null,
-          needAttention: meta.needAttention ?? false,
-        };
-      },
-    );
-
-    this.logger.debug(
-      `Prepared ${photosToCreate.length} photo records for batch create.`,
-    );
+    const persistedUploads: {
+      storagePath: string;
+      publicUrl: string;
+      backblazeMetadata: Pick<BackblazeUploadResult, 'fileId' | 'fileName'> | null;
+    }[] = [];
 
     try {
-      // Use createMany for potentially better performance (though it doesn't return created records by default)
-      // Or loop with create inside a transaction if you need the returned records
-      const result = await this.prisma.photo.createMany({
-        data: photosToCreate,
-        skipDuplicates: false, // Throw error if something tries to create duplicate (based on unique constraints, if any)
+      for (const file of files) {
+        const persisted = await this.persistPhotoBuffer(inspectionId, file);
+        persistedUploads.push(persisted);
+      }
+
+      const createdPhotos = await this.prisma.$transaction(async (tx) => {
+        const results: Photo[] = [];
+        for (let index = 0; index < persistedUploads.length; index++) {
+          const meta = parsedMetadata[index];
+          const persisted = persistedUploads[index];
+          const created = await tx.photo.create({
+            data: {
+              inspection: { connect: { id: inspectionId } },
+              path: persisted.storagePath,
+              publicUrl: persisted.publicUrl,
+              backblazeFileId: persisted.backblazeMetadata?.fileId,
+              backblazeFileName: persisted.backblazeMetadata?.fileName,
+              label:
+                meta.label === '' || meta.label === undefined
+                  ? undefined
+                  : meta.label,
+              category: meta.category,
+              isMandatory: meta.isMandatory ?? false,
+              originalLabel: null,
+              needAttention: meta.needAttention ?? false,
+            },
+          });
+          results.push(created);
+        }
+        return results;
       });
 
       this.logger.log(
-        `Successfully created ${result.count} photo records for inspection ${inspectionId}.`,
+        `Successfully created ${createdPhotos.length} photo records for inspection ${inspectionId}.`,
       );
 
-      // Since createMany doesn't return records, fetch them if needed for response
-      // This adds an extra query but might be necessary.
-      // A possible optimization: if filenames are unique and predictable, construct response without re-fetching.
-      return this.prisma.photo.findMany({
-        where: {
-          inspectionId: inspectionId,
-          // Filter specifically for the photos just added if possible (e.g., using createdAt range, tricky)
-          // Or filter by path if filenames are reliably stored/unique
-          path: { in: photosToCreate.map((p) => p.path) },
-        },
-        orderBy: { createdAt: 'asc' },
-      });
+      return createdPhotos.map((photo) => this.withPublicUrl(photo));
     } catch (error: unknown) {
+      await Promise.allSettled(
+        persistedUploads.map((persisted) =>
+          this.cleanupPersisted(
+            persisted.storagePath,
+            persisted.backblazeMetadata,
+          ),
+        ),
+      );
+
+      if (
+        error instanceof BadRequestException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       const errorStack = error instanceof Error ? error.stack : undefined;
@@ -479,7 +780,6 @@ export class PhotosService {
         `Failed to batch create photos for inspection ${inspectionId}: ${errorMessage}`,
         errorStack,
       );
-      // TODO: Consider cleanup of successfully uploaded files if DB operation fails? Complex.
       throw new InternalServerErrorException(
         'Could not save batch photo information.',
       );

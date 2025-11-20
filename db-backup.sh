@@ -2,8 +2,9 @@
 
 # PostgreSQL Daily Backup Script (for cron)
 # - Dumps database from the Docker Compose service `postgres`
-# - Writes compressed backup files into /backups
-# - Performs simple retention cleanup
+# - Writes compressed backup files into a configurable backups directory
+#   (defaults to <repo>/backups; override via BACKUP_DIR env or .env)
+# - Performs simple retention cleanup (RETENTION_DAYS env or .env, default 14)
 #
 # Usage (cron):
 #   0 2 * * * /bin/bash /path/to/repo/db-backup.sh >> /var/log/db-backup.log 2>&1
@@ -14,17 +15,19 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Default config (can be overridden by environment or .env)
-BACKUP_DIR="/backups"
-RETENTION_DAYS="${RETENTION_DAYS:-14}"
+# Default config (can be overridden by environment variables or .env)
+DEFAULT_BACKUP_DIR="$SCRIPT_DIR/backups"
+DEFAULT_RETENTION_DAYS="14"
 
 # Load .env if present to get DB creds
 if [ -f .env ]; then
   # shellcheck disable=SC2046
-  export $(grep -E '^(POSTGRES_USER|POSTGRES_DB)=' .env | xargs -d '\n' || true)
+  export $(grep -E '^(POSTGRES_USER|POSTGRES_DB|BACKUP_DIR|RETENTION_DAYS)=' .env | xargs -d '\n' || true)
 fi
 
 # Fallback defaults if not present in .env
+BACKUP_DIR="${BACKUP_DIR:-$DEFAULT_BACKUP_DIR}"
+RETENTION_DAYS="${RETENTION_DAYS:-$DEFAULT_RETENTION_DAYS}"
 POSTGRES_USER="${POSTGRES_USER:-cardano_user}"
 POSTGRES_DB="${POSTGRES_DB:-postgres}"
 
@@ -55,7 +58,7 @@ if ! "${DOCKER_COMPOSE[@]}" ps postgres | grep -q "Up"; then
   sleep 8 || true
 fi
 
-# Perform dump (pg_dumpall to include roles/schemas), compress on the fly, write to host /backups
+# Perform dump (pg_dumpall to include roles/schemas), compress on the fly, write to host backup directory
 BACKUP_PATH="${BACKUP_DIR}/${FILENAME}"
 echo "💾 Dumping database as user '${POSTGRES_USER}' (plain SQL, gzipped)"
 if ! "${DOCKER_COMPOSE[@]}" exec -T postgres pg_dumpall -U "${POSTGRES_USER}" | gzip -c > "${BACKUP_PATH}"; then

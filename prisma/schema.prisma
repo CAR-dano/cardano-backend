@@ -178,6 +178,9 @@ model Photo {
   originalLabel String? // Special for FIXED types (e.g. “Front View”, “OBD Scanner”)
   needAttention Boolean? @default(false) // Only relevant for DYNAMIC types, default false
   displayInPdf    Boolean? @default(true) // Indicates if the photo should be displayed in the PDF report
+  backblazeFileId   String? @map("backblaze_file_id")
+  backblazeFileName String? @map("backblaze_file_name")
+  publicUrl         String? @map("public_url")
 
   // --- Timestamps ---
   // Automatically set when the record is created.

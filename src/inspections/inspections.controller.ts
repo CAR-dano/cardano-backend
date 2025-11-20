@@ -44,8 +44,7 @@ import {
   BulkApproveInspectionResponseDto,
 } from './dto/bulk-approve-inspection.dto';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express'; // NestJS interceptor for handling multiple file fields
-import { diskStorage } from 'multer'; // Storage engine for Multer (file uploads)
-import { extname } from 'path'; // Node.js utility for handling file extensions
+import { memoryStorage } from 'multer'; // Storage engine for Multer (file uploads)
 import { Role, InspectionStatus } from '@prisma/client';
 import { InspectionResponseDto } from './dto/inspection-response.dto';
 import { PhotoResponseDto } from '../photos/dto/photo-response.dto';
@@ -89,24 +88,7 @@ interface PhotoMetadata {
 
 // --- Multer Configuration ---
 const MAX_PHOTOS_PER_REQUEST = 10; // Max files per batch upload request
-const UPLOAD_PATH = './uploads/inspection-photos';
-
-/**
- * Multer disk storage configuration for uploaded inspection photos.
- * Saves files to the UPLOAD_PATH with unique filenames.
- */
-const photoStorageConfig = diskStorage({
-  destination: UPLOAD_PATH,
-  filename: (req, file, callback) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const extension = extname(file.originalname);
-    const safeOriginalName = file.originalname
-      .split('.')[0]
-      .replace(/[^a-z0-9]/gi, '-')
-      .toLowerCase();
-    callback(null, `${safeOriginalName}-${uniqueSuffix}${extension}`);
-  },
-});
+const photoStorageConfig = memoryStorage();
 
 /**
  * Controller managing all HTTP requests related to vehicle inspections.

@@ -18,8 +18,15 @@ export class PhotoResponseDto {
   // @ApiProperty({ description: 'ID of the inspection this photo belongs to' })
   // inspectionId: string;
 
-  @ApiProperty({ description: 'Relative path or filename in storage' })
+  @ApiProperty({ description: 'Public URL to access the photo' })
   path: string;
+
+  @ApiProperty({
+    description: 'Public URL to access the photo',
+    nullable: true,
+    required: false,
+  })
+  publicUrl: string | null;
 
   @ApiProperty({
     description: 'Label associated with the photo',
@@ -48,7 +55,8 @@ export class PhotoResponseDto {
   constructor(photo: Photo) {
     this.id = photo.id;
     // this.inspectionId = photo.inspectionId;
-    this.path = photo.path;
+    this.publicUrl = photo.publicUrl ?? null;
+    this.path = this.publicUrl ?? photo.path;
     this.label = photo.label ?? 'Tambahan'; // Provide default if null
     this.originalLabel = photo.originalLabel;
     this.needAttention = photo.needAttention || false;

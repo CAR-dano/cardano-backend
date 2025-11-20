@@ -23,8 +23,9 @@ RUN apk add --no-cache \
 # Ensure `python` points to `python3` for node-gyp / cmake-js compatibility
 RUN ln -sf /usr/bin/python3 /usr/bin/python || true
 
-# Install project dependencies. `npm ci` is used for clean and consistent installations in CI/CD environments.
-RUN npm ci
+# Align npm with local (npm v11) to avoid lockfile sync errors on npm v10.
+# See: npm EUSAGE "Missing: <pkg>@<ver> from lock file" with npm@10 inside Node 22 images.
+RUN npm i -g npm@^11 && npm ci
 
 # Copy the rest of the application source code to the working directory.
 COPY . .
@@ -65,8 +66,8 @@ WORKDIR /usr/src/app
 # Copy package.json and package-lock.json for production dependencies.
 COPY package*.json ./
 
-# Install only production dependencies to keep the image size minimal.
-RUN npm install --only=production
+# Upgrade npm to v11 for consistent lockfile behavior, then install prod deps.
+RUN npm i -g npm@^11 && npm install --only=production
 
 # Copy built application files from the builder stage.
 COPY --from=builder /usr/src/app/dist ./dist

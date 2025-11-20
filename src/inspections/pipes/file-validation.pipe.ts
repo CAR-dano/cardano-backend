@@ -43,12 +43,20 @@ export class FileValidationPipe implements PipeTransform {
 
   private async validateFile(file: Express.Multer.File): Promise<void> {
     // 1. Basic check from Multer
-    if (!file || !file.path) {
+    if (!file) {
       throw new BadRequestException('Invalid file uploaded.');
     }
 
+    const fileBuffer =
+      file.buffer || (file.path ? await fs.readFile(file.path) : null);
+
+    if (!fileBuffer) {
+      await this.cleanupFile(file.path);
+      throw new BadRequestException('Uploaded file data is empty.');
+    }
+
     // 2. Size Validation
-    if (file.size > MAX_FILE_SIZE_BYTES) {
+    if (file.size > MAX_FILE_SIZE_BYTES || fileBuffer.length > MAX_FILE_SIZE_BYTES) {
       await this.cleanupFile(file.path);
       throw new BadRequestException(
         `File "${file.originalname}" exceeds the size limit of 5 MB.`,
@@ -72,8 +80,7 @@ export class FileValidationPipe implements PipeTransform {
         'import("file-type")',
       ) as Promise<typeof import('file-type')>);
 
-      const buffer = await fs.readFile(file.path);
-      const type = await fileTypeFromBuffer(buffer);
+      const type = await fileTypeFromBuffer(fileBuffer);
 
       if (!type || !ALLOWED_MIME_TYPES.test(type.mime)) {
         await this.cleanupFile(file.path);
@@ -97,7 +104,9 @@ export class FileValidationPipe implements PipeTransform {
    */
   private async cleanupFile(filePath: string): Promise<void> {
     try {
-      await fs.unlink(filePath);
+      if (filePath) {
+        await fs.unlink(filePath);
+      }
     } catch (error) {
       this.logger.error(`Failed to clean up file: ${filePath}`, error);
     }

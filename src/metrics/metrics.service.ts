@@ -11,6 +11,9 @@ export class MetricsService {
   private readonly adaTransferVolume: Gauge<string>;
   private readonly blockchainSyncStatus: Gauge<string>;
   private readonly errorCount: Counter<string>;
+  private readonly photoUploadDuration: Histogram<string>;
+  private readonly photoUploadTotal: Counter<string>;
+  private readonly photoDeleteTotal: Counter<string>;
 
   constructor() {
     // HTTP Metrics
@@ -62,6 +65,26 @@ export class MetricsService {
       labelNames: ['error_type', 'endpoint'],
     });
 
+    // Photo Storage Metrics
+    this.photoUploadDuration = new Histogram({
+      name: 'photo_upload_duration_ms',
+      help: 'Duration of inspection photo uploads in milliseconds',
+      labelNames: ['provider', 'status'],
+      buckets: [50, 100, 200, 500, 1000, 2000, 5000, 10000],
+    });
+
+    this.photoUploadTotal = new Counter({
+      name: 'photo_upload_total',
+      help: 'Total number of inspection photo uploads',
+      labelNames: ['provider', 'status'],
+    });
+
+    this.photoDeleteTotal = new Counter({
+      name: 'photo_delete_total',
+      help: 'Total number of inspection photo deletions',
+      labelNames: ['provider', 'status'],
+    });
+
     // Register all metrics
     register.registerMetric(this.httpRequestsTotal);
     register.registerMetric(this.httpRequestDuration);
@@ -71,6 +94,9 @@ export class MetricsService {
     register.registerMetric(this.adaTransferVolume);
     register.registerMetric(this.blockchainSyncStatus);
     register.registerMetric(this.errorCount);
+    register.registerMetric(this.photoUploadDuration);
+    register.registerMetric(this.photoUploadTotal);
+    register.registerMetric(this.photoDeleteTotal);
   }
 
   // HTTP Metrics Methods
@@ -112,6 +138,17 @@ export class MetricsService {
   // Error Metrics Methods
   incrementError(errorType: string, endpoint: string) {
     this.errorCount.inc({ error_type: errorType, endpoint });
+  }
+
+  recordPhotoUpload(provider: string, success: boolean, durationMs: number) {
+    const status = success ? 'success' : 'failure';
+    this.photoUploadTotal.inc({ provider, status });
+    this.photoUploadDuration.observe({ provider, status }, durationMs);
+  }
+
+  recordPhotoDelete(provider: string, success: boolean) {
+    const status = success ? 'success' : 'failure';
+    this.photoDeleteTotal.inc({ provider, status });
   }
 
   // Get all metrics

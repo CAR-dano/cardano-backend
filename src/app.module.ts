@@ -27,12 +27,23 @@ import { PrismaModule } from './prisma/prisma.module';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { join } from 'path';
 import { PhotosModule } from './photos/photos.module';
+import { BackblazeModule } from './backblaze/backblaze.module';
 import { InspectionBranchesModule } from './inspection-branches/inspection-branches.module';
 import { InspectionChangeLogModule } from './inspection-change-log/inspection-change-log.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { IpfsModule } from './ipfs/ipfs.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { MetricsMiddleware } from './metrics/metrics.middleware';
+
+const uploadsStaticModules =
+  process.env.USE_BACKBLAZE_PHOTOS === 'true'
+    ? []
+    : [
+        ServeStaticModule.forRoot({
+          rootPath: join(process.cwd(), 'uploads'),
+          serveRoot: '/uploads',
+        }),
+      ];
 
 @Module({
   imports: [
@@ -46,31 +57,7 @@ import { MetricsMiddleware } from './metrics/metrics.middleware';
         limit: 200,
       },
     ]),
-    // --- ServeStaticModule Configuration ---
-    ServeStaticModule.forRoot({
-      // rootPath: Specifies the folder in the server's filesystem to be served.
-      // join(process.cwd(), 'uploads'): Creates an absolute path to the 'uploads' folder
-      // at the project root (where the 'dist' folder is usually located after build).
-      rootPath: join(process.cwd(), 'uploads'),
-
-      // serveRoot: Specifies the URL prefix where files will be available.
-      // If serveRoot: '/uploads', files in './uploads/inspection-photos/image.jpg'
-      // will be accessible via URL: http://localhost:3000/uploads/inspection-photos/image.jpg
-      // If serveRoot: '/static-files', the URL will be http://localhost:3000/static-files/inspection-photos/image.jpg
-      // '/uploads' is a common and intuitive choice.
-      serveRoot: '/uploads',
-
-      // Optional: Exclude API routes so they are not overridden by static serving
-      // exclude: ['/api/v1/(.*)'], // Be careful if serveRoot is also '/api/v1'
-
-      // Optional: Additional configurations (cache control, etc.)
-      // serveStaticOptions: {
-      //   maxAge: '1d', // Example cache 1 day
-      //   setHeaders: (res, path, stat) => {
-      //     res.set('Cross-Origin-Resource-Policy', 'cross-origin'); // Important if FE is on a different domain
-      //   },
-      // },
-    }),
+    ...uploadsStaticModules,
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'public'),
       serveRoot: '/api/v1', // Serve public files under the /api/v1 prefix
@@ -84,6 +71,7 @@ import { MetricsMiddleware } from './metrics/metrics.middleware';
     ScalarDocsModule,
     UsersModule,
     PrismaModule,
+    BackblazeModule,
     PhotosModule,
     InspectionBranchesModule,
     DashboardModule,

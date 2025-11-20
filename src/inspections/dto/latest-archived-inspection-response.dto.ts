@@ -9,16 +9,24 @@ interface VehicleData {
 
 class PhotoDetail {
   @ApiProperty({
-    description: 'path of the photo',
-    example: '1750901116559-compressed-1750904316774-835976393.jpg',
+    description: 'Public URL of the photo',
+    example: 'https://cdn.example.com/inspection-photos/2025/01/example.jpg',
   })
   path: string;
+
+  @ApiProperty({
+    description: 'Public URL of the photo',
+    nullable: true,
+    required: false,
+  })
+  publicUrl: string | null;
 
   @ApiProperty({ description: 'Label of the photo', example: 'Tampak Depan' })
   label: string;
 
   constructor(photo: Photo) {
-    this.path = photo.path; // Use 'path' from Prisma Photo model
+    this.publicUrl = photo.publicUrl ?? null;
+    this.path = this.publicUrl ?? photo.path; // Provide backward compatibility
     this.label = photo.label || ''; // Handle null label
   }
 }

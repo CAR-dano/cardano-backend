@@ -40,7 +40,14 @@ export class OptionalFileValidationPipe implements PipeTransform {
       throw new BadRequestException('Invalid file uploaded.');
     }
 
-    if (file.size > MAX_FILE_SIZE_BYTES) {
+    const buffer =
+      file.buffer || (file.path ? await fs.readFile(file.path) : undefined);
+
+    if (!buffer) {
+      throw new BadRequestException('Uploaded file data is empty.');
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES || buffer.length > MAX_FILE_SIZE_BYTES) {
       throw new BadRequestException(
         `File "${file.originalname}" exceeds the size limit of 5 MB.`,
       );
@@ -60,11 +67,6 @@ export class OptionalFileValidationPipe implements PipeTransform {
         'import("file-type")',
       ) as Promise<typeof import('file-type')>);
 
-      const buffer =
-        (file as any).buffer || (file.path ? await fs.readFile(file.path) : undefined);
-      if (!buffer) {
-        throw new BadRequestException('File buffer is missing');
-      }
       const type = await fileTypeFromBuffer(buffer as unknown as Buffer);
 
       if (!type || !ALLOWED_MIME_TYPES.test(type.mime)) {

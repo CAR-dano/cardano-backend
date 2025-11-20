@@ -12,9 +12,13 @@
  */
 
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
+import { BackblazeModule } from '../backblaze/backblaze.module';
+import { MetricsModule } from '../metrics/metrics.module';
 import { PhotosService } from './photos.service';
 
 @Module({
+  imports: [ConfigModule, BackblazeModule, MetricsModule],
   controllers: [],
   providers: [PhotosService],
   exports: [PhotosService],
