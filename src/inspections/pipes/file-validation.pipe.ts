@@ -98,8 +98,10 @@ export class FileValidationPipe implements PipeTransform {
   private async cleanupFile(filePath: string): Promise<void> {
     try {
       await fs.unlink(filePath);
-    } catch (error) {
-      this.logger.error(`Failed to clean up file: ${filePath}`, error);
+    } catch (error: any) {
+      if (error.code !== 'ENOENT') {
+        this.logger.error(`Failed to clean up file: ${filePath}`, error);
+      }
     }
   }
 }

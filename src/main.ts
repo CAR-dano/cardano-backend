@@ -13,6 +13,7 @@
  */
 
 import { NestFactory } from '@nestjs/core';
+import * as fs from 'fs';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { SwaggerModule, DocumentBuilder, OpenAPIObject } from '@nestjs/swagger';
@@ -53,6 +54,20 @@ async function bootstrap() {
   // Set payload limits
   app.use(json({ limit: '5mb' }));
   app.use(urlencoded({ extended: true, limit: '5mb' }));
+
+  // Ensure upload directories exist
+  const uploadDirs = [
+    './uploads',
+    './uploads/inspection-photos',
+    './pdfarchived',
+  ];
+
+  uploadDirs.forEach((dir) => {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+      logger.log(`Created directory: ${dir}`);
+    }
+  });
 
   // Set Global Prefix
   app.setGlobalPrefix('api/v1');
