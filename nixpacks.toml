@@ -4,7 +4,7 @@
 # Setup phase: Install Node.js, OpenSSL (for Prisma), and Chromium (for Puppeteer)
 [phases.setup]
 nixPkgs = [
-    "nodejs-22_x",
+    "nodejs_22",
     "npm",
     "openssl",
     "chromium",
