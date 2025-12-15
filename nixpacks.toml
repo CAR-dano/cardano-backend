@@ -5,7 +5,7 @@
 [phases.setup]
 nixPkgs = [
     "nodejs_22",
-    "npm",
+
     "openssl",
     "chromium",
     "nss",
