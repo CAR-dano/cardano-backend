@@ -1,0 +1,37 @@
+# Nixpacks Configuration for Cardano Backend
+# Optimized for NestJS + Prisma + Puppeteer on Coolify
+
+# Setup phase: Install Node.js, OpenSSL (for Prisma), and Chromium (for Puppeteer)
+[phases.setup]
+nixPkgs = [
+    "nodejs-22_x",
+    "npm",
+    "openssl",
+    "chromium",
+    "nss",
+    "freetype",
+    "fontconfig"
+]
+
+# Environment variables
+[variables]
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
+PUPPETEER_EXECUTABLE_PATH = "/usr/bin/chromium"
+NODE_ENV = "production"
+
+# Install phase: Install dependencies reliably
+[phases.install]
+cmds = ["npm ci"]
+cacheDirectories = ["node_modules", "/root/.npm"]
+
+# Build phase: Generate Prisma client and build NestJS app
+[phases.build]
+cmds = [
+    "npx prisma generate",
+    "npm run build"
+]
+cacheDirectories = ["dist", ".prisma"]
+
+# Start phase: Run the production server
+[start]
+cmd = "npm run start:prod"
