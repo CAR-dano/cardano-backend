@@ -36,6 +36,11 @@ export class OptionalFileValidationPipe implements PipeTransform {
   }
 
   private async validateFile(file: Express.Multer.File): Promise<void> {
+    // Skip validation for S3 files (already uploaded)
+    if ((file as any).location) {
+      return;
+    }
+
     if (!file) {
       throw new BadRequestException('Invalid file uploaded.');
     }

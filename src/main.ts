@@ -13,6 +13,7 @@
  */
 
 import { NestFactory } from '@nestjs/core';
+import * as dns from 'dns';
 import * as fs from 'fs';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -39,6 +40,9 @@ export function getOpenApiDocument(): OpenAPIObject | null {
 async function bootstrap() {
   // Get logger configuration from environment
   const loggerConfig = getLoggerConfig();
+
+  // Force IPv4 to avoid ETIMEDOUT on some networks (especially for Backblaze S3)
+  dns.setDefaultResultOrder('ipv4first');
 
   const app = await NestFactory.create(AppModule, {
     logger: loggerConfig.logLevels, // Set log levels from configuration
