@@ -404,10 +404,9 @@ export class InspectionsService {
       );
     } catch (rollbackError: unknown) {
       this.logger.error(
-        `Failed to rollback inspection ${inspectionId} status after approval error: ${
-          rollbackError instanceof Error
-            ? rollbackError.message
-            : 'Unknown rollback error'
+        `Failed to rollback inspection ${inspectionId} status after approval error: ${rollbackError instanceof Error
+          ? rollbackError.message
+          : 'Unknown rollback error'
         }`,
         rollbackError instanceof Error ? rollbackError.stack : 'No stack trace',
       );
@@ -537,8 +536,7 @@ export class InspectionsService {
     inspectorId: string,
   ): Promise<{ id: string }> {
     this.logger.log(
-      `Creating inspection for plate: ${
-        createInspectionDto.vehiclePlateNumber ?? 'N/A'
+      `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'
       } by inspector ${inspectorId}`,
     );
 
@@ -1127,7 +1125,7 @@ export class InspectionsService {
     if (
       updateInspectionDto.identityDetails?.namaCustomer !== undefined &&
       updateInspectionDto.identityDetails.namaCustomer !==
-        currentIdentityDetails?.namaCustomer
+      currentIdentityDetails?.namaCustomer
     ) {
       const newCustomerName = updateInspectionDto.identityDetails.namaCustomer;
       // Log change for identityDetails.namaCustomer
@@ -1149,14 +1147,14 @@ export class InspectionsService {
     const jsonFieldsInInspectionModel: Array<
       keyof UpdateInspectionDto & keyof Inspection
     > = [
-      // 'identityDetails', // identityDetails is handled separately above
-      'vehicleData',
-      'equipmentChecklist',
-      'inspectionSummary',
-      'detailedAssessment',
-      'bodyPaintThickness',
-      'notesFontSizes', // Added notesFontSizes
-    ];
+        // 'identityDetails', // identityDetails is handled separately above
+        'vehicleData',
+        'equipmentChecklist',
+        'inspectionSummary',
+        'detailedAssessment',
+        'bodyPaintThickness',
+        'notesFontSizes', // Added notesFontSizes
+      ];
 
     // Iterate over the keys in the DTO (fields intended to be updated)
     // Use Object.keys and type assertion for better type safety than 'for...in' with hasOwnProperty
@@ -1306,8 +1304,7 @@ export class InspectionsService {
     meta: { total: number; page: number; pageSize: number; totalPages: number };
   }> {
     this.logger.log(
-      `Retrieving inspections for user role: ${userRole ?? 'N/A'}, status: ${
-        Array.isArray(status) ? status.join(',') : (status ?? 'ALL (default)')
+      `Retrieving inspections for user role: ${userRole ?? 'N/A'}, status: ${Array.isArray(status) ? status.join(',') : (status ?? 'ALL (default)')
       }, page: ${page}, pageSize: ${pageSize}`,
     );
 
@@ -1399,8 +1396,7 @@ export class InspectionsService {
       });
 
       this.logger.log(
-        `Retrieved ${
-          inspections.length
+        `Retrieved ${inspections.length
         } inspections of ${total} total for role ${userRole ?? 'N/A'}.`,
       );
 
@@ -1420,8 +1416,7 @@ export class InspectionsService {
       const errorStack =
         error instanceof Error ? error.stack : 'No stack trace available';
       this.logger.error(
-        `Failed to retrieve inspections for role ${
-          userRole ?? 'N/A'
+        `Failed to retrieve inspections for role ${userRole ?? 'N/A'
         }: ${errorMessage}`,
         errorStack,
       );
@@ -1728,11 +1723,11 @@ export class InspectionsService {
               ) {
                 updateData[fieldName] = inspection[fieldName]
                   ? {
-                      ...(inspection[fieldName] as Record<
-                        string,
-                        Prisma.JsonValue
-                      >),
-                    } // Explicitly cast to Record
+                    ...(inspection[fieldName] as Record<
+                      string,
+                      Prisma.JsonValue
+                    >),
+                  } // Explicitly cast to Record
                   : {};
               }
 
@@ -2293,8 +2288,7 @@ export class InspectionsService {
           }
         } catch (err: unknown) {
           this.logger.warn(
-            `Failed to parse vehicleData for inspection ${inspectionId}: ${
-              err instanceof Error ? err.message : String(err)
+            `Failed to parse vehicleData for inspection ${inspectionId}: ${err instanceof Error ? err.message : String(err)
             }`,
           );
           vehicleDataObj = {};
@@ -3084,8 +3078,7 @@ export class InspectionsService {
       }
 
       this.logger.error(
-        `Failed to revert inspection ${inspectionId} to APPROVED: ${
-          error instanceof Error ? error.message : 'Unknown error'
+        `Failed to revert inspection ${inspectionId} to APPROVED: ${error instanceof Error ? error.message : 'Unknown error'
         }`,
         error instanceof Error ? error.stack : 'No stack trace',
       );
