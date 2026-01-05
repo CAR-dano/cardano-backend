@@ -20,6 +20,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { Observable } from 'rxjs';
 import { JsonWebTokenError, TokenExpiredError } from '@nestjs/jwt';
+import { TokenBlacklistedException } from '../exceptions/token-blacklisted.exception';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -59,6 +60,14 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
   ) {
     const request = context.switchToHttp().getRequest();
     const logCtx = `${request.method} ${request.originalUrl}`; // Context for logs
+
+    // Handle blacklisted tokens (expected behavior, not an error)
+    if (err instanceof TokenBlacklistedException) {
+      this.logger.verbose(
+        `[${logCtx}] Token blacklisted (expected after logout): ${err.message}`,
+      );
+      throw err;
+    }
 
     // Log detailed errors if available
     if (info instanceof TokenExpiredError) {

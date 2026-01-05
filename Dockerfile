@@ -66,7 +66,8 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 
 # Install only production dependencies to keep the image size minimal.
-RUN npm install --only=production
+# Copy node_modules from builder (includes native deps built with tools)
+COPY --from=builder /usr/src/app/node_modules ./node_modules
 
 # Copy built application files from the builder stage.
 COPY --from=builder /usr/src/app/dist ./dist
