@@ -51,10 +51,13 @@ COPY package*.json ./
 # Copy source code
 COPY . .
 
+# Remove test files to prevent build errors
+RUN find . -type f \( -name "*.spec.ts" -o -name "*.test.ts" \) -delete
+
 # Generate Prisma client (only client generator for speed)
 RUN npx prisma generate
 
-# Build application (test files already excluded in tsconfig.build.json)
+# Build application (test files removed)
 RUN npm run build
 
 # Prune dev dependencies to reduce final image size
