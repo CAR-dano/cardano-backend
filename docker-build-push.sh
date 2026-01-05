@@ -17,7 +17,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # Configuration
-DOCKER_USERNAME="${DOCKER_USERNAME:-your-dockerhub-username}"
+DOCKER_USERNAME="${DOCKER_USERNAME:-sumbulabs}"
 IMAGE_NAME="cardano-backend"
 VERSION="${1:-latest}"
 
