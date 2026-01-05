@@ -33,6 +33,7 @@ coverage
 *.spec.ts
 test/
 __tests__/
+__mocks__/
 
 # Logs
 logs

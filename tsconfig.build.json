@@ -5,6 +5,10 @@
     "test",
     "dist",
     "**/*spec.ts",
-    "**/*.test.ts"
+    "**/*.spec.ts",
+    "**/*test.ts",
+    "**/*.test.ts",
+    "**/__tests__/**",
+    "**/__mocks__/**"
   ]
 }
