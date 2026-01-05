@@ -67,9 +67,22 @@ async function bootstrap() {
   ];
 
   uploadDirs.forEach((dir) => {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-      logger.log(`Created directory: ${dir}`);
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        logger.log(`Created directory: ${dir}`);
+      }
+    } catch (error) {
+      // Directory might already exist via volume mount or permission denied
+      // Log warning but don't fail startup
+      if ((error as NodeJS.ErrnoException).code === 'EACCES') {
+        logger.warn(
+          `Permission denied creating ${dir}. Assuming directory exists via volume mount.`,
+        );
+      } else if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+        logger.error(`Failed to create directory ${dir}:`, error);
+        throw error; // Re-throw if it's not a permission or exists error
+      }
     }
   });
 
