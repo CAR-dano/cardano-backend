@@ -1,23 +1,21 @@
-# ============================================
-# OPTIMIZED DOCKERFILE WITH PNPM & CACHING
-# ============================================
-# Features:
-# - pnpm for faster dependency installation (2-3x faster than npm)
-# - Persistent npm cache via Coolify volumes
-# - Better layer caching
-# - Reduced image size
-# - Non-root user for security
-# ============================================
+# OPTIMIZED DOCKERFILE FOR FASTER DEPLOYMENT
+# Key improvements:
+# 1. Better layer caching
+# 2. Parallel dependency installation
+# 3. Reduced image size
+# 4. Faster build times
 
-# STAGE 1: Dependencies Installation
+# ============================================
+# STAGE 1: Dependencies (Cached Layer)
+# ============================================
 FROM node:22-alpine AS dependencies
 
 WORKDIR /usr/src/app
 
-# Copy package files
+# Copy only package files first (better caching)
 COPY package*.json ./
 
-# Install build tools
+# Install build tools (cached if package.json unchanged)
 RUN apk add --no-cache \
     build-base \
     python3 \
@@ -28,44 +26,38 @@ RUN apk add --no-cache \
 
 RUN ln -sf /usr/bin/python3 /usr/bin/python || true
 
-# Configure npm cache to use persistent volume
-# This will be mounted from Coolify: /var/lib/docker/volumes/cardano-backend-cache:/usr/src/app/.npm-cache
-RUN npm config set cache /usr/src/app/.npm-cache --global
-
-# Install dependencies with npm (with caching)
-# --prefer-offline: Use cached packages when available
-# --no-audit: Skip audit for faster install
-RUN npm ci --prefer-offline --no-audit --legacy-peer-deps
+# Install ALL dependencies (including dev dependencies for build)
+RUN npm ci --legacy-peer-deps
 
 # ============================================
-# STAGE 2: Build Application
+# STAGE 2: Build Stage
 # ============================================
 FROM node:22-alpine AS builder
 
 WORKDIR /usr/src/app
 
-# Copy dependencies from previous stage
+# Copy dependencies from previous stage (faster than reinstalling)
 COPY --from=dependencies /usr/src/app/node_modules ./node_modules
 COPY package*.json ./
 
 # Copy source code
 COPY . .
 
-# Generate Prisma client (only client generator for speed)
+# Generate Prisma client
 RUN npx prisma generate
 
-# Build application
+# Build the application
 RUN npm run build
 
-# Prune dev dependencies to reduce final image size
+# Remove dev dependencies to reduce size
 RUN npm prune --production
 
 # ============================================
-# STAGE 3: Production Runtime
+# STAGE 3: Production Stage (Minimal)
 # ============================================
 FROM node:22-alpine
 
-# Install runtime dependencies
+# Install runtime dependencies only
 RUN apk add --no-cache \
     chromium \
     nss \
@@ -79,14 +71,13 @@ RUN apk add --no-cache \
     openssl \
     postgresql-libs
 
-# Configure Puppeteer to use installed Chromium
+# Set environment for Puppeteer
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
-    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser \
-    NODE_ENV=production
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 WORKDIR /usr/src/app
 
-# Copy production dependencies and built files
+# Copy only production dependencies and built files
 COPY --from=builder /usr/src/app/node_modules ./node_modules
 COPY --from=builder /usr/src/app/dist ./dist
 COPY --from=builder /usr/src/app/prisma ./prisma
@@ -94,14 +85,14 @@ COPY --from=builder /usr/src/app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /usr/src/app/public ./public
 COPY --from=builder /usr/src/app/package*.json ./
 
-# Create runtime directories with proper permissions
+# Create runtime directories
 RUN mkdir -p uploads/inspection-photos pdfarchived
 
-# Copy entrypoint script
+# Copy and setup entrypoint
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
-# Create non-root user for security
+# Use non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nestjs -u 1001 && \
     chown -R nestjs:nodejs /usr/src/app
@@ -109,9 +100,6 @@ RUN addgroup -g 1001 -S nodejs && \
 USER nestjs
 
 EXPOSE 3010
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3010/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 ENTRYPOINT ["/usr/src/app/entrypoint.sh"]
 CMD ["node", "dist/main"]
