@@ -106,8 +106,10 @@ RUN chmod +x entrypoint.sh
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nestjs -u 1001 && \
-    chown -R nestjs:nodejs /usr/src/app
+    adduser -S nestjs -u 1001
+
+# Set ownership of all app files to nestjs user
+RUN chown -R nestjs:nodejs /usr/src/app
 
 USER nestjs
 
