@@ -54,8 +54,8 @@ COPY . .
 # Generate Prisma client (only client generator for speed)
 RUN npx prisma generate
 
-# Build application (skip test files)
-RUN npm run build -- --skipLibCheck
+# Build application (test files already excluded in tsconfig.build.json)
+RUN npm run build
 
 # Prune dev dependencies to reduce final image size
 RUN npm prune --production
