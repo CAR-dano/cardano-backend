@@ -103,11 +103,22 @@ async function bootstrap() {
   );
 
   // Enable CORS if frontend and backend have different origins
+  // Supports multiple origins separated by comma
   const clientUrl = configService.get<string>('CLIENT_BASE_URL');
   if (clientUrl) {
-    logger.log(`Enabling CORS for origin: ${clientUrl}`);
+    const allowedOrigins = clientUrl.split(',').map(url => url.trim());
+    logger.log(`Enabling CORS for origins: ${allowedOrigins.join(', ')}`);
     app.enableCors({
-      origin: clientUrl,
+      origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error(`Origin ${origin} not allowed by CORS`));
+        }
+      },
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
       credentials: true,
     });
