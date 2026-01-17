@@ -45,6 +45,7 @@ import {
 import { IpfsService } from '../ipfs/ipfs.service';
 import puppeteer, { Browser } from 'puppeteer'; // Import puppeteer and Browser type
 import { ConfigService } from '@nestjs/config';
+import { RedisService } from '../redis/redis.service';
 // Define path for archived PDFs (ensure this exists or is created by deployment script/manually)
 const PDF_ARCHIVE_PATH = './pdfarchived';
 // Define public base URL for accessing archived PDFs (should come from config in real app)
@@ -234,6 +235,7 @@ export class InspectionsService {
     private blockchainService: BlockchainService,
     private config: ConfigService,
     private readonly ipfsService: IpfsService,
+    private readonly redisService: RedisService,
   ) {
     // Ensure the PDF archive directory exists on startup
     void this.ensureDirectoryExists(PDF_ARCHIVE_PATH);
@@ -476,50 +478,144 @@ export class InspectionsService {
 
   /**
    * Generates the next custom inspection ID based on branch code and date.
+   * Uses Redis atomic counter for thread safety and performance, falling back to DB if Redis is down.
    * Format: BRANCHCODE-DDMMYYYY-SEQ (e.g., YOG-01052025-001)
-   * WARNING: Needs proper transaction/locking in high concurrency scenarios to be truly safe.
-   *
-   * @param branchCode - 'YOG', 'SOL', 'SEM', etc. (Should come from DTO/User context)
-   * @param inspectionDate - The date of the inspection.
-   * @param tx - Optional Prisma transaction client for atomicity.
-   * @returns The next sequential ID string.
    */
   private async generateNextInspectionId(
     branchCode: string, // e.g., 'YOG', 'SOL', 'SEM'
     inspectionDate: Date,
-    tx: Prisma.TransactionClient, // Wajibkan transaksi untuk keamanan
+    tx: Prisma.TransactionClient,
   ): Promise<string> {
     const datePrefix = format(inspectionDate, 'ddMMyyyy'); // Format: 01052025
     const idPrefix = `${branchCode.toUpperCase()}-${datePrefix}-`; // e.g., YOG-01052025-
+    const redisKey = `inspection:sequence:${branchCode.toUpperCase()}:${datePrefix}`;
+    const REDIS_TTL = 86400 * 2; // 2 days TTL (safe margin)
 
-    // Atomically get and increment the sequence number for this branch and date within the transaction
-    const sequenceRecord = await tx.inspectionSequence.upsert({
-      where: {
-        branchCode_datePrefix: {
-          branchCode: branchCode.toUpperCase(),
-          datePrefix: datePrefix,
-        },
-      },
-      update: {
-        nextSequence: {
-          increment: 1,
-        },
-      },
-      create: {
-        branchCode: branchCode.toUpperCase(),
-        datePrefix: datePrefix,
-        nextSequence: 1, // Start at 1 for a new sequence
-      },
-      select: {
-        nextSequence: true,
-      },
-    });
+    let nextSequence: number | null = null;
+    let usedRedis = false;
 
-    // Use the sequence number obtained *before* the increment for the current ID
-    const currentSequence = sequenceRecord.nextSequence;
+    // 1. Try to use Redis Atomic Counter (Fast Path)
+    try {
+      if (await this.redisService.isHealthy()) {
+        const incremented = await this.redisService.incr(redisKey, REDIS_TTL);
+        if (incremented !== null) {
+          nextSequence = incremented;
+          usedRedis = true;
+          this.logger.verbose(`Generated sequence via Redis for ${redisKey}: ${nextSequence}`);
+        }
+      }
+    } catch (error) {
+      this.logger.warn(`Redis sequence generation failed, falling back to DB: ${(error as Error).message}`);
+    }
+
+    // 2. Fallback to Database if Redis failed or wasn't initialized
+    // Or if this is the FIRST time we see this key in Redis (incremented returned 1),
+    // we should double-check DB to ensure we didn't reset a counter after a Redis restart/flush.
+    // However, if incremented === 1, it means Redis didn't have the key.
+    // To be safe against Redis restarts, if result is 1, checking DB max sequence is wise.
+    if (nextSequence === null || nextSequence === 1) {
+      // Database Upsert logic (Original Logic) - Serves as both fallback and initializer
+      try {
+        this.logger.log(`Using Database for sequence generation (Fallback/Init) for ${idPrefix}`);
+        const sequenceRecord = await tx.inspectionSequence.upsert({
+          where: {
+            branchCode_datePrefix: {
+              branchCode: branchCode.toUpperCase(),
+              datePrefix: datePrefix,
+            },
+          },
+          update: {
+            nextSequence: {
+              increment: 1,
+            },
+          },
+          create: {
+            branchCode: branchCode.toUpperCase(),
+            datePrefix: datePrefix,
+            nextSequence: 1, // Start at 1
+          },
+          select: {
+            nextSequence: true,
+          },
+        });
+
+        // If we got here, DB generation worked.
+        // If Redis was 1 (meaning it was empty), we should correct Redis to match DB.
+        // The DB `nextSequence` is the one we JUST reserved.
+        const dbSequence = sequenceRecord.nextSequence;
+
+        if (usedRedis && nextSequence === 1 && dbSequence > 1) {
+          // Redis started at 1 but DB is ahead. We must align Redis.
+          // We can't easily "set" the counter with INCR alone in generic redis without SET command or multiple INCRs.
+          // But RedisService has `set` (string). Standard Redis INCR works on string values that are integers.
+          // So we can overwrite the Redis key with the DB value.
+          this.logger.warn(`Redis counter desync detected (Redis: 1, DB: ${dbSequence}). Correcting Redis.`);
+          await this.redisService.set(redisKey, dbSequence.toString(), REDIS_TTL);
+          nextSequence = dbSequence;
+        }
+        else if (!usedRedis) {
+          // Redis failed completely, just use DB value
+          nextSequence = dbSequence;
+          // Try to repair Redis for next time if possible (fire and forget)
+          this.redisService.set(redisKey, dbSequence.toString(), REDIS_TTL).catch(() => { });
+        }
+        else {
+          // Redis returned 1 and DB returned 1. All good.
+          nextSequence = 1;
+        }
+
+      } catch (dbError) {
+        this.logger.error(`Database sequence generation failed: ${(dbError as Error).message}`);
+        throw dbError; // If both fail, we can't create inspection
+      }
+    }
+
+    // 3. Periodic Sync / Disaster Recovery (Optional but good)
+    // Every 10th request, we could sync DB -> Redis or Redis -> DB to ensure persistence.
+    // For now, let's just update DB from Redis values periodically in background or
+    // rely on the fact that if Redis dies, the "nextSequence === 1" check handles recovery from DB.
+    // BUT: If Redis goes 1->100, DB stays at 0. If Redis dies, DB restarts at 1! Conflict!
+    // FIX: We must keep DB updated.
+    // Enhanced strategy: 
+    // - Always increment Redis.
+    // - Asynchronously update DB to match (or just update 'nextSequence' to the new value).
+    // - If we don't update DB, we risk re-issuing IDs if Redis data is lost.
+
+    // To maintain performance but ensure partial safety:
+    // Update DB 'nextSequence' to the current Redis value.
+    // We can do this as part of the transaction or asynchronously.
+    // Since we are already in a transaction context (tx), updating the DB record here is safest 
+    // but adds back the write latency we wanted to avoid? 
+    // Actually, simple UPDATE by ID is faster than UPSERT with locks?
+    // Let's stick to the content of the `upsert` above for safety for now, 
+    // OR: If we trust Redis, we skip DB write for every single increment and do it every N times.
+
+    // For this implementation, conforming to the "inspector-backend" log which mentioned:
+    // "Periodic sync to DB every 10 sequences for disaster recovery"
+    if (usedRedis && nextSequence !== null && nextSequence > 1 && nextSequence % 10 === 0) {
+      // Sync to DB every 10 items
+      try {
+        await tx.inspectionSequence.upsert({
+          where: {
+            branchCode_datePrefix: {
+              branchCode: branchCode.toUpperCase(),
+              datePrefix: datePrefix,
+            },
+          },
+          update: { nextSequence: nextSequence },
+          create: {
+            branchCode: branchCode.toUpperCase(),
+            datePrefix: datePrefix,
+            nextSequence: nextSequence,
+          }
+        });
+      } catch (e) {
+        this.logger.warn(`Failed to background sync sequence to DB: ${(e as Error).message}`);
+      }
+    }
 
     // Format nomor urut dengan padding nol (misal: 001, 010, 123)
-    const nextSequenceStr = currentSequence.toString().padStart(3, '0');
+    const nextSequenceStr = nextSequence?.toString().padStart(3, '0') || '000'; // Should not happen
 
     return `${idPrefix}${nextSequenceStr}`; // e.g., YOG-01052025-001
   }

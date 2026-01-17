@@ -176,9 +176,6 @@ export class RedisService implements OnModuleDestroy {
         }
     }
 
-    /**
-     * Gracefully disconnect from Redis on module destroy
-     */
     async onModuleDestroy() {
         try {
             await this.client.quit();
@@ -187,6 +184,60 @@ export class RedisService implements OnModuleDestroy {
             this.logger.error(
                 `Error closing Redis connection: ${(error as Error).message}`,
             );
+        }
+    }
+
+    /**
+     * Get a counter value from Redis
+     * Returns null if key doesn't exist or Redis is unavailable
+     */
+    async getCounter(key: string): Promise<number | null> {
+        try {
+            if (!this.isConnected) {
+                this.logger.verbose('Redis not connected, skipping getCounter operation');
+                return null;
+            }
+
+            const value = await this.client.get(key);
+            return value ? parseInt(value, 10) : null;
+        } catch (error) {
+            this.logger.warn(
+                `Redis GET COUNTER failed for key "${key}": ${(error as Error).message}`,
+            );
+            return null; // Graceful degradation
+        }
+    }
+
+    /**
+     * Increment a counter in Redis (Atomic operation)
+     * @param key Cache key
+     * @param ttlSeconds Optional TTL to set if the key is created new
+     * @returns The new value of the counter, or null if operation failed
+     */
+    async incr(key: string, ttlSeconds?: number): Promise<number | null> {
+        try {
+            if (!this.isConnected) {
+                this.logger.verbose('Redis not connected, skipping incr operation');
+                return null;
+            }
+
+            const newValue = await this.client.incr(key);
+
+            // If TTL is specified and this might be a new key (or we just want to ensure TTL)
+            // Note: INCR doesn't reset TTL, but if it was just created, it has -1 (persistent).
+            // We only set TTL if provided.
+            if (ttlSeconds && ttlSeconds > 0) {
+                // Check if we need to set TTL (optimization: maybe only if newValue === 1?)
+                // For now, let's just set expire if provided to be safe/consistent
+                await this.client.expire(key, ttlSeconds);
+            }
+
+            return newValue;
+        } catch (error) {
+            this.logger.warn(
+                `Redis INCR failed for key "${key}": ${(error as Error).message}`,
+            );
+            return null; // Graceful degradation
         }
     }
 }
