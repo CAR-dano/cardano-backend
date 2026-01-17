@@ -19,6 +19,7 @@ export class RedisService implements OnModuleDestroy {
     private readonly logger = new Logger(RedisService.name);
     private readonly client: Redis;
     private isConnected = false;
+    private keepaliveTimer?: NodeJS.Timeout; // Add keepalive timer
 
     constructor(private readonly configService: ConfigService) {
         const redisUrl = this.configService.get<string>('REDIS_URL');
@@ -40,6 +41,9 @@ export class RedisService implements OnModuleDestroy {
                 maxRetriesPerRequest: 3,
                 enableReadyCheck: true,
                 enableOfflineQueue: false, // Don't queue commands when offline
+                // Add keepalive settings
+                keepAlive: 30000, // Send TCP keepalive every 30 seconds
+                connectTimeout: 10000, // 10 seconds connection timeout
                 retryStrategy: (times: number) => {
                     if (times > 3) {
                         this.logger.error('Redis connection failed after 3 retries');
@@ -59,6 +63,8 @@ export class RedisService implements OnModuleDestroy {
             this.client.on('ready', () => {
                 this.isConnected = true;
                 this.logger.log('Redis connected successfully');
+                // Start keepalive ping
+                this.startKeepalive();
             });
 
             this.client.on('error', (error: Error) => {
@@ -69,6 +75,8 @@ export class RedisService implements OnModuleDestroy {
             this.client.on('close', () => {
                 this.isConnected = false;
                 this.logger.warn('Redis connection closed');
+                // Stop keepalive when connection closes
+                this.stopKeepalive();
             });
 
             this.client.on('reconnecting', () => {
@@ -83,6 +91,40 @@ export class RedisService implements OnModuleDestroy {
                 lazyConnect: true,
                 enableOfflineQueue: false,
             });
+        }
+    }
+
+    /**
+     * Start keepalive ping to prevent idle timeout
+     * Upstash Redis closes idle connections after ~4-5 minutes
+     * We ping every 2 minutes to keep connection alive
+     */
+    private startKeepalive() {
+        // Clear any existing timer
+        this.stopKeepalive();
+
+        // Ping every 2 minutes (120 seconds)
+        this.keepaliveTimer = setInterval(async () => {
+            if (this.isConnected) {
+                try {
+                    await this.client.ping();
+                    this.logger.verbose('Redis keepalive ping successful');
+                } catch (error) {
+                    this.logger.warn(
+                        `Redis keepalive ping failed: ${(error as Error).message}`,
+                    );
+                }
+            }
+        }, 120000); // 2 minutes
+    }
+
+    /**
+     * Stop keepalive ping
+     */
+    private stopKeepalive() {
+        if (this.keepaliveTimer) {
+            clearInterval(this.keepaliveTimer);
+            this.keepaliveTimer = undefined;
         }
     }
 
@@ -178,6 +220,8 @@ export class RedisService implements OnModuleDestroy {
 
     async onModuleDestroy() {
         try {
+            // Stop keepalive timer before closing connection
+            this.stopKeepalive();
             await this.client.quit();
             this.logger.log('Redis connection closed gracefully');
         } catch (error) {
