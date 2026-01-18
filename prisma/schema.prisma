@@ -20,6 +20,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL") // Loads the connection URL from the .env file
+  directUrl = env("DIRECT_DB_URL")
 }
 
 // Defines the possible roles a user can have within the application.
