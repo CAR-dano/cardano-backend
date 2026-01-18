@@ -14,8 +14,10 @@
   <a href="https://deepwiki.com/CAR-dano/cardano-backend" target="_blank">
     <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki about CAR-dano Backend"/>
   </a>
-  <a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-  </p>
+  <a href="./LICENSE" target="_blank">
+    <img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg" alt="License: AGPL v3" />
+  </a>
+</p>
 
 ## Description
 
