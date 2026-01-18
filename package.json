@@ -2,9 +2,9 @@
   "name": "cardano-backend",
   "version": "0.0.1",
   "description": "",
-  "author": "",
+  "author": "Sumbu Labs (PT. Sumbu Inovasi Digital)",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "AGPL-3.0",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"./**/*.ts\" \"libs/**/*.ts\"",
