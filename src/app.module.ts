@@ -64,12 +64,11 @@ import { MetricsMiddleware } from './metrics/metrics.middleware';
       // exclude: ['/api/v1/(.*)'], // Be careful if serveRoot is also '/api/v1'
 
       // Optional: Additional configurations (cache control, etc.)
-      // serveStaticOptions: {
-      //   maxAge: '1d', // Example cache 1 day
-      //   setHeaders: (res, path, stat) => {
-      //     res.set('Cross-Origin-Resource-Policy', 'cross-origin'); // Important if FE is on a different domain
-      //   },
-      // },
+      serveStaticOptions: {
+        setHeaders: (res) => {
+          res.set('Cross-Origin-Resource-Policy', 'cross-origin');
+        },
+      },
     }),
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'public'),
