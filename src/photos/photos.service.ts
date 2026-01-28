@@ -37,7 +37,7 @@ const UPLOAD_PATH = './uploads/inspection-photos'; // Define consistently
 export class PhotosService {
   private readonly logger = new Logger(PhotosService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) { }
 
   /**
    * Ensures that an inspection with the given ID exists in the database.
@@ -90,7 +90,7 @@ export class PhotosService {
       return await this.prisma.photo.create({
         data: {
           inspection: { connect: { id: inspectionId } },
-          path: file.filename,
+          path: (file as any).location || file.filename,
           // eslint-disable-next-line prettier/prettier
           label:
             dto.label === '' || dto.label === undefined ? undefined : dto.label,
@@ -215,7 +215,7 @@ export class PhotosService {
         this.logger.verbose(
           `New file provided: ${newPhotoFile.filename}. Replacing old file: ${existingPhoto.path}`,
         );
-        dataToUpdate.path = newPhotoFile.filename; // Set the new path in the update data
+        dataToUpdate.path = (newPhotoFile as any).location || newPhotoFile.filename; // Set the new path in the update data
         oldFilePath = existingPhoto.path; // Mark the old file path for deletion AFTER DB update
       }
 
@@ -242,7 +242,7 @@ export class PhotosService {
       this.logger.log(`Successfully updated photo record ID: ${photoId}`);
 
       // 7. Delete Old File (AFTER successful DB update)
-      if (oldFilePath) {
+      if (oldFilePath && !oldFilePath.startsWith('http')) {
         const fullOldPath = path.join(UPLOAD_PATH, oldFilePath);
         this.logger.log(`Attempting to delete old file: ${fullOldPath}`);
         try {
@@ -315,18 +315,20 @@ export class PhotosService {
       // --- Delete file from local storage ---
       // IMPORTANT: Only do this if using local diskStorage. Skip if using S3 etc.
       // Consider error handling here (what if DB delete works but file delete fails?)
-      const filePath = path.join(UPLOAD_PATH, photo.path); // Assuming UPLOAD_PATH is defined globally/imported
-      try {
-        await fs.unlink(filePath);
-        this.logger.log(`Successfully deleted photo file: ${filePath}`);
-      } catch (fileError: unknown) {
-        // Log the error but maybe don't fail the whole operation if DB record deleted?
-        const errorStack =
-          fileError instanceof Error ? fileError.stack : undefined;
-        this.logger.error(
-          `Failed to delete photo file ${filePath} after deleting DB record ${photoId}`,
-          errorStack,
-        );
+      if (photo.path && !photo.path.startsWith('http')) {
+        const filePath = path.join(UPLOAD_PATH, photo.path); // Assuming UPLOAD_PATH is defined globally/imported
+        try {
+          await fs.unlink(filePath);
+          this.logger.log(`Successfully deleted photo file: ${filePath}`);
+        } catch (fileError: unknown) {
+          // Log the error but maybe don't fail the whole operation if DB record deleted?
+          const errorStack =
+            fileError instanceof Error ? fileError.stack : undefined;
+          this.logger.error(
+            `Failed to delete photo file ${filePath} after deleting DB record ${photoId}`,
+            errorStack,
+          );
+        }
       }
       // --- End File Deletion ---
 
@@ -430,7 +432,7 @@ export class PhotosService {
         const meta = parsedMetadata[index];
         return {
           inspectionId: inspectionId, // Link each photo to the inspection
-          path: file.filename,
+          path: (file as any).location || file.filename,
           label:
             meta.label === '' || meta.label === undefined
               ? undefined

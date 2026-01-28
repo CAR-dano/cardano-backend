@@ -16,9 +16,24 @@ import { CreateInspectionBranchCityDto } from './dto/create-inspection-branch-ci
 import { UpdateInspectionBranchCityDto } from './dto/update-inspection-branch-city.dto';
 import { InspectionBranchCity } from '@prisma/client';
 
+import { RedisService } from '../redis/redis.service';
+
 @Injectable()
 export class InspectionBranchesService {
-  constructor(private prisma: PrismaService) {}
+  private readonly BRANCH_CACHE_TTL = 86400; // 24 hours
+  private readonly CACHE_KEY_ALL = 'branches:all';
+
+  constructor(
+    private prisma: PrismaService,
+    private readonly redisService: RedisService,
+  ) { }
+
+  private async invalidateCache(id?: string) {
+    await this.redisService.delete(this.CACHE_KEY_ALL);
+    if (id) {
+      await this.redisService.delete(`branch:${id}`);
+    }
+  }
 
   /**
    * Creates a new inspection branch city in the database.
@@ -32,13 +47,15 @@ export class InspectionBranchesService {
     const code = createInspectionBranchCityDto.city
       .substring(0, 3)
       .toUpperCase();
-    return await this.prisma.inspectionBranchCity.create({
+    const newBranch = await this.prisma.inspectionBranchCity.create({
       data: {
         city: createInspectionBranchCityDto.city,
         code: code,
         isActive: createInspectionBranchCityDto.isActive,
       },
     });
+    await this.invalidateCache();
+    return newBranch;
   }
 
   /**
@@ -47,7 +64,16 @@ export class InspectionBranchesService {
    * @returns A promise that resolves to an array of InspectionBranchCity.
    */
   async findAll(): Promise<InspectionBranchCity[]> {
-    return await this.prisma.inspectionBranchCity.findMany();
+    try {
+      const cached = await this.redisService.get(this.CACHE_KEY_ALL);
+      if (cached) return JSON.parse(cached);
+    } catch (e) { }
+
+    const branches = await this.prisma.inspectionBranchCity.findMany();
+
+    await this.redisService.set(this.CACHE_KEY_ALL, JSON.stringify(branches), this.BRANCH_CACHE_TTL);
+
+    return branches;
   }
 
   /**
@@ -58,6 +84,13 @@ export class InspectionBranchesService {
    * @throws NotFoundException if the inspection branch city with the given ID is not found.
    */
   async findOne(id: string): Promise<InspectionBranchCity> {
+    const cacheKey = `branch:${id}`;
+
+    try {
+      const cached = await this.redisService.get(cacheKey);
+      if (cached) return JSON.parse(cached);
+    } catch (e) { }
+
     const inspectionBranchCity =
       await this.prisma.inspectionBranchCity.findUnique({
         where: { id },
@@ -67,6 +100,9 @@ export class InspectionBranchesService {
         `Inspection Branch City with ID "${id}" not found`,
       );
     }
+
+    await this.redisService.set(cacheKey, JSON.stringify(inspectionBranchCity), this.BRANCH_CACHE_TTL);
+
     return inspectionBranchCity;
   }
 
@@ -84,13 +120,15 @@ export class InspectionBranchesService {
   ): Promise<InspectionBranchCity> {
     await this.findOne(id); // Check if exists
 
-    return this.prisma.inspectionBranchCity.update({
+    const updated = await this.prisma.inspectionBranchCity.update({
       where: { id },
       data: {
         city: updateInspectionBranchCityDto.city,
         isActive: updateInspectionBranchCityDto.isActive,
       },
     });
+    await this.invalidateCache(id);
+    return updated;
   }
 
   /**
@@ -102,9 +140,11 @@ export class InspectionBranchesService {
    */
   async remove(id: string): Promise<InspectionBranchCity> {
     await this.findOne(id); // Check if exists before deleting
-    return await this.prisma.inspectionBranchCity.delete({
+    const deleted = await this.prisma.inspectionBranchCity.delete({
       where: { id },
     });
+    await this.invalidateCache(id);
+    return deleted;
   }
 
   /**
@@ -116,9 +156,11 @@ export class InspectionBranchesService {
    */
   async toggleActive(id: string): Promise<InspectionBranchCity> {
     const branch = await this.findOne(id);
-    return this.prisma.inspectionBranchCity.update({
+    const updated = await this.prisma.inspectionBranchCity.update({
       where: { id },
       data: { isActive: !branch.isActive },
     });
+    await this.invalidateCache(id);
+    return updated;
   }
 }

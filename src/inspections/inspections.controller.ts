@@ -44,9 +44,9 @@ import {
   BulkApproveInspectionResponseDto,
 } from './dto/bulk-approve-inspection.dto';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express'; // NestJS interceptor for handling multiple file fields
-import { diskStorage } from 'multer'; // Storage engine for Multer (file uploads)
-import { extname } from 'path'; // Node.js utility for handling file extensions
-import { Role, InspectionStatus } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { Role, InspectionStatus, Photo } from '@prisma/client';
+
 import { InspectionResponseDto } from './dto/inspection-response.dto';
 import { PhotoResponseDto } from '../photos/dto/photo-response.dto';
 import { UpdatePhotoDto } from '../photos/dto/update-photo.dto';
@@ -89,24 +89,8 @@ interface PhotoMetadata {
 
 // --- Multer Configuration ---
 const MAX_PHOTOS_PER_REQUEST = 10; // Max files per batch upload request
-const UPLOAD_PATH = './uploads/inspection-photos';
+// const UPLOAD_PATH = './uploads/inspection-photos'; // Removed for S3
 
-/**
- * Multer disk storage configuration for uploaded inspection photos.
- * Saves files to the UPLOAD_PATH with unique filenames.
- */
-const photoStorageConfig = diskStorage({
-  destination: UPLOAD_PATH,
-  filename: (req, file, callback) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const extension = extname(file.originalname);
-    const safeOriginalName = file.originalname
-      .split('.')[0]
-      .replace(/[^a-z0-9]/gi, '-')
-      .toLowerCase();
-    callback(null, `${safeOriginalName}-${uniqueSuffix}${extension}`);
-  },
-});
 
 /**
  * Controller managing all HTTP requests related to vehicle inspections.
@@ -127,7 +111,19 @@ export class InspectionsController {
   constructor(
     private readonly inspectionsService: InspectionsService,
     private readonly photosService: PhotosService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) { }
+
+  private normalizePhotoUrl(photo: Photo): PhotoResponseDto {
+    const dto = new PhotoResponseDto(photo);
+    const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000';
+    if (dto.path && !dto.path.startsWith('http')) {
+      dto.path = `${appUrl}/uploads/inspection-photos/${dto.path}`;
+    }
+    return dto;
+  }
+
+
 
   /**
    * Handles the creation of a new inspection record.
@@ -318,10 +314,9 @@ export class InspectionsController {
   @SkipThrottle()
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
-    FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST, {
-      storage: photoStorageConfig,
-    }),
+    FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST),
   )
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   @ApiOperation({
@@ -388,7 +383,8 @@ export class InspectionsController {
       files,
       addBatchDto.metadata,
     );
-    return newPhotos.map((p) => new PhotoResponseDto(p));
+    return newPhotos.map((p) => this.normalizePhotoUrl(p));
+
   }
 
   /**
@@ -406,10 +402,9 @@ export class InspectionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   @UseInterceptors(
-    FileInterceptor('photo', {
-      storage: photoStorageConfig,
-    }),
+    FileInterceptor('photo'),
   )
+
   @ApiOperation({
     summary: 'Upload a single photo for an inspection',
     description:
@@ -479,7 +474,8 @@ export class InspectionsController {
       file,
       parsedMetadata,
     );
-    return new PhotoResponseDto(newPhoto);
+    return this.normalizePhotoUrl(newPhoto);
+
   }
 
   // --- Photo Management Endpoints ---
@@ -528,7 +524,8 @@ export class InspectionsController {
   ): Promise<PhotoResponseDto[]> {
     this.logger.log(`[GET /inspections/${id}/photos] Request received`);
     const photos = await this.photosService.findForInspection(id);
-    return photos.map((p) => new PhotoResponseDto(p));
+    return photos.map((p) => this.normalizePhotoUrl(p));
+
   }
 
   /**
@@ -547,10 +544,9 @@ export class InspectionsController {
   @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(
-    FileInterceptor('photo', {
-      storage: photoStorageConfig,
-    }),
+    FileInterceptor('photo'),
   ) // Handle single optional file
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
@@ -618,7 +614,8 @@ export class InspectionsController {
       fileToPass,
       userId,
     );
-    return new PhotoResponseDto(updatedPhoto);
+    return this.normalizePhotoUrl(updatedPhoto);
+
   }
 
   /**

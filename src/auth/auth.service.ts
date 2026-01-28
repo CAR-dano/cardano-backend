@@ -26,6 +26,7 @@ import { JwtPayload } from './interfaces/jwt-payload.interface'; // JWT payload 
 import { Profile } from 'passport-google-oauth20'; // Google profile type
 import * as bcrypt from 'bcrypt'; // For password comparison
 import { PrismaService } from '../prisma/prisma.service'; // Import PrismaService
+import { RedisService } from '../redis/redis.service'; // Import RedisService
 
 @Injectable()
 export class AuthService {
@@ -36,7 +37,8 @@ export class AuthService {
     private readonly jwtService: JwtService, // Service to create JWTs
     private readonly configService: ConfigService, // Service to access environment variables
     private readonly prisma: PrismaService, // Inject PrismaService
-  ) {}
+    private readonly redisService: RedisService, // Inject RedisService for caching
+  ) { }
 
   /**
    * Validates a user based on local credentials (email/username and password).
@@ -241,10 +243,13 @@ export class AuthService {
         'JWT_REFRESH_EXPIRATION_TIME',
       );
 
-      const accessToken = this.jwtService.sign(payload, { secret, expiresIn });
+      const accessToken = this.jwtService.sign(payload, {
+        secret,
+        expiresIn: expiresIn as any,
+      });
       const refreshToken = this.jwtService.sign(payload, {
         secret: refreshTokenSecret,
-        expiresIn: refreshTokenExpiresIn,
+        expiresIn: refreshTokenExpiresIn as any,
       });
 
       const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
@@ -266,42 +271,71 @@ export class AuthService {
   }
 
   /**
-   * Blacklists a given JWT token by storing it in the database.
-   * This prevents the token from being used for future authentication requests.
-   *
-   * @param token The JWT string to blacklist.
-   * @param expiresAt The expiration date of the token.
-   */
-  /**
    * Checks if a given token is present in the blacklist.
+   * Uses Redis cache with automatic fallback to PostgreSQL database.
    *
    * @param token The JWT string to check.
    * @returns A promise that resolves to true if the token is blacklisted, false otherwise.
    */
   async isTokenBlacklisted(token: string): Promise<boolean> {
     this.logger.verbose(`Checking if token is blacklisted.`);
+
     try {
+      // Try Redis first (fast path)
+      const cachedResult = await this.redisService.get(`blacklist:${token}`);
+      if (cachedResult !== null) {
+        this.logger.verbose('Token blacklist check: Redis cache hit');
+        return cachedResult === 'true';
+      }
+
+      // Redis miss or unavailable - fallback to database
+      this.logger.verbose(
+        'Token blacklist check: Redis miss, checking database',
+      );
       const blacklisted = await this.prisma.blacklistedToken.findUnique({
         where: { token },
       });
-      return !!blacklisted; // Returns true if found, false otherwise
+
+      // Cache the result in Redis for next time (if Redis is available)
+      if (blacklisted) {
+        const ttl = Math.floor(
+          (blacklisted.expiresAt.getTime() - Date.now()) / 1000,
+        );
+        if (ttl > 0) {
+          await this.redisService
+            .set(`blacklist:${token}`, 'true', ttl)
+            .catch(() => {
+              this.logger.warn('Failed to cache blacklist result in Redis');
+            });
+        }
+      }
+
+      return !!blacklisted;
     } catch (error) {
       this.logger.error(
-        `Error checking blacklist for token: ${(error as Error).message}`,
-        (error as Error).stack,
+        `Error checking blacklist: ${(error as Error).message}`,
       );
-      // Decide how to handle this error. For security, it might be safer to
-      // treat an error as if the token IS blacklisted to prevent accidental access.
-      // Or re-throw if it's a critical DB error. For now, re-throwing.
-      throw new InternalServerErrorException(
-        'Failed to check token blacklist.',
-      );
+
+      // If Redis fails, try database as fallback
+      try {
+        const blacklisted = await this.prisma.blacklistedToken.findUnique({
+          where: { token },
+        });
+        return !!blacklisted;
+      } catch (dbError) {
+        this.logger.error(
+          `Database fallback also failed: ${(dbError as Error).message}`,
+        );
+        throw new InternalServerErrorException(
+          'Failed to check token blacklist.',
+        );
+      }
     }
   }
 
   /**
-   * Blacklists a given JWT token by storing it in the database.
-   * This prevents the token from being used for future authentication requests.
+   * Blacklists a given JWT token by storing it in both Redis and database.
+   * Uses dual-write strategy for resilience and performance.
    *
    * @param token The JWT string to blacklist.
    * @param expiresAt The expiration date of the token.
@@ -310,20 +344,44 @@ export class AuthService {
     this.logger.log(
       `Blacklisting token that expires at: ${expiresAt.toISOString()}`,
     );
+
+    const ttl = Math.floor((expiresAt.getTime() - Date.now()) / 1000);
+
     try {
-      await this.prisma.blacklistedToken.create({
-        data: {
-          token,
-          expiresAt,
-        },
-      });
-      this.logger.log('Token successfully blacklisted.');
+      // Write to both Redis and Database (dual-write for resilience)
+      const results = await Promise.allSettled([
+        // Write to Redis (fast, with TTL)
+        this.redisService.set(`blacklist:${token}`, 'true', ttl),
+
+        // Write to Database (persistent, for fallback)
+        this.prisma.blacklistedToken.create({
+          data: { token, expiresAt },
+        }),
+      ]);
+
+      const [redisResult, dbResult] = results;
+
+      if (redisResult.status === 'rejected') {
+        this.logger.warn(`Redis write failed: ${redisResult.reason}`);
+      }
+
+      if (dbResult.status === 'rejected') {
+        this.logger.warn(`Database write failed: ${dbResult.reason}`);
+      }
+
+      // Success if at least one write succeeded
+      if (
+        redisResult.status === 'fulfilled' ||
+        dbResult.status === 'fulfilled'
+      ) {
+        this.logger.log('Token successfully blacklisted');
+      } else {
+        throw new Error('Both Redis and Database writes failed');
+      }
     } catch (error) {
       this.logger.error(
         `Failed to blacklist token: ${(error as Error).message}`,
-        (error as Error).stack,
       );
-      // Depending on error handling strategy, you might re-throw or handle gracefully
       throw new InternalServerErrorException('Failed to blacklist token.');
     }
   }

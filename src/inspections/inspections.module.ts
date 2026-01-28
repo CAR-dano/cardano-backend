@@ -19,14 +19,29 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { PhotosModule } from '../photos/photos.module';
 import { BlockchainModule } from '../blockchain/blockchain.module';
 import { IpfsModule } from '../ipfs/ipfs.module';
+import { MulterModule } from '@nestjs/platform-express';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { s3StorageConfig } from '../common/configs/s3-storage.config';
 
 /**
  * NestJS module for inspection-related features.
  */
 @Module({
-  imports: [PrismaModule, PhotosModule, BlockchainModule, IpfsModule],
+  imports: [
+    PrismaModule,
+    PhotosModule,
+    BlockchainModule,
+    IpfsModule,
+    MulterModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        storage: s3StorageConfig(configService),
+      }),
+      inject: [ConfigService],
+    }),
+  ],
   controllers: [InspectionsController],
   providers: [InspectionsService],
   exports: [InspectionsService],
 })
-export class InspectionsModule {}
+export class InspectionsModule { }

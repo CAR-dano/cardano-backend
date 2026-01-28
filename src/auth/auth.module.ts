@@ -31,6 +31,7 @@ import { LocalAuthGuard } from './guards/local-auth.guard';
 import { WalletAuthGuard } from './guards/wallet-auth.guard';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
+import { RedisModule } from '../redis/redis.module';
 
 /**
  * NestJS module responsible for managing authentication.
@@ -47,13 +48,16 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET'),
+        secret: configService.getOrThrow<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRATION_TIME'),
+          expiresIn: configService.getOrThrow<string>(
+            'JWT_EXPIRATION_TIME',
+          ) as any,
         },
       }),
     }),
     ConfigModule, // Required by Strategies and JwtModule factory
+    RedisModule, // Import RedisModule for caching
   ],
   /**
    * Declares the controllers used in this module.
@@ -80,4 +84,4 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
    */
   exports: [AuthService, JwtAuthGuard, RolesGuard, PassportModule, JwtModule], // Export service & guard if necessary in another module
 })
-export class AuthModule {}
+export class AuthModule { }

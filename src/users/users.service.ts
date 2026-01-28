@@ -30,16 +30,23 @@ import { UpdateInspectorDto } from './dto/update-inspector.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 import { CreateAdminDto } from './dto/create-admin.dto'; // Import CreateAdminDto
 
+import { RedisService } from '../redis/redis.service'; // Import RedisService
+
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   private readonly saltRounds = 10;
+  private readonly USER_CACHE_TTL = 3600; // 1 hour
 
   /**
    * Constructs the UsersService and injects the PrismaService for database interactions.
    * @param {PrismaService} prisma - The Prisma database client service.
+   * @param {RedisService} redisService - Service for Redis caching.
    */
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly redisService: RedisService,
+  ) { }
 
   /**
    * Normalizes an email address to a standard format.
@@ -66,7 +73,16 @@ export class UsersService {
   }
 
   /**
+   * Helper to invalidate user cache by ID and email
+   */
+  private async invalidateUserCache(id: string, email?: string) {
+    if (id) await this.redisService.delete(`user:id:${id}`);
+    if (email) await this.redisService.delete(`user:email:${this.normalizeEmail(email)}`);
+  }
+
+  /**
    * Finds a single user by their unique email address.
+   * Uses Redis cache first.
    *
    * @param {string} email - The email address to search for.
    * @returns {Promise<User | null>} The found user or null if not found.
@@ -75,12 +91,34 @@ export class UsersService {
   async findByEmail(email: string): Promise<User | null> {
     if (!email) return null; // Return null if email is empty or null
     const normalizedEmail = this.normalizeEmail(email);
-    this.logger.log(`Finding user by normalized email: ${normalizedEmail}`);
+    const cacheKey = `user:email:${normalizedEmail}`;
+
+    this.logger.verbose(`Finding user by normalized email: ${normalizedEmail}`);
+
+    // 1. Try Cache
     try {
-      return await this.prisma.user.findUnique({
+      const cached = await this.redisService.get(cacheKey);
+      if (cached) {
+        this.logger.verbose(`User cache hit for email: ${normalizedEmail}`);
+        return JSON.parse(cached);
+      }
+    } catch (e) { /* ignore cache error */ }
+
+    // 2. Database Fallback
+    try {
+      const user = await this.prisma.user.findUnique({
         where: { email: normalizedEmail }, // Store and search emails in lowercase
         include: { inspectionBranchCity: true },
       });
+
+      // 3. Set Cache
+      if (user) {
+        await this.redisService.set(cacheKey, JSON.stringify(user), this.USER_CACHE_TTL);
+        // Also cache by ID to allow lookup by ID later
+        await this.redisService.set(`user:id:${user.id}`, JSON.stringify(user), this.USER_CACHE_TTL);
+      }
+
+      return user;
     } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
@@ -170,6 +208,7 @@ export class UsersService {
 
   /**
    * Finds a single user by their unique ID (UUID).
+   * Uses Redis cache first.
    *
    * @param {string} id - The UUID of the user.
    * @returns {Promise<User | null>} The found user or null.
@@ -177,12 +216,32 @@ export class UsersService {
    */
   async findById(id: string): Promise<User | null> {
     if (!id) return null;
+    const cacheKey = `user:id:${id}`;
     this.logger.verbose(`Finding user by ID: ${id}`);
+
+    // 1. Try Cache
     try {
-      return await this.prisma.user.findUnique({
+      const cached = await this.redisService.get(cacheKey);
+      if (cached) {
+        this.logger.verbose(`User cache hit for ID: ${id}`);
+        return JSON.parse(cached);
+      }
+    } catch (e) { /* ignore */ }
+
+    // 2. Database Fallback
+    try {
+      const user = await this.prisma.user.findUnique({
         where: { id },
         include: { inspectionBranchCity: true },
       });
+
+      // 3. Set Cache
+      if (user) {
+        await this.redisService.set(cacheKey, JSON.stringify(user), this.USER_CACHE_TTL);
+        // Also set email cache for consistency optimization potentially?
+      }
+
+      return user;
     } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
@@ -202,6 +261,7 @@ export class UsersService {
 
   /**
    * Finds all users. Primarily for admin use.
+   * Not cached typically as it changes often and is admin-only.
    *
    * @returns {Promise<User[]>} Array of users.
    * @throws {InternalServerErrorException} If a database error occurs.
@@ -538,7 +598,7 @@ export class UsersService {
     if (
       userToUpdate.email &&
       this.normalizeEmail(userToUpdate.email) !==
-        this.normalizeEmail(googleEmail)
+      this.normalizeEmail(googleEmail)
     ) {
       this.logger.warn(
         `Normalized Google email (${this.normalizeEmail(googleEmail)}) does not match user's primary email (${this.normalizeEmail(userToUpdate.email)}) for user ${userId}.`,
