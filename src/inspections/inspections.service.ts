@@ -959,10 +959,31 @@ export class InspectionsService {
    */
   async findByVehiclePlateNumber(
     vehiclePlateNumber: string,
-  ): Promise<Inspection | null> {
+  ): Promise<any | null> {
     this.logger.log(
       `Searching for inspection by vehicle plate number: ${vehiclePlateNumber}`,
     );
+
+    // --- CACHING LOGIC START ---
+    const plateNormalized = vehiclePlateNumber.toLowerCase().replace(/\s/g, '');
+    const version =
+      (await this.redisService.get('inspections:list_version')) || '0';
+    const cacheKey = `inspections:search:plate:v${version}:${plateNormalized}`;
+
+    try {
+      const cachedResult = await this.redisService.get(cacheKey);
+      if (cachedResult) {
+        this.logger.log(
+          `[findByVehiclePlateNumber] Returning cached result for key: ${cacheKey}`,
+        );
+        return JSON.parse(cachedResult);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `[findByVehiclePlateNumber] Failed to retrieve from cache: ${error.message}`,
+      );
+    }
+    // --- CACHING LOGIC END ---
 
     try {
       // Use a raw query for a robust solution that works across databases for this specific matching logic.
@@ -987,13 +1008,36 @@ export class InspectionsService {
       // Now fetch the full inspection object with relations using the ID
       const inspection = await this.prisma.inspection.findUnique({
         where: { id: inspectionId },
-        include: { photos: true }, // Include related photos
-        // include: { inspector: true, reviewer: true } // Include related users if needed
+        select: {
+          id: true,
+          pretty_id: true,
+          vehiclePlateNumber: true,
+          inspectionDate: true,
+          status: true,
+          identityDetails: true,
+          vehicleData: true,
+          createdAt: true,
+          updatedAt: true,
+          urlPdf: true,
+          blockchainTxHash: true,
+        },
       });
 
       this.logger.log(
         `Found inspection ID: ${inspection?.id} for plate number: ${vehiclePlateNumber}`,
       );
+
+      // --- CACHE THE RESULT ---
+      if (inspection) {
+        try {
+          await this.redisService.set(cacheKey, JSON.stringify(inspection), 300);
+        } catch (error) {
+          this.logger.warn(
+            `[findByVehiclePlateNumber] Failed to cache result: ${error.message}`,
+          );
+        }
+      }
+
       return inspection;
     } catch (error: unknown) {
       const errorMessage =
@@ -1014,75 +1058,141 @@ export class InspectionsService {
    * Finds inspections matching a keyword across multiple fields.
    *
    * @param {string} keyword - The keyword to search for.
-   * @returns {Promise<Inspection[]>} A list of found inspection records.
+   * @returns {Promise<any[]>} A list of found inspection records.
    */
-  async searchByKeyword(keyword: string): Promise<Inspection[]> {
-    this.logger.log(`Searching for inspections with keyword: ${keyword}`);
+  async searchByKeyword(
+    keyword: string,
+    page: number = 1,
+    pageSize: number = 10,
+  ): Promise<{
+    data: any[];
+    meta: { total: number; page: number; pageSize: number; totalPages: number };
+  }> {
+    this.logger.log(
+      `Searching for inspections with keyword: ${keyword}, page: ${page}, pageSize: ${pageSize}`,
+    );
 
     // If the keyword is empty, return an empty array to avoid scanning the entire table.
     if (!keyword || keyword.trim() === '') {
-      return [];
+      return {
+        data: [],
+        meta: { total: 0, page, pageSize, totalPages: 0 },
+      };
     }
 
+    const skip = (page - 1) * pageSize;
+
+    // --- CACHING LOGIC START ---
+    const cacheKeyHash = crypto
+      .createHash('md5')
+      .update(JSON.stringify({ keyword, page, pageSize }))
+      .digest('hex');
+    const version =
+      (await this.redisService.get('inspections:list_version')) || '0';
+    const cacheKey = `inspections:search:keyword:v${version}:${cacheKeyHash}`;
+
     try {
-      // Using Prisma's findMany API for safe and type-safe searching.
-      // 'contains' will perform a LIKE '%keyword%' search.
-      // 'mode: 'insensitive'' will make the search case-insensitive (e.g., 'Avanza' will match 'avanza').
+      const cachedResult = await this.redisService.get(cacheKey);
+      if (cachedResult) {
+        this.logger.log(
+          `[searchByKeyword] Returning cached result for key: ${cacheKey}`,
+        );
+        return JSON.parse(cachedResult);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `[searchByKeyword] Failed to retrieve from cache: ${error.message}`,
+      );
+    }
+    // --- CACHING LOGIC END ---
+
+    try {
+      const whereClause: Prisma.InspectionWhereInput = {
+        OR: [
+          { pretty_id: { contains: keyword, mode: 'insensitive' } },
+          { vehiclePlateNumber: { contains: keyword, mode: 'insensitive' } },
+          {
+            vehicleData: {
+              path: ['merekKendaraan'],
+              string_contains: keyword,
+              mode: 'insensitive',
+            },
+          },
+          {
+            vehicleData: {
+              path: ['tipeKendaraan'],
+              string_contains: keyword,
+              mode: 'insensitive',
+            },
+          },
+          {
+            identityDetails: {
+              path: ['namaCustomer'],
+              string_contains: keyword,
+              mode: 'insensitive',
+            },
+          },
+          {
+            identityDetails: {
+              path: ['namaInspektor'],
+              string_contains: keyword,
+              mode: 'insensitive',
+            },
+          },
+          {
+            identityDetails: {
+              path: ['cabangInspeksi'],
+              string_contains: keyword,
+              mode: 'insensitive',
+            },
+          },
+        ],
+      };
+
+      const total = await this.prisma.inspection.count({ where: whereClause });
       const inspections = await this.prisma.inspection.findMany({
-        where: {
-          OR: [
-            { pretty_id: { contains: keyword, mode: 'insensitive' } },
-            { vehiclePlateNumber: { contains: keyword, mode: 'insensitive' } },
-            {
-              vehicleData: {
-                path: ['merekKendaraan'],
-                string_contains: keyword,
-                mode: 'insensitive',
-              },
-            },
-            {
-              vehicleData: {
-                path: ['tipeKendaraan'],
-                string_contains: keyword,
-                mode: 'insensitive',
-              },
-            },
-            {
-              identityDetails: {
-                path: ['namaCustomer'],
-                string_contains: keyword,
-                mode: 'insensitive',
-              },
-            },
-            {
-              identityDetails: {
-                path: ['namaInspektor'],
-                string_contains: keyword,
-                mode: 'insensitive',
-              },
-            },
-            {
-              identityDetails: {
-                path: ['cabangInspeksi'],
-                string_contains: keyword,
-                mode: 'insensitive',
-              },
-            },
-          ],
-        },
-        include: {
-          photos: true,
+        where: whereClause,
+        select: {
+          id: true,
+          pretty_id: true,
+          vehiclePlateNumber: true,
+          inspectionDate: true,
+          status: true,
+          identityDetails: true,
+          vehicleData: true,
+          createdAt: true,
+          updatedAt: true,
+          urlPdf: true,
+          blockchainTxHash: true,
         },
         orderBy: {
           createdAt: 'desc',
         },
-        take: 50, // Limit the number of results for performance
+        skip,
+        take: pageSize,
       });
 
-      this.logger.log(
-        `Found ${inspections.length} inspections for keyword: ${keyword}`,
-      );
-      return inspections;
+      const totalPages = Math.ceil(total / pageSize);
+      const result = {
+        data: inspections,
+        meta: {
+          total,
+          page,
+          pageSize,
+          totalPages,
+        },
+      };
+
+      // --- CACHE THE RESULT ---
+      try {
+        await this.redisService.set(cacheKey, JSON.stringify(result), 300);
+      } catch (error) {
+        this.logger.warn(
+          `[searchByKeyword] Failed to cache result: ${error.message}`,
+        );
+      }
+
+      return result;
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'An unknown error occurred';
@@ -1410,7 +1520,7 @@ export class InspectionsService {
    * @param {InspectionStatus[] | 'DATABASE' | undefined} [status] - Optional filter by inspection status. Can be a single status, an array of statuses, or 'DATABASE' to retrieve all statuses except NEED_REVIEW, regardless of user role.
    * @param {number} page - The page number (1-based).
    * @param {number} pageSize - The number of items per page.
-   * @returns {Promise<{ data: Inspection[], meta: { total: number, page: number, pageSize: number, totalPages: number } }>} An object containing an array of inspection records and pagination metadata.
+   * @returns {Promise<{ data: any[], meta: { total: number, page: number, pageSize: number, totalPages: number } }>} An object containing an array of inspection records and pagination metadata.
    */
   async findAll(
     userRole: Role | undefined,
@@ -1418,7 +1528,7 @@ export class InspectionsService {
     page: number = 1,
     pageSize: number = 10,
   ): Promise<{
-    data: Inspection[];
+    data: any[];
     meta: { total: number; page: number; pageSize: number; totalPages: number };
   }> {
     this.logger.log(
@@ -1539,8 +1649,19 @@ export class InspectionsService {
         },
         skip: skip,
         take: pageSize,
-        include: { photos: true }, // Include related photos
-        // include: { inspector: { select: {id: true, name: true}}, reviewer: { select: {id: true, name: true}} } // Example include
+        select: {
+          id: true,
+          pretty_id: true,
+          vehiclePlateNumber: true,
+          inspectionDate: true,
+          status: true,
+          identityDetails: true,
+          vehicleData: true,
+          createdAt: true,
+          updatedAt: true,
+          urlPdf: true,
+          blockchainTxHash: true,
+        },
       });
 
       this.logger.log(

@@ -67,6 +67,20 @@ export class InspectionSummaryResponseDto {
     })
     updatedAt: Date;
 
+    @ApiProperty({
+        example: 'https://cdn.example.com/pdf/123.pdf',
+        description: 'Public URL to the generated PDF report.',
+        nullable: true,
+    })
+    urlPdf: string | null;
+
+    @ApiProperty({
+        example: '0x1234567890abcdef...',
+        description: 'The transaction hash on the blockchain.',
+        nullable: true,
+    })
+    blockchainTxHash: string | null;
+
     constructor(partial: any) {
         this.id = partial.id;
         this.pretty_id = partial.pretty_id;
@@ -77,5 +91,7 @@ export class InspectionSummaryResponseDto {
         this.vehicleData = partial.vehicleData;
         this.createdAt = partial.createdAt;
         this.updatedAt = partial.updatedAt;
+        this.urlPdf = partial.urlPdf;
+        this.blockchainTxHash = partial.blockchainTxHash;
     }
 }
