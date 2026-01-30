@@ -33,7 +33,9 @@ import {
   Query,
   NotFoundException,
   Res,
-  UseGuards, // Import InternalServerErrorException
+  UseGuards,
+  DefaultValuePipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -703,12 +705,12 @@ export class InspectionsController {
   @ApiResponse({
     status: 200,
     description: 'The found inspection record summary.',
-    type: InspectionResponseDto,
+    type: InspectionSummaryResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
   async searchByVehicleNumber(
     @Query('vehicleNumber') vehicleNumber: string,
-  ): Promise<InspectionResponseDto> {
+  ): Promise<InspectionSummaryResponseDto> {
     this.logger.log(
       `[GET /inspections/search] Searching for vehicle number: ${vehicleNumber}`,
     );
@@ -721,7 +723,7 @@ export class InspectionsController {
       );
     }
 
-    return new InspectionResponseDto(inspection);
+    return new InspectionSummaryResponseDto(inspection);
   }
 
   /**
@@ -752,21 +754,32 @@ export class InspectionsController {
   @ApiResponse({
     status: 200,
     description:
-      'A list of found inspection records. Returns an empty array if no matches are found.',
-    type: [InspectionResponseDto], // Menandakan bahwa ini adalah array dari DTO
+      'A paginated list of found inspection records. Returns an empty array in the data field if no matches are found.',
   })
   async searchByKeyword(
-    @Query('q') keyword: string,
-  ): Promise<InspectionResponseDto[]> {
+    @Query('q') q: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('pageSize', new DefaultValuePipe(10), ParseIntPipe) pageSize: number,
+  ): Promise<{
+    data: InspectionSummaryResponseDto[];
+    meta: { total: number; page: number; pageSize: number; totalPages: number };
+  }> {
     this.logger.log(
-      `[GET /inspections/search/keyword] Searching for keyword: ${keyword}`,
+      `[GET /inspections/search/keyword] Searching for keyword: ${q}, page: ${page}, pageSize: ${pageSize}`,
     );
 
-    const inspections = await this.inspectionsService.searchByKeyword(keyword);
-
-    return inspections.map(
-      (inspection) => new InspectionResponseDto(inspection),
+    const result = await this.inspectionsService.searchByKeyword(
+      q,
+      page,
+      pageSize,
     );
+
+    return {
+      data: result.data.map(
+        (inspection) => new InspectionSummaryResponseDto(inspection),
+      ),
+      meta: result.meta,
+    };
   }
 
   /**
