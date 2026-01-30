@@ -21,6 +21,7 @@ import { SwaggerModule, DocumentBuilder, OpenAPIObject } from '@nestjs/swagger';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { json, urlencoded } from 'express';
+import compression from 'compression';
 import { getLoggerConfig } from './config/logger.config';
 
 let openApiDocument: OpenAPIObject | null = null;
@@ -58,6 +59,9 @@ async function bootstrap() {
   // Set payload limits
   app.use(json({ limit: '5mb' }));
   app.use(urlencoded({ extended: true, limit: '5mb' }));
+
+  // Enable payload compression
+  app.use(compression());
 
   // Ensure upload directories exist
   const uploadDirs = [
