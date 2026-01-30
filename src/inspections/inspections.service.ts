@@ -289,6 +289,21 @@ export class InspectionsService {
   }
 
   /**
+   * Invalidates the cached list of inspections by incrementing the cache version.
+   * This is called whenever an inspection is created, deleted, or its status changes.
+   */
+  private async invalidateListCache() {
+    try {
+      await this.redisService.incr('inspections:list_version');
+      this.logger.debug(
+        'Inspection list cache invalidated (version incremented)',
+      );
+    } catch (error) {
+      this.logger.error('Failed to invalidate inspection list cache', error);
+    }
+  }
+
+  /**
    * Bulk approve multiple inspections with enhanced error handling
    * Processes inspections sequentially to avoid race conditions and resource exhaustion
    */
@@ -369,6 +384,9 @@ export class InspectionsService {
     this.logger.log(
       `Bulk approval completed: ${summary.successful}/${summary.total} successful, ${summary.failed} failed in ${summary.estimatedTime}`,
     );
+
+    // Invalidate list cache after bulk approval
+    await this.invalidateListCache();
 
     return {
       successful,
@@ -795,8 +813,12 @@ export class InspectionsService {
             data: dataToCreate,
           });
           this.logger.log(
-            `Successfully created inspection with custom ID: ${newInspection.id}`,
+            `Inspection created successfully with ID: ${newInspection.id} (pretty_id: ${newInspection.pretty_id})`,
           );
+
+          // Invalidate list cache after creation
+          await this.invalidateListCache();
+
           return { id: newInspection.id };
         } catch (error: unknown) {
           if (
@@ -1478,6 +1500,36 @@ export class InspectionsService {
       throw new BadRequestException('Page number must be positive.');
     }
 
+    // --- CACHING LOGIC START ---
+    const cacheParams = {
+      userRole,
+      status: parsedStatus,
+      page,
+      pageSize,
+    };
+    const cacheKeyHash = crypto
+      .createHash('md5')
+      .update(JSON.stringify(cacheParams))
+      .digest('hex');
+    const version =
+      (await this.redisService.get('inspections:list_version')) || '0';
+    const cacheKey = `inspections:list:v${version}:${cacheKeyHash}`;
+
+    try {
+      const cachedResult = await this.redisService.get(cacheKey);
+      if (cachedResult) {
+        this.logger.log(
+          `[findAll] Returning cached result for key: ${cacheKey}`,
+        );
+        return JSON.parse(cachedResult);
+      }
+    } catch (error) {
+      this.logger.warn(
+        `[findAll] Failed to retrieve from cache: ${error.message}`,
+      );
+    }
+    // --- CACHING LOGIC END ---
+
     try {
       const total = await this.prisma.inspection.count({ where: whereClause });
       const inspections = await this.prisma.inspection.findMany({
@@ -1497,7 +1549,7 @@ export class InspectionsService {
       );
 
       const totalPages = Math.ceil(total / pageSize);
-      return {
+      const result = {
         data: inspections,
         meta: {
           total,
@@ -1506,6 +1558,15 @@ export class InspectionsService {
           totalPages,
         },
       };
+
+      // --- CACHE THE RESULT ---
+      try {
+        await this.redisService.set(cacheKey, JSON.stringify(result), 300); // 5 min TTL
+      } catch (error) {
+        this.logger.warn(`[findAll] Failed to cache result: ${error.message}`);
+      }
+
+      return result;
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'An unknown error occurred';
@@ -1958,6 +2019,9 @@ export class InspectionsService {
         this.logger.log(
           `Inspection ${inspectionId} approved successfully in ${totalTime}ms. Queue stats: processed=${queueStatsAfter.totalProcessed}, errors=${queueStatsAfter.totalErrors}`,
         );
+
+        // Invalidate list cache after approval
+        await this.invalidateListCache();
 
         return finalInspection;
       } catch (pdfError: unknown) {
@@ -2551,8 +2615,12 @@ export class InspectionsService {
         }
       }
       this.logger.log(
-        `Inspection ${inspectionId} final status set to ${finalStatus}.`,
+        `Final archive result for inspection ${inspectionId}: status=${finalStatus}, blockchainResult=${blockchainSuccess ? 'SUCCESS' : 'FAILED'}`,
       );
+
+      // Invalidate list cache
+      await this.invalidateListCache();
+
       return finalInspection;
     } catch (error: unknown) {
       // Catch errors from URL fetch, PDF conversion, file saving, hashing, or the final DB update
@@ -2574,6 +2642,7 @@ export class InspectionsService {
         this.logger.log(
           `Inspection ${inspectionId} status reverted to APPROVED due to error.`,
         );
+        await this.invalidateListCache(); // Invalidate cache after rollback
       } catch (revertError: unknown) {
         const revertErrorMessage =
           revertError instanceof Error
@@ -2645,8 +2714,12 @@ export class InspectionsService {
         }
       }
       this.logger.log(
-        `Inspection ${inspectionId} reactivated by user ${userId}`,
+        `Inspection ${inspectionId} successfully deactivated (hidden)`,
       );
+
+      // Invalidate list cache
+      await this.invalidateListCache();
+
       return this.prisma.inspection.findUniqueOrThrow({
         where: { id: inspectionId },
       });
@@ -2716,6 +2789,8 @@ export class InspectionsService {
       this.logger.log(
         `Inspection ${inspectionId} reactivated by user ${userId}`,
       );
+      // Invalidate list cache
+      await this.invalidateListCache();
       return this.prisma.inspection.findUniqueOrThrow({
         where: { id: inspectionId },
       });
@@ -2806,7 +2881,7 @@ export class InspectionsService {
       );
 
     // Update database dengan hasil dari blockchain
-    return this.prisma.inspection.update({
+    const updatedInspection = await this.prisma.inspection.update({
       where: { id: inspectionId },
       data: {
         status: InspectionStatus.ARCHIVED,
@@ -2815,6 +2890,11 @@ export class InspectionsService {
         archivedAt: new Date(),
       },
     });
+
+    // Invalidate list cache
+    await this.invalidateListCache();
+
+    return updatedInspection;
   }
 
   /**
@@ -2982,6 +3062,8 @@ export class InspectionsService {
       this.logger.warn(
         `[SUPERADMIN] Successfully and permanently deleted inspection ID: ${id}`,
       );
+      // Invalidate list cache
+      await this.invalidateListCache();
     } catch (error: unknown) {
       const msg =
         error instanceof Error ? error.message : JSON.stringify(error);
@@ -3066,6 +3148,9 @@ export class InspectionsService {
 
         return updatedInspection;
       });
+
+      // Invalidate list cache
+      await this.invalidateListCache();
 
       return updatedInspection;
     } catch (error: unknown) {
@@ -3163,6 +3248,9 @@ export class InspectionsService {
 
         return updated;
       });
+
+      // Invalidate list cache after status change
+      await this.invalidateListCache();
 
       return updatedInspection;
     } catch (error) {

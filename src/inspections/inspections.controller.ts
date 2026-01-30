@@ -48,6 +48,7 @@ import { ConfigService } from '@nestjs/config';
 import { Role, InspectionStatus, Photo } from '@prisma/client';
 
 import { InspectionResponseDto } from './dto/inspection-response.dto';
+import { InspectionSummaryResponseDto } from './dto/inspection-summary-response.dto';
 import { PhotoResponseDto } from '../photos/dto/photo-response.dto';
 import { UpdatePhotoDto } from '../photos/dto/update-photo.dto';
 import { PhotosService } from '../photos/photos.service';
@@ -840,12 +841,11 @@ export class InspectionsController {
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findAll(
     @Query('role') userRole?: Role,
-    @Query('status') status?: string | string[], // Accept as string or string array
+    @Query('status') status?: string | string[],
     @Query('page') page = 1,
     @Query('pageSize') pageSize = 10,
-    /* @GetUser('role') realUserRole: Role */
   ): Promise<{
-    data: InspectionResponseDto[];
+    data: InspectionSummaryResponseDto[];
     meta: { total: number; page: number; pageSize: number; totalPages: number };
   }> {
     const pageNumber =
@@ -853,44 +853,20 @@ export class InspectionsController {
     const pageSizeNumber =
       parseInt(pageSize as any, 10) > 0 ? parseInt(pageSize as any, 10) : 10;
 
-    let parsedStatus: InspectionStatus[] | undefined;
-
-    if (typeof status === 'string') {
-      // If it's a comma-separated string, split it
-      parsedStatus = status.split(',').map((s) => {
-        const trimmedStatus = s.trim();
-        if (!(trimmedStatus in InspectionStatus)) {
-          throw new BadRequestException(
-            `Invalid InspectionStatus: ${trimmedStatus}`,
-          );
-        }
-        return trimmedStatus as InspectionStatus;
-      });
-    } else if (Array.isArray(status)) {
-      // If it's already an array (e.g., from development environment or direct array input)
-      parsedStatus = status.map((s) => {
-        const trimmedStatus = s.trim();
-        if (!(trimmedStatus in InspectionStatus)) {
-          throw new BadRequestException(
-            `Invalid InspectionStatus: ${trimmedStatus}`,
-          );
-        }
-        return trimmedStatus as InspectionStatus;
-      });
-    }
-
     this.logger.warn(
-      `[GET /inspections] Applying filter for role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${parsedStatus ? parsedStatus.join(',') : 'undefined'}`,
+      `[GET /inspections] Applying filter for role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${status}`,
     );
+
     const result = await this.inspectionsService.findAll(
       userRole,
-      parsedStatus,
+      status as any,
       pageNumber,
       pageSizeNumber,
     );
+
     return {
       data: result.data.map(
-        (inspection) => new InspectionResponseDto(inspection),
+        (inspection) => new InspectionSummaryResponseDto(inspection),
       ),
       meta: result.meta,
     };
