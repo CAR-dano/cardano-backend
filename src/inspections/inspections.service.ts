@@ -1718,11 +1718,65 @@ export class InspectionsService {
     this.logger.log(
       `Retrieving inspection ID: ${id} for user role: ${userRole}`,
     );
+
+    // --- CACHING LOGIC START ---
+    const version =
+      (await this.redisService.get('inspections:list_version')) || '0';
+    const cacheKey = `inspections:detail:v${version}:${id}`;
+
+    try {
+      if (await this.redisService.isHealthy()) {
+        const cachedResult = await this.redisService.get(cacheKey);
+        if (cachedResult) {
+          this.logger.debug(
+            `[findOne] Returning cached result for key: ${cacheKey}`,
+          );
+          return JSON.parse(cachedResult);
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `[findOne] Failed to retrieve from cache: ${error.message}`,
+      );
+    }
+    // --- CACHING LOGIC END ---
+
     try {
       const inspection = await this.prisma.inspection.findUniqueOrThrow({
         where: { id: id },
-        include: { photos: true }, // Include related photos
-        // include: { inspector: true, reviewer: true } // Include related users if needed
+        select: {
+          id: true,
+          vehiclePlateNumber: true,
+          inspectionDate: true,
+          overallRating: true,
+          createdAt: true,
+          updatedAt: true,
+          detailedAssessment: true,
+          equipmentChecklist: true,
+          identityDetails: true,
+          inspectionSummary: true,
+          vehicleData: true,
+          archivedAt: true,
+          blockchainTxHash: true,
+          deactivatedAt: true,
+          inspectorId: true,
+          nftAssetId: true,
+          pdfFileHash: true,
+          reviewerId: true,
+          status: true,
+          urlPdf: true,
+          bodyPaintThickness: true,
+          pretty_id: true,
+          notesFontSizes: true,
+          branchCityId: true,
+          ipfsPdf: true,
+          ipfsPdfNoDocs: true,
+          pdfFileHashNoDocs: true,
+          urlPdfNoDocs: true,
+          url_pdf_cloud: true,
+          url_pdf_no_docs_cloud: true,
+          photos: true, // Include related photos
+        },
       });
 
       // Check authorization based on role and status
@@ -1734,14 +1788,10 @@ export class InspectionsService {
         this.logger.log(
           `Admin/Reviewer/Superadmin access granted for inspection ${id}`,
         );
-        return inspection; // Admins/Reviewers/Superadmins can see all statuses
       } else if (inspection.status === InspectionStatus.ARCHIVED) {
-        // TODO: Potentially check deactivatedAt here too?
-        // if (inspection.deactivatedAt !== null) { throw new ForbiddenException(...); }
         this.logger.log(
           `Public/Inspector access granted for ARCHIVED inspection ${id}`,
         );
-        return inspection; // Others can only see ARCHIVED
       } else {
         // If found but not ARCHIVED, and user is not Admin/Reviewer
         this.logger.warn(
@@ -1751,6 +1801,17 @@ export class InspectionsService {
           `You do not have permission to view this inspection in its current status (${inspection.status}).`,
         );
       }
+
+      // --- CACHE THE RESULT ---
+      try {
+        if (await this.redisService.isHealthy()) {
+          await this.redisService.set(cacheKey, JSON.stringify(inspection), 300); // 5 min TTL
+        }
+      } catch (error) {
+        this.logger.warn(`[findOne] Failed to cache result: ${error.message}`);
+      }
+
+      return inspection as Inspection;
     } catch (error: unknown) {
       // Use unknown
       if (
@@ -1759,7 +1820,11 @@ export class InspectionsService {
       ) {
         throw new NotFoundException(`Inspection with ID "${id}" not found.`);
       }
-      if (error instanceof ForbiddenException) {
+      if (
+        error instanceof ForbiddenException ||
+        (error as any).status === 403 ||
+        (error as any).name === 'ForbiddenException'
+      ) {
         // Re-throw ForbiddenException
         throw error;
       }
