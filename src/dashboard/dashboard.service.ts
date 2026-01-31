@@ -570,139 +570,129 @@ export class DashboardService {
       );
     }
 
+    // --- Caching Logic Start ---
+    const listVersion =
+      (await this.redisService.get('inspections:list_version')) || '1';
+    const cacheKey = `dashboard:branch-distribution:v${listVersion}:${start_date}:${end_date}:${timezone || 'Asia/Jakarta'}`;
+
+    try {
+      const cachedData = await this.redisService.get(cacheKey);
+      if (cachedData) {
+        this.logger.debug(`Cache hit for ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+    } catch (error) {
+      this.logger.warn(`Redis error while fetching cache: ${error.message}`);
+    }
+    // --- Caching Logic End ---
+
     const { current, previous } = this.calculateDateRanges(
       start_date,
       end_date,
       timezone,
     );
-    const { start, end } = current;
 
-    // Get all unique branch cities
+    // 1. Fetch all unique branch cities for mapping
     const branchCities = await this.prisma.inspectionBranchCity.findMany({
       select: {
+        id: true,
         city: true,
+      },
+      where: {
+        isActive: true,
       },
     });
 
-    const branchDistribution: BranchDistributionItem[] = [];
-    let totalInspectionsCurrentPeriod = 0;
+    const branchMap = new Map(branchCities.map((b) => [b.id, b.city]));
 
-    // Calculate total inspections for the current period first
-    const totalInspectionsResult = await this.prisma.inspection.aggregate({
+    // 2. Optimized: Get current period distribution in one query
+    const currentCounts = await this.prisma.inspection.groupBy({
+      by: ['branchCityId'],
+      where: {
+        createdAt: {
+          gte: current.start,
+          lte: current.end,
+        },
+      },
       _count: {
         id: true,
       },
+    });
+
+    // 3. Optimized: Get previous period distribution in one query
+    const previousCounts = await this.prisma.inspection.groupBy({
+      by: ['branchCityId'],
       where: {
         createdAt: {
-          gte: start,
-          lte: end,
+          gte: previous.start,
+          lte: previous.end,
         },
       },
+      _count: {
+        id: true,
+      },
     });
-    totalInspectionsCurrentPeriod = totalInspectionsResult._count.id;
 
-    for (const branchCity of branchCities) {
-      const currentPeriodCount = await this.prisma.inspection.count({
-        where: {
-          branchCity: {
-            city: branchCity.city,
-          },
-          createdAt: {
-            gte: start,
-            lte: end,
-          },
-        },
-      });
+    const currentCountsMap = new Map(
+      currentCounts.map((c) => [c.branchCityId, c._count.id]),
+    );
+    const previousCountsMap = new Map(
+      previousCounts.map((p) => [p.branchCityId, p._count.id]),
+    );
 
-      // Calculate percentage for current period
-      const percentage =
-        totalInspectionsCurrentPeriod > 0
-          ? (
-            (currentPeriodCount / totalInspectionsCurrentPeriod) *
-            100
-          ).toFixed(1) + '%'
-          : '0.0%';
+    // 4. Calculate totals for percentages and change
+    const totalInspectionsCurrentPeriod = currentCounts.reduce(
+      (sum, c) => sum + c._count.id,
+      0,
+    );
+    const totalInspectionsPreviousPeriod = previousCounts.reduce(
+      (sum, p) => sum + p._count.id,
+      0,
+    );
 
-      // Calculate previous period's range
-      const { start: prevStart, end: prevEnd } = previous;
+    // 5. Build final distribution data
+    const branchDistribution: BranchDistributionItem[] = branchCities.map(
+      (branchCity) => {
+        const currentCount = currentCountsMap.get(branchCity.id) || 0;
+        const previousCount = previousCountsMap.get(branchCity.id) || 0;
 
-      let previousPeriodCount = 0;
-      if (prevStart && prevEnd) {
-        // Only query if previous period is defined
-        previousPeriodCount = await this.prisma.inspection.count({
-          where: {
-            branchCity: {
-              city: branchCity.city,
-            },
-            createdAt: {
-              gte: prevStart,
-              lte: prevEnd,
-            },
-          },
-        });
-      }
+        const percentage =
+          totalInspectionsCurrentPeriod > 0
+            ? ((currentCount / totalInspectionsCurrentPeriod) * 100).toFixed(
+              1,
+            ) + '%'
+            : '0.0%';
 
-      // Calculate change percentage
-      let change = '0%';
-      if (previousPeriodCount > 0) {
-        const changeValue =
-          ((currentPeriodCount - previousPeriodCount) / previousPeriodCount) *
-          100;
-        change = `${changeValue > 0 ? '+' : ''}${changeValue.toFixed(1)}%`;
-      } else if (currentPeriodCount > 0) {
-        change = '+100%'; // If previous was 0 and current is > 0
-      }
+        return {
+          branch: branchCity.city,
+          count: currentCount,
+          percentage: percentage,
+          change: this.calculateChangePercentage(currentCount, previousCount),
+        };
+      },
+    );
 
-      branchDistribution.push({
-        branch: branchCity.city,
-        count: currentPeriodCount,
-        percentage: percentage,
-        change: change,
-      });
-    }
-
-    // Handle 'Others' if there are inspections not tied to a specific branch city or if some branches are not listed
-    // For simplicity, let's assume all inspections are tied to a branch city for now.
-    // If there's a need for 'Others', it would involve querying inspections without a branchCityId.
-
-    // Calculate total inspections for the previous period
-    const { start: prevTotalStart, end: prevTotalEnd } = previous;
-
-    let totalInspectionsPreviousPeriod = 0;
-    if (prevTotalStart && prevTotalEnd) {
-      const totalPrevInspectionsResult = await this.prisma.inspection.aggregate(
-        {
-          _count: {
-            id: true,
-          },
-          where: {
-            createdAt: {
-              gte: prevTotalStart,
-              lte: prevTotalEnd,
-            },
-          },
-        },
-      );
-      totalInspectionsPreviousPeriod = totalPrevInspectionsResult._count.id;
-    }
-
-    // Calculate overall change percentage
-    let totalChange = '0%';
-    if (totalInspectionsPreviousPeriod > 0) {
-      const changeValue =
-        ((totalInspectionsCurrentPeriod - totalInspectionsPreviousPeriod) /
-          totalInspectionsPreviousPeriod) *
-        100;
-      totalChange = `${changeValue > 0 ? '+' : ''}${changeValue.toFixed(1)}%`;
-    } else if (totalInspectionsCurrentPeriod > 0) {
-      totalChange = '+100%'; // If previous total was 0 and current is > 0
-    }
-
-    return {
+    const response: BranchDistributionResponse = {
       total: totalInspectionsCurrentPeriod,
-      totalChange: totalChange,
+      totalChange: this.calculateChangePercentage(
+        totalInspectionsCurrentPeriod,
+        totalInspectionsPreviousPeriod,
+      ),
       branchDistribution: branchDistribution,
     };
+
+    // --- Cache the response ---
+    try {
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(response),
+        3600 * 24, // Cache for 24 hours
+      );
+    } catch (error) {
+      this.logger.warn(`Redis error while setting cache: ${error.message}`);
+    }
+
+    return response;
   }
 
   /**
