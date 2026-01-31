@@ -717,15 +717,33 @@ export class DashboardService {
   ): Promise<InspectorPerformanceResponseDto> {
     const { start_date, end_date, timezone } = query;
 
+    // --- Caching Logic Start ---
+    const listVersion =
+      (await this.redisService.get('inspections:list_version')) || '1';
+    const cacheKey = `dashboard:inspector-performance:v${listVersion}:${start_date}:${end_date}:${timezone || 'Asia/Jakarta'}`;
+
+    try {
+      const cachedData = await this.redisService.get(cacheKey);
+      if (cachedData) {
+        this.logger.debug(`Cache hit for ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+    } catch (error) {
+      this.logger.warn(`Redis error while fetching cache: ${error.message}`);
+    }
+    // --- Caching Logic End ---
+
     const { start, end } = this.getValidatedDateRange(
       start_date,
       end_date,
       timezone,
     );
 
+    // Fetch all active inspectors first to ensure we show them even if they have 0 inspections
     const inspectors = await this.prisma.user.findMany({
       where: {
         role: 'INSPECTOR',
+        isActive: true,
       },
       select: {
         id: true,
@@ -733,27 +751,47 @@ export class DashboardService {
       },
     });
 
-    const performanceData: InspectorPerformanceItemDto[] = [];
-
-    for (const inspector of inspectors) {
-      if (!inspector.name) continue; // Skip if inspector name is null
-
-      const totalInspections = await this.prisma.inspection.count({
-        where: {
-          inspectorId: inspector.id,
-          createdAt: {
-            gte: start,
-            lte: end,
-          },
+    // Optimized: Use groupBy to get all counts in one query
+    const performanceCounts = await this.prisma.inspection.groupBy({
+      by: ['inspectorId'],
+      where: {
+        createdAt: {
+          gte: start,
+          lte: end,
         },
-      });
+        inspectorId: {
+          in: inspectors.map((i) => i.id),
+        },
+      },
+      _count: {
+        id: true,
+      },
+    });
 
-      performanceData.push({
-        inspector: inspector.name,
-        totalInspections,
-      });
+    const countsMap = new Map(
+      performanceCounts.map((item) => [item.inspectorId, item._count.id]),
+    );
+
+    const performanceData: InspectorPerformanceItemDto[] = inspectors
+      .filter((i) => !!i.name)
+      .map((inspector) => ({
+        inspector: inspector.name!,
+        totalInspections: countsMap.get(inspector.id) || 0,
+      }));
+
+    const response = { data: performanceData };
+
+    // --- Cache the response ---
+    try {
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(response),
+        3600 * 24, // Cache for 24 hours
+      );
+    } catch (error) {
+      this.logger.warn(`Redis error while setting cache: ${error.message}`);
     }
 
-    return { data: performanceData };
+    return response;
   }
 }
