@@ -407,6 +407,8 @@ export class DashboardService {
     granularity: 'hour' | 'day' | 'month',
     timezone: string = 'Asia/Jakarta',
   ): Promise<Map<string, number>> {
+    const dataMap = new Map<string, number>();
+
     if (granularity === 'hour') {
       const query = Prisma.sql`
       SELECT
@@ -418,43 +420,40 @@ export class DashboardService {
       WHERE "createdAt" >= ${startDate} AND "createdAt" <= ${endDate}
       GROUP BY period_group
       ORDER BY period_group ASC;`;
+
       const results: { period_group: Date; count: number }[] =
         await this.prisma.$queryRaw(query);
 
-      const dataMap = new Map<string, number>();
       for (const result of results) {
         dataMap.set(result.period_group.toISOString(), result.count);
       }
-      return dataMap;
     } else {
-      // For daily/monthly, generate periods and count for each period
-      const periods = this.generatePeriods(
-        startDate,
-        endDate,
-        granularity,
-        timezone,
-      );
-      const dataMap = new Map<string, number>();
+      // Optimized: Use DATE_TRUNC for daily/monthly aggregation to avoid N+1 count queries
+      const dbGranularity = granularity === 'day' ? 'day' : 'month';
+      const query = Prisma.sql`
+      SELECT
+        DATE_TRUNC(${dbGranularity}, "createdAt" AT TIME ZONE ${timezone}) AS period_group,
+        COUNT(*)::integer AS count
+      FROM "inspections"
+      WHERE "createdAt" >= ${startDate} AND "createdAt" <= ${endDate}
+      GROUP BY period_group
+      ORDER BY period_group ASC;`;
 
-      for (const period of periods) {
-        const count = await this.prisma.inspection.count({
-          where: {
-            createdAt: {
-              gte: period.period_start, // Use period start in UTC
-              lte: period.period_end, // Use period end in UTC
-            },
-          },
-        });
-        // The key should be the UTC midnight of the date in the specified timezone
-        const dateInTimezone = toZonedTime(period.period_start, timezone);
+      const results: { period_group: Date; count: number }[] =
+        await this.prisma.$queryRaw(query);
+
+      for (const result of results) {
+        // Need to format key to match format(startOfDay(toZonedTime(period.period_start, timezone)), "yyyy-MM-dd'T'00:00:00.000'Z'")
+        // The period_group from query is already the start of day/month in the specified timezone
+        // Expressed as a UTC Date object.
         const lookupKey = format(
-          startOfDay(dateInTimezone),
+          result.period_group,
           "yyyy-MM-dd'T'00:00:00.000'Z'",
         );
-        dataMap.set(lookupKey, count);
+        dataMap.set(lookupKey, result.count);
       }
-      return dataMap;
     }
+    return dataMap;
   }
 
   /**
@@ -467,12 +466,32 @@ export class DashboardService {
   async getOrderTrend(
     query: GetDashboardStatsDto,
   ): Promise<OrderTrendResponseDto> {
-    const { start: actualStartDateUsed, end: actualEndDateUsed } =
-      this.getValidatedDateRange(
-        query.start_date,
-        query.end_date,
-        query.timezone,
+    const { start_date, end_date, timezone } = query;
+
+    if (!start_date || !end_date) {
+      throw new BadRequestException(
+        'start_date and end_date are required for this operation.',
       );
+    }
+
+    // --- Caching Logic Start ---
+    const listVersion =
+      (await this.redisService.get('inspections:list_version')) || '1';
+    const cacheKey = `dashboard:order-trend:v${listVersion}:${start_date}:${end_date}:${timezone || 'Asia/Jakarta'}`;
+
+    try {
+      const cachedData = await this.redisService.get(cacheKey);
+      if (cachedData) {
+        this.logger.debug(`Cache hit for ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+    } catch (error) {
+      this.logger.warn(`Redis error while fetching cache: ${error.message}`);
+    }
+    // --- Caching Logic End ---
+
+    const { start: actualStartDateUsed, end: actualEndDateUsed } =
+      this.getValidatedDateRange(start_date, end_date, timezone);
 
     const durationInDays = differenceInDays(
       actualEndDateUsed,
@@ -492,7 +511,7 @@ export class DashboardService {
       actualStartDateUsed,
       actualEndDateUsed,
       granularity,
-      query.timezone,
+      timezone,
     );
 
     if (periods.length === 0) {
@@ -509,7 +528,7 @@ export class DashboardService {
       actualStartDateUsed,
       actualEndDateUsed,
       granularity,
-      query.timezone,
+      timezone,
     );
 
     const finalData = periods.map((period) => {
@@ -522,7 +541,7 @@ export class DashboardService {
         // For daily/monthly, use the previous logic (UTC midnight of the date in the specified timezone)
         const dateInTimezone = toZonedTime(
           period.period_start,
-          query.timezone || 'Asia/Jakarta',
+          timezone || 'Asia/Jakarta',
         );
         lookupKey = format(
           startOfDay(dateInTimezone),
@@ -536,12 +555,9 @@ export class DashboardService {
       };
     });
 
-    this.logger.log('trendDataMap', trendDataMap);
-    this.logger.log('finalData', finalData);
-
     const totalOrders = finalData.reduce((sum, item) => sum + item.count, 0);
 
-    return {
+    const response = {
       data: finalData,
       summary: {
         total_orders: totalOrders,
@@ -549,6 +565,19 @@ export class DashboardService {
         actual_end_date_used: actualEndDateUsed.toISOString(),
       },
     };
+
+    // --- Cache the response ---
+    try {
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(response),
+        3600 * 24, // Cache for 24 hours
+      );
+    } catch (error) {
+      this.logger.warn(`Redis error while setting cache: ${error.message}`);
+    }
+
+    return response;
   }
 
   /**
