@@ -1,244 +1,335 @@
-/**
- * @fileoverview Prisma Schema for the CAR-dano application.
- * Defines the database models (User, Inspection), enums (Role),
- * and relations between models. Also configures the database connection
- * and the Prisma Client generator.
- */
-
-// Specifies the Prisma Client generator settings.
-// 'prisma-client-js' is the standard generator for Node.js/TypeScript projects.
-// The output location defaults to `node_modules/.prisma/client`, which is recommended.
 generator client {
   provider = "prisma-client-js"
-  // Output path is commented out to use the default location within node_modules.
-  // output   = "../generated/prisma" // Default: ./node_modules/.prisma/client
 }
 
-// Defines the database connection details.
-// 'provider' specifies the database type (PostgreSQL in this case).
-// 'url' points to the database connection string, typically loaded from environment variables.
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL") // Loads the connection URL from the .env file
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
   directUrl = env("DIRECT_DB_URL")
 }
 
-// Defines the possible roles a user can have within the application.
-// Using an enum ensures type safety and consistency for role values.
-enum Role {
-  ADMIN // Administrator with full access
-  REVIEWER // User who reviews inspection reports before blockchain submission (potentially)
-  INSPECTOR // User who performs the vehicle inspection and submits data
-  CUSTOMER // General user who views inspection reports (potentially)
-  DEVELOPER // External developer using the public API
-  SUPERADMIN // Super Administrator with elevated privileges
-}
-
-// Defines the possible statuses for an inspection record.
-// This tracks the lifecycle of an inspection report.
-enum InspectionStatus {
-  NEED_REVIEW  // Initial status when an Inspector submits the data, requiring review.
-  APPROVED     // Status after a Reviewer approves the inspection data.
-  ARCHIVING    // Status indicating the PDF generation and NFT minting process is in progress.
-  ARCHIVED     // Status after the report PDF is stored and NFT/metadata is successfully recorded on the blockchain.
-  FAIL_ARCHIVE // Status if the archiving (PDF gen or NFT mint) process failed. Requires attention.
-  DEACTIVATED  // Status for inspections that are soft-deleted or hidden from public view upon request.
-}
-
-// Defines the User model, representing users in the system.
 model User {
-  id            String    @id // Primary Key: Automatically generated.
-  name          String?   // Name can be from Google, or input during email/user registration
-  email         String?   @unique // Optional: Required for Google/Email login, can be null for Wallet Login? (Needs to be validated in logic)
-  username      String?   @unique // Optional: Required for Username/Password login? Can be null for Google/Wallet.
-  password      String?   // Optional: Only exists (as HASH) if user registers/logins via Username/Email + Password. Null for Google/Wallet.
-  pin           String?   @unique // PIN for inspector login
-  refreshToken  String?   @unique
-  whatsappNumber String?   @map("whatsapp_number")
-  walletAddress String?   @unique // Optional: Only present if user login/link via Wallet. Must be unique if present.
-  googleId      String?   @unique // Optional: Only present if the user logged in/linked via Google. Must be unique if present.
-  role          Role      @default(CUSTOMER)
-  isActive      Boolean   @default(true) @map("is_active")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                        String                @id
+  email                     String?               @unique
+  name                      String?
+  googleId                  String?               @unique
+  role                      Role                  @default(CUSTOMER)
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+  password                  String?
+  username                  String?               @unique
+  walletAddress             String?               @unique
+  pin                       String?               @unique
+  refreshToken              String?               @unique
+  whatsappNumber            String?               @map("whatsapp_number")
+  inspectionBranchCityId    String?               @map("inspection_branch_city_id")
+  isActive                  Boolean               @default(true) @map("is_active")
+  credits                   Int                   @default(0)
+  creditExpAt               DateTime?
+  google_avatar_url         String?               @db.VarChar(512)
+  profile_photo_storage_key String?               @db.VarChar(255)
+  profile_photo_url         String                @default("") @db.VarChar(512)
+  credit_consumptions       credit_consumptions[]
+  customer_vehicles         customer_vehicles[]
+  inspectionChangeLogs      InspectionChangeLog[]
+  inspectionsSubmitted      Inspection[]          @relation("InspectedBy")
+  inspectionsReviewed       Inspection[]          @relation("ReviewedBy")
+  purchases                 purchases[]
+  inspectionBranchCity      InspectionBranchCity? @relation(fields: [inspectionBranchCityId], references: [id])
 
-  // Relations defined here indicate this User can be linked from the Inspection model
-  // The actual foreign keys are defined in the Inspection model.
-  inspectionsSubmitted Inspection[] @relation("InspectedBy") // Inspections submitted by this user
-  inspectionsReviewed  Inspection[] @relation("ReviewedBy")  // Inspections reviewed by this user
-
-  inspectionChangeLogs InspectionChangeLog[] // Relation to InspectionChangeLog records created by this user
-
-  inspectionBranchCityId String?               @map("inspection_branch_city_id")
-  inspectionBranchCity   InspectionBranchCity? @relation(fields: [inspectionBranchCityId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  @@map("users") // Explicit table name
+  @@map("users")
 }
 
-// Defines the Inspection model, representing a single vehicle inspection record.
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
 model Inspection {
-  // Primary Key: Automatically generated UUID string.
-  id String @id @default(uuid())
+  id                    String                @id @default(uuid())
+  vehiclePlateNumber    String?               @db.VarChar(255)
+  inspectionDate        DateTime?
+  overallRating         String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  detailedAssessment    Json?
+  equipmentChecklist    Json?
+  identityDetails       Json?
+  inspectionSummary     Json?
+  vehicleData           Json?
+  archivedAt            DateTime?             @map("archived_at")
+  blockchainTxHash      String?               @unique @map("blockchain_tx_hash") @db.VarChar(255)
+  deactivatedAt         DateTime?             @map("deactivated_at")
+  inspectorId           String?               @map("inspector_id")
+  nftAssetId            String?               @unique @map("nft_asset_id") @db.VarChar(255)
+  pdfFileHash           String?               @map("pdf_file_hash") @db.VarChar(255)
+  reviewerId            String?               @map("reviewer_id")
+  status                InspectionStatus      @default(NEED_REVIEW)
+  urlPdf                String?               @map("url_pdf") @db.VarChar(255)
+  bodyPaintThickness    Json?
+  pretty_id             String                @unique @map("pretty_id")
+  notesFontSizes        Json?                 @default("{}") @map("notes_font_sizes")
+  branchCityId          String?               @map("branch_city_id")
+  ipfsPdf               String?               @map("ipfs_pdf") @db.VarChar(255)
+  ipfsPdfNoDocs         String?               @map("ipfs_pdf_no_docs") @db.VarChar(255)
+  pdfFileHashNoDocs     String?               @map("pdf_file_hash_no_docs") @db.VarChar(255)
+  urlPdfNoDocs          String?               @map("url_pdf_no_docs") @db.VarChar(255)
+  url_pdf_cloud         String?               @db.VarChar(255)
+  url_pdf_no_docs_cloud String?               @db.VarChar(255)
+  blockchain_queue      blockchain_queue[]
+  credit_consumptions   credit_consumptions[]
+  changeLogs            InspectionChangeLog[]
+  photos                Photo[]
+  branchCity            InspectionBranchCity? @relation("InspectionBranchRelation", fields: [branchCityId], references: [id])
+  inspector             User?                 @relation("InspectedBy", fields: [inspectorId], references: [id])
+  reviewer              User?                 @relation("ReviewedBy", fields: [reviewerId], references: [id])
 
-  // Field for the human-readable, system-generated ID used for URLs.
-  pretty_id String @unique @map("pretty_id")
-
-  // --- Foreign Keys & Relations ---
-  // Foreign Key linking to the User who submitted this inspection (the Inspector). Optional? Depends if submitter is always a registered User.
-  // If required, remove the '?'. Added @map for explicit snake_case column name.
-  inspectorId String?  @map("inspector_id")
-  // Relation field for the submitting Inspector. Uses the 'InspectedBy' relation name defined in User model.
-  inspector   User?    @relation("InspectedBy", fields: [inspectorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-                       // onDelete: SetNull - If the inspector User is deleted, set inspectorId to NULL.
-                       // onUpdate: Cascade - If the inspector User's id changes, update inspectorId here.
-
-  // Foreign Key linking to the User who reviewed/approved this inspection. Optional.
-  reviewerId  String?  @map("reviewer_id")
-  // Relation field for the reviewing User. Uses the 'ReviewedBy' relation name defined in User model.
-  reviewer    User?    @relation("ReviewedBy", fields: [reviewerId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
-  // Foreign Key linking to the InspectionBranchCity. Optional.
-  branchCityId String? @map("branch_city_id")
-  // Relation field for the branch city.
-  branchCity InspectionBranchCity? @relation("InspectionBranchRelation", fields: [branchCityId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-
-  // --- Basic Inspection Data ---
-  // Vehicle's license plate number. VarChar(15) for potential length limit. Optional.
-  vehiclePlateNumber String?   @db.VarChar(255)
-  // Date and time of the inspection. Optional.
-  inspectionDate     DateTime?
-  // Overall rating string (e.g., "Excellent", "Good"). Optional.
-  overallRating      String?
-  // Current status of the inspection record. Uses the InspectionStatus enum. Defaults to NEED_REVIEW.
-  status             InspectionStatus @default(NEED_REVIEW)
-
-  // --- JSON Columns for Form Details ---
-  // Storing structured but potentially variable data from form pages as JSONB (PostgreSQL's efficient JSON type).
-  // All are optional ('?') allowing them to be NULL in the database.
-  identityDetails     Json? // Contains inspector name, customer name, branch etc.
-  vehicleData         Json? // Contains make, model, year, transmission, odometer etc.
-  equipmentChecklist  Json? // Contains boolean checks for service book, spare tire, tools etc.
-  inspectionSummary   Json? // Contains summary scores, indicators (flood/crash), tire info, repair estimates etc.
-  detailedAssessment  Json? // Contains detailed numerical scores for all categories (test drive, engine, interior etc.).
-  bodyPaintThickness  Json? // Contains detailed thickness measurements for various body parts.
-
-  photos Photo[] // Relationships to multiple photos
-
-  changeLogs InspectionChangeLog[] // Relation to InspectionChangeLog records
-
-  // --- Report & Blockchain Metadata (Populated Later) ---
-  // URL of the generated PDF report stored off-chain. Optional. Explicit column name mapping. Max length 255.
-  urlPdf             String?        @map("url_pdf") @db.VarChar(255)
-  // IPFS URL with CID of the generated PDF report stored at IPFS
-  ipfsPdf             String?        @map("ipfs_pdf") @db.VarChar(255)
-  // Unique Cardano NFT Asset ID (Policy ID + Asset Name Hex). Optional. Explicit mapping. Indexed for uniqueness. Max length 255.
-  nftAssetId         String?        @unique @map("nft_asset_id") @db.VarChar(255)
-  // Cardano transaction hash for the minting process. Should be unique if present. Explicit mapping. Max length 255.
-  // Consider if this should truly be unique globally? Maybe unique per inspection? Usually tx hashes are unique globally.
-  blockchainTxHash   String?        @unique @map("blockchain_tx_hash") @db.VarChar(255)
-  // Cryptographic hash (e.g., SHA-256) of the generated PDF file. Optional. Explicit mapping. Max length 255.
-  pdfFileHash        String?        @map("pdf_file_hash") @db.VarChar(255)
-
-  urlPdfNoDocs       String?        @map("url_pdf_no_docs") @db.VarChar(255)
-  ipfsPdfNoDocs      String?        @map("ipfs_pdf_no_docs") @db.VarChar(255)
-  pdfFileHashNoDocs  String?        @map("pdf_file_hash_no_docs") @db.VarChar(255)
-
-  // --- Timestamps ---
-  // Automatically set when the record is created.
-  createdAt DateTime @default(now())
-  // Automatically updated when the record is modified.
-  updatedAt DateTime @updatedAt
-  // Timestamp indicating when the inspection was successfully archived (PDF stored, NFT minted). Optional. Explicit mapping.
-  archivedAt DateTime? @map("archived_at") // Renamed from 'archievedAt' for correct spelling
-  // Timestamp indicating when the inspection was deactivated (soft delete). Optional. Explicit mapping.
-  deactivatedAt DateTime? @map("deactivated_at")
-
-  // --- Additional Fields ---
-  // Map of note field paths to their desired font sizes in the report.
-  notesFontSizes Json? @default("{}") @map("notes_font_sizes")
-
-  // --- Database Indexes ---
-  // Creates indexes on foreign keys and commonly queried fields for performance.
   @@index([inspectorId])
-  @@index([reviewerId]) // Added index for reviewerId
+  @@index([reviewerId])
   @@index([vehiclePlateNumber])
-  @@index([status]) // Index on status for filtering by lifecycle stage
-
-  // Maps the model name 'Inspection' to the database table name 'inspections'.
+  @@index([status])
+  @@index([createdAt])
+  @@index([branchCityId, createdAt])
+  @@index([identityDetails], map: "inspections_identity_details_gin_idx", type: Gin)
+  @@index([vehicleData], map: "inspections_vehicle_data_gin_idx", type: Gin)
   @@map("inspections")
 }
 
 model Photo {
-  id String @id @default(uuid())
-  inspectionId String // Foreign Key to Inspection
-  inspection Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade) // Many-to-One relation
-
-  path String // Unique path/filename in storage (disk or cloud)
-  label String? @default("Tambahan") // Photo label (can be custom or from originalLabel)
-  category String? @default("General")
-  isMandatory Boolean? @default(false)
-  originalLabel String? // Special for FIXED types (e.g. “Front View”, “OBD Scanner”)
-  needAttention Boolean? @default(false) // Only relevant for DYNAMIC types, default false
-  displayInPdf    Boolean? @default(true) // Indicates if the photo should be displayed in the PDF report
-
-  // --- Timestamps ---
-  // Automatically set when the record is created.
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String     @id @default(uuid())
+  inspectionId  String
+  path          String
+  label         String?    @default("Tambahan")
+  originalLabel String?
+  needAttention Boolean?   @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  category      String?    @default("General")
+  isMandatory   Boolean?   @default(false)
+  displayInPdf  Boolean?   @default(true)
+  inspection    Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
 
   @@index([inspectionId])
   @@map("inspection_photos")
 }
 
 model InspectionBranchCity {
-  id        String   @id @default(uuid())
-  city      String   @unique
-  code      String   @unique @db.VarChar(3)
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  inspections Inspection[] @relation("InspectionBranchRelation") // Relation to inspections in this branch city
-  users       User[]       // Relation to users (inspectors) in this branch city
+  id          String       @id @default(uuid())
+  city        String       @unique
+  code        String       @unique @db.VarChar(3)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  isActive    Boolean      @default(true) @map("is_active")
+  inspections Inspection[] @relation("InspectionBranchRelation")
+  users       User[]
 
   @@map("inspection_branch_city")
 }
 
-// Defines the InspectionChangeLog model to track changes made by reviewers
 model InspectionChangeLog {
-  id              String    @id @default(uuid())
+  id              String     @id @default(uuid())
   inspectionId    String
-  inspection      Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
   changedByUserId String
-  changedByUser   User      @relation(fields: [changedByUserId], references: [id], onDelete: Cascade)
   fieldName       String
-  subFieldName    String? // Added to track changes within nested JSON fields
-  subsubfieldname String? // Added to track changes within the third level of nested JSON fields
   oldValue        Json?
   newValue        Json?
-  changedAt       DateTime  @default(now())
+  changedAt       DateTime   @default(now())
+  subFieldName    String?
+  subsubfieldname String?
+  changedByUser   User       @relation(fields: [changedByUserId], references: [id], onDelete: Cascade)
+  inspection      Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
 
   @@index([inspectionId])
   @@index([changedByUserId])
   @@map("inspection_change_logs")
 }
 
-// Defines a model to store the next sequence number for inspection pretty_ids per branch and date.
 model InspectionSequence {
-  branchCode  String    @db.VarChar(3) // e.g., 'YOG', 'SOL', 'SEM'
-  datePrefix  String    @db.VarChar(8) // e.g., 'DDMMYYYY'
-  nextSequence Int      @default(1)
+  branchCode   String @db.VarChar(3)
+  datePrefix   String @db.VarChar(8)
+  nextSequence Int    @default(1)
 
-  @@id([branchCode, datePrefix]) // Compound primary key
+  @@id([branchCode, datePrefix])
   @@map("inspection_sequences")
 }
 
 model BlacklistedToken {
   id        String   @id @default(uuid())
-  token     String   @unique @db.VarChar(512) // Store the full token or its hash
-  expiresAt DateTime // When the original token expires
+  token     String   @unique @db.VarChar(512)
+  expiresAt DateTime
   createdAt DateTime @default(now())
 
   @@map("blacklisted_tokens")
+}
+
+model InspectionTarget {
+  id          String       @id @default(uuid())
+  targetValue Int
+  period      TargetPeriod
+  targetDate  DateTime     @db.Date
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@unique([period, targetDate])
+  @@map("inspection_targets")
+}
+
+model blockchain_queue {
+  id            String               @id
+  taskType      BlockchainTaskType
+  payload       Json
+  status        BlockchainTaskStatus @default(PENDING)
+  attempts      Int                  @default(0)
+  maxRetries    Int                  @default(3)
+  lockedUtxos   String[]
+  lastError     String?
+  errorStack    String?
+  processAt     DateTime             @default(now())
+  startedAt     DateTime?
+  completedAt   DateTime?
+  resultTxHash  String?
+  resultAssetId String?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime
+  inspectionId  String?
+  inspections   Inspection?          @relation(fields: [inspectionId], references: [id])
+
+  @@index([status, processAt])
+  @@index([taskType, status])
+}
+
+model credit_consumptions {
+  id           String     @id
+  userId       String
+  inspectionId String
+  cost         Int        @default(1)
+  usedAt       DateTime   @default(now())
+  uniqueKey    String     @unique
+  inspections  Inspection @relation(fields: [inspectionId], references: [id])
+  users        User       @relation(fields: [userId], references: [id])
+
+  @@index([userId, inspectionId])
+}
+
+model credit_packages {
+  id          String      @id
+  credits     Int
+  price       Int
+  discountPct Int
+  benefits    Json?
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime
+  purchases   purchases[]
+
+  @@index([isActive])
+}
+
+model customer_vehicle_photos {
+  id                String            @id
+  vehicle_id        String
+  type              VehiclePhotoType
+  label             String?           @db.VarChar(100)
+  category          String?           @db.VarChar(100)
+  path              String            @db.VarChar(255)
+  storage_key       String?           @db.VarChar(255)
+  content_type      String?           @db.VarChar(100)
+  is_primary        Boolean           @default(false)
+  display_order     Int               @default(0)
+  created_at        DateTime          @default(now())
+  updated_at        DateTime
+  customer_vehicles customer_vehicles @relation(fields: [vehicle_id], references: [id], onDelete: Cascade)
+
+  @@index([vehicle_id])
+}
+
+model customer_vehicles {
+  id                      String                    @id
+  user_id                 String
+  plate_number            String                    @db.VarChar(32)
+  year                    Int
+  transmission            VehicleTransmission
+  vehicle_type            VehicleType
+  brand                   String                    @db.VarChar(100)
+  model                   String                    @db.VarChar(100)
+  color                   String                    @db.VarChar(100)
+  specification           String?
+  service_history         String?
+  created_at              DateTime                  @default(now())
+  updated_at              DateTime
+  customer_vehicle_photos customer_vehicle_photos[]
+  users                   User                      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, plate_number])
+  @@index([user_id])
+}
+
+model purchases {
+  id              String          @id
+  userId          String
+  packageId       String
+  gateway         PaymentGateway
+  extInvoiceId    String          @unique
+  amount          Int
+  status          PurchaseStatus  @default(PENDING)
+  createdAt       DateTime        @default(now())
+  paidAt          DateTime?
+  credit_packages credit_packages @relation(fields: [packageId], references: [id])
+  users           User            @relation(fields: [userId], references: [id])
+
+  @@index([userId, status, createdAt])
+}
+
+model utxo_locks {
+  id          String   @id
+  utxoKey     String   @unique
+  lockedBy    String
+  lockedAt    DateTime @default(now())
+  expiresAt   DateTime
+  txHash      String
+  outputIndex Int
+  amount      String
+  address     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+
+  @@index([expiresAt])
+  @@index([lockedBy])
+}
+
+model webhook_events {
+  id           String    @id
+  gateway      String
+  extInvoiceId String
+  eventType    String?
+  dedupeKey    String    @unique
+  payloadHash  String?
+  payload      Json?
+  headers      Json?
+  attempts     Int       @default(0)
+  receivedAt   DateTime  @default(now())
+  processedAt  DateTime?
+  result       String?
+  error        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime
+
+  @@index([extInvoiceId, receivedAt])
+  @@index([processedAt])
+}
+
+enum Role {
+  ADMIN
+  REVIEWER
+  INSPECTOR
+  CUSTOMER
+  DEVELOPER
+  SUPERADMIN
+}
+
+enum InspectionStatus {
+  NEED_REVIEW
+  APPROVED
+  ARCHIVING
+  ARCHIVED
+  FAIL_ARCHIVE
+  DEACTIVATED
 }
 
 enum TargetPeriod {
@@ -248,14 +339,57 @@ enum TargetPeriod {
   DAY
 }
 
-model InspectionTarget {
-  id          String     @id @default(uuid())
-  targetValue Int
-  period      TargetPeriod // Enum for YEAR, MONTH, WEEK, DAY
-  targetDate  DateTime   @db.Date // Stores only the date part (YYYY-MM-DD)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+enum BlockchainTaskStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
 
-  @@unique([period, targetDate]) // Ensure only one target per period per day/week/month
-  @@map("inspection_targets")
+enum BlockchainTaskType {
+  MINT_NFT
+  BULK_MINT
+  BURN_NFT
+}
+
+enum PaymentGateway {
+  XENDIT
+  MIDTRANS
+}
+
+enum PurchaseStatus {
+  PENDING
+  PAID
+  FAILED
+  EXPIRED
+  REFUNDED
+}
+
+enum VehiclePhotoType {
+  FRONT
+  BACK
+  LEFT
+  RIGHT
+  INTERIOR
+  EXTERIOR
+  ENGINE
+  DOCUMENT
+  OTHER
+}
+
+enum VehicleTransmission {
+  MANUAL
+  AUTOMATIC
+}
+
+enum VehicleType {
+  SEDAN
+  SUV
+  HATCHBACK
+  MPV
+  TRUCK
+  VAN
+  MOTORCYCLE
+  OTHER
 }

@@ -23,6 +23,7 @@ import {
 } from './dto/order-trend-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { InspectionStatus, Prisma } from '@prisma/client';
+import { RedisService } from '../redis/redis.service';
 // import { GetOrderTrendDto, OrderTrendRangeType } from './dto/get-order-trend.';
 import {
   startOfDay,
@@ -62,7 +63,10 @@ interface DateRange {
 @Injectable()
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redisService: RedisService,
+  ) { }
 
   /**
    * Calculates the percentage change between a current and previous value.
@@ -151,16 +155,7 @@ export class DashboardService {
     startDate: Date,
     endDate: Date,
   ): Promise<Record<string, number>> {
-    const totalPromise = this.prisma.inspection.count({
-      where: {
-        createdAt: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-    });
-
-    const countsByStatusPromise = this.prisma.inspection.groupBy({
+    const countsByStatus = await this.prisma.inspection.groupBy({
       by: ['status'],
       where: {
         createdAt: {
@@ -173,17 +168,17 @@ export class DashboardService {
       },
     });
 
-    // Execute both queries concurrently for efficiency
-    const [total, countsByStatus] = await Promise.all([
-      totalPromise,
-      countsByStatusPromise,
-    ]);
-
     // Format the results from groupBy into an easy-to-use object
-    const statusCounts = countsByStatus.reduce((acc, current) => {
+    const statusCounts = countsByStatus.reduce((acc: Record<string, number>, current) => {
       acc[current.status] = current._count.status;
       return acc;
     }, {});
+
+    // Calculate total from individual status counts
+    const total = Object.values(statusCounts).reduce(
+      (sum: number, count: number) => sum + count,
+      0,
+    );
 
     return {
       total,
@@ -208,6 +203,22 @@ export class DashboardService {
       );
     }
 
+    // --- Caching Logic Start ---
+    const listVersion =
+      (await this.redisService.get('inspections:list_version')) || '1';
+    const cacheKey = `dashboard:main-stats:v${listVersion}:${start_date}:${end_date}:${timezone || 'Asia/Jakarta'}`;
+
+    try {
+      const cachedData = await this.redisService.get(cacheKey);
+      if (cachedData) {
+        this.logger.debug(`Cache hit for ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+    } catch (error) {
+      this.logger.warn(`Redis error while fetching cache: ${error.message}`);
+    }
+    // --- Caching Logic End ---
+
     const { current, previous } = this.calculateDateRanges(
       start_date,
       end_date,
@@ -231,7 +242,8 @@ export class DashboardService {
         ),
       };
     };
-    return {
+
+    const response = {
       totalOrders: createCounterData('totalOrders'),
       needReview: createCounterData(InspectionStatus.NEED_REVIEW),
       approved: createCounterData(InspectionStatus.APPROVED),
@@ -239,6 +251,19 @@ export class DashboardService {
       failArchive: createCounterData(InspectionStatus.FAIL_ARCHIVE),
       deactivated: createCounterData(InspectionStatus.DEACTIVATED),
     };
+
+    // --- Cache the response ---
+    try {
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(response),
+        3600 * 24, // Cache for 24 hours (invalidated by version increment)
+      );
+    } catch (error) {
+      this.logger.warn(`Redis error while setting cache: ${error.message}`);
+    }
+
+    return response;
   }
 
   /**
@@ -593,9 +618,9 @@ export class DashboardService {
       const percentage =
         totalInspectionsCurrentPeriod > 0
           ? (
-              (currentPeriodCount / totalInspectionsCurrentPeriod) *
-              100
-            ).toFixed(1) + '%'
+            (currentPeriodCount / totalInspectionsCurrentPeriod) *
+            100
+          ).toFixed(1) + '%'
           : '0.0%';
 
       // Calculate previous period's range
