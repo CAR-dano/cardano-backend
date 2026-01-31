@@ -23,6 +23,7 @@ import {
 } from './dto/order-trend-response.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { InspectionStatus, Prisma } from '@prisma/client';
+import { RedisService } from '../redis/redis.service';
 // import { GetOrderTrendDto, OrderTrendRangeType } from './dto/get-order-trend.';
 import {
   startOfDay,
@@ -62,7 +63,10 @@ interface DateRange {
 @Injectable()
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redisService: RedisService,
+  ) { }
 
   /**
    * Calculates the percentage change between a current and previous value.
@@ -151,16 +155,7 @@ export class DashboardService {
     startDate: Date,
     endDate: Date,
   ): Promise<Record<string, number>> {
-    const totalPromise = this.prisma.inspection.count({
-      where: {
-        createdAt: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-    });
-
-    const countsByStatusPromise = this.prisma.inspection.groupBy({
+    const countsByStatus = await this.prisma.inspection.groupBy({
       by: ['status'],
       where: {
         createdAt: {
@@ -173,17 +168,17 @@ export class DashboardService {
       },
     });
 
-    // Execute both queries concurrently for efficiency
-    const [total, countsByStatus] = await Promise.all([
-      totalPromise,
-      countsByStatusPromise,
-    ]);
-
     // Format the results from groupBy into an easy-to-use object
-    const statusCounts = countsByStatus.reduce((acc, current) => {
+    const statusCounts = countsByStatus.reduce((acc: Record<string, number>, current) => {
       acc[current.status] = current._count.status;
       return acc;
     }, {});
+
+    // Calculate total from individual status counts
+    const total = Object.values(statusCounts).reduce(
+      (sum: number, count: number) => sum + count,
+      0,
+    );
 
     return {
       total,
@@ -208,6 +203,22 @@ export class DashboardService {
       );
     }
 
+    // --- Caching Logic Start ---
+    const listVersion =
+      (await this.redisService.get('inspections:list_version')) || '1';
+    const cacheKey = `dashboard:main-stats:v${listVersion}:${start_date}:${end_date}:${timezone || 'Asia/Jakarta'}`;
+
+    try {
+      const cachedData = await this.redisService.get(cacheKey);
+      if (cachedData) {
+        this.logger.debug(`Cache hit for ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+    } catch (error) {
+      this.logger.warn(`Redis error while fetching cache: ${error.message}`);
+    }
+    // --- Caching Logic End ---
+
     const { current, previous } = this.calculateDateRanges(
       start_date,
       end_date,
@@ -231,7 +242,8 @@ export class DashboardService {
         ),
       };
     };
-    return {
+
+    const response = {
       totalOrders: createCounterData('totalOrders'),
       needReview: createCounterData(InspectionStatus.NEED_REVIEW),
       approved: createCounterData(InspectionStatus.APPROVED),
@@ -239,6 +251,19 @@ export class DashboardService {
       failArchive: createCounterData(InspectionStatus.FAIL_ARCHIVE),
       deactivated: createCounterData(InspectionStatus.DEACTIVATED),
     };
+
+    // --- Cache the response ---
+    try {
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(response),
+        3600 * 24, // Cache for 24 hours (invalidated by version increment)
+      );
+    } catch (error) {
+      this.logger.warn(`Redis error while setting cache: ${error.message}`);
+    }
+
+    return response;
   }
 
   /**
@@ -382,6 +407,8 @@ export class DashboardService {
     granularity: 'hour' | 'day' | 'month',
     timezone: string = 'Asia/Jakarta',
   ): Promise<Map<string, number>> {
+    const dataMap = new Map<string, number>();
+
     if (granularity === 'hour') {
       const query = Prisma.sql`
       SELECT
@@ -393,43 +420,40 @@ export class DashboardService {
       WHERE "createdAt" >= ${startDate} AND "createdAt" <= ${endDate}
       GROUP BY period_group
       ORDER BY period_group ASC;`;
+
       const results: { period_group: Date; count: number }[] =
         await this.prisma.$queryRaw(query);
 
-      const dataMap = new Map<string, number>();
       for (const result of results) {
         dataMap.set(result.period_group.toISOString(), result.count);
       }
-      return dataMap;
     } else {
-      // For daily/monthly, generate periods and count for each period
-      const periods = this.generatePeriods(
-        startDate,
-        endDate,
-        granularity,
-        timezone,
-      );
-      const dataMap = new Map<string, number>();
+      // Optimized: Use DATE_TRUNC for daily/monthly aggregation to avoid N+1 count queries
+      const dbGranularity = granularity === 'day' ? 'day' : 'month';
+      const query = Prisma.sql`
+      SELECT
+        DATE_TRUNC(${dbGranularity}, "createdAt" AT TIME ZONE ${timezone}) AS period_group,
+        COUNT(*)::integer AS count
+      FROM "inspections"
+      WHERE "createdAt" >= ${startDate} AND "createdAt" <= ${endDate}
+      GROUP BY period_group
+      ORDER BY period_group ASC;`;
 
-      for (const period of periods) {
-        const count = await this.prisma.inspection.count({
-          where: {
-            createdAt: {
-              gte: period.period_start, // Use period start in UTC
-              lte: period.period_end, // Use period end in UTC
-            },
-          },
-        });
-        // The key should be the UTC midnight of the date in the specified timezone
-        const dateInTimezone = toZonedTime(period.period_start, timezone);
+      const results: { period_group: Date; count: number }[] =
+        await this.prisma.$queryRaw(query);
+
+      for (const result of results) {
+        // Need to format key to match format(startOfDay(toZonedTime(period.period_start, timezone)), "yyyy-MM-dd'T'00:00:00.000'Z'")
+        // The period_group from query is already the start of day/month in the specified timezone
+        // Expressed as a UTC Date object.
         const lookupKey = format(
-          startOfDay(dateInTimezone),
+          result.period_group,
           "yyyy-MM-dd'T'00:00:00.000'Z'",
         );
-        dataMap.set(lookupKey, count);
+        dataMap.set(lookupKey, result.count);
       }
-      return dataMap;
     }
+    return dataMap;
   }
 
   /**
@@ -442,12 +466,32 @@ export class DashboardService {
   async getOrderTrend(
     query: GetDashboardStatsDto,
   ): Promise<OrderTrendResponseDto> {
-    const { start: actualStartDateUsed, end: actualEndDateUsed } =
-      this.getValidatedDateRange(
-        query.start_date,
-        query.end_date,
-        query.timezone,
+    const { start_date, end_date, timezone } = query;
+
+    if (!start_date || !end_date) {
+      throw new BadRequestException(
+        'start_date and end_date are required for this operation.',
       );
+    }
+
+    // --- Caching Logic Start ---
+    const listVersion =
+      (await this.redisService.get('inspections:list_version')) || '1';
+    const cacheKey = `dashboard:order-trend:v${listVersion}:${start_date}:${end_date}:${timezone || 'Asia/Jakarta'}`;
+
+    try {
+      const cachedData = await this.redisService.get(cacheKey);
+      if (cachedData) {
+        this.logger.debug(`Cache hit for ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+    } catch (error) {
+      this.logger.warn(`Redis error while fetching cache: ${error.message}`);
+    }
+    // --- Caching Logic End ---
+
+    const { start: actualStartDateUsed, end: actualEndDateUsed } =
+      this.getValidatedDateRange(start_date, end_date, timezone);
 
     const durationInDays = differenceInDays(
       actualEndDateUsed,
@@ -467,7 +511,7 @@ export class DashboardService {
       actualStartDateUsed,
       actualEndDateUsed,
       granularity,
-      query.timezone,
+      timezone,
     );
 
     if (periods.length === 0) {
@@ -484,7 +528,7 @@ export class DashboardService {
       actualStartDateUsed,
       actualEndDateUsed,
       granularity,
-      query.timezone,
+      timezone,
     );
 
     const finalData = periods.map((period) => {
@@ -497,7 +541,7 @@ export class DashboardService {
         // For daily/monthly, use the previous logic (UTC midnight of the date in the specified timezone)
         const dateInTimezone = toZonedTime(
           period.period_start,
-          query.timezone || 'Asia/Jakarta',
+          timezone || 'Asia/Jakarta',
         );
         lookupKey = format(
           startOfDay(dateInTimezone),
@@ -511,12 +555,9 @@ export class DashboardService {
       };
     });
 
-    this.logger.log('trendDataMap', trendDataMap);
-    this.logger.log('finalData', finalData);
-
     const totalOrders = finalData.reduce((sum, item) => sum + item.count, 0);
 
-    return {
+    const response = {
       data: finalData,
       summary: {
         total_orders: totalOrders,
@@ -524,6 +565,19 @@ export class DashboardService {
         actual_end_date_used: actualEndDateUsed.toISOString(),
       },
     };
+
+    // --- Cache the response ---
+    try {
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(response),
+        3600 * 24, // Cache for 24 hours
+      );
+    } catch (error) {
+      this.logger.warn(`Redis error while setting cache: ${error.message}`);
+    }
+
+    return response;
   }
 
   /**
@@ -545,139 +599,129 @@ export class DashboardService {
       );
     }
 
+    // --- Caching Logic Start ---
+    const listVersion =
+      (await this.redisService.get('inspections:list_version')) || '1';
+    const cacheKey = `dashboard:branch-distribution:v${listVersion}:${start_date}:${end_date}:${timezone || 'Asia/Jakarta'}`;
+
+    try {
+      const cachedData = await this.redisService.get(cacheKey);
+      if (cachedData) {
+        this.logger.debug(`Cache hit for ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+    } catch (error) {
+      this.logger.warn(`Redis error while fetching cache: ${error.message}`);
+    }
+    // --- Caching Logic End ---
+
     const { current, previous } = this.calculateDateRanges(
       start_date,
       end_date,
       timezone,
     );
-    const { start, end } = current;
 
-    // Get all unique branch cities
+    // 1. Fetch all unique branch cities for mapping
     const branchCities = await this.prisma.inspectionBranchCity.findMany({
       select: {
+        id: true,
         city: true,
+      },
+      where: {
+        isActive: true,
       },
     });
 
-    const branchDistribution: BranchDistributionItem[] = [];
-    let totalInspectionsCurrentPeriod = 0;
+    const branchMap = new Map(branchCities.map((b) => [b.id, b.city]));
 
-    // Calculate total inspections for the current period first
-    const totalInspectionsResult = await this.prisma.inspection.aggregate({
+    // 2. Optimized: Get current period distribution in one query
+    const currentCounts = await this.prisma.inspection.groupBy({
+      by: ['branchCityId'],
+      where: {
+        createdAt: {
+          gte: current.start,
+          lte: current.end,
+        },
+      },
       _count: {
         id: true,
       },
+    });
+
+    // 3. Optimized: Get previous period distribution in one query
+    const previousCounts = await this.prisma.inspection.groupBy({
+      by: ['branchCityId'],
       where: {
         createdAt: {
-          gte: start,
-          lte: end,
+          gte: previous.start,
+          lte: previous.end,
         },
       },
+      _count: {
+        id: true,
+      },
     });
-    totalInspectionsCurrentPeriod = totalInspectionsResult._count.id;
 
-    for (const branchCity of branchCities) {
-      const currentPeriodCount = await this.prisma.inspection.count({
-        where: {
-          branchCity: {
-            city: branchCity.city,
-          },
-          createdAt: {
-            gte: start,
-            lte: end,
-          },
-        },
-      });
+    const currentCountsMap = new Map(
+      currentCounts.map((c) => [c.branchCityId, c._count.id]),
+    );
+    const previousCountsMap = new Map(
+      previousCounts.map((p) => [p.branchCityId, p._count.id]),
+    );
 
-      // Calculate percentage for current period
-      const percentage =
-        totalInspectionsCurrentPeriod > 0
-          ? (
-              (currentPeriodCount / totalInspectionsCurrentPeriod) *
-              100
-            ).toFixed(1) + '%'
-          : '0.0%';
+    // 4. Calculate totals for percentages and change
+    const totalInspectionsCurrentPeriod = currentCounts.reduce(
+      (sum, c) => sum + c._count.id,
+      0,
+    );
+    const totalInspectionsPreviousPeriod = previousCounts.reduce(
+      (sum, p) => sum + p._count.id,
+      0,
+    );
 
-      // Calculate previous period's range
-      const { start: prevStart, end: prevEnd } = previous;
+    // 5. Build final distribution data
+    const branchDistribution: BranchDistributionItem[] = branchCities.map(
+      (branchCity) => {
+        const currentCount = currentCountsMap.get(branchCity.id) || 0;
+        const previousCount = previousCountsMap.get(branchCity.id) || 0;
 
-      let previousPeriodCount = 0;
-      if (prevStart && prevEnd) {
-        // Only query if previous period is defined
-        previousPeriodCount = await this.prisma.inspection.count({
-          where: {
-            branchCity: {
-              city: branchCity.city,
-            },
-            createdAt: {
-              gte: prevStart,
-              lte: prevEnd,
-            },
-          },
-        });
-      }
+        const percentage =
+          totalInspectionsCurrentPeriod > 0
+            ? ((currentCount / totalInspectionsCurrentPeriod) * 100).toFixed(
+              1,
+            ) + '%'
+            : '0.0%';
 
-      // Calculate change percentage
-      let change = '0%';
-      if (previousPeriodCount > 0) {
-        const changeValue =
-          ((currentPeriodCount - previousPeriodCount) / previousPeriodCount) *
-          100;
-        change = `${changeValue > 0 ? '+' : ''}${changeValue.toFixed(1)}%`;
-      } else if (currentPeriodCount > 0) {
-        change = '+100%'; // If previous was 0 and current is > 0
-      }
+        return {
+          branch: branchCity.city,
+          count: currentCount,
+          percentage: percentage,
+          change: this.calculateChangePercentage(currentCount, previousCount),
+        };
+      },
+    );
 
-      branchDistribution.push({
-        branch: branchCity.city,
-        count: currentPeriodCount,
-        percentage: percentage,
-        change: change,
-      });
-    }
-
-    // Handle 'Others' if there are inspections not tied to a specific branch city or if some branches are not listed
-    // For simplicity, let's assume all inspections are tied to a branch city for now.
-    // If there's a need for 'Others', it would involve querying inspections without a branchCityId.
-
-    // Calculate total inspections for the previous period
-    const { start: prevTotalStart, end: prevTotalEnd } = previous;
-
-    let totalInspectionsPreviousPeriod = 0;
-    if (prevTotalStart && prevTotalEnd) {
-      const totalPrevInspectionsResult = await this.prisma.inspection.aggregate(
-        {
-          _count: {
-            id: true,
-          },
-          where: {
-            createdAt: {
-              gte: prevTotalStart,
-              lte: prevTotalEnd,
-            },
-          },
-        },
-      );
-      totalInspectionsPreviousPeriod = totalPrevInspectionsResult._count.id;
-    }
-
-    // Calculate overall change percentage
-    let totalChange = '0%';
-    if (totalInspectionsPreviousPeriod > 0) {
-      const changeValue =
-        ((totalInspectionsCurrentPeriod - totalInspectionsPreviousPeriod) /
-          totalInspectionsPreviousPeriod) *
-        100;
-      totalChange = `${changeValue > 0 ? '+' : ''}${changeValue.toFixed(1)}%`;
-    } else if (totalInspectionsCurrentPeriod > 0) {
-      totalChange = '+100%'; // If previous total was 0 and current is > 0
-    }
-
-    return {
+    const response: BranchDistributionResponse = {
       total: totalInspectionsCurrentPeriod,
-      totalChange: totalChange,
+      totalChange: this.calculateChangePercentage(
+        totalInspectionsCurrentPeriod,
+        totalInspectionsPreviousPeriod,
+      ),
       branchDistribution: branchDistribution,
     };
+
+    // --- Cache the response ---
+    try {
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(response),
+        3600 * 24, // Cache for 24 hours
+      );
+    } catch (error) {
+      this.logger.warn(`Redis error while setting cache: ${error.message}`);
+    }
+
+    return response;
   }
 
   /**
@@ -692,15 +736,33 @@ export class DashboardService {
   ): Promise<InspectorPerformanceResponseDto> {
     const { start_date, end_date, timezone } = query;
 
+    // --- Caching Logic Start ---
+    const listVersion =
+      (await this.redisService.get('inspections:list_version')) || '1';
+    const cacheKey = `dashboard:inspector-performance:v${listVersion}:${start_date}:${end_date}:${timezone || 'Asia/Jakarta'}`;
+
+    try {
+      const cachedData = await this.redisService.get(cacheKey);
+      if (cachedData) {
+        this.logger.debug(`Cache hit for ${cacheKey}`);
+        return JSON.parse(cachedData);
+      }
+    } catch (error) {
+      this.logger.warn(`Redis error while fetching cache: ${error.message}`);
+    }
+    // --- Caching Logic End ---
+
     const { start, end } = this.getValidatedDateRange(
       start_date,
       end_date,
       timezone,
     );
 
+    // Fetch all active inspectors first to ensure we show them even if they have 0 inspections
     const inspectors = await this.prisma.user.findMany({
       where: {
         role: 'INSPECTOR',
+        isActive: true,
       },
       select: {
         id: true,
@@ -708,27 +770,47 @@ export class DashboardService {
       },
     });
 
-    const performanceData: InspectorPerformanceItemDto[] = [];
-
-    for (const inspector of inspectors) {
-      if (!inspector.name) continue; // Skip if inspector name is null
-
-      const totalInspections = await this.prisma.inspection.count({
-        where: {
-          inspectorId: inspector.id,
-          createdAt: {
-            gte: start,
-            lte: end,
-          },
+    // Optimized: Use groupBy to get all counts in one query
+    const performanceCounts = await this.prisma.inspection.groupBy({
+      by: ['inspectorId'],
+      where: {
+        createdAt: {
+          gte: start,
+          lte: end,
         },
-      });
+        inspectorId: {
+          in: inspectors.map((i) => i.id),
+        },
+      },
+      _count: {
+        id: true,
+      },
+    });
 
-      performanceData.push({
-        inspector: inspector.name,
-        totalInspections,
-      });
+    const countsMap = new Map(
+      performanceCounts.map((item) => [item.inspectorId, item._count.id]),
+    );
+
+    const performanceData: InspectorPerformanceItemDto[] = inspectors
+      .filter((i) => !!i.name)
+      .map((inspector) => ({
+        inspector: inspector.name!,
+        totalInspections: countsMap.get(inspector.id) || 0,
+      }));
+
+    const response = { data: performanceData };
+
+    // --- Cache the response ---
+    try {
+      await this.redisService.set(
+        cacheKey,
+        JSON.stringify(response),
+        3600 * 24, // Cache for 24 hours
+      );
+    } catch (error) {
+      this.logger.warn(`Redis error while setting cache: ${error.message}`);
     }
 
-    return { data: performanceData };
+    return response;
   }
 }
