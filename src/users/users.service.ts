@@ -24,7 +24,7 @@ import { PrismaService } from '../prisma/prisma.service'; // Adjust path if need
 import { User, Role, Prisma } from '@prisma/client';
 import { RegisterUserDto } from '../auth/dto/register-user.dto'; // Import DTO for local registration
 import * as bcrypt from 'bcrypt'; // Import bcrypt for hashing
-import { v4 as uuidv4 } from 'uuid'; // Import uuid for generating unique IDs
+import { randomUUID } from 'crypto';
 import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
 import { UpdateInspectorDto } from './dto/update-inspector.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
@@ -263,13 +263,22 @@ export class UsersService {
    * Finds all users. Primarily for admin use.
    * Not cached typically as it changes often and is admin-only.
    *
+   * @param {Role} actingUserRole - The role of the user performing the search.
    * @returns {Promise<User[]>} Array of users.
    * @throws {InternalServerErrorException} If a database error occurs.
    */
-  async findAll(): Promise<User[]> {
-    this.logger.log('Finding all users');
+  async findAll(actingUserRole?: Role): Promise<User[]> {
+    this.logger.log(`Finding all users (Acting Role: ${actingUserRole || 'Unknown'})`);
     try {
+      const where: Prisma.UserWhereInput = {};
+
+      // Hide SUPERADMIN from all roles except SUPERADMIN
+      if (actingUserRole !== Role.SUPERADMIN) {
+        where.role = { not: Role.SUPERADMIN };
+      }
+
       return await this.prisma.user.findMany({
+        where,
         include: { inspectionBranchCity: true },
       });
     } catch (error) {
@@ -344,7 +353,7 @@ export class UsersService {
     try {
       const newUser = await this.prisma.user.create({
         data: {
-          id: uuidv4(), // Generate a UUID for the new user
+          id: randomUUID(), // Generate a UUID for the new user
           email: normalizedEmail, // Store normalized email
           username: registerDto.username,
           password: hashedPassword, // Store the HASHED password
@@ -442,7 +451,7 @@ export class UsersService {
           // name: name ? name : undefined, // Example: only update if Google provides a name
         },
         create: {
-          id: uuidv4(), // Generate a UUID for the new user
+          id: randomUUID(), // Generate a UUID for the new user
           email: normalizedEmail,
           googleId: googleId,
           name: name || `User_${googleId.substring(0, 6)}`, // Provide a default name if missing
@@ -838,7 +847,7 @@ export class UsersService {
     try {
       const newUser = await this.prisma.user.create({
         data: {
-          id: uuidv4(), // Generate a UUID for the new user
+          id: randomUUID(), // Generate a UUID for the new user
           email: createInspectorDto.email.toLowerCase(), // Store email in lowercase
           username: createInspectorDto.username,
           name: createInspectorDto.name,
@@ -934,13 +943,34 @@ export class UsersService {
    *
    * @param {string} id - The UUID of the user.
    * @param {UpdateUserDto} updateUserDto - DTO containing update data.
+   * @param {Role} actingUserRole - The role of the user performing the update.
    * @returns {Promise<User>} The updated user.
    * @throws {NotFoundException} If the user is not found.
+   * @throws {ForbiddenException} If a non-superadmin tries to update a superadmin.
    * @throws {ConflictException} If updated email, username, or walletAddress already exists.
    * @throws {InternalServerErrorException} For database errors.
    */
-  async updateUser(id: string, updateUserDto: UpdateUserDto): Promise<User> {
-    this.logger.log(`Attempting to update user ID: ${id}`);
+  async updateUser(
+    id: string,
+    updateUserDto: UpdateUserDto,
+    actingUserRole: Role,
+  ): Promise<User> {
+    this.logger.log(
+      `Attempting to update user ID: ${id} by role: ${actingUserRole}`,
+    );
+
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException(`User with ID "${id}" not found for update.`);
+    }
+
+    // Protection: Only SUPERADMIN can update another SUPERADMIN
+    if (user.role === Role.SUPERADMIN && actingUserRole !== Role.SUPERADMIN) {
+      this.logger.warn(
+        `Unauthorized update attempt: Role ${actingUserRole} tried to update SUPERADMIN ${id}`,
+      );
+      throw new ForbiddenException('Cannot modify a super admin account.');
+    }
 
     const data: Prisma.UserUpdateInput = {
       email: updateUserDto.email?.toLowerCase(),
@@ -959,6 +989,10 @@ export class UsersService {
         where: { id: id },
         data,
       });
+
+      // Invalidate cache
+      await this.invalidateUserCache(id, user.email || undefined);
+
       this.logger.log(`Successfully updated user ID: ${id}`);
       return updatedUser;
     } catch (error) {
@@ -1211,16 +1245,38 @@ export class UsersService {
    * Deletes a user by their unique ID (UUID). Requires ADMIN privileges (checked in Controller).
    *
    * @param {string} id - The UUID of the user to delete.
+   * @param {Role} actingUserRole - The role of the user performing the deletion.
    * @returns {Promise<void>}
    * @throws {NotFoundException} If the user is not found.
+   * @throws {ForbiddenException} If a non-superadmin tries to delete a superadmin.
    * @throws {InternalServerErrorException} For database errors.
    */
-  async deleteUser(id: string): Promise<void> {
-    this.logger.log(`Attempting to delete user ID: ${id}`);
+  async deleteUser(id: string, actingUserRole: Role): Promise<void> {
+    this.logger.log(
+      `Attempting to delete user ID: ${id} by role: ${actingUserRole}`,
+    );
+
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException(`User with ID "${id}" not found for deletion.`);
+    }
+
+    // Protection: Only SUPERADMIN can delete another SUPERADMIN
+    if (user.role === Role.SUPERADMIN && actingUserRole !== Role.SUPERADMIN) {
+      this.logger.warn(
+        `Unauthorized deletion attempt: Role ${actingUserRole} tried to delete SUPERADMIN ${id}`,
+      );
+      throw new ForbiddenException('Cannot delete a super admin account.');
+    }
+
     try {
       await this.prisma.user.delete({
         where: { id: id },
       });
+
+      // Invalidate cache
+      await this.invalidateUserCache(id, user.email || undefined);
+
       this.logger.log(`Successfully deleted user ID: ${id}`);
     } catch (error) {
       if (
@@ -1312,7 +1368,7 @@ export class UsersService {
     try {
       const newUser = await this.prisma.user.create({
         data: {
-          id: uuidv4(),
+          id: randomUUID(),
           email: createAdminDto.email.toLowerCase(),
           username: createAdminDto.username,
           password: hashedPassword,

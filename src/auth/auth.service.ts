@@ -253,9 +253,13 @@ export class AuthService {
       });
 
       const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
-      await this.usersService.updateUser(user.id, {
-        refreshToken: hashedRefreshToken,
-      });
+      await this.usersService.updateUser(
+        user.id,
+        {
+          refreshToken: hashedRefreshToken,
+        },
+        Role.SUPERADMIN, // System-level update, bypass protection
+      );
 
       this.logger.log(`JWT generated successfully for user ID: ${user.id}`);
       return { accessToken, refreshToken };

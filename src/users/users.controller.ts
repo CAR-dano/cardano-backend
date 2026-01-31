@@ -92,9 +92,11 @@ export class UsersController {
     status: 403,
     description: 'Forbidden. User does not have the necessary ADMIN role.',
   })
-  async findAll(): Promise<UserResponseDto[]> {
-    this.logger.log(`Admin request: findAll users`);
-    const users = await this.usersService.findAll();
+  async findAll(
+    @GetUser('role') actingUserRole: Role,
+  ): Promise<UserResponseDto[]> {
+    this.logger.log(`Admin request: findAll users (Role: ${actingUserRole})`);
+    const users = await this.usersService.findAll(actingUserRole);
     return users.map((user) => new UserResponseDto(user)); // Map to safe DTO
   }
 
@@ -242,13 +244,26 @@ export class UsersController {
   })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('role') actingUserRole: Role,
   ): Promise<UserResponseDto> {
-    this.logger.log(`Admin request: findOne user by ID: ${id}`);
+    this.logger.log(
+      `Admin request: findOne user by ID: ${id} (Role: ${actingUserRole})`,
+    );
     // Service's findById returns null if not found, controller should handle 404
     const user = await this.usersService.findById(id);
+
     if (!user) {
       throw new NotFoundException(`User with ID "${id}" not found`);
     }
+
+    // Hide SUPERADMIN from non-SUPERADMINs
+    if (user.role === Role.SUPERADMIN && actingUserRole !== Role.SUPERADMIN) {
+      this.logger.warn(
+        `Unauthorized access attempt: Role ${actingUserRole} tried to view SUPERADMIN ${id}`,
+      );
+      throw new NotFoundException(`User with ID "${id}" not found`);
+    }
+
     return new UserResponseDto(user);
   }
 
@@ -422,9 +437,14 @@ export class UsersController {
   async updateUser(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() updateUserDto: UpdateUserDto,
+    @GetUser('role') actingUserRole: Role,
   ): Promise<UserResponseDto> {
-    this.logger.log(`Admin request: updateUser ID: ${id}`);
-    const updatedUser = await this.usersService.updateUser(id, updateUserDto);
+    this.logger.log(`Admin request: updateUser ID: ${id} by role: ${actingUserRole}`);
+    const updatedUser = await this.usersService.updateUser(
+      id,
+      updateUserDto,
+      actingUserRole,
+    );
     return new UserResponseDto(updatedUser);
   }
 
@@ -584,8 +604,11 @@ export class UsersController {
     status: 404,
     description: 'User with the specified ID not found.',
   })
-  async deleteUser(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
-    this.logger.warn(`Admin request: DELETE user ${id}`);
-    await this.usersService.deleteUser(id);
+  async deleteUser(
+    @Param('id', ParseUUIDPipe) id: string,
+    @GetUser('role') actingUserRole: Role,
+  ): Promise<void> {
+    this.logger.warn(`Admin request: DELETE user ${id} by role: ${actingUserRole}`);
+    await this.usersService.deleteUser(id, actingUserRole);
   }
 }
