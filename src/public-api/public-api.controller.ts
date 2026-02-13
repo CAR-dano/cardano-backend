@@ -31,6 +31,7 @@ import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { UsersService } from '../users/users.service';
 import { InspectionsService } from 'src/inspections/inspections.service';
 import { PublicApiService } from './public-api.service';
+import { PrismaService } from '../prisma/prisma.service';
 
 // DTOs (Data Transfer Objects)
 import { UserResponseDto } from '../users/dto/user-response.dto';
@@ -64,9 +65,43 @@ export class PublicApiController {
     private readonly usersService: UsersService,
     private readonly inspectionsService: InspectionsService,
     private readonly publicApiService: PublicApiService,
+    private readonly prisma: PrismaService,
   ) {
     // Log controller initialization
     this.logger.log('PublicApiController initialized');
+  }
+
+  /**
+   * Lightweight health check for database connectivity.
+   *
+   * @returns {Promise<{status: 'ok'}>} DB health status.
+   */
+  @Get('health/db')
+  @ApiOperation({
+    summary: 'Check public database connectivity',
+    description:
+      'Runs a lightweight database ping query to verify database connectivity.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Database is reachable.',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description: 'Database is unreachable.',
+  })
+  async dbHealthCheck(): Promise<{ status: 'ok' }> {
+    try {
+      await this.prisma.executeWithReconnect('publicDbHealthCheck', () =>
+        this.prisma.$queryRaw`SELECT 1`,
+      );
+      return { status: 'ok' };
+    } catch (error) {
+      this.logger.error(
+        `Public DB health check failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw new InternalServerErrorException('Database health check failed.');
+    }
   }
 
   /**

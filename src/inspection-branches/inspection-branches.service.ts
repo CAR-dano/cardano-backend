@@ -47,7 +47,10 @@ export class InspectionBranchesService {
    * @returns A promise that resolves to an array of InspectionBranchCity.
    */
   async findAll(): Promise<InspectionBranchCity[]> {
-    return await this.prisma.inspectionBranchCity.findMany();
+    return await this.prisma.executeWithReconnect(
+      'findAllInspectionBranches',
+      () => this.prisma.inspectionBranchCity.findMany(),
+    );
   }
 
   /**

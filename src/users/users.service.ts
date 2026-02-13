@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 /*
  * --------------------------------------------------------------------------
  * File: users.service.ts
@@ -479,10 +480,16 @@ export class UsersService {
           `User with ID "${id}" not found for role update.`,
         );
       }
-      this.logger.error(
-        `Error updating role for user ID ${id}: ${error.message}`,
-        error.stack,
-      );
+      if (error instanceof Error) {
+        this.logger.error(
+          `Error updating role for user ID ${id}: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown error updating role for user ID ${id}: ${String(error)}`,
+        );
+      }
       throw new InternalServerErrorException(
         `Could not update role for user ID ${id}.`,
       );
@@ -847,10 +854,12 @@ export class UsersService {
   async findAllInspectors(): Promise<User[]> {
     this.logger.log('Finding all inspector users');
     try {
-      return await this.prisma.user.findMany({
-        where: { role: Role.INSPECTOR },
-        include: { inspectionBranchCity: true },
-      });
+      return await this.prisma.executeWithReconnect('findAllInspectors', () =>
+        this.prisma.user.findMany({
+          where: { role: Role.INSPECTOR },
+          include: { inspectionBranchCity: true },
+        }),
+      );
     } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
@@ -1277,10 +1286,16 @@ export class UsersService {
         }
         throw new ConflictException('A unique identifier is already in use.');
       }
-      this.logger.error(
-        `Database error during admin user creation for ${createAdminDto.username}: ${error.message}`,
-        error.stack,
-      );
+      if (error instanceof Error) {
+        this.logger.error(
+          `Database error during admin user creation for ${createAdminDto.username}: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown database error during admin user creation for ${createAdminDto.username}: ${String(error)}`,
+        );
+      }
       throw new InternalServerErrorException('Could not create admin user.');
     }
   }
@@ -1303,10 +1318,16 @@ export class UsersService {
         include: { inspectionBranchCity: true },
       });
     } catch (error) {
-      this.logger.error(
-        `Error finding all admin/superadmin users: ${error.message}`,
-        error.stack,
-      );
+      if (error instanceof Error) {
+        this.logger.error(
+          `Error finding all admin/superadmin users: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown error finding all admin/superadmin users: ${String(error)}`,
+        );
+      }
       throw new InternalServerErrorException(
         'Database error while retrieving admin users.',
       );
