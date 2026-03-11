@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BlockchainService } from '../blockchain/blockchain.service';
 import { ConfigService } from '@nestjs/config';
 import { IpfsService } from '../ipfs/ipfs.service';
+import { RedisService } from '../redis/redis.service';
 import {
   Inspection,
   InspectionChangeLog,
@@ -14,6 +15,7 @@ import {
 } from '@prisma/client';
 import {
   BadRequestException,
+  ForbiddenException,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
@@ -59,6 +61,8 @@ const mockInspection: Inspection = {
   updatedAt: new Date(),
   archivedAt: null,
   deactivatedAt: null,
+  url_pdf_cloud: null,
+  url_pdf_no_docs_cloud: null,
 };
 
 const mockChangeLogs: InspectionChangeLog[] = [
@@ -94,6 +98,7 @@ describe('InspectionsService', () => {
   const mockPrismaService = {
     inspection: {
       findUnique: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
       update: jest.fn(),
     },
     inspectionChangeLog: {
@@ -111,6 +116,12 @@ describe('InspectionsService', () => {
   const mockIpfsService = {
     add: jest.fn(),
   };
+  const mockRedisService = {
+    get: jest.fn(),
+    set: jest.fn(),
+    isHealthy: jest.fn().mockResolvedValue(true),
+    incr: jest.fn(),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -120,12 +131,17 @@ describe('InspectionsService', () => {
         { provide: BlockchainService, useValue: mockBlockchainService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: IpfsService, useValue: mockIpfsService },
+        { provide: RedisService, useValue: mockRedisService },
       ],
     }).compile();
 
     service = module.get<InspectionsService>(InspectionsService);
     prisma = module.get<PrismaService>(PrismaService);
     ipfsService = module.get<IpfsService>(IpfsService);
+
+    // Alias findUnique mocks to findUniqueOrThrow for consistency
+    mockPrismaService.inspection.findUniqueOrThrow =
+      mockPrismaService.inspection.findUnique;
   });
 
   afterEach(() => {
@@ -150,6 +166,7 @@ describe('InspectionsService', () => {
         const tx = {
           inspection: {
             findUnique: jest.fn().mockResolvedValue(mockInspection),
+            findUniqueOrThrow: jest.fn().mockResolvedValue(mockInspection),
             update: jest.fn().mockResolvedValue(inspectionAfterChanges),
           },
           inspectionChangeLog: {
@@ -193,6 +210,7 @@ describe('InspectionsService', () => {
       const txMock = {
         inspection: {
           findUnique: jest.fn().mockResolvedValue(mockInspection),
+          findUniqueOrThrow: jest.fn().mockResolvedValue(mockInspection),
           update: jest.fn().mockResolvedValue(inspectionAfterChanges),
         },
         inspectionChangeLog: {
@@ -234,6 +252,7 @@ describe('InspectionsService', () => {
         const tx = {
           inspection: {
             findUnique: jest.fn().mockResolvedValue(null),
+            findUniqueOrThrow: jest.fn().mockResolvedValue(null),
           },
         };
         return await callback(tx);
@@ -253,6 +272,7 @@ describe('InspectionsService', () => {
         const tx = {
           inspection: {
             findUnique: jest.fn().mockResolvedValue(wrongStatusInspection),
+            findUniqueOrThrow: jest.fn().mockResolvedValue(wrongStatusInspection),
           },
         };
         return await callback(tx);
@@ -273,6 +293,7 @@ describe('InspectionsService', () => {
         const tx = {
           inspection: {
             findUnique: jest.fn().mockResolvedValue(mockInspection),
+            findUniqueOrThrow: jest.fn().mockResolvedValue(mockInspection),
             update: jest.fn().mockResolvedValue(inspectionAfterChanges),
           },
           inspectionChangeLog: {
@@ -296,8 +317,50 @@ describe('InspectionsService', () => {
 
       expect(prisma.inspection.update).toHaveBeenCalledWith({
         where: { id: mockInspectionId },
-        data: { status: InspectionStatus.FAIL_ARCHIVE },
+        data: {
+          status: InspectionStatus.NEED_REVIEW,
+          reviewerId: null,
+        },
       });
+    });
+  });
+
+  describe('findOne', () => {
+    it('should return from cache if available', async () => {
+      mockRedisService.get.mockResolvedValueOnce('0'); // version
+      mockRedisService.get.mockResolvedValueOnce(JSON.stringify(mockInspection)); // data
+
+      const result = await service.findOne(mockInspectionId, Role.ADMIN);
+
+      // JSON.parse converts dates to strings, so we compare with serialized version
+      expect(result).toEqual(JSON.parse(JSON.stringify(mockInspection)));
+      expect(mockRedisService.get).toHaveBeenCalledTimes(2);
+      expect(mockPrismaService.inspection.findUniqueOrThrow).not.toHaveBeenCalled();
+    });
+
+    it('should fetch from DB and cache if NOT in cache', async () => {
+      mockRedisService.get.mockResolvedValue(null);
+      mockPrismaService.inspection.findUniqueOrThrow.mockResolvedValue(
+        mockInspection,
+      );
+
+      const result = await service.findOne(mockInspectionId, Role.ADMIN);
+
+      expect(result).toEqual(JSON.parse(JSON.stringify(mockInspection)));
+      expect(mockPrismaService.inspection.findUniqueOrThrow).toHaveBeenCalled();
+      expect(mockRedisService.set).toHaveBeenCalled();
+    });
+
+    it('should throw ForbiddenException if user cannot access', async () => {
+      mockRedisService.get.mockResolvedValue(null);
+      mockPrismaService.inspection.findUniqueOrThrow.mockResolvedValue({
+        ...mockInspection,
+        status: InspectionStatus.NEED_REVIEW,
+      });
+
+      await expect(
+        service.findOne(mockInspectionId, Role.CUSTOMER),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 });

@@ -13,6 +13,7 @@
  */
 
 import { NestFactory } from '@nestjs/core';
+import * as dns from 'dns';
 import * as fs from 'fs';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
@@ -20,6 +21,7 @@ import { SwaggerModule, DocumentBuilder, OpenAPIObject } from '@nestjs/swagger';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { json, urlencoded } from 'express';
+import compression from 'compression';
 import { getLoggerConfig } from './config/logger.config';
 
 let openApiDocument: OpenAPIObject | null = null;
@@ -40,6 +42,9 @@ async function bootstrap() {
   // Get logger configuration from environment
   const loggerConfig = getLoggerConfig();
 
+  // Force IPv4 to avoid ETIMEDOUT on some networks (especially for Backblaze S3)
+  dns.setDefaultResultOrder('ipv4first');
+
   const app = await NestFactory.create(AppModule, {
     logger: loggerConfig.logLevels, // Set log levels from configuration
   });
@@ -55,6 +60,9 @@ async function bootstrap() {
   app.use(json({ limit: '5mb' }));
   app.use(urlencoded({ extended: true, limit: '5mb' }));
 
+  // Enable payload compression
+  app.use(compression());
+
   // Ensure upload directories exist
   const uploadDirs = [
     './uploads',
@@ -63,9 +71,22 @@ async function bootstrap() {
   ];
 
   uploadDirs.forEach((dir) => {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-      logger.log(`Created directory: ${dir}`);
+    try {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+        logger.log(`Created directory: ${dir}`);
+      }
+    } catch (error) {
+      // Directory might already exist via volume mount or permission denied
+      // Log warning but don't fail startup
+      if ((error as NodeJS.ErrnoException).code === 'EACCES') {
+        logger.warn(
+          `Permission denied creating ${dir}. Assuming directory exists via volume mount.`,
+        );
+      } else if ((error as NodeJS.ErrnoException).code !== 'EEXIST') {
+        logger.error(`Failed to create directory ${dir}:`, error);
+        throw error; // Re-throw if it's not a permission or exists error
+      }
     }
   });
 
@@ -86,11 +107,22 @@ async function bootstrap() {
   );
 
   // Enable CORS if frontend and backend have different origins
+  // Supports multiple origins separated by comma
   const clientUrl = configService.get<string>('CLIENT_BASE_URL');
   if (clientUrl) {
-    logger.log(`Enabling CORS for origin: ${clientUrl}`);
+    const allowedOrigins = clientUrl.split(',').map(url => url.trim());
+    logger.log(`Enabling CORS for origins: ${allowedOrigins.join(', ')}`);
     app.enableCors({
-      origin: clientUrl,
+      origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true);
+
+        if (allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          callback(new Error(`Origin ${origin} not allowed by CORS`));
+        }
+      },
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
       credentials: true,
     });

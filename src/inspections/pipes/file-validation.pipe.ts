@@ -42,6 +42,11 @@ export class FileValidationPipe implements PipeTransform {
   }
 
   private async validateFile(file: Express.Multer.File): Promise<void> {
+    // Skip validation for S3 files (already uploaded)
+    if ((file as any).location) {
+      return;
+    }
+
     // 1. Basic check from Multer
     if (!file || !file.path) {
       throw new BadRequestException('Invalid file uploaded.');

@@ -1,0 +1,105 @@
+# OPTIMIZED DOCKERFILE FOR FASTER DEPLOYMENT
+# Key improvements:
+# 1. Better layer caching
+# 2. Parallel dependency installation
+# 3. Reduced image size
+# 4. Faster build times
+
+# ============================================
+# STAGE 1: Dependencies (Cached Layer)
+# ============================================
+FROM node:22-alpine AS dependencies
+
+WORKDIR /usr/src/app
+
+# Copy only package files first (better caching)
+COPY package*.json ./
+
+# Install build tools (cached if package.json unchanged)
+RUN apk add --no-cache \
+    build-base \
+    python3 \
+    cmake \
+    git \
+    openssl-dev \
+    libc6-compat
+
+RUN ln -sf /usr/bin/python3 /usr/bin/python || true
+
+# Install ALL dependencies (including dev dependencies for build)
+RUN npm ci --legacy-peer-deps
+
+# ============================================
+# STAGE 2: Build Stage
+# ============================================
+FROM node:22-alpine AS builder
+
+WORKDIR /usr/src/app
+
+# Copy dependencies from previous stage (faster than reinstalling)
+COPY --from=dependencies /usr/src/app/node_modules ./node_modules
+COPY package*.json ./
+
+# Copy source code
+COPY . .
+
+# Generate Prisma client
+RUN npx prisma generate
+
+# Build the application
+RUN npm run build
+
+# Remove dev dependencies to reduce size
+RUN npm prune --production
+
+# ============================================
+# STAGE 3: Production Stage (Minimal)
+# ============================================
+FROM node:22-alpine
+
+# Install runtime dependencies only
+RUN apk add --no-cache \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    gcompat \
+    udev \
+    xvfb \
+    openssl \
+    postgresql-libs
+
+# Set environment for Puppeteer
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
+WORKDIR /usr/src/app
+
+# Copy only production dependencies and built files
+COPY --from=builder /usr/src/app/node_modules ./node_modules
+COPY --from=builder /usr/src/app/dist ./dist
+COPY --from=builder /usr/src/app/prisma ./prisma
+COPY --from=builder /usr/src/app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /usr/src/app/public ./public
+COPY --from=builder /usr/src/app/package*.json ./
+
+# Create runtime directories
+RUN mkdir -p uploads/inspection-photos pdfarchived
+
+# Copy and setup entrypoint
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
+# Use non-root user for security
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nestjs -u 1001 && \
+    chown -R nestjs:nodejs /usr/src/app
+
+USER nestjs
+
+EXPOSE 3010
+
+ENTRYPOINT ["/usr/src/app/entrypoint.sh"]
+CMD ["node", "dist/main"]
