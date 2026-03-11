@@ -64,16 +64,10 @@ export class InspectionBranchesService {
    * @returns A promise that resolves to an array of InspectionBranchCity.
    */
   async findAll(): Promise<InspectionBranchCity[]> {
-    try {
-      const cached = await this.redisService.get(this.CACHE_KEY_ALL);
-      if (cached) return JSON.parse(cached);
-    } catch (e) { }
-
-    const branches = await this.prisma.inspectionBranchCity.findMany();
-
-    await this.redisService.set(this.CACHE_KEY_ALL, JSON.stringify(branches), this.BRANCH_CACHE_TTL);
-
-    return branches;
+    return await this.prisma.executeWithReconnect(
+      'findAllInspectionBranches',
+      () => this.prisma.inspectionBranchCity.findMany(),
+    );
   }
 
   /**

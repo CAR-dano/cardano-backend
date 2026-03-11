@@ -50,9 +50,8 @@ import { RedisModule } from '../redis/redis.module';
       useFactory: async (configService: ConfigService) => ({
         secret: configService.getOrThrow<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: configService.getOrThrow<string>(
-            'JWT_EXPIRATION_TIME',
-          ) as any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          expiresIn: configService.get<string>('JWT_EXPIRATION_TIME') as any,
         },
       }),
     }),

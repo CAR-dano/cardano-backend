@@ -22,11 +22,14 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { getOpenApiDocument } from '../main'; // Import the function to get the generated document
 import { SkipThrottle } from '@nestjs/throttler';
+import { ConfigService } from '@nestjs/config';
 
 @SkipThrottle()
 @Controller()
 export class ScalarDocsController {
   private readonly logger = new Logger(ScalarDocsController.name);
+
+  constructor(private readonly configService: ConfigService) {}
 
   /**
    * Retrieves the generated OpenAPI specification document.
@@ -36,6 +39,10 @@ export class ScalarDocsController {
    */
   @Get('openapi.json')
   getOpenApiSpec() {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
+      throw new NotFoundException('API documentation is not available.');
+    }
+
     const openApiDocument = getOpenApiDocument();
     if (!openApiDocument) {
       this.logger.error('OpenAPI document is not generated yet.');
@@ -55,6 +62,10 @@ export class ScalarDocsController {
    */
   @Get('docs')
   getScalarDocs(@Res() res: Response) {
+    if (this.configService.get<string>('NODE_ENV') === 'production') {
+      throw new NotFoundException('API documentation is not available.');
+    }
+
     try {
       const htmlFilePath = path.join(
         process.cwd(),

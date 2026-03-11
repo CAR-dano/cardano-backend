@@ -12,8 +12,13 @@
  * --------------------------------------------------------------------------
  */
 
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -21,6 +26,8 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
+  private readonly logger = new Logger(PrismaService.name);
+
   /**
    * Constructs the PrismaService.
    * Initializes the PrismaClient with the database URL from ConfigService.
@@ -46,9 +53,9 @@ export class PrismaService
   async onModuleInit() {
     try {
       await this.$connect();
-      console.log('Prisma Client connected');
+      this.logger.log('Prisma Client connected');
     } catch (error) {
-      console.error('Error connecting Prisma Client', error);
+      this.logger.error('Error connecting Prisma Client', error);
     }
   }
 
@@ -57,7 +64,53 @@ export class PrismaService
    */
   async onModuleDestroy() {
     await this.$disconnect();
-    console.log('Prisma Client disconnected.');
+    this.logger.log('Prisma Client disconnected.');
+  }
+
+  private isTransientConnectionError(error: unknown): boolean {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P1017'
+    ) {
+      return true;
+    }
+
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase();
+      return (
+        message.includes('server has closed the connection') ||
+        message.includes('connection terminated unexpectedly') ||
+        message.includes('connection closed')
+      );
+    }
+
+    return false;
+  }
+
+  async executeWithReconnect<T>(
+    operationName: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (!this.isTransientConnectionError(error)) {
+        throw error;
+      }
+
+      this.logger.warn(
+        `Transient DB connection issue during ${operationName}. Reconnecting Prisma and retrying once.`,
+      );
+
+      try {
+        await this.$disconnect();
+      } catch {
+        this.logger.warn('Prisma disconnect during retry flow failed. Continuing.');
+      }
+
+      await this.$connect();
+      return await operation();
+    }
   }
 
   /**

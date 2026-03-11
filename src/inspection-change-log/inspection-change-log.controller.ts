@@ -10,7 +10,7 @@
  * --------------------------------------------------------------------------
  */
 
-import { Controller, Get, Param, UseGuards, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Delete, Param, UseGuards, HttpStatus, HttpCode } from '@nestjs/common';
 import { InspectionChangeLogService } from './inspection-change-log.service';
 import { InspectionChangeLog, Role } from '@prisma/client';
 import {
@@ -78,5 +78,58 @@ export class InspectionChangeLogController {
     @Param('inspectionId') inspectionId: string,
   ): Promise<InspectionChangeLog[]> {
     return this.inspectionChangeLogService.findByInspectionId(inspectionId);
+  }
+
+  /**
+   * Deletes a change log for a specific inspection.
+   * Restricted to ADMIN, REVIEWER, and SUPERADMIN roles.
+   *
+   * @param inspectionId The ID of the inspection.
+   * @param changeLogId The ID of the change log.
+   * @returns A promise that resolves when the change log is successfully deleted.
+   * @throws UnauthorizedException if the user is not authenticated.
+   * @throws ForbiddenException if the user does not have the required role.
+   * @throws NotFoundException if the change log or inspection is not found.
+   */
+  @Delete(':changeLogId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Delete an inspection change log',
+    description: 'Deletes a specific change log entry for an inspection.',
+  })
+  @ApiParam({
+    name: 'inspectionId',
+    type: String,
+    description: 'The ID of the inspection',
+  })
+  @ApiParam({
+    name: 'changeLogId',
+    type: String,
+    description: 'The ID of the change log entry to delete',
+  })
+  @ApiResponse({
+    status: HttpStatus.NO_CONTENT,
+    description: 'Successfully deleted the inspection change log.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'User is not authenticated.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'User does not have the required permissions.',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Change log entry not found.',
+  })
+  async remove(
+    @Param('inspectionId') inspectionId: string,
+    @Param('changeLogId') changeLogId: string,
+  ): Promise<void> {
+    await this.inspectionChangeLogService.remove(inspectionId, changeLogId);
   }
 }

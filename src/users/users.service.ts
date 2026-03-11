@@ -1,3 +1,4 @@
+/* eslint-disable prettier/prettier */
 /*
  * --------------------------------------------------------------------------
  * File: users.service.ts
@@ -24,7 +25,7 @@ import { PrismaService } from '../prisma/prisma.service'; // Adjust path if need
 import { User, Role, Prisma } from '@prisma/client';
 import { RegisterUserDto } from '../auth/dto/register-user.dto'; // Import DTO for local registration
 import * as bcrypt from 'bcrypt'; // Import bcrypt for hashing
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'crypto'; // Use Node.js built-in instead of uuid (uuid v9+ is ESM-only)
 import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
 import { UpdateInspectorDto } from './dto/update-inspector.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
@@ -548,10 +549,16 @@ export class UsersService {
           `User with ID "${id}" not found for role update.`,
         );
       }
-      this.logger.error(
-        `Error updating role for user ID ${id}: ${error.message}`,
-        error.stack,
-      );
+      if (error instanceof Error) {
+        this.logger.error(
+          `Error updating role for user ID ${id}: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown error updating role for user ID ${id}: ${String(error)}`,
+        );
+      }
       throw new InternalServerErrorException(
         `Could not update role for user ID ${id}.`,
       );
@@ -916,10 +923,12 @@ export class UsersService {
   async findAllInspectors(): Promise<User[]> {
     this.logger.log('Finding all inspector users');
     try {
-      return await this.prisma.user.findMany({
-        where: { role: Role.INSPECTOR },
-        include: { inspectionBranchCity: true },
-      });
+      return await this.prisma.executeWithReconnect('findAllInspectors', () =>
+        this.prisma.user.findMany({
+          where: { role: Role.INSPECTOR },
+          include: { inspectionBranchCity: true },
+        }),
+      );
     } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
@@ -1393,10 +1402,16 @@ export class UsersService {
         }
         throw new ConflictException('A unique identifier is already in use.');
       }
-      this.logger.error(
-        `Database error during admin user creation for ${createAdminDto.username}: ${error.message}`,
-        error.stack,
-      );
+      if (error instanceof Error) {
+        this.logger.error(
+          `Database error during admin user creation for ${createAdminDto.username}: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown database error during admin user creation for ${createAdminDto.username}: ${String(error)}`,
+        );
+      }
       throw new InternalServerErrorException('Could not create admin user.');
     }
   }
@@ -1419,10 +1434,16 @@ export class UsersService {
         include: { inspectionBranchCity: true },
       });
     } catch (error) {
-      this.logger.error(
-        `Error finding all admin/superadmin users: ${error.message}`,
-        error.stack,
-      );
+      if (error instanceof Error) {
+        this.logger.error(
+          `Error finding all admin/superadmin users: ${error.message}`,
+          error.stack,
+        );
+      } else {
+        this.logger.error(
+          `Unknown error finding all admin/superadmin users: ${String(error)}`,
+        );
+      }
       throw new InternalServerErrorException(
         'Database error while retrieving admin users.',
       );
