@@ -53,34 +53,4 @@ export class InspectionChangeLogService {
 
     return Array.from(latestChangeLogsMap.values());
   }
-
-  /**
-   * Deletes a specific change log entry.
-   *
-   * @param inspectionId The ID of the inspection.
-   * @param changeLogId The ID of the change log to delete.
-   * @returns A promise that resolves to the deleted InspectionChangeLog object.
-   * @throws NotFoundException if the change log entry does not exist.
-   */
-  async remove(
-    inspectionId: string,
-    changeLogId: string,
-  ): Promise<InspectionChangeLog> {
-    const changeLog = await this.prisma.inspectionChangeLog.findFirst({
-      where: {
-        id: changeLogId,
-        inspectionId: inspectionId,
-      },
-    });
-
-    if (!changeLog) {
-      throw new NotFoundException(
-        `Change log with ID "${changeLogId}" not found for inspection "${inspectionId}".`,
-      );
-    }
-
-    return this.prisma.inspectionChangeLog.delete({
-      where: { id: changeLogId },
-    });
-  }
 }
