@@ -110,7 +110,8 @@
     "moduleNameMapper": {
       "^@cardano-backend/auth(|/.*)$": "<rootDir>/libs/auth/src/$1",
       "^@cardano-backend/common(|/.*)$": "<rootDir>/libs/common/src/$1",
-      "^@cardano-backend/database(|/.*)$": "<rootDir>/libs/database/src/$1"
+      "^@cardano-backend/database(|/.*)$": "<rootDir>/libs/database/src/$1",
+      "^src/(.*)$": "<rootDir>/src/$1"
     }
   }
 }

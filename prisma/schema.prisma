@@ -71,6 +71,8 @@ model User {
 
   inspectionBranchCityId String?               @map("inspection_branch_city_id")
   inspectionBranchCity   InspectionBranchCity? @relation(fields: [inspectionBranchCityId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([role], name: "users_role_idx") // For findAllInspectors() queries
   @@map("users") // Explicit table name
 }
 
@@ -163,6 +165,11 @@ model Inspection {
   @@index([vehiclePlateNumber])
   @@index([status]) // Index on status for filtering by lifecycle stage
 
+  // --- Composite indexes for findAll (filter + sort in one scan) ---
+  @@index([status, createdAt(sort: Desc)], name: "inspections_status_created_at_idx")
+  @@index([inspectorId, createdAt(sort: Desc)], name: "inspections_inspector_created_at_idx")
+  @@index([status, inspectionDate(sort: Desc)], name: "inspections_status_inspection_date_idx")
+
   // Maps the model name 'Inspection' to the database table name 'inspections'.
   @@map("inspections")
 }
@@ -238,6 +245,7 @@ model BlacklistedToken {
   expiresAt DateTime // When the original token expires
   createdAt DateTime @default(now())
 
+  @@index([expiresAt], name: "blacklisted_tokens_expires_at_idx") // For future cleanup jobs
   @@map("blacklisted_tokens")
 }
 
