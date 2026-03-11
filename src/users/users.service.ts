@@ -25,7 +25,7 @@ import { PrismaService } from '../prisma/prisma.service'; // Adjust path if need
 import { User, Role, Prisma } from '@prisma/client';
 import { RegisterUserDto } from '../auth/dto/register-user.dto'; // Import DTO for local registration
 import * as bcrypt from 'bcrypt'; // Import bcrypt for hashing
-import { v4 as uuidv4 } from 'uuid'; // Import uuid for generating unique IDs
+import { randomUUID } from 'crypto'; // Use Node.js built-in instead of uuid (uuid v9+ is ESM-only)
 import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
 import { UpdateInspectorDto } from './dto/update-inspector.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
@@ -285,7 +285,7 @@ export class UsersService {
     try {
       const newUser = await this.prisma.user.create({
         data: {
-          id: uuidv4(), // Generate a UUID for the new user
+          id: randomUUID(), // Generate a UUID for the new user
           email: normalizedEmail, // Store normalized email
           username: registerDto.username,
           password: hashedPassword, // Store the HASHED password
@@ -383,7 +383,7 @@ export class UsersService {
           // name: name ? name : undefined, // Example: only update if Google provides a name
         },
         create: {
-          id: uuidv4(), // Generate a UUID for the new user
+          id: randomUUID(), // Generate a UUID for the new user
           email: normalizedEmail,
           googleId: googleId,
           name: name || `User_${googleId.substring(0, 6)}`, // Provide a default name if missing
@@ -785,7 +785,7 @@ export class UsersService {
     try {
       const newUser = await this.prisma.user.create({
         data: {
-          id: uuidv4(), // Generate a UUID for the new user
+          id: randomUUID(), // Generate a UUID for the new user
           email: createInspectorDto.email.toLowerCase(), // Store email in lowercase
           username: createInspectorDto.username,
           name: createInspectorDto.name,
@@ -1261,7 +1261,7 @@ export class UsersService {
     try {
       const newUser = await this.prisma.user.create({
         data: {
-          id: uuidv4(),
+          id: randomUUID(),
           email: createAdminDto.email.toLowerCase(),
           username: createAdminDto.username,
           password: hashedPassword,

@@ -232,14 +232,16 @@ export class AuthService {
 
     try {
       const secret = this.configService.getOrThrow<string>('JWT_SECRET');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const expiresIn = this.configService.getOrThrow<string>(
         'JWT_EXPIRATION_TIME',
-      );
+      ) as any;
       const refreshTokenSecret =
         this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const refreshTokenExpiresIn = this.configService.getOrThrow<string>(
         'JWT_REFRESH_EXPIRATION_TIME',
-      );
+      ) as any;
 
       const accessToken = this.jwtService.sign(payload, { secret, expiresIn });
       const refreshToken = this.jwtService.sign(payload, {

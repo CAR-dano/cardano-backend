@@ -49,7 +49,8 @@ import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: configService.get<string>('JWT_EXPIRATION_TIME'),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          expiresIn: configService.get<string>('JWT_EXPIRATION_TIME') as any,
         },
       }),
     }),
