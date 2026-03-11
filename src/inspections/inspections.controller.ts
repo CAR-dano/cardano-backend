@@ -33,7 +33,9 @@ import {
   Query,
   NotFoundException,
   Res,
-  UseGuards, // Import InternalServerErrorException
+  UseGuards,
+  DefaultValuePipe,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
 import { GetUser } from '../auth/decorators/get-user.decorator';
@@ -44,10 +46,11 @@ import {
   BulkApproveInspectionResponseDto,
 } from './dto/bulk-approve-inspection.dto';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express'; // NestJS interceptor for handling multiple file fields
-import { diskStorage } from 'multer'; // Storage engine for Multer (file uploads)
-import { extname } from 'path'; // Node.js utility for handling file extensions
-import { Role, InspectionStatus } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { Role, InspectionStatus, Photo } from '@prisma/client';
+
 import { InspectionResponseDto } from './dto/inspection-response.dto';
+import { InspectionSummaryResponseDto } from './dto/inspection-summary-response.dto';
 import { PhotoResponseDto } from '../photos/dto/photo-response.dto';
 import { UpdatePhotoDto } from '../photos/dto/update-photo.dto';
 import { PhotosService } from '../photos/photos.service';
@@ -89,24 +92,8 @@ interface PhotoMetadata {
 
 // --- Multer Configuration ---
 const MAX_PHOTOS_PER_REQUEST = 10; // Max files per batch upload request
-const UPLOAD_PATH = './uploads/inspection-photos';
+// const UPLOAD_PATH = './uploads/inspection-photos'; // Removed for S3
 
-/**
- * Multer disk storage configuration for uploaded inspection photos.
- * Saves files to the UPLOAD_PATH with unique filenames.
- */
-const photoStorageConfig = diskStorage({
-  destination: UPLOAD_PATH,
-  filename: (req, file, callback) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    const extension = extname(file.originalname);
-    const safeOriginalName = file.originalname
-      .split('.')[0]
-      .replace(/[^a-z0-9]/gi, '-')
-      .toLowerCase();
-    callback(null, `${safeOriginalName}-${uniqueSuffix}${extension}`);
-  },
-});
 
 /**
  * Controller managing all HTTP requests related to vehicle inspections.
@@ -127,7 +114,19 @@ export class InspectionsController {
   constructor(
     private readonly inspectionsService: InspectionsService,
     private readonly photosService: PhotosService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) { }
+
+  private normalizePhotoUrl(photo: Photo): PhotoResponseDto {
+    const dto = new PhotoResponseDto(photo);
+    const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000';
+    if (dto.path && !dto.path.startsWith('http')) {
+      dto.path = `${appUrl}/uploads/inspection-photos/${dto.path}`;
+    }
+    return dto;
+  }
+
+
 
   /**
    * Handles the creation of a new inspection record.
@@ -318,10 +317,9 @@ export class InspectionsController {
   @SkipThrottle()
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
-    FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST, {
-      storage: photoStorageConfig,
-    }),
+    FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST),
   )
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   @ApiOperation({
@@ -388,7 +386,8 @@ export class InspectionsController {
       files,
       addBatchDto.metadata,
     );
-    return newPhotos.map((p) => new PhotoResponseDto(p));
+    return newPhotos.map((p) => this.normalizePhotoUrl(p));
+
   }
 
   /**
@@ -406,10 +405,9 @@ export class InspectionsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   @UseInterceptors(
-    FileInterceptor('photo', {
-      storage: photoStorageConfig,
-    }),
+    FileInterceptor('photo'),
   )
+
   @ApiOperation({
     summary: 'Upload a single photo for an inspection',
     description:
@@ -479,7 +477,8 @@ export class InspectionsController {
       file,
       parsedMetadata,
     );
-    return new PhotoResponseDto(newPhoto);
+    return this.normalizePhotoUrl(newPhoto);
+
   }
 
   // --- Photo Management Endpoints ---
@@ -528,7 +527,8 @@ export class InspectionsController {
   ): Promise<PhotoResponseDto[]> {
     this.logger.log(`[GET /inspections/${id}/photos] Request received`);
     const photos = await this.photosService.findForInspection(id);
-    return photos.map((p) => new PhotoResponseDto(p));
+    return photos.map((p) => this.normalizePhotoUrl(p));
+
   }
 
   /**
@@ -547,10 +547,9 @@ export class InspectionsController {
   @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
   @UseInterceptors(
-    FileInterceptor('photo', {
-      storage: photoStorageConfig,
-    }),
+    FileInterceptor('photo'),
   ) // Handle single optional file
+
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
@@ -618,7 +617,8 @@ export class InspectionsController {
       fileToPass,
       userId,
     );
-    return new PhotoResponseDto(updatedPhoto);
+    return this.normalizePhotoUrl(updatedPhoto);
+
   }
 
   /**
@@ -705,12 +705,12 @@ export class InspectionsController {
   @ApiResponse({
     status: 200,
     description: 'The found inspection record summary.',
-    type: InspectionResponseDto,
+    type: InspectionSummaryResponseDto,
   })
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
   async searchByVehicleNumber(
     @Query('vehicleNumber') vehicleNumber: string,
-  ): Promise<InspectionResponseDto> {
+  ): Promise<InspectionSummaryResponseDto> {
     this.logger.log(
       `[GET /inspections/search] Searching for vehicle number: ${vehicleNumber}`,
     );
@@ -723,7 +723,7 @@ export class InspectionsController {
       );
     }
 
-    return new InspectionResponseDto(inspection);
+    return new InspectionSummaryResponseDto(inspection);
   }
 
   /**
@@ -754,21 +754,32 @@ export class InspectionsController {
   @ApiResponse({
     status: 200,
     description:
-      'A list of found inspection records. Returns an empty array if no matches are found.',
-    type: [InspectionResponseDto], // Menandakan bahwa ini adalah array dari DTO
+      'A paginated list of found inspection records. Returns an empty array in the data field if no matches are found.',
   })
   async searchByKeyword(
-    @Query('q') keyword: string,
-  ): Promise<InspectionResponseDto[]> {
+    @Query('q') q: string,
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number,
+    @Query('pageSize', new DefaultValuePipe(10), ParseIntPipe) pageSize: number,
+  ): Promise<{
+    data: InspectionSummaryResponseDto[];
+    meta: { total: number; page: number; pageSize: number; totalPages: number };
+  }> {
     this.logger.log(
-      `[GET /inspections/search/keyword] Searching for keyword: ${keyword}`,
+      `[GET /inspections/search/keyword] Searching for keyword: ${q}, page: ${page}, pageSize: ${pageSize}`,
     );
 
-    const inspections = await this.inspectionsService.searchByKeyword(keyword);
-
-    return inspections.map(
-      (inspection) => new InspectionResponseDto(inspection),
+    const result = await this.inspectionsService.searchByKeyword(
+      q,
+      page,
+      pageSize,
     );
+
+    return {
+      data: result.data.map(
+        (inspection) => new InspectionSummaryResponseDto(inspection),
+      ),
+      meta: result.meta,
+    };
   }
 
   /**
@@ -843,12 +854,11 @@ export class InspectionsController {
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findAll(
     @Query('role') userRole?: Role,
-    @Query('status') status?: string | string[], // Accept as string or string array
+    @Query('status') status?: string | string[],
     @Query('page') page = 1,
     @Query('pageSize') pageSize = 10,
-    /* @GetUser('role') realUserRole: Role */
   ): Promise<{
-    data: InspectionResponseDto[];
+    data: InspectionSummaryResponseDto[];
     meta: { total: number; page: number; pageSize: number; totalPages: number };
   }> {
     const pageNumber =
@@ -856,44 +866,20 @@ export class InspectionsController {
     const pageSizeNumber =
       parseInt(pageSize as any, 10) > 0 ? parseInt(pageSize as any, 10) : 10;
 
-    let parsedStatus: InspectionStatus[] | undefined;
-
-    if (typeof status === 'string') {
-      // If it's a comma-separated string, split it
-      parsedStatus = status.split(',').map((s) => {
-        const trimmedStatus = s.trim();
-        if (!(trimmedStatus in InspectionStatus)) {
-          throw new BadRequestException(
-            `Invalid InspectionStatus: ${trimmedStatus}`,
-          );
-        }
-        return trimmedStatus as InspectionStatus;
-      });
-    } else if (Array.isArray(status)) {
-      // If it's already an array (e.g., from development environment or direct array input)
-      parsedStatus = status.map((s) => {
-        const trimmedStatus = s.trim();
-        if (!(trimmedStatus in InspectionStatus)) {
-          throw new BadRequestException(
-            `Invalid InspectionStatus: ${trimmedStatus}`,
-          );
-        }
-        return trimmedStatus as InspectionStatus;
-      });
-    }
-
     this.logger.warn(
-      `[GET /inspections] Applying filter for role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${parsedStatus ? parsedStatus.join(',') : 'undefined'}`,
+      `[GET /inspections] Applying filter for role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${status}`,
     );
+
     const result = await this.inspectionsService.findAll(
       userRole,
-      parsedStatus,
+      status as any,
       pageNumber,
       pageSizeNumber,
     );
+
     return {
       data: result.data.map(
-        (inspection) => new InspectionResponseDto(inspection),
+        (inspection) => new InspectionSummaryResponseDto(inspection),
       ),
       meta: result.meta,
     };

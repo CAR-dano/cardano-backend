@@ -20,6 +20,7 @@ import { JwtPayload } from '../interfaces/jwt-payload.interface'; // Type defini
 import { User } from '@prisma/client'; // Prisma User type
 import { AuthService } from '../auth.service'; // Import AuthService
 import { Request } from 'express'; // Import Request type
+import { TokenBlacklistedException } from '../exceptions/token-blacklisted.exception'; // Import custom exception
 
 @Injectable()
 // Define the strategy, extending PassportStrategy with the base JWT Strategy.
@@ -82,10 +83,10 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     // Check if the token is blacklisted
     const isBlacklisted = await this.authService.isTokenBlacklisted(token);
     if (isBlacklisted) {
-      this.logger.warn(
-        `JWT validation failed: Token for user ID ${payload.sub} is blacklisted.`,
+      this.logger.verbose(
+        `Token for user ID ${payload.sub} is blacklisted (expected behavior after logout).`,
       );
-      throw new UnauthorizedException('Token has been invalidated.');
+      throw new TokenBlacklistedException('Token has been invalidated.');
     }
 
     // Find the user in the database based on the 'sub' (subject) claim from the JWT payload

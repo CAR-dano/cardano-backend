@@ -11,8 +11,10 @@ import { PrismaService } from '../prisma/prisma.service';
 import {
   NotFoundException,
   InternalServerErrorException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { User, Role } from '@prisma/client';
+import { RedisService } from '../redis/redis.service';
 
 // --- Mock PrismaService ---
 /**
@@ -23,10 +25,21 @@ import { User, Role } from '@prisma/client';
 const mockPrismaService = {
   user: {
     findUnique: jest.fn(),
+    findMany: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    delete: jest.fn(),
     upsert: jest.fn(),
-    // Add other user methods if needed by UsersService later, e.g., findMany, create, update
   },
-  // Add other models if UsersService interacts with them, e.g., prisma.inspection
+  inspectionBranchCity: {
+    findUnique: jest.fn(),
+  },
+};
+
+const mockRedisService = {
+  get: jest.fn(),
+  set: jest.fn(),
+  delete: jest.fn(),
 };
 
 /**
@@ -43,8 +56,9 @@ describe('UsersService', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        UsersService, // The service under test
-        { provide: PrismaService, useValue: mockPrismaService }, // Provide the mock
+        UsersService,
+        { provide: PrismaService, useValue: mockPrismaService },
+        { provide: RedisService, useValue: mockRedisService },
       ],
     }).compile();
 
@@ -75,7 +89,7 @@ describe('UsersService', () => {
       role: Role.CUSTOMER,
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
+    } as any;
 
     /**
      * Tests the scenario where a user with the given email exists.
@@ -91,6 +105,7 @@ describe('UsersService', () => {
       // Assert: Check prisma call and result
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: testEmail },
+        include: { inspectionBranchCity: true },
       });
       expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
       expect(result).toEqual(mockUser);
@@ -110,6 +125,7 @@ describe('UsersService', () => {
       // Assert: Check prisma call and result
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { email: testEmail },
+        include: { inspectionBranchCity: true },
       });
       expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
       expect(result).toBeNull();
@@ -124,11 +140,10 @@ describe('UsersService', () => {
       const dbError = new Error('Database connection failed');
       mockPrismaService.user.findUnique.mockRejectedValue(dbError);
 
-      // Act & Assert: Expect the service call to reject with the same error
-      await expect(service.findByEmail(testEmail)).rejects.toThrow(dbError);
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { email: testEmail },
-      });
+      // Act & Assert: Expect the service call to reject with InternalServerErrorException
+      await expect(service.findByEmail(testEmail)).rejects.toThrow(
+        new InternalServerErrorException('Database error while finding user by email.'),
+      );
     });
   });
 
@@ -145,7 +160,7 @@ describe('UsersService', () => {
       role: Role.ADMIN,
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
+    } as any;
 
     /**
      * Tests the scenario where a user with the given ID exists.
@@ -161,6 +176,7 @@ describe('UsersService', () => {
       // Assert
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: testId },
+        include: { inspectionBranchCity: true },
       });
       expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
       expect(result).toEqual(mockUser);
@@ -181,6 +197,7 @@ describe('UsersService', () => {
       // Assert
       expect(prisma.user.findUnique).toHaveBeenCalledWith({
         where: { id: testId },
+        include: { inspectionBranchCity: true },
       });
       expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
       expect(result).toBeNull();
@@ -195,11 +212,10 @@ describe('UsersService', () => {
       const dbError = new Error('Database query failed');
       mockPrismaService.user.findUnique.mockRejectedValue(dbError);
 
-      // Act & Assert: Expect the service call to reject with the same error
-      await expect(service.findById(testId)).rejects.toThrow(dbError);
-      expect(prisma.user.findUnique).toHaveBeenCalledWith({
-        where: { id: testId },
-      });
+      // Act & Assert: Expect the service call to reject with InternalServerErrorException
+      await expect(service.findById(testId)).rejects.toThrow(
+        new InternalServerErrorException('Database error while finding user by ID.'),
+      );
     });
   });
 
@@ -223,7 +239,7 @@ describe('UsersService', () => {
       role: Role.CUSTOMER, // Assuming default role
       createdAt: new Date(),
       updatedAt: new Date(),
-    };
+    } as any;
 
     /**
      * Tests the successful execution of the upsert operation.
@@ -240,12 +256,13 @@ describe('UsersService', () => {
         mockGoogleProfileInput,
       );
 
-      // Assert: Verify the arguments passed to prisma.user.upsert
+      const normalizedEmail = 'newgoogle@example.com';
       expect(prisma.user.upsert).toHaveBeenCalledWith({
-        where: { email: mockGoogleProfileInput.emails[0].value },
+        where: { email: normalizedEmail },
         update: { googleId: mockGoogleProfileInput.id },
         create: {
-          email: mockGoogleProfileInput.emails[0].value,
+          id: expect.any(String),
+          email: normalizedEmail,
           googleId: mockGoogleProfileInput.id,
           name: mockGoogleProfileInput.displayName || 'User', // Match default logic
         },
@@ -308,12 +325,108 @@ describe('UsersService', () => {
         service.findOrCreateByGoogleProfile(mockGoogleProfileInput),
       ).rejects.toThrow(
         new InternalServerErrorException(
-          'Could not process Google user profile.',
+          'Could not process Google user profile due to database error.',
         ),
       );
 
-      // Assert: Verify that prisma.user.upsert was indeed called
       expect(prisma.user.upsert).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  /**
+   * Test suite for the `findAll` method.
+   */
+  describe('findAll', () => {
+    const mockUsers = [
+      { id: '1', role: Role.ADMIN },
+      { id: '2', role: Role.CUSTOMER },
+      { id: '3', role: Role.SUPERADMIN },
+    ];
+
+    it('should filter out SUPERADMIN if acting role is not SUPERADMIN', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue(
+        mockUsers.filter((u) => u.role !== Role.SUPERADMIN),
+      );
+
+      const result = await service.findAll(Role.ADMIN);
+
+      expect(prisma.user.findMany).toHaveBeenCalledWith({
+        where: { role: { not: Role.SUPERADMIN } },
+        include: { inspectionBranchCity: true },
+      });
+      expect(result.find((u) => u.role === Role.SUPERADMIN)).toBeUndefined();
+    });
+
+    it('should include SUPERADMIN if acting role is SUPERADMIN', async () => {
+      mockPrismaService.user.findMany.mockResolvedValue(mockUsers);
+
+      const result = await service.findAll(Role.SUPERADMIN);
+
+      expect(prisma.user.findMany).toHaveBeenCalledWith({
+        where: {},
+        include: { inspectionBranchCity: true },
+      });
+      expect(result.find((u) => u.role === Role.SUPERADMIN)).toBeDefined();
+    });
+  });
+
+  /**
+   * Test suite for the `updateUser` method.
+   */
+  describe('updateUser', () => {
+    const targetId = 'target-id';
+    const updateDto = { name: 'Updated Name' };
+
+    it('should throw ForbiddenException if an ADMIN tries to update a SUPERADMIN', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: targetId,
+        role: Role.SUPERADMIN,
+      });
+
+      await expect(
+        service.updateUser(targetId, updateDto as any, Role.ADMIN),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow a SUPERADMIN to update another SUPERADMIN', async () => {
+      const targetUser = { id: targetId, role: Role.SUPERADMIN, email: 'sa@test.com' };
+      mockPrismaService.user.findUnique.mockResolvedValue(targetUser);
+      mockPrismaService.user.update.mockResolvedValue({ ...targetUser, ...updateDto });
+
+      const result = await service.updateUser(targetId, updateDto as any, Role.SUPERADMIN);
+
+      expect(result.name).toBe('Updated Name');
+      expect(prisma.user.update).toHaveBeenCalled();
+    });
+  });
+
+  /**
+   * Test suite for the `deleteUser` method.
+   */
+  describe('deleteUser', () => {
+    const targetId = 'target-id';
+
+    it('should throw ForbiddenException if an ADMIN tries to delete a SUPERADMIN', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        id: targetId,
+        role: Role.SUPERADMIN,
+      });
+
+      await expect(
+        service.deleteUser(targetId, Role.ADMIN),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('should allow a SUPERADMIN to delete another SUPERADMIN', async () => {
+      const targetUser = { id: targetId, role: Role.SUPERADMIN, email: 'sa@test.com' };
+      mockPrismaService.user.findUnique.mockResolvedValue(targetUser);
+      mockPrismaService.user.delete.mockResolvedValue(targetUser);
+
+      await service.deleteUser(targetId, Role.SUPERADMIN);
+
+      expect(prisma.user.delete).toHaveBeenCalledWith({
+        where: { id: targetId },
+      });
     });
   });
 });

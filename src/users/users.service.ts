@@ -25,22 +25,29 @@ import { PrismaService } from '../prisma/prisma.service'; // Adjust path if need
 import { User, Role, Prisma } from '@prisma/client';
 import { RegisterUserDto } from '../auth/dto/register-user.dto'; // Import DTO for local registration
 import * as bcrypt from 'bcrypt'; // Import bcrypt for hashing
-import { v4 as uuidv4 } from 'uuid'; // Import uuid for generating unique IDs
+import { randomUUID } from 'crypto'; // Use Node.js built-in instead of uuid (uuid v9+ is ESM-only)
 import { CreateInspectorDto } from './dto/create-inspector.dto'; // Import CreateInspectorDto
 import { UpdateInspectorDto } from './dto/update-inspector.dto';
 import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 import { CreateAdminDto } from './dto/create-admin.dto'; // Import CreateAdminDto
 
+import { RedisService } from '../redis/redis.service'; // Import RedisService
+
 @Injectable()
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
   private readonly saltRounds = 10;
+  private readonly USER_CACHE_TTL = 3600; // 1 hour
 
   /**
    * Constructs the UsersService and injects the PrismaService for database interactions.
    * @param {PrismaService} prisma - The Prisma database client service.
+   * @param {RedisService} redisService - Service for Redis caching.
    */
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly redisService: RedisService,
+  ) { }
 
   /**
    * Normalizes an email address to a standard format.
@@ -67,7 +74,16 @@ export class UsersService {
   }
 
   /**
+   * Helper to invalidate user cache by ID and email
+   */
+  private async invalidateUserCache(id: string, email?: string) {
+    if (id) await this.redisService.delete(`user:id:${id}`);
+    if (email) await this.redisService.delete(`user:email:${this.normalizeEmail(email)}`);
+  }
+
+  /**
    * Finds a single user by their unique email address.
+   * Uses Redis cache first.
    *
    * @param {string} email - The email address to search for.
    * @returns {Promise<User | null>} The found user or null if not found.
@@ -76,12 +92,34 @@ export class UsersService {
   async findByEmail(email: string): Promise<User | null> {
     if (!email) return null; // Return null if email is empty or null
     const normalizedEmail = this.normalizeEmail(email);
-    this.logger.log(`Finding user by normalized email: ${normalizedEmail}`);
+    const cacheKey = `user:email:${normalizedEmail}`;
+
+    this.logger.verbose(`Finding user by normalized email: ${normalizedEmail}`);
+
+    // 1. Try Cache
     try {
-      return await this.prisma.user.findUnique({
+      const cached = await this.redisService.get(cacheKey);
+      if (cached) {
+        this.logger.verbose(`User cache hit for email: ${normalizedEmail}`);
+        return JSON.parse(cached);
+      }
+    } catch (e) { /* ignore cache error */ }
+
+    // 2. Database Fallback
+    try {
+      const user = await this.prisma.user.findUnique({
         where: { email: normalizedEmail }, // Store and search emails in lowercase
         include: { inspectionBranchCity: true },
       });
+
+      // 3. Set Cache
+      if (user) {
+        await this.redisService.set(cacheKey, JSON.stringify(user), this.USER_CACHE_TTL);
+        // Also cache by ID to allow lookup by ID later
+        await this.redisService.set(`user:id:${user.id}`, JSON.stringify(user), this.USER_CACHE_TTL);
+      }
+
+      return user;
     } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
@@ -171,6 +209,7 @@ export class UsersService {
 
   /**
    * Finds a single user by their unique ID (UUID).
+   * Uses Redis cache first.
    *
    * @param {string} id - The UUID of the user.
    * @returns {Promise<User | null>} The found user or null.
@@ -178,12 +217,32 @@ export class UsersService {
    */
   async findById(id: string): Promise<User | null> {
     if (!id) return null;
+    const cacheKey = `user:id:${id}`;
     this.logger.verbose(`Finding user by ID: ${id}`);
+
+    // 1. Try Cache
     try {
-      return await this.prisma.user.findUnique({
+      const cached = await this.redisService.get(cacheKey);
+      if (cached) {
+        this.logger.verbose(`User cache hit for ID: ${id}`);
+        return JSON.parse(cached);
+      }
+    } catch (e) { /* ignore */ }
+
+    // 2. Database Fallback
+    try {
+      const user = await this.prisma.user.findUnique({
         where: { id },
         include: { inspectionBranchCity: true },
       });
+
+      // 3. Set Cache
+      if (user) {
+        await this.redisService.set(cacheKey, JSON.stringify(user), this.USER_CACHE_TTL);
+        // Also set email cache for consistency optimization potentially?
+      }
+
+      return user;
     } catch (error) {
       if (error instanceof Error) {
         this.logger.error(
@@ -203,14 +262,24 @@ export class UsersService {
 
   /**
    * Finds all users. Primarily for admin use.
+   * Not cached typically as it changes often and is admin-only.
    *
+   * @param {Role} actingUserRole - The role of the user performing the search.
    * @returns {Promise<User[]>} Array of users.
    * @throws {InternalServerErrorException} If a database error occurs.
    */
-  async findAll(): Promise<User[]> {
-    this.logger.log('Finding all users');
+  async findAll(actingUserRole?: Role): Promise<User[]> {
+    this.logger.log(`Finding all users (Acting Role: ${actingUserRole || 'Unknown'})`);
     try {
+      const where: Prisma.UserWhereInput = {};
+
+      // Hide SUPERADMIN from all roles except SUPERADMIN
+      if (actingUserRole !== Role.SUPERADMIN) {
+        where.role = { not: Role.SUPERADMIN };
+      }
+
       return await this.prisma.user.findMany({
+        where,
         include: { inspectionBranchCity: true },
       });
     } catch (error) {
@@ -285,7 +354,7 @@ export class UsersService {
     try {
       const newUser = await this.prisma.user.create({
         data: {
-          id: uuidv4(), // Generate a UUID for the new user
+          id: randomUUID(), // Generate a UUID for the new user
           email: normalizedEmail, // Store normalized email
           username: registerDto.username,
           password: hashedPassword, // Store the HASHED password
@@ -383,7 +452,7 @@ export class UsersService {
           // name: name ? name : undefined, // Example: only update if Google provides a name
         },
         create: {
-          id: uuidv4(), // Generate a UUID for the new user
+          id: randomUUID(), // Generate a UUID for the new user
           email: normalizedEmail,
           googleId: googleId,
           name: name || `User_${googleId.substring(0, 6)}`, // Provide a default name if missing
@@ -545,7 +614,7 @@ export class UsersService {
     if (
       userToUpdate.email &&
       this.normalizeEmail(userToUpdate.email) !==
-        this.normalizeEmail(googleEmail)
+      this.normalizeEmail(googleEmail)
     ) {
       this.logger.warn(
         `Normalized Google email (${this.normalizeEmail(googleEmail)}) does not match user's primary email (${this.normalizeEmail(userToUpdate.email)}) for user ${userId}.`,
@@ -785,7 +854,7 @@ export class UsersService {
     try {
       const newUser = await this.prisma.user.create({
         data: {
-          id: uuidv4(), // Generate a UUID for the new user
+          id: randomUUID(), // Generate a UUID for the new user
           email: createInspectorDto.email.toLowerCase(), // Store email in lowercase
           username: createInspectorDto.username,
           name: createInspectorDto.name,
@@ -883,13 +952,34 @@ export class UsersService {
    *
    * @param {string} id - The UUID of the user.
    * @param {UpdateUserDto} updateUserDto - DTO containing update data.
+   * @param {Role} actingUserRole - The role of the user performing the update.
    * @returns {Promise<User>} The updated user.
    * @throws {NotFoundException} If the user is not found.
+   * @throws {ForbiddenException} If a non-superadmin tries to update a superadmin.
    * @throws {ConflictException} If updated email, username, or walletAddress already exists.
    * @throws {InternalServerErrorException} For database errors.
    */
-  async updateUser(id: string, updateUserDto: UpdateUserDto): Promise<User> {
-    this.logger.log(`Attempting to update user ID: ${id}`);
+  async updateUser(
+    id: string,
+    updateUserDto: UpdateUserDto,
+    actingUserRole: Role,
+  ): Promise<User> {
+    this.logger.log(
+      `Attempting to update user ID: ${id} by role: ${actingUserRole}`,
+    );
+
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException(`User with ID "${id}" not found for update.`);
+    }
+
+    // Protection: Only SUPERADMIN can update another SUPERADMIN
+    if (user.role === Role.SUPERADMIN && actingUserRole !== Role.SUPERADMIN) {
+      this.logger.warn(
+        `Unauthorized update attempt: Role ${actingUserRole} tried to update SUPERADMIN ${id}`,
+      );
+      throw new ForbiddenException('Cannot modify a super admin account.');
+    }
 
     const data: Prisma.UserUpdateInput = {
       email: updateUserDto.email?.toLowerCase(),
@@ -908,6 +998,10 @@ export class UsersService {
         where: { id: id },
         data,
       });
+
+      // Invalidate cache
+      await this.invalidateUserCache(id, user.email || undefined);
+
       this.logger.log(`Successfully updated user ID: ${id}`);
       return updatedUser;
     } catch (error) {
@@ -1160,16 +1254,38 @@ export class UsersService {
    * Deletes a user by their unique ID (UUID). Requires ADMIN privileges (checked in Controller).
    *
    * @param {string} id - The UUID of the user to delete.
+   * @param {Role} actingUserRole - The role of the user performing the deletion.
    * @returns {Promise<void>}
    * @throws {NotFoundException} If the user is not found.
+   * @throws {ForbiddenException} If a non-superadmin tries to delete a superadmin.
    * @throws {InternalServerErrorException} For database errors.
    */
-  async deleteUser(id: string): Promise<void> {
-    this.logger.log(`Attempting to delete user ID: ${id}`);
+  async deleteUser(id: string, actingUserRole: Role): Promise<void> {
+    this.logger.log(
+      `Attempting to delete user ID: ${id} by role: ${actingUserRole}`,
+    );
+
+    const user = await this.findById(id);
+    if (!user) {
+      throw new NotFoundException(`User with ID "${id}" not found for deletion.`);
+    }
+
+    // Protection: Only SUPERADMIN can delete another SUPERADMIN
+    if (user.role === Role.SUPERADMIN && actingUserRole !== Role.SUPERADMIN) {
+      this.logger.warn(
+        `Unauthorized deletion attempt: Role ${actingUserRole} tried to delete SUPERADMIN ${id}`,
+      );
+      throw new ForbiddenException('Cannot delete a super admin account.');
+    }
+
     try {
       await this.prisma.user.delete({
         where: { id: id },
       });
+
+      // Invalidate cache
+      await this.invalidateUserCache(id, user.email || undefined);
+
       this.logger.log(`Successfully deleted user ID: ${id}`);
     } catch (error) {
       if (
@@ -1261,7 +1377,7 @@ export class UsersService {
     try {
       const newUser = await this.prisma.user.create({
         data: {
-          id: uuidv4(),
+          id: randomUUID(),
           email: createAdminDto.email.toLowerCase(),
           username: createAdminDto.username,
           password: hashedPassword,

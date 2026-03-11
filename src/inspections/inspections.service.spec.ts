@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BlockchainService } from '../blockchain/blockchain.service';
 import { ConfigService } from '@nestjs/config';
 import { IpfsService } from '../ipfs/ipfs.service';
+import { RedisService } from '../redis/redis.service';
 import {
   Inspection,
   InspectionChangeLog,
@@ -145,6 +146,7 @@ describe('InspectionsService', () => {
         { provide: BlockchainService, useValue: mockBlockchainService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: IpfsService, useValue: mockIpfsService },
+        { provide: RedisService, useValue: mockRedisService },
       ],
     }).compile();
 
@@ -640,6 +642,7 @@ describe('InspectionsService', () => {
         const tx = {
           inspection: {
             findUnique: jest.fn().mockResolvedValue(mockInspection),
+            findUniqueOrThrow: jest.fn().mockResolvedValue(mockInspection),
             update: jest.fn().mockResolvedValue(inspectionAfterChanges),
             findUniqueOrThrow: jest
               .fn()
@@ -689,6 +692,7 @@ describe('InspectionsService', () => {
         const tx = {
           inspection: {
             findUnique: jest.fn().mockResolvedValue(null),
+            findUniqueOrThrow: jest.fn().mockResolvedValue(null),
           },
         };
         return await callback(tx);
@@ -730,6 +734,7 @@ describe('InspectionsService', () => {
         const tx = {
           inspection: {
             findUnique: jest.fn().mockResolvedValue(mockInspection),
+            findUniqueOrThrow: jest.fn().mockResolvedValue(mockInspection),
             update: jest.fn().mockResolvedValue(inspectionAfterChanges),
             findUniqueOrThrow: jest
               .fn()
