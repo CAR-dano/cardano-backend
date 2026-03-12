@@ -38,5 +38,12 @@ export interface JwtPayload {
    */
   name?: string;
 
+  /**
+   * Session version number. Incremented on each token rotation (refresh) or security event
+   * (password change, forced logout). Access tokens with a stale version are rejected.
+   * Included in both access tokens and refresh tokens.
+   */
+  sessionVersion?: number;
+
   // Add other relevant, non-sensitive claims here if necessary (e.g., provider type?).
 }

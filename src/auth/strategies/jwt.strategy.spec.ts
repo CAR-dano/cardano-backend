@@ -110,6 +110,7 @@ describe('JwtStrategy', () => {
       password: 'hashedpassword',
       pin: null,
       refreshToken: null,
+      sessionVersion: 0,
       whatsappNumber: null,
       walletAddress: null,
       googleId: null,
@@ -203,6 +204,36 @@ describe('JwtStrategy', () => {
       // Assert: Verify usersService.findById was still called
       expect(usersService.findById).toHaveBeenCalledWith(mockJwtPayload.sub);
       expect(usersService.findById).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw UnauthorizedException when token sessionVersion is stale', async () => {
+      // Arrange: token has sessionVersion 0, but DB user is already at version 1
+      const stalePayload: JwtPayload = { ...mockJwtPayload, sessionVersion: 0 };
+      const userWithNewerVersion: User = { ...mockUser, sessionVersion: 1 };
+
+      mockAuthService.isTokenBlacklisted.mockResolvedValue(false);
+      mockUsersService.findById.mockResolvedValue(userWithNewerVersion);
+
+      // Act & Assert
+      await expect(strategy.validate(mockRequest, stalePayload)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+
+    it('should succeed when token sessionVersion matches the DB user sessionVersion', async () => {
+      // Arrange: token and DB user share the same sessionVersion
+      const payloadWithVersion: JwtPayload = { ...mockJwtPayload, sessionVersion: 3 };
+      const userWithSameVersion: User = { ...mockUser, sessionVersion: 3 };
+
+      mockAuthService.isTokenBlacklisted.mockResolvedValue(false);
+      mockUsersService.findById.mockResolvedValue(userWithSameVersion);
+
+      // Act
+      const result = await strategy.validate(mockRequest, payloadWithVersion);
+
+      // Assert: validation should pass and return user without password/googleId
+      const { password, googleId, ...expectedResult } = userWithSameVersion;
+      expect(result).toEqual(expectedResult);
     });
   });
 });

@@ -401,6 +401,61 @@ export class AuthController {
   }
 
   /**
+   * Logs out the user from ALL active sessions by revoking their session version
+   * and clearing the stored refresh token.
+   * Any outstanding access token or refresh token becomes immediately invalid.
+   */
+  @Post('logout-all')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 2, ttl: 60000 } })
+  @ApiBearerAuth('JwtAuthGuard')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Logout user from all devices (revoke all sessions)',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'All sessions revoked. All tokens are now invalid.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Unauthorized.',
+  })
+  async logoutAll(@Req() req: AuthenticatedRequest, @Res() res: Response) {
+    const userId = req.user?.id;
+    this.logger.log(`Revoking all sessions for user: ${userId}`);
+
+    if (!userId) {
+      throw new UnauthorizedException('User not authenticated.');
+    }
+
+    try {
+      // Also blacklist the current access token so it cannot be reused
+      const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
+      if (token) {
+        const decodedToken = this.jwtService.decode(token) as { exp: number };
+        if (decodedToken?.exp) {
+          const expiresAt = new Date(decodedToken.exp * 1000);
+          await this.authService.blacklistToken(token, expiresAt);
+        }
+      }
+
+      await this.authService.revokeAllSessions(userId);
+
+      return res.json({
+        message:
+          'All sessions revoked. You have been logged out from all devices.',
+      });
+    } catch (error) {
+      this.logger.error(
+        `Error revoking all sessions for user ${userId}: ${(error as Error).message}`,
+        (error as Error).stack,
+      );
+      throw new InternalServerErrorException('Failed to revoke all sessions.');
+    }
+  }
+
+  /**
    * Checks if the provided JWT token is valid and not expired.
    * Requires a valid JWT in the Authorization header.
    *

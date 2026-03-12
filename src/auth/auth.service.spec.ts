@@ -15,10 +15,12 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { InternalServerErrorException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Role, User } from '@prisma/client';
 import { Profile } from 'passport-google-oauth20';
-import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 
@@ -26,8 +28,6 @@ import { RedisService } from '../redis/redis.service';
 /**
  * Mock object for the UsersService.
  * Provides Jest mock functions (`jest.fn()`) for methods that AuthService depends on.
- * This allows us to control the behavior (return value, error throwing) of UsersService
- * during the tests without needing a real implementation or database connection.
  */
 const mockUsersService = {
   findOrCreateByGoogleProfile: jest.fn(),
@@ -37,7 +37,6 @@ const mockUsersService = {
 
 /**
  * Mock object for the JwtService.
- * Provides a Jest mock function for the `sign` method used to generate JWTs.
  */
 const mockJwtService = {
   sign: jest.fn(),
@@ -45,8 +44,6 @@ const mockJwtService = {
 
 /**
  * Mock object for the ConfigService.
- * Provides Jest mock functions for `get` and `getOrThrow` methods used to retrieve
- * configuration values (like JWT secrets and expiration times) from environment variables.
  */
 const mockConfigService = {
   get: jest.fn(),
@@ -55,7 +52,7 @@ const mockConfigService = {
 
 /**
  * Mock object for the PrismaService.
- * Provides Jest mock functions for database operations.
+ * AuthService uses prisma.user.update() directly for security-sensitive field updates.
  */
 const mockPrismaService = {
   user: {
@@ -64,11 +61,14 @@ const mockPrismaService = {
     create: jest.fn(),
     update: jest.fn(),
   },
+  blacklistedToken: {
+    findUnique: jest.fn(),
+    create: jest.fn(),
+  },
 };
 
 /**
  * Mock object for the RedisService.
- * Provides Jest mock functions for caching operations.
  */
 const mockRedisService = {
   get: jest.fn(),
@@ -76,64 +76,69 @@ const mockRedisService = {
   del: jest.fn(),
 };
 
+// Shared mock user used across multiple test suites
+const buildMockUser = (overrides: Partial<User> = {}): User => ({
+  id: 'user-uuid-456',
+  email: 'login.user@example.com',
+  name: 'Test User',
+  username: 'testuser',
+  password: 'hashedpassword',
+  pin: null,
+  refreshToken: 'hashed-refresh-token',
+  sessionVersion: 0,
+  whatsappNumber: null,
+  walletAddress: null,
+  googleId: null,
+  role: Role.ADMIN,
+  isActive: true,
+  google_avatar_url: null,
+  profile_photo_url: null,
+  profile_photo_storage_key: null,
+  credits: 0,
+  creditExpAt: null,
+  inspectionBranchCityId: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
+
 /**
  * Test suite for the AuthService class.
- * Groups all unit tests related to AuthService.
  */
 describe('AuthService', () => {
-  // Declare variables to hold instances of the service under test and its mocked dependencies.
   let service: AuthService;
-  let usersService: UsersService; // Will hold the mock object
-  let jwtService: JwtService; // Will hold the mock object
-  let configService: ConfigService; // Will hold the mock object
+  let usersService: UsersService;
+  let jwtService: JwtService;
+  let configService: ConfigService;
 
-  /**
-   * Sets up the NestJS testing module before each test case runs.
-   * This involves creating a module with the AuthService and mocked versions
-   * of its dependencies (UsersService, JwtService, ConfigService).
-   * It also retrieves instances of the service and mocks for use in tests
-   * and clears all mock call history using jest.clearAllMocks() for test isolation.
-   */
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        AuthService, // The actual service we want to test
-        // Provide the mock objects instead of the real services
+        AuthService,
         { provide: UsersService, useValue: mockUsersService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: RedisService, useValue: mockRedisService },
       ],
-    }).compile(); // Compile the module
+    }).compile();
 
-    // Retrieve the instances from the testing module
     service = module.get<AuthService>(AuthService);
-    usersService = module.get<UsersService>(UsersService); // Retrieves the mock provided
-    jwtService = module.get<JwtService>(JwtService); // Retrieves the mock provided
-    configService = module.get<ConfigService>(ConfigService); // Retrieves the mock provided
+    usersService = module.get<UsersService>(UsersService);
+    jwtService = module.get<JwtService>(JwtService);
+    configService = module.get<ConfigService>(ConfigService);
 
-    // Reset mocks before each test to prevent interference between tests
     jest.clearAllMocks();
   });
 
-  /**
-   * Basic sanity check test.
-   * Ensures that the AuthService instance was successfully created and injected
-   * by the NestJS testing module setup in beforeEach.
-   */
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
 
-  /**
-   * Test suite for the validateUserGoogle method of AuthService.
-   * This method is responsible for taking a Google profile, interacting with
-   * the UsersService to find or create a corresponding user in the database.
-   */
+  // ---------------------------------------------------------------------------
+  // validateUserGoogle
+  // ---------------------------------------------------------------------------
   describe('validateUserGoogle', () => {
-    // Define a mock Google Profile object conforming to the Profile type.
-    // Includes necessary properties expected by the type definition.
     const mockGoogleProfile: Profile = {
       id: 'google123',
       displayName: 'Test User Google',
@@ -141,7 +146,7 @@ describe('AuthService', () => {
       emails: [{ value: 'test.google@example.com', verified: true }],
       photos: [{ value: 'http://example.com/picture.jpg' }],
       provider: 'google',
-      _raw: '', // Provide empty string or valid JSON string if needed
+      _raw: '',
       _json: {
         sub: 'google123',
         email: 'test.google@example.com',
@@ -157,44 +162,18 @@ describe('AuthService', () => {
       profileUrl: 'https://plus.google.com/mockprofileid',
     };
 
-    // Define a mock User object representing the expected return value from UsersService.
-    const mockUser: User = {
+    const mockUser = buildMockUser({
       id: 'user-uuid-123',
       email: 'test.google@example.com',
-      name: 'Test User',
-      username: 'testuser',
-      password: 'hashedpassword',
-      pin: '123456',
-      refreshToken: 'mock-refresh-token',
-      whatsappNumber: null,
-      walletAddress: null,
       googleId: 'google123',
       role: Role.CUSTOMER,
-      isActive: true,
-      google_avatar_url: null,
-      profile_photo_url: null,
-      profile_photo_storage_key: null,
-      credits: 0,
-      creditExpAt: null,
-      inspectionBranchCityId: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    });
 
-    /**
-     * Tests if validateUserGoogle correctly calls the findOrCreateByGoogleProfile method
-     * on the mocked UsersService with the expected profile data extracted from the
-     * input Google Profile object.
-     */
     it('should call usersService.findOrCreateByGoogleProfile with correct profile data', async () => {
-      // Arrange: Configure the mock UsersService to return the mockUser when called.
       mockUsersService.findOrCreateByGoogleProfile.mockResolvedValue(mockUser);
 
-      // Act: Call the method under test.
       await service.validateUserGoogle(mockGoogleProfile);
 
-      // Assert: Verify that the mock UsersService method was called exactly once
-      // with an object containing the specific properties from mockGoogleProfile.
       expect(usersService.findOrCreateByGoogleProfile).toHaveBeenCalledWith({
         id: mockGoogleProfile.id,
         emails: mockGoogleProfile.emails,
@@ -203,37 +182,19 @@ describe('AuthService', () => {
       expect(usersService.findOrCreateByGoogleProfile).toHaveBeenCalledTimes(1);
     });
 
-    /**
-     * Tests if validateUserGoogle returns the user object that is resolved
-     * by the mocked findOrCreateByGoogleProfile method of UsersService.
-     */
     it('should return the user found or created by usersService', async () => {
-      // Arrange: Configure the mock UsersService.
       mockUsersService.findOrCreateByGoogleProfile.mockResolvedValue(mockUser);
 
-      // Act: Call the method under test.
       const result = await service.validateUserGoogle(mockGoogleProfile);
 
-      // Assert: Verify that the returned result is strictly equal to the mockUser.
       expect(result).toEqual(mockUser);
     });
 
-    /**
-     * Tests the error handling scenario where the underlying usersService.findOrCreateByGoogleProfile
-     * method throws an error (e.g., database connection issue). It expects
-     * AuthService.validateUserGoogle to catch this and throw a specific
-     * InternalServerErrorException, indicating a failure during validation.
-     */
     it('should throw InternalServerErrorException if usersService throws error', async () => {
-      // Arrange: Configure the mock UsersService to reject with an error.
-      const errorMessage = 'Database error';
       mockUsersService.findOrCreateByGoogleProfile.mockRejectedValue(
-        new Error(errorMessage),
+        new Error('Database error'),
       );
 
-      // Act & Assert: Verify that calling the method under test results in a rejection
-      // that is an instance of InternalServerErrorException with the expected message.
-      // The logger within AuthService should also output the original error message.
       await expect(
         service.validateUserGoogle(mockGoogleProfile),
       ).rejects.toThrow(
@@ -243,17 +204,10 @@ describe('AuthService', () => {
       );
     });
 
-    /**
-     * Tests the specific error scenario where the input Google profile is missing
-     * the email address, which is required by the application logic.
-     * It expects the service (ultimately catching the error from UsersService)
-     * to throw an InternalServerErrorException.
-     */
     it('should throw InternalServerErrorException if profile has no email', async () => {
-      // Arrange: Create a profile variant without the email property.
       const profileWithoutEmail: Profile = {
         ...mockGoogleProfile,
-        emails: undefined, // Simulate missing email
+        emails: undefined,
         _json: {
           ...mockGoogleProfile._json,
           email: undefined,
@@ -261,9 +215,6 @@ describe('AuthService', () => {
         },
       };
 
-      // Act & Assert: Expect the call to reject with the specific InternalServerErrorException.
-      // The UsersService's findOrCreate method is expected to handle the missing email initially,
-      // and AuthService catches this failure.
       await expect(
         service.validateUserGoogle(profileWithoutEmail),
       ).rejects.toThrow(
@@ -274,22 +225,19 @@ describe('AuthService', () => {
     });
   });
 
-  /**
-   * Test suite for the login method of AuthService.
-   * This method is responsible for generating a JWT access token for an already
-   * validated user, interacting with ConfigService and JwtService.
-   */
+  // ---------------------------------------------------------------------------
+  // login
+  // ---------------------------------------------------------------------------
   describe('login', () => {
-    // Define mock user data that would be passed to the login method.
     const mockUserLoginInput = {
       id: 'user-uuid-456',
       email: 'login.user@example.com',
       role: Role.ADMIN,
+      sessionVersion: 0,
       name: 'Admin User',
       username: 'adminuser',
     };
 
-    // Define mock configuration values and the expected token.
     const mockJwtSecret = 'your-test-secret';
     const mockJwtExpiresIn = '3600s';
     const mockRefreshSecret = 'your-refresh-secret';
@@ -297,64 +245,57 @@ describe('AuthService', () => {
     const mockGeneratedToken = 'mock.jwt.token';
     const mockRefreshToken = 'mock.refresh.token';
 
-    /**
-     * Tests if the login method correctly retrieves the JWT_SECRET and
-     * JWT_EXPIRATION_TIME configuration values using the mocked ConfigService.
-     */
-    it('should call configService to get JWT secrets and expirations', async () => {
-      // Arrange: Mock the return values for the expected calls to getOrThrow.
-      mockConfigService.getOrThrow
-        .mockReturnValueOnce(mockJwtSecret) // JWT_SECRET
-        .mockReturnValueOnce(mockJwtExpiresIn) // JWT_EXPIRATION_TIME
-        .mockReturnValueOnce(mockRefreshSecret) // JWT_REFRESH_SECRET
-        .mockReturnValueOnce(mockRefreshExpiresIn); // JWT_REFRESH_EXPIRATION_TIME
-
-      // Arrange: Mock the jwtService.sign to return different values for access and refresh tokens.
-      mockJwtService.sign
-        .mockReturnValueOnce(mockGeneratedToken)
-        .mockReturnValueOnce(mockRefreshToken);
-
-      // Act: Call the login method.
-      await service.login(mockUserLoginInput);
-
-      // Assert: Verify that getOrThrow was called for all 4 keys.
-      expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_SECRET');
-      expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_EXPIRATION_TIME');
-      expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_REFRESH_SECRET');
-      expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_REFRESH_EXPIRATION_TIME');
-      expect(configService.getOrThrow).toHaveBeenCalledTimes(4);
+    beforeEach(() => {
+      // login() does prisma.user.update to persist hashed refresh token
+      mockPrismaService.user.update.mockResolvedValue({});
     });
 
-    /**
-     * Tests if the login method calls the jwtService.sign method with the correctly
-     * constructed payload (based on user input) and the correct signing options.
-     */
-    it('should call jwtService.sign with correct payload, secret, and expiration', async () => {
-      // Arrange: Mock ConfigService return values.
+    it('should call configService to get JWT secrets and expirations', async () => {
       mockConfigService.getOrThrow
         .mockReturnValueOnce(mockJwtSecret)
         .mockReturnValueOnce(mockJwtExpiresIn)
         .mockReturnValueOnce(mockRefreshSecret)
         .mockReturnValueOnce(mockRefreshExpiresIn);
 
-      // Arrange: Mock JwtService sign.
       mockJwtService.sign
         .mockReturnValueOnce(mockGeneratedToken)
         .mockReturnValueOnce(mockRefreshToken);
 
-      // Act: Call the login method.
       await service.login(mockUserLoginInput);
 
-      // Payload structure as expected by AuthService.login
+      expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_SECRET');
+      expect(configService.getOrThrow).toHaveBeenCalledWith(
+        'JWT_EXPIRATION_TIME',
+      );
+      expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_REFRESH_SECRET');
+      expect(configService.getOrThrow).toHaveBeenCalledWith(
+        'JWT_REFRESH_EXPIRATION_TIME',
+      );
+      expect(configService.getOrThrow).toHaveBeenCalledTimes(4);
+    });
+
+    it('should call jwtService.sign with payload including sessionVersion', async () => {
+      mockConfigService.getOrThrow
+        .mockReturnValueOnce(mockJwtSecret)
+        .mockReturnValueOnce(mockJwtExpiresIn)
+        .mockReturnValueOnce(mockRefreshSecret)
+        .mockReturnValueOnce(mockRefreshExpiresIn);
+
+      mockJwtService.sign
+        .mockReturnValueOnce(mockGeneratedToken)
+        .mockReturnValueOnce(mockRefreshToken);
+
+      await service.login(mockUserLoginInput);
+
       const expectedPayload = {
         sub: mockUserLoginInput.id,
         email: mockUserLoginInput.email,
         role: mockUserLoginInput.role,
+        sessionVersion: mockUserLoginInput.sessionVersion,
         name: mockUserLoginInput.name,
         username: mockUserLoginInput.username,
       };
 
-      // Verify sign was called for both access and refresh tokens
       expect(jwtService.sign).toHaveBeenCalledWith(expectedPayload, {
         secret: mockJwtSecret,
         expiresIn: mockJwtExpiresIn,
@@ -366,12 +307,14 @@ describe('AuthService', () => {
       expect(jwtService.sign).toHaveBeenCalledTimes(2);
     });
 
-    /**
-     * Tests if the login method successfully returns an object containing both
-     * accessToken and refreshToken.
-     */
-    it('should return an object with both generated tokens', async () => {
-      // Arrange: Mock ConfigService and JwtService.
+    it('should default sessionVersion to 0 when not provided', async () => {
+      const inputWithoutVersion = {
+        id: 'user-uuid-456',
+        email: 'login.user@example.com',
+        role: Role.ADMIN,
+        // sessionVersion deliberately omitted
+      };
+
       mockConfigService.getOrThrow
         .mockReturnValueOnce(mockJwtSecret)
         .mockReturnValueOnce(mockJwtExpiresIn)
@@ -382,10 +325,46 @@ describe('AuthService', () => {
         .mockReturnValueOnce(mockGeneratedToken)
         .mockReturnValueOnce(mockRefreshToken);
 
-      // Act: Call the login method.
+      await service.login(inputWithoutVersion);
+
+      // The first sign call should have sessionVersion: 0 in the payload
+      const firstCallPayload = (jwtService.sign as jest.Mock).mock.calls[0][0];
+      expect(firstCallPayload.sessionVersion).toBe(0);
+    });
+
+    it('should persist hashed refresh token via prisma.user.update', async () => {
+      mockConfigService.getOrThrow
+        .mockReturnValueOnce(mockJwtSecret)
+        .mockReturnValueOnce(mockJwtExpiresIn)
+        .mockReturnValueOnce(mockRefreshSecret)
+        .mockReturnValueOnce(mockRefreshExpiresIn);
+
+      mockJwtService.sign
+        .mockReturnValueOnce(mockGeneratedToken)
+        .mockReturnValueOnce(mockRefreshToken);
+
+      await service.login(mockUserLoginInput);
+
+      expect(mockPrismaService.user.update).toHaveBeenCalledTimes(1);
+      const updateCall = mockPrismaService.user.update.mock.calls[0][0];
+      expect(updateCall.where).toEqual({ id: mockUserLoginInput.id });
+      expect(updateCall.data.refreshToken).toBeDefined();
+      expect(typeof updateCall.data.refreshToken).toBe('string');
+    });
+
+    it('should return an object with both generated tokens', async () => {
+      mockConfigService.getOrThrow
+        .mockReturnValueOnce(mockJwtSecret)
+        .mockReturnValueOnce(mockJwtExpiresIn)
+        .mockReturnValueOnce(mockRefreshSecret)
+        .mockReturnValueOnce(mockRefreshExpiresIn);
+
+      mockJwtService.sign
+        .mockReturnValueOnce(mockGeneratedToken)
+        .mockReturnValueOnce(mockRefreshToken);
+
       const result = await service.login(mockUserLoginInput);
 
-      // Assert: Verify the returned object has the correct structure and values.
       expect(result).toEqual({
         accessToken: mockGeneratedToken,
         refreshToken: mockRefreshToken,
@@ -393,22 +372,156 @@ describe('AuthService', () => {
     });
 
     it('should throw InternalServerErrorException if jwtService.sign throws error', async () => {
-      // Arrange: Mock ConfigService.
       mockConfigService.getOrThrow
         .mockReturnValueOnce(mockJwtSecret)
         .mockReturnValueOnce(mockJwtExpiresIn)
         .mockReturnValueOnce(mockRefreshSecret)
         .mockReturnValueOnce(mockRefreshExpiresIn);
 
-      // Arrange: Configure the mock JwtService to throw an error.
       mockJwtService.sign.mockImplementation(() => {
         throw new Error('Signing failed');
       });
 
-      // Act & Assert: Verify the call rejects with the expected exception.
       await expect(service.login(mockUserLoginInput)).rejects.toThrow(
         InternalServerErrorException,
       );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // refreshTokens
+  // ---------------------------------------------------------------------------
+  describe('refreshTokens', () => {
+    const mockJwtSecret = 'test-secret';
+    const mockJwtExpiresIn = '3600s';
+    const mockRefreshSecret = 'test-refresh-secret';
+    const mockRefreshExpiresIn = '7d';
+
+    beforeEach(() => {
+      mockPrismaService.user.update.mockResolvedValue({});
+    });
+
+    it('should throw UnauthorizedException when user is not found', async () => {
+      mockUsersService.findById.mockResolvedValue(null);
+
+      await expect(service.refreshTokens('nonexistent-id')).rejects.toThrow(
+        new UnauthorizedException('Access Denied'),
+      );
+    });
+
+    it('should increment sessionVersion and issue new token pair', async () => {
+      const currentVersion = 2;
+      const mockUser = buildMockUser({ sessionVersion: currentVersion });
+      mockUsersService.findById.mockResolvedValue(mockUser);
+
+      mockConfigService.getOrThrow
+        .mockReturnValueOnce(mockJwtSecret)
+        .mockReturnValueOnce(mockJwtExpiresIn)
+        .mockReturnValueOnce(mockRefreshSecret)
+        .mockReturnValueOnce(mockRefreshExpiresIn);
+
+      mockJwtService.sign
+        .mockReturnValueOnce('new-access-token')
+        .mockReturnValueOnce('new-refresh-token');
+
+      await service.refreshTokens(mockUser.id);
+
+      // sessionVersion must be incremented in the DB before issuing new tokens
+      const versionUpdateCall = mockPrismaService.user.update.mock.calls[0][0];
+      expect(versionUpdateCall.where).toEqual({ id: mockUser.id });
+      expect(versionUpdateCall.data.sessionVersion).toBe(currentVersion + 1);
+    });
+
+    it('should embed the incremented sessionVersion in the new tokens', async () => {
+      const currentVersion = 1;
+      const mockUser = buildMockUser({ sessionVersion: currentVersion });
+      mockUsersService.findById.mockResolvedValue(mockUser);
+
+      mockConfigService.getOrThrow
+        .mockReturnValueOnce(mockJwtSecret)
+        .mockReturnValueOnce(mockJwtExpiresIn)
+        .mockReturnValueOnce(mockRefreshSecret)
+        .mockReturnValueOnce(mockRefreshExpiresIn);
+
+      mockJwtService.sign
+        .mockReturnValueOnce('new-access-token')
+        .mockReturnValueOnce('new-refresh-token');
+
+      await service.refreshTokens(mockUser.id);
+
+      // The second prisma.user.update call (from login()) stores the new refresh token hash
+      // The JWT sign call payload must carry the new sessionVersion
+      const signPayload = (jwtService.sign as jest.Mock).mock.calls[0][0];
+      expect(signPayload.sessionVersion).toBe(currentVersion + 1);
+    });
+
+    it('should return new accessToken and refreshToken', async () => {
+      const mockUser = buildMockUser({ sessionVersion: 0 });
+      mockUsersService.findById.mockResolvedValue(mockUser);
+
+      mockConfigService.getOrThrow
+        .mockReturnValueOnce(mockJwtSecret)
+        .mockReturnValueOnce(mockJwtExpiresIn)
+        .mockReturnValueOnce(mockRefreshSecret)
+        .mockReturnValueOnce(mockRefreshExpiresIn);
+
+      mockJwtService.sign
+        .mockReturnValueOnce('new-access-token')
+        .mockReturnValueOnce('new-refresh-token');
+
+      const result = await service.refreshTokens(mockUser.id);
+
+      expect(result).toEqual({
+        accessToken: 'new-access-token',
+        refreshToken: 'new-refresh-token',
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // revokeAllSessions
+  // ---------------------------------------------------------------------------
+  describe('revokeAllSessions', () => {
+    it('should throw UnauthorizedException when user is not found', async () => {
+      mockUsersService.findById.mockResolvedValue(null);
+
+      await expect(service.revokeAllSessions('nonexistent-id')).rejects.toThrow(
+        new UnauthorizedException('User not found'),
+      );
+    });
+
+    it('should increment sessionVersion and clear refreshToken in DB', async () => {
+      const currentVersion = 3;
+      const mockUser = buildMockUser({ sessionVersion: currentVersion });
+      mockUsersService.findById.mockResolvedValue(mockUser);
+      mockPrismaService.user.update.mockResolvedValue({});
+
+      await service.revokeAllSessions(mockUser.id);
+
+      expect(mockPrismaService.user.update).toHaveBeenCalledTimes(1);
+      const updateCall = mockPrismaService.user.update.mock.calls[0][0];
+      expect(updateCall.where).toEqual({ id: mockUser.id });
+      expect(updateCall.data.sessionVersion).toBe(currentVersion + 1);
+      expect(updateCall.data.refreshToken).toBeNull();
+    });
+
+    it('should set sessionVersion to 1 when it starts at 0', async () => {
+      const mockUser = buildMockUser({ sessionVersion: 0 });
+      mockUsersService.findById.mockResolvedValue(mockUser);
+      mockPrismaService.user.update.mockResolvedValue({});
+
+      await service.revokeAllSessions(mockUser.id);
+
+      const updateCall = mockPrismaService.user.update.mock.calls[0][0];
+      expect(updateCall.data.sessionVersion).toBe(1);
+    });
+
+    it('should resolve without error on success', async () => {
+      const mockUser = buildMockUser({ sessionVersion: 0 });
+      mockUsersService.findById.mockResolvedValue(mockUser);
+      mockPrismaService.user.update.mockResolvedValue({});
+
+      await expect(service.revokeAllSessions(mockUser.id)).resolves.toBeUndefined();
     });
   });
 });

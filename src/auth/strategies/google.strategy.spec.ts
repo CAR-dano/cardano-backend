@@ -124,6 +124,7 @@ describe('GoogleStrategy', () => {
       password: null,
       pin: null,
       refreshToken: null,
+      sessionVersion: 0,
       whatsappNumber: null,
       walletAddress: null,
       googleId: 'google-profile-id-123',

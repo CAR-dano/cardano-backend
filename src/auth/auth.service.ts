@@ -198,19 +198,18 @@ export class AuthService {
   }
 
   /**
-   * Generates a JWT access token for a successfully validated user.
-   * This method accepts a user object and creates a JWT payload containing essential user information.
-   * It signs the payload using the configured JWT secret and expiration time.
-   * Although marked as async, this method currently performs synchronous operations.
+   * Generates a JWT access token pair (access + refresh) for a successfully validated user.
+   * Includes the user's current sessionVersion in both tokens to support token rotation.
    *
-   * @param user The validated user object (must include id, email, and role; name and username are optional).
-   * @returns A promise that resolves to an object containing the generated JWT access token.
-   * @throws InternalServerErrorException if the user object is invalid or if JWT signing fails.
+   * @param user The validated user object (must include id, email, role, and sessionVersion).
+   * @returns A promise resolving to an object with the generated accessToken and refreshToken.
+   * @throws InternalServerErrorException if the user object is invalid or JWT signing fails.
    */
   async login(user: {
     id: string;
     email: string | null;
     role: Role;
+    sessionVersion?: number;
     name?: string | null;
     username?: string | null;
   }): Promise<{ accessToken: string; refreshToken: string }> {
@@ -228,6 +227,7 @@ export class AuthService {
       sub: user.id,
       email: user.email ?? undefined,
       role: user.role,
+      sessionVersion: user.sessionVersion ?? 0,
       ...(user.name && { name: user.name }),
       ...(user.username && { username: user.username }),
     };
@@ -254,14 +254,12 @@ export class AuthService {
         expiresIn: refreshTokenExpiresIn as any,
       });
 
+      // Hash and persist the new refresh token (system-level DB write, bypass DTO layer)
       const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
-      await this.usersService.updateUser(
-        user.id,
-        {
-          refreshToken: hashedRefreshToken,
-        },
-        Role.SUPERADMIN, // System-level update, bypass protection
-      );
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { refreshToken: hashedRefreshToken },
+      });
 
       this.logger.log(`JWT generated successfully for user ID: ${user.id}`);
       return { accessToken, refreshToken };
@@ -436,20 +434,64 @@ export class AuthService {
   }
 
   /**
-   * Generates a new pair of access and refresh tokens for a user.
-   * This method is used to refresh an expired access token using a valid refresh token.
-   * It finds the user by their ID and then calls the main login method to issue new tokens.
+   * Rotates the token pair for a user, invalidating the previous refresh token.
    *
-   * @param userId The ID of the user for whom to refresh the tokens.
-   * @returns A promise that resolves to an object containing the new accessToken and refreshToken.
+   * Token rotation security properties:
+   * - Increments `sessionVersion` so any previously issued access tokens are immediately invalidated.
+   * - Replaces the stored refresh token hash so the old refresh token cannot be reused.
+   * - Returns a fresh token pair that carries the new `sessionVersion`.
+   *
+   * @param userId The ID of the user requesting a token refresh.
+   * @returns A promise resolving to an object with the new accessToken and refreshToken.
    * @throws UnauthorizedException if no user is found with the given ID.
    */
-  async refreshTokens(userId: string) {
+  async refreshTokens(userId: string): Promise<{ accessToken: string; refreshToken: string }> {
     const user = await this.usersService.findById(userId);
     if (!user) {
       throw new UnauthorizedException('Access Denied');
     }
-    // The login method already handles creating new tokens and saving the new refresh token
-    return this.login(user);
+
+    // Increment session version to invalidate all previously issued access tokens for this user.
+    const newSessionVersion = (user.sessionVersion ?? 0) + 1;
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { sessionVersion: newSessionVersion },
+    });
+    this.logger.log(
+      `Token rotated for user ID: ${userId} — sessionVersion bumped to ${newSessionVersion}`,
+    );
+
+    // Generate new token pair with updated sessionVersion
+    return this.login({ ...user, sessionVersion: newSessionVersion });
+  }
+
+  /**
+   * Revokes all active sessions for a user by incrementing their sessionVersion
+   * and clearing the stored refresh token.
+   *
+   * This causes every outstanding access token and refresh token to fail validation,
+   * effectively performing a "logout everywhere".
+   *
+   * @param userId The ID of the user whose sessions should be revoked.
+   * @throws UnauthorizedException if no user is found with the given ID.
+   */
+  async revokeAllSessions(userId: string): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    const newSessionVersion = (user.sessionVersion ?? 0) + 1;
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        sessionVersion: newSessionVersion,
+        refreshToken: null, // Clear refresh token — no refresh is possible after this
+      },
+    });
+
+    this.logger.log(
+      `All sessions revoked for user ID: ${userId} — sessionVersion bumped to ${newSessionVersion}`,
+    );
   }
 }

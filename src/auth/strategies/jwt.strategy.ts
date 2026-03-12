@@ -100,6 +100,21 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException('User associated with token not found.');
     }
 
+    // Session version check: reject tokens whose sessionVersion is stale.
+    // This fires when refreshTokens() or revokeAllSessions() has incremented the version
+    // in the database, effectively invalidating all previously issued access tokens.
+    const tokenSessionVersion = payload.sessionVersion ?? 0;
+    const userSessionVersion = user.sessionVersion ?? 0;
+    if (tokenSessionVersion !== userSessionVersion) {
+      this.logger.warn(
+        `JWT validation failed: sessionVersion mismatch for user ID ${payload.sub}. ` +
+        `Token has v${tokenSessionVersion}, DB has v${userSessionVersion}. Token invalidated.`,
+      );
+      throw new UnauthorizedException(
+        'Token invalidated due to a security event. Please log in again.',
+      );
+    }
+
     // If user is found, return the relevant user data (excluding sensitive info)
     this.logger.verbose(`JWT validation successful for user ID: ${user.id}`);
     // eslint-disable-next-line @typescript-eslint/no-unused-vars

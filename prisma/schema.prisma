@@ -15,7 +15,8 @@ model User {
   username      String?   @unique // Optional: Required for Username/Password login? Can be null for Google/Wallet.
   password      String?   // Optional: Only exists (as HASH) if user registers/logins via Username/Email + Password. Null for Google/Wallet.
   pin           String?   @unique // PIN for inspector login
-  refreshToken  String?   @unique
+  refreshToken   String?   @unique
+  sessionVersion Int       @default(0) @map("session_version") // Increments on each token rotation or security event
   whatsappNumber String?   @map("whatsapp_number")
   walletAddress String?   @unique // Optional: Only present if user login/link via Wallet. Must be unique if present.
   googleId      String?   @unique // Optional: Only present if the user logged in/linked via Google. Must be unique if present.
