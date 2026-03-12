@@ -634,33 +634,33 @@ export class DashboardService {
 
     const branchMap = new Map(branchCities.map((b) => [b.id, b.city]));
 
-    // 2. Optimized: Get current period distribution in one query
-    const currentCounts = await this.prisma.inspection.groupBy({
-      by: ['branchCityId'],
-      where: {
-        createdAt: {
-          gte: current.start,
-          lte: current.end,
+    // 2 & 3. Run both period groupBy queries in parallel — independent queries
+    const [currentCounts, previousCounts] = await Promise.all([
+      this.prisma.inspection.groupBy({
+        by: ['branchCityId'],
+        where: {
+          createdAt: {
+            gte: current.start,
+            lte: current.end,
+          },
         },
-      },
-      _count: {
-        id: true,
-      },
-    });
-
-    // 3. Optimized: Get previous period distribution in one query
-    const previousCounts = await this.prisma.inspection.groupBy({
-      by: ['branchCityId'],
-      where: {
-        createdAt: {
-          gte: previous.start,
-          lte: previous.end,
+        _count: {
+          id: true,
         },
-      },
-      _count: {
-        id: true,
-      },
-    });
+      }),
+      this.prisma.inspection.groupBy({
+        by: ['branchCityId'],
+        where: {
+          createdAt: {
+            gte: previous.start,
+            lte: previous.end,
+          },
+        },
+        _count: {
+          id: true,
+        },
+      }),
+    ]);
 
     const currentCountsMap = new Map(
       currentCounts.map((c) => [c.branchCityId, c._count.id]),

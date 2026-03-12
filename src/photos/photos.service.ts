@@ -47,16 +47,17 @@ export class PhotosService {
    * @param tx Optional Prisma transaction client to use for the query.
    * @throws NotFoundException if the inspection with the specified ID does not exist.
    */
-  private async ensureInspectionExists(
-    inspectionId: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<void> {
-    const prismaClient = tx || this.prisma;
-    const inspection = await prismaClient.inspection.findUnique({
-      where: { id: inspectionId },
-      select: { id: true }, // Only select ID for existence check
-    });
-    if (!inspection) {
+  /**
+   * Translates a Prisma FK constraint error (P2003) on inspectionId into a NotFoundException.
+   * Avoids a separate preflight existence-check query on write operations.
+   * Only throws if the error is a P2003 FK violation; otherwise returns void so the caller
+   * can continue with its own error handling.
+   */
+  private rethrowFkAsNotFound(error: unknown, inspectionId: string): void {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2003'
+    ) {
       throw new NotFoundException(
         `Inspection with ID "${inspectionId}" not found.`,
       );
@@ -80,7 +81,7 @@ export class PhotosService {
     file: Express.Multer.File,
     dto: AddPhotoDto,
   ): Promise<Photo> {
-    await this.ensureInspectionExists(inspectionId);
+    // No preflight existence check — rely on FK constraint (P2003) to detect missing inspection.
 
     // Parse boolean strings to boolean
     const needAttention = dto.needAttention === 'true';
@@ -101,8 +102,9 @@ export class PhotosService {
         },
       });
     } catch (error: unknown) {
+      this.rethrowFkAsNotFound(error, inspectionId);
       const errorMessage =
-        error instanceof Error ? error.message : String(error);
+        error instanceof Error ? error.message : String(error as string);
       const errorStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         `Failed to save photo record for inspection ${inspectionId}: ${errorMessage}`,
@@ -124,22 +126,21 @@ export class PhotosService {
    */
   async findForInspection(inspectionId: string): Promise<Photo[]> {
     this.logger.log(`Retrieving all photos for inspection ID: ${inspectionId}`);
-    await this.ensureInspectionExists(inspectionId); // Ensure inspection exists
-    try {
-      return await this.prisma.photo.findMany({
-        where: { inspectionId: inspectionId },
-        orderBy: { createdAt: 'asc' }, // Order by creation time
-      });
-    } catch (error: unknown) {
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      const errorStack = error instanceof Error ? error.stack : undefined;
-      this.logger.error(
-        `Failed to retrieve photos for inspection ${inspectionId}: ${errorMessage}`,
-        errorStack,
+    // Single query: fetch inspection with photos in one round-trip.
+    const inspection = await this.prisma.inspection.findUnique({
+      where: { id: inspectionId },
+      include: {
+        photos: {
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!inspection) {
+      throw new NotFoundException(
+        `Inspection with ID "${inspectionId}" not found.`,
       );
-      throw new InternalServerErrorException('Could not retrieve photos.');
     }
+    return inspection.photos;
   }
 
   /**
@@ -424,7 +425,7 @@ export class PhotosService {
       throw new BadRequestException(`Invalid metadata format: ${errorMessage}`);
     }
 
-    await this.ensureInspectionExists(inspectionId); // Ensure inspection exists
+    // No preflight existence check — rely on FK constraint (P2003) to detect missing inspection.
 
     // Prepare data for batch creation
     const photosToCreate: Prisma.PhotoCreateManyInput[] = files.map(
@@ -474,8 +475,9 @@ export class PhotosService {
         orderBy: { createdAt: 'asc' },
       });
     } catch (error: unknown) {
+      this.rethrowFkAsNotFound(error, inspectionId);
       const errorMessage =
-        error instanceof Error ? error.message : String(error);
+        error instanceof Error ? error.message : String(error as string);
       const errorStack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
         `Failed to batch create photos for inspection ${inspectionId}: ${errorMessage}`,

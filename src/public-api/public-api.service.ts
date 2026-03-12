@@ -166,9 +166,14 @@ export class PublicApiService {
   async findChangesByInspectionId(
     inspectionId: string,
   ): Promise<InspectionChangeLog[]> {
-    // Check if the inspection exists before fetching change logs.
+    // Single query: fetch inspection with change logs in one round-trip.
     const inspection = await this.prisma.inspection.findUnique({
       where: { id: inspectionId },
+      include: {
+        changeLogs: {
+          orderBy: { changedAt: 'desc' },
+        },
+      },
     });
     // If the inspection is not found, throw a NotFoundException.
     if (!inspection) {
@@ -178,10 +183,7 @@ export class PublicApiService {
     }
 
     // Retrieve all change logs for the specified inspection, ordered by the latest changes first.
-    const changeLogs = await this.prisma.inspectionChangeLog.findMany({
-      where: { inspectionId: inspectionId },
-      orderBy: { changedAt: 'desc' }, // Order by timestamp in descending order (latest first)
-    });
+    const changeLogs = inspection.changeLogs;
 
     // Use a Map to store only the latest change log for each unique field combination.
     const latestChangeLogsMap = new Map<string, InspectionChangeLog>();

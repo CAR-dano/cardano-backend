@@ -27,9 +27,15 @@ export class InspectionChangeLogService {
   async findByInspectionId(
     inspectionId: string,
   ): Promise<InspectionChangeLog[]> {
-    // Optional: Check if the inspection exists first if you want to throw NotFoundException
+    // Single query: fetch inspection with its change logs in one round-trip.
+    // Throws NotFoundException if inspection does not exist.
     const inspection = await this.prisma.inspection.findUnique({
       where: { id: inspectionId },
+      include: {
+        changeLogs: {
+          orderBy: { changedAt: 'desc' },
+        },
+      },
     });
     if (!inspection) {
       throw new NotFoundException(
@@ -37,10 +43,7 @@ export class InspectionChangeLogService {
       );
     }
 
-    const changeLogs = await this.prisma.inspectionChangeLog.findMany({
-      where: { inspectionId: inspectionId },
-      orderBy: { changedAt: 'desc' }, // Order by timestamp descending (latest first)
-    });
+    const changeLogs = inspection.changeLogs;
 
     const latestChangeLogsMap = new Map<string, InspectionChangeLog>();
 

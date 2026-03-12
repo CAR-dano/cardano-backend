@@ -785,147 +785,137 @@ export class UsersService {
       `Attempting to create inspector user with email: ${createInspectorDto.email} and username: ${createInspectorDto.username}`,
     );
 
-    // 1. Check for existing email, username, or walletAddress
-    const existingByEmail = await this.findByEmail(createInspectorDto.email);
+    // 1. Check for existing email, username, walletAddress, and branchCity — all in parallel
+    const [existingByEmail, existingByUsername, existingByWalletAddress, branchCity] =
+      await Promise.all([
+        this.findByEmail(createInspectorDto.email),
+        this.findByUsername(createInspectorDto.username),
+        createInspectorDto.walletAddress
+          ? this.findByWalletAddress(createInspectorDto.walletAddress)
+          : Promise.resolve(null),
+        this.prisma.inspectionBranchCity.findUnique({
+          where: { id: createInspectorDto.inspectionBranchCityId },
+        }),
+      ]);
+
     if (existingByEmail) {
       this.logger.warn(
         `Inspector creation failed: Email ${createInspectorDto.email} already exists.`,
       );
       throw new ConflictException('Email address is already registered.');
     }
-    const existingByUsername = await this.findByUsername(
-      createInspectorDto.username,
-    );
     if (existingByUsername) {
       this.logger.warn(
         `Inspector creation failed: Username ${createInspectorDto.username} already exists.`,
       );
       throw new ConflictException('Username is already taken.');
     }
-    if (createInspectorDto.walletAddress) {
-      const existingByWalletAddress = await this.findByWalletAddress(
-        createInspectorDto.walletAddress,
+    if (existingByWalletAddress) {
+      this.logger.warn(
+        `Inspector creation failed: Wallet address ${createInspectorDto.walletAddress} already exists.`,
       );
-      if (existingByWalletAddress) {
-        this.logger.warn(
-          `Inspector creation failed: Wallet address ${createInspectorDto.walletAddress} already exists.`,
-        );
-        throw new ConflictException('Wallet address is already registered.');
-      }
+      throw new ConflictException('Wallet address is already registered.');
     }
-
-    // 1.5 Validate inspectionBranchCityId
-    const branchCity = await this.prisma.inspectionBranchCity.findUnique({
-      where: { id: createInspectorDto.inspectionBranchCityId },
-    });
     if (!branchCity) {
       throw new BadRequestException(
         `Inspection branch city with ID "${createInspectorDto.inspectionBranchCityId}" not found.`,
       );
     }
 
-    // 2. Generate a unique PIN
-    let plainPin: string;
-    let isPinUnique = false;
-    do {
-      plainPin = Math.floor(100000 + Math.random() * 900000).toString();
-      const existingUserWithPin = await this.findByPin(plainPin);
-      if (!existingUserWithPin) {
-        isPinUnique = true;
-      } else {
-        this.logger.warn(
-          `Generated PIN ${plainPin} already exists. Retrying...`,
-        );
-      }
-    } while (!isPinUnique);
+    // 2. Generate PIN, hash, and create user — retry only if pin collides (DB unique constraint)
+    // Avoids N+1: no pre-check query needed since `pin` is @unique in the schema.
+    // On the extremely rare P2002 collision on `pin`, we regenerate and retry (max 5 attempts).
+    const MAX_PIN_ATTEMPTS = 5;
+    for (let attempt = 1; attempt <= MAX_PIN_ATTEMPTS; attempt++) {
+      const plainPin = Math.floor(100000 + Math.random() * 900000).toString();
 
-    this.logger.log(
-      `Generated unique PIN: ${plainPin} for ${createInspectorDto.username}`,
-    );
-
-    // 3. Hash the unique PIN
-    let hashedPin: string;
-    try {
-      hashedPin = await bcrypt.hash(plainPin, this.saltRounds);
-      this.logger.verbose(
-        `PIN hashed successfully for username: ${createInspectorDto.username}`,
-      );
-    } catch (hashError) {
-      if (hashError instanceof Error) {
-        this.logger.error(
-          `PIN hashing failed for username ${createInspectorDto.username}: ${hashError.message}`,
-          hashError.stack,
+      let hashedPin: string;
+      try {
+        hashedPin = await bcrypt.hash(plainPin, this.saltRounds);
+        this.logger.verbose(
+          `PIN hashed successfully for username: ${createInspectorDto.username} (attempt ${attempt})`,
         );
-      } else {
-        this.logger.error(
-          `Unknown PIN hashing error for username ${createInspectorDto.username}: ${String(hashError)}`,
-        );
-      }
-      throw new InternalServerErrorException('Failed to secure PIN.');
-    }
-
-    // 4. Create the user in the database with the INSPECTOR role
-    try {
-      const newUser = await this.prisma.user.create({
-        data: {
-          id: randomUUID(), // Generate a UUID for the new user
-          email: createInspectorDto.email.toLowerCase(), // Store email in lowercase
-          username: createInspectorDto.username,
-          name: createInspectorDto.name,
-          walletAddress: createInspectorDto.walletAddress,
-          whatsappNumber: createInspectorDto.whatsappNumber,
-          role: Role.INSPECTOR, // Set the role to INSPECTOR
-          pin: hashedPin,
-          inspectionBranchCityId: createInspectorDto.inspectionBranchCityId,
-        },
-        include: {
-          inspectionBranchCity: true,
-        },
-      });
-      this.logger.log(
-        `Successfully created inspector user: ${newUser.id} (${newUser.username})`,
-      );
-      return { ...newUser, plainPin };
-    } catch (error) {
-      // Catch potential race condition for unique constraints
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        this.logger.warn(
-          `Unique constraint violation during inspector creation (email/username/wallet/pin): ${String(error.meta?.target)}`,
-        );
-        const target = (error.meta?.target as string[]) || [];
-        if (target.includes('email')) {
-          throw new ConflictException('Email address is already registered.');
-        }
-        if (target.includes('username')) {
-          throw new ConflictException('Username is already taken.');
-        }
-        if (target.includes('walletAddress')) {
-          throw new ConflictException('Wallet address is already registered.');
-        }
-        if (target.includes('pin')) {
-          throw new InternalServerErrorException(
-            'Failed to generate a unique PIN. Please try again.',
+      } catch (hashError) {
+        if (hashError instanceof Error) {
+          this.logger.error(
+            `PIN hashing failed for username ${createInspectorDto.username}: ${hashError.message}`,
+            hashError.stack,
+          );
+        } else {
+          this.logger.error(
+            `Unknown PIN hashing error for username ${createInspectorDto.username}: ${String(hashError)}`,
           );
         }
-        throw new ConflictException('A unique identifier is already in use.');
+        throw new InternalServerErrorException('Failed to secure PIN.');
       }
-      if (error instanceof Error) {
-        this.logger.error(
-          `Database error during inspector user creation for ${createInspectorDto.username}: ${error.message}`,
-          error.stack,
+
+      try {
+        const newUser = await this.prisma.user.create({
+          data: {
+            id: randomUUID(),
+            email: createInspectorDto.email.toLowerCase(),
+            username: createInspectorDto.username,
+            name: createInspectorDto.name,
+            walletAddress: createInspectorDto.walletAddress,
+            whatsappNumber: createInspectorDto.whatsappNumber,
+            role: Role.INSPECTOR,
+            pin: hashedPin,
+            inspectionBranchCityId: createInspectorDto.inspectionBranchCityId,
+          },
+          include: {
+            inspectionBranchCity: true,
+          },
+        });
+        this.logger.log(
+          `Successfully created inspector user: ${newUser.id} (${newUser.username})`,
         );
-      } else {
-        this.logger.error(
-          `Unknown database error during inspector user creation for ${createInspectorDto.username}: ${String(error)}`,
+        return { ...newUser, plainPin };
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          const target = (error.meta?.target as string[]) || [];
+          if (target.includes('pin')) {
+            // Extremely rare bcrypt hash collision — retry with a new PIN
+            this.logger.warn(
+              `PIN hash collision on attempt ${attempt} for ${createInspectorDto.username}. Retrying...`,
+            );
+            continue;
+          }
+          this.logger.warn(
+            `Unique constraint violation during inspector creation (email/username/wallet): ${String(error.meta?.target)}`,
+          );
+          if (target.includes('email')) {
+            throw new ConflictException('Email address is already registered.');
+          }
+          if (target.includes('username')) {
+            throw new ConflictException('Username is already taken.');
+          }
+          if (target.includes('walletAddress')) {
+            throw new ConflictException('Wallet address is already registered.');
+          }
+          throw new ConflictException('A unique identifier is already in use.');
+        }
+        if (error instanceof Error) {
+          this.logger.error(
+            `Database error during inspector user creation for ${createInspectorDto.username}: ${error.message}`,
+            error.stack,
+          );
+        } else {
+          this.logger.error(
+            `Unknown database error during inspector user creation for ${createInspectorDto.username}: ${String(error)}`,
+          );
+        }
+        throw new InternalServerErrorException(
+          'Could not create inspector user.',
         );
       }
-      throw new InternalServerErrorException(
-        'Could not create inspector user.',
-      );
     }
+
+    throw new InternalServerErrorException(
+      'Failed to generate a unique PIN after multiple attempts. Please try again.',
+    );
   }
 
   /**
@@ -1187,87 +1177,71 @@ export class UsersService {
       this.logger.warn(`Overwriting existing PIN for inspector ID: ${id}`);
     }
 
-    // Generate a unique PIN
-    let plainPin: string;
-    let isPinUnique = false;
-    do {
+    // Generate PIN, hash, and update — retry only on the rare P2002 pin collision.
+    // Avoids N+1: no pre-check findByPin() query needed.
+    const MAX_PIN_RESET_ATTEMPTS = 5;
+    let updatedUser: User | null = null;
+    let plainPin: string = '';
+    for (let attempt = 1; attempt <= MAX_PIN_RESET_ATTEMPTS; attempt++) {
       plainPin = Math.floor(100000 + Math.random() * 900000).toString();
-      const existingUserWithPin = await this.findByPin(plainPin);
-      if (!existingUserWithPin) {
-        isPinUnique = true;
-      } else {
-        this.logger.warn(
-          `Generated PIN ${plainPin} already exists. Retrying...`,
-        );
-      }
-    } while (!isPinUnique);
 
-    this.logger.log(`Generated unique PIN for ${user.username}`); // Do NOT log plaintext PIN
-
-    // Hash the unique PIN
-    let hashedPin: string;
-    try {
-      hashedPin = await bcrypt.hash(plainPin, this.saltRounds);
-      this.logger.verbose(
-        `PIN hashed successfully for username: ${user.username}`,
-      );
-    } catch (hashError) {
-      if (hashError instanceof Error) {
-        this.logger.error(
-          `PIN hashing failed for username ${user.username}: ${hashError.message}`,
-          hashError.stack,
+      let hashedPin: string;
+      try {
+        hashedPin = await bcrypt.hash(plainPin, this.saltRounds);
+        this.logger.verbose(
+          `PIN hashed successfully for username: ${user.username} (attempt ${attempt})`,
         );
-      } else {
-        this.logger.error(
-          `Unknown PIN hashing error for username ${user.username}: ${String(hashError)}`,
-        );
+      } catch (hashError) {
+        if (hashError instanceof Error) {
+          this.logger.error(
+            `PIN hashing failed for username ${user.username}: ${hashError.message}`,
+            hashError.stack,
+          );
+        } else {
+          this.logger.error(
+            `Unknown PIN hashing error for username ${user.username}: ${String(hashError)}`,
+          );
+        }
+        throw new InternalServerErrorException('Failed to secure PIN.');
       }
-      throw new InternalServerErrorException('Failed to secure PIN.');
+
+      try {
+        updatedUser = await this.prisma.user.update({
+          where: { id: id },
+          data: { pin: hashedPin },
+        });
+        break; // success — exit retry loop
+      } catch (updateError) {
+        if (
+          updateError instanceof Prisma.PrismaClientKnownRequestError &&
+          updateError.code === 'P2002' &&
+          ((updateError.meta?.target as string[]) || []).includes('pin')
+        ) {
+          this.logger.warn(
+            `PIN hash collision on attempt ${attempt} for inspector ${id}. Retrying...`,
+          );
+          continue;
+        }
+        throw updateError;
+      }
     }
 
-    // Update the user in the database with the new PIN
-    try {
-      const updatedUser = await this.prisma.user.update({
-        where: { id: id },
-        data: { pin: hashedPin },
-      });
-      this.logger.log(
-        `Successfully generated and saved PIN for inspector: ${updatedUser.id} (${updatedUser.username})`,
-      );
-      void this.securityLogger.log({
-        type: SecurityEventType.PIN_REGENERATED,
-        severity: SecurityEventSeverity.WARNING,
-        userId: updatedUser.id,
-        details: { username: updatedUser.username },
-      });
-      return { ...updatedUser, plainPin };
-    } catch (error) {
-      // Catch potential race condition for unique constraints
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        this.logger.warn(
-          `Unique constraint violation during PIN generation for inspector (pin): ${String(error.meta?.target)}`,
-        );
-        throw new InternalServerErrorException(
-          'Failed to generate a unique PIN. Please try again.',
-        );
-      }
-      if (error instanceof Error) {
-        this.logger.error(
-          `Database error during PIN generation for inspector ${user.username}: ${error.message}`,
-          error.stack,
-        );
-      } else {
-        this.logger.error(
-          `Unknown database error during PIN generation for inspector ${user.username}: ${String(error)}`,
-        );
-      }
+    if (!updatedUser) {
       throw new InternalServerErrorException(
-        'Could not generate PIN for inspector.',
+        'Failed to generate a unique PIN after multiple attempts. Please try again.',
       );
     }
+
+    this.logger.log(
+      `Successfully generated and saved PIN for inspector: ${updatedUser.id} (${updatedUser.username})`,
+    );
+    void this.securityLogger.log({
+      type: SecurityEventType.PIN_REGENERATED,
+      severity: SecurityEventSeverity.WARNING,
+      userId: updatedUser.id,
+      details: { username: updatedUser.username },
+    });
+    return { ...updatedUser, plainPin };
   }
 
   /**
@@ -1385,14 +1359,14 @@ export class UsersService {
       `Attempting to create admin/superadmin user with email: ${createAdminDto.email} and username: ${createAdminDto.username}`,
     );
 
-    // 1. Check for existing email or username
-    const existingByEmail = await this.findByEmail(createAdminDto.email);
+    // 1. Check for existing email or username — in parallel
+    const [existingByEmail, existingByUsername] = await Promise.all([
+      this.findByEmail(createAdminDto.email),
+      this.findByUsername(createAdminDto.username),
+    ]);
     if (existingByEmail) {
       throw new ConflictException('Email address is already registered.');
     }
-    const existingByUsername = await this.findByUsername(
-      createAdminDto.username,
-    );
     if (existingByUsername) {
       throw new ConflictException('Username is already taken.');
     }

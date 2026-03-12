@@ -986,42 +986,47 @@ export class InspectionsService {
     // --- CACHING LOGIC END ---
 
     try {
-      // Use a raw query for a robust solution that works across databases for this specific matching logic.
-      // This compares the lowercased, space-removed version of the input with the lowercased, space-removed version of the DB column.
-      // Prisma's `$queryRaw` handles escaping the input to prevent SQL injection.
-      const idResult = await this.prisma.$queryRaw<{ id: string }[]>`
-        SELECT id
+      // Single raw query: select all needed fields directly — eliminates the second findUnique round-trip.
+      type InspectionRow = {
+        id: string;
+        pretty_id: string | null;
+        vehiclePlateNumber: string | null;
+        inspectionDate: Date | null;
+        status: string;
+        identityDetails: unknown;
+        vehicleData: unknown;
+        createdAt: Date;
+        updatedAt: Date;
+        urlPdf: string | null;
+        blockchainTxHash: string | null;
+      };
+
+      const rows = await this.prisma.$queryRaw<InspectionRow[]>`
+        SELECT
+          id,
+          pretty_id,
+          "vehiclePlateNumber",
+          "inspectionDate",
+          status,
+          "identityDetails",
+          "vehicleData",
+          "createdAt",
+          "updatedAt",
+          "urlPdf",
+          "blockchainTxHash"
         FROM "inspections"
         WHERE lower(replace("vehiclePlateNumber", ' ', '')) = lower(replace(${vehiclePlateNumber}, ' ', ''))
         LIMIT 1;
       `;
 
-      if (idResult.length === 0) {
+      if (rows.length === 0) {
         this.logger.log(
           `No inspection found for plate number: ${vehiclePlateNumber}`,
         );
         return null;
       }
 
-      const inspectionId = idResult[0].id;
-
-      // Now fetch the full inspection object with relations using the ID
-      const inspection = await this.prisma.inspection.findUnique({
-        where: { id: inspectionId },
-        select: {
-          id: true,
-          pretty_id: true,
-          vehiclePlateNumber: true,
-          inspectionDate: true,
-          status: true,
-          identityDetails: true,
-          vehicleData: true,
-          createdAt: true,
-          updatedAt: true,
-          urlPdf: true,
-          blockchainTxHash: true,
-        },
-      });
+      const inspection = rows[0] as typeof rows[0] & { status: import('@prisma/client').InspectionStatus };
 
       this.logger.log(
         `Found inspection ID: ${inspection?.id} for plate number: ${vehiclePlateNumber}`,
@@ -1265,14 +1270,31 @@ export class InspectionsService {
     const currentIdentityDetails =
       (existingInspection.identityDetails as Prisma.JsonObject) ?? {};
 
-    if (
+    const needsInspectorLookup =
       updateInspectionDto.inspectorId !== undefined &&
-      updateInspectionDto.inspectorId !== existingInspection.inspectorId
-    ) {
-      const newInspector = await this.prisma.user.findUnique({
-        where: { id: updateInspectionDto.inspectorId },
-        select: { name: true },
-      });
+      updateInspectionDto.inspectorId !== existingInspection.inspectorId;
+    const needsBranchCityLookup =
+      updateInspectionDto.branchCityId !== undefined &&
+      updateInspectionDto.branchCityId !== existingInspection.branchCityId;
+
+    // Run independent lookups in parallel when both are needed
+    const [newInspectorResult, newBranchCityResult] = await Promise.all([
+      needsInspectorLookup
+        ? this.prisma.user.findUnique({
+            where: { id: updateInspectionDto.inspectorId },
+            select: { name: true },
+          })
+        : Promise.resolve(null),
+      needsBranchCityLookup
+        ? this.prisma.inspectionBranchCity.findUnique({
+            where: { id: updateInspectionDto.branchCityId },
+            select: { city: true },
+          })
+        : Promise.resolve(null),
+    ]);
+
+    if (needsInspectorLookup) {
+      const newInspector = newInspectorResult;
       if (!newInspector) {
         throw new BadRequestException(
           `New inspector with ID "${updateInspectionDto.inspectorId}" not found.`,
@@ -1285,7 +1307,7 @@ export class InspectionsService {
         fieldName: 'identityDetails',
         subFieldName: 'namaInspektor',
         subsubfieldname: null,
-        oldValue: currentIdentityDetails?.namaInspektor ?? Prisma.JsonNull, // Safer access
+        oldValue: currentIdentityDetails?.namaInspektor ?? Prisma.JsonNull,
         newValue: newInspector.name ?? Prisma.JsonNull,
       });
       this.logger.log(
@@ -1299,7 +1321,7 @@ export class InspectionsService {
         fieldName: 'inspector',
         subFieldName: null,
         subsubfieldname: null,
-        oldValue: existingInspection?.inspectorId ?? Prisma.JsonNull, // Safer access
+        oldValue: existingInspection?.inspectorId ?? Prisma.JsonNull,
         newValue: updateInspectionDto.inspectorId ?? Prisma.JsonNull,
       });
       this.logger.log(
@@ -1307,14 +1329,8 @@ export class InspectionsService {
       );
     }
 
-    if (
-      updateInspectionDto.branchCityId !== undefined &&
-      updateInspectionDto.branchCityId !== existingInspection.branchCityId
-    ) {
-      const newBranchCity = await this.prisma.inspectionBranchCity.findUnique({
-        where: { id: updateInspectionDto.branchCityId },
-        select: { city: true },
-      });
+    if (needsBranchCityLookup) {
+      const newBranchCity = newBranchCityResult;
       if (!newBranchCity) {
         throw new BadRequestException(
           `New branch city with ID "${updateInspectionDto.branchCityId}" not found.`,
@@ -1327,7 +1343,7 @@ export class InspectionsService {
         fieldName: 'identityDetails',
         subFieldName: 'cabangInspeksi',
         subsubfieldname: null,
-        oldValue: currentIdentityDetails?.cabangInspeksi ?? Prisma.JsonNull, // Safer access
+        oldValue: currentIdentityDetails?.cabangInspeksi ?? Prisma.JsonNull,
         newValue: newBranchCity.city ?? Prisma.JsonNull,
       });
       this.logger.log(
@@ -1983,15 +1999,6 @@ export class InspectionsService {
             );
           }
 
-          // Set status to processing to prevent concurrent approvals
-          await tx.inspection.update({
-            where: { id: inspectionId },
-            data: {
-              status: InspectionStatus.APPROVED, // Temporary status during processing
-              reviewer: { connect: { id: reviewerId } }, // Set reviewer immediately
-            },
-          });
-
           // 2. Fetch all change logs for this inspection
           const allChanges = await tx.inspectionChangeLog.findMany({
             where: { inspectionId: inspectionId },
@@ -2125,27 +2132,23 @@ export class InspectionsService {
             }
           }
 
-          // 4. Apply the changes to the inspection record (merge with status update)
-          const finalUpdateData = {
+          // 4. Apply the changes to the inspection record (merge with status/reviewer update)
+          // Merging all updates into a single query eliminates one round-trip.
+          const finalUpdateData: Prisma.InspectionUpdateInput = {
             ...updateData,
-            // Status and reviewer were already updated above to prevent race conditions
+            status: InspectionStatus.APPROVED,
+            reviewer: { connect: { id: reviewerId } },
           };
 
-          // Only update if there are actual changes to apply beyond status/reviewer
+          const updatedInspection = await tx.inspection.update({
+            where: { id: inspectionId },
+            data: finalUpdateData,
+          });
           if (Object.keys(updateData).length > 0) {
-            await tx.inspection.update({
-              where: { id: inspectionId },
-              data: finalUpdateData,
-            });
             this.logger.log(
               `Applied ${Object.keys(updateData).length} field changes to inspection ${inspectionId}`,
             );
           }
-
-          // Return the updated inspection
-          const updatedInspection = await tx.inspection.findUniqueOrThrow({
-            where: { id: inspectionId },
-          });
 
           this.logger.log(
             `Inspection ${inspectionId} database updates completed by reviewer ${reviewerId}`,
@@ -2873,7 +2876,9 @@ export class InspectionsService {
       `User ${userId} attempting to deactivate inspection ${inspectionId}`,
     );
     try {
-      const result = await this.prisma.inspection.updateMany({
+      // Use update() with conditional where — returns record directly, eliminating post-query findUniqueOrThrow.
+      // If the record doesn't match (not found or wrong status), Prisma throws P2025 / P2018.
+      const updated = await this.prisma.inspection.update({
         where: {
           id: inspectionId,
           status: InspectionStatus.ARCHIVED,
@@ -2882,23 +2887,28 @@ export class InspectionsService {
           status: InspectionStatus.DEACTIVATED,
           deactivatedAt: new Date(),
         },
-      });
-
-      if (result.count === 0) {
-        const exists = await this.prisma.inspection.findUnique({
-          where: { id: inspectionId },
-          select: { status: true },
-        });
-        if (!exists) {
-          throw new NotFoundException(
-            `Inspection with ID "${inspectionId}" not found.`,
-          );
-        } else {
+      }).catch(async (err: unknown) => {
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          (err.code === 'P2025' || err.code === 'P2018')
+        ) {
+          // Record not found or condition not matched — distinguish between missing vs wrong status
+          const exists = await this.prisma.inspection.findUnique({
+            where: { id: inspectionId },
+            select: { status: true },
+          });
+          if (!exists) {
+            throw new NotFoundException(
+              `Inspection with ID "${inspectionId}" not found.`,
+            );
+          }
           throw new BadRequestException(
             `Inspection ${inspectionId} cannot be deactivated because its current status is '${exists.status}', not '${InspectionStatus.ARCHIVED}'.`,
           );
         }
-      }
+        throw err;
+      });
+
       this.logger.log(
         `Inspection ${inspectionId} successfully deactivated (hidden)`,
       );
@@ -2906,9 +2916,7 @@ export class InspectionsService {
       // Invalidate list cache
       await this.invalidateListCache();
 
-      return this.prisma.inspection.findUniqueOrThrow({
-        where: { id: inspectionId },
-      });
+      return updated;
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'An unknown error occurred';
@@ -2946,40 +2954,43 @@ export class InspectionsService {
       `User ${userId} attempting to reactivate inspection ${inspectionId}`,
     );
     try {
-      const result = await this.prisma.inspection.updateMany({
+      // Use update() with conditional where — returns record directly, eliminating post-query findUniqueOrThrow.
+      const updated = await this.prisma.inspection.update({
         where: {
           id: inspectionId,
           status: InspectionStatus.DEACTIVATED,
         },
         data: {
           status: InspectionStatus.ARCHIVED,
-          deactivatedAt: null, // Clear deactivation timestamp
+          deactivatedAt: null,
         },
-      });
-
-      if (result.count === 0) {
-        const exists = await this.prisma.inspection.findUnique({
-          where: { id: inspectionId },
-          select: { status: true },
-        });
-        if (!exists) {
-          throw new NotFoundException(
-            `Inspection with ID "${inspectionId}" not found.`,
-          );
-        } else {
+      }).catch(async (err: unknown) => {
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          (err.code === 'P2025' || err.code === 'P2018')
+        ) {
+          const exists = await this.prisma.inspection.findUnique({
+            where: { id: inspectionId },
+            select: { status: true },
+          });
+          if (!exists) {
+            throw new NotFoundException(
+              `Inspection with ID "${inspectionId}" not found.`,
+            );
+          }
           throw new BadRequestException(
             `Inspection ${inspectionId} cannot be reactivated because its current status is '${exists.status}', not '${InspectionStatus.ARCHIVED}'.`,
           );
         }
-      }
+        throw err;
+      });
+
       this.logger.log(
         `Inspection ${inspectionId} reactivated by user ${userId}`,
       );
       // Invalidate list cache
       await this.invalidateListCache();
-      return this.prisma.inspection.findUniqueOrThrow({
-        where: { id: inspectionId },
-      });
+      return updated;
     } catch (error: unknown) {
       const errorMessage =
         error instanceof Error ? error.message : 'An unknown error occurred';
