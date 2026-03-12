@@ -14,8 +14,9 @@
  */
 
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthModule } from './auth/auth.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
 import { ExternalAuthModule } from './external-auth/external-auth.module';
@@ -43,8 +44,22 @@ import { RedisModule } from './redis/redis.module';
     }),
     ThrottlerModule.forRoot([
       {
+        // Default tier: general authenticated endpoints
+        name: 'default',
         ttl: 60000,
-        limit: 200,
+        limit: 100,
+      },
+      {
+        // Auth tier: login / register — strict to prevent brute-force
+        name: 'auth',
+        ttl: 60000,
+        limit: 10,
+      },
+      {
+        // Public tier: unauthenticated read endpoints
+        name: 'public',
+        ttl: 60000,
+        limit: 60,
       },
     ]),
     // --- ServeStaticModule Configuration ---
@@ -92,6 +107,14 @@ import { RedisModule } from './redis/redis.module';
     MetricsModule,
   ],
   controllers: [],
+  providers: [
+    // Register ThrottlerGuard globally so every route is rate-limited by default.
+    // Individual routes can override with @Throttle() or opt-out with @SkipThrottle().
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {

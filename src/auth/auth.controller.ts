@@ -85,8 +85,7 @@ export class AuthController {
    */
   @Post('register')
   @ApiOperation({ summary: 'Register a new user locally' })
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @UseGuards(ThrottlerGuard)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } })
   @ApiBody({ type: RegisterUserDto })
   @ApiResponse({
     status: HttpStatus.CREATED,
@@ -124,8 +123,7 @@ export class AuthController {
    */
   @Post('login')
   @UseGuards(LocalAuthGuard) // Apply LocalAuthGuard to trigger LocalStrategy validation
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @UseGuards(ThrottlerGuard)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK) // Return 200 OK on successful login
   @ApiOperation({
     summary: 'Login with local credentials (email/username + password)',
@@ -184,8 +182,7 @@ export class AuthController {
    */
   @Post('login/inspector')
   @UseGuards(InspectorGuard)
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @UseGuards(ThrottlerGuard)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login for inspectors with PIN' })
   @ApiBody({ type: LoginInspectorDto })
@@ -237,7 +234,7 @@ export class AuthController {
    * @returns {Promise<{ accessToken: string, refreshToken: string }>} A new pair of access and refresh tokens.
    */
   @Post('refresh')
-  @SkipThrottle()
+  @Throttle({ auth: { limit: 20, ttl: 60000 } })
   @UseGuards(JwtRefreshGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Obtain a new access token using a refresh token' })
@@ -327,7 +324,6 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard) // Protect this endpoint
   @Throttle({ default: { limit: 2, ttl: 60000 } })
-  @UseGuards(ThrottlerGuard)
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Logout user' })
@@ -384,8 +380,7 @@ export class AuthController {
    * @returns {UserResponseDto} The user's profile information.
    */
   @Get('profile')
-  @Throttle({ default: { limit: 10, ttl: 60000 } })
-  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(JwtAuthGuard) // Protect with JWT
   @ApiBearerAuth('JwtAuthGuard') // Document requirement
   @ApiOperation({ summary: 'Get logged-in user profile' })

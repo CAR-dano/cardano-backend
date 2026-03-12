@@ -39,7 +39,7 @@ import { InspectionBranchesService } from './inspection-branches.service';
 import { CreateInspectionBranchCityDto } from './dto/create-inspection-branch-city.dto';
 import { UpdateInspectionBranchCityDto } from './dto/update-inspection-branch-city.dto';
 import { InspectionBranchCityResponseDto } from './dto/inspection-branch-city-response.dto';
-import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 @ApiTags('Inspection Branches')
 @Controller('inspection-branches')
@@ -97,7 +97,7 @@ export class InspectionBranchesController {
    * @returns A promise that resolves to an array of InspectionBranchCityResponseDto.
    */
   @Get()
-  @SkipThrottle()
+  @Throttle({ public: { limit: 60, ttl: 60000 } })
   @ApiOperation({ summary: 'Get all inspection branch cities' })
   @ApiResponse({
     status: 200,
