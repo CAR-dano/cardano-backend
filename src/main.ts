@@ -60,8 +60,24 @@ async function bootstrap() {
   app.use(json({ limit: '5mb' }));
   app.use(urlencoded({ extended: true, limit: '5mb' }));
 
-  // Enable payload compression
-  app.use(compression());
+  // Enable HTTP response compression (gzip) to reduce API payload size
+  // - Skips compression if client sends 'x-no-compression' header
+  // - Only compresses responses larger than 1KB to avoid overhead on tiny payloads
+  // - level 6: balanced CPU usage vs compression ratio
+  // - memLevel 8: slightly more memory for better speed
+  app.use(
+    compression({
+      filter: (req, res) => {
+        if (req.headers['x-no-compression']) {
+          return false;
+        }
+        return compression.filter(req, res);
+      },
+      threshold: 1024, // Only compress if response > 1KB
+      level: 6, // Compression level 1-9 (6 is default, good balance)
+      memLevel: 8, // Memory usage level 1-9 (higher = faster, more memory)
+    }),
+  );
 
   // Ensure upload directories exist
   const uploadDirs = [
