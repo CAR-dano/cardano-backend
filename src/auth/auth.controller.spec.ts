@@ -17,13 +17,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { UsersService } from '../users/users.service';
 import { ConfigService } from '@nestjs/config';
+import { JwtService } from '@nestjs/jwt';
 import { AuthGuard } from '@nestjs/passport'; // Need AuthGuard for canActivate mock/override
 import { JwtAuthGuard } from './guards/jwt-auth.guard'; // Need JwtAuthGuard for canActivate mock/override
 import { Request, Response } from 'express'; // Import Express types
 import { Role } from '@prisma/client'; // Import Role enum
 import { UserResponseDto } from '../users/dto/user-response.dto'; // Import UserResponseDto
 import { GetUser } from './decorators/get-user.decorator'; // Import GetUser decorator
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 interface AuthenticatedRequest extends Request {
   user?: UserResponseDto; // Use UserResponseDto structure here
@@ -37,8 +40,31 @@ interface AuthenticatedRequest extends Request {
  */
 const mockAuthService = {
   login: jest.fn(),
+  blacklistToken: jest.fn().mockResolvedValue(undefined),
   // validateUserGoogle is called within GoogleStrategy, not directly by controller
   // logout (if server-side logic existed) would be mocked here
+};
+
+/**
+ * Mock object for UsersService.
+ * Provides Jest mock functions for user-related operations.
+ */
+const mockUsersService = {
+  findById: jest.fn(),
+  findByEmail: jest.fn(),
+  findByUsername: jest.fn(),
+  findOrCreateByGoogleProfile: jest.fn(),
+  updateUser: jest.fn(),
+};
+
+/**
+ * Mock object for JwtService.
+ * Provides Jest mock functions for JWT operations.
+ */
+const mockJwtService = {
+  sign: jest.fn(),
+  verify: jest.fn(),
+  decode: jest.fn().mockReturnValue({ exp: Math.floor(Date.now() / 1000) + 3600 }),
 };
 
 /**
@@ -98,7 +124,9 @@ describe('AuthController', () => {
       providers: [
         // Provide mocks for injected services
         { provide: AuthService, useValue: mockAuthService },
+        { provide: UsersService, useValue: mockUsersService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: JwtService, useValue: mockJwtService },
       ],
     })
       // Override guards for unit testing - assume they allow access
@@ -106,6 +134,8 @@ describe('AuthController', () => {
       .useValue({ canActivate: jest.fn(() => true) }) // Mock Google Guard
       .overrideGuard(JwtAuthGuard)
       .useValue({ canActivate: jest.fn(() => true) }) // Mock JWT Guard
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     // Retrieve instances from the testing module
@@ -162,6 +192,9 @@ describe('AuthController', () => {
       role: Role.CUSTOMER,
       username: 'testuser', // Added required fields from UserResponseDto
       walletAddress: null,
+      whatsappNumber: null,
+      isActive: true,
+      inspectionBranchCity: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -280,30 +313,45 @@ describe('AuthController', () => {
       role: Role.CUSTOMER,
       username: 'testcustomer',
       walletAddress: null,
+      whatsappNumber: null,
+      isActive: true,
+      inspectionBranchCity: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
-    const mockRequestWithAuthUser = createMockRequestWithUser(mockUser);
+
+    // Create a mock request with user and authorization header
+    const mockRequestWithAuthUserAndToken = {
+      ...mockRequest,
+      user: mockUser,
+      headers: {
+        authorization: 'Bearer mock-jwt-token',
+      },
+    } as unknown as AuthenticatedRequest;
 
     /**
      * Tests the basic logout functionality for stateless JWT.
-     * It should return an OK status and a confirmation message.
+     * It should return a confirmation message.
      * Assumes the JwtAuthGuard allows the request and req.user is populated.
      *
      * @param req The mock authenticated request object.
      * @param res The mock response object.
      */
     it('should return OK status and success message for stateless JWT logout', async () => {
-      // Arrange: mockResponse already configured for status().json()
+      // Arrange: mock jwtService.decode and authService.blacklistToken
+      mockJwtService.decode.mockReturnValue({ exp: Math.floor(Date.now() / 1000) + 3600 });
+      mockAuthService.blacklistToken.mockResolvedValue(undefined);
 
       // Act
-      await controller.logout(mockRequestWithAuthUser, mockResponse);
+      await controller.logout(
+        mockRequestWithAuthUserAndToken as AuthenticatedRequest,
+        mockResponse,
+      );
 
       // Assert
-      expect(mockResponse.status).toHaveBeenCalledWith(200); // Use numeric status code
+      expect(mockAuthService.blacklistToken).toHaveBeenCalled();
       expect(mockResponse.json).toHaveBeenCalledWith({
-        message:
-          'Logout successful. Please clear your token/session on the client side.',
+        message: 'Logout successful. Token has been invalidated on the server.',
       });
     });
 
@@ -346,6 +394,9 @@ describe('AuthController', () => {
       role: Role.ADMIN,
       username: 'testadmin', // Added required fields from UserResponseDto
       walletAddress: null,
+      whatsappNumber: null,
+      isActive: true,
+      inspectionBranchCity: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -376,7 +427,7 @@ describe('AuthController', () => {
 
       // Act: Call the controller method. The actual request object passed here
       // doesn't matter as the decorator is mocked.
-      const result = controller.getProfile({} as AuthenticatedRequest); // Pass a dummy request
+      const result = controller.getProfile(mockUser); // Pass the mockUser directly as expected by the controller method
 
       // Assert: Check if the returned result is the same as the mock user object
       expect(result).toEqual(mockUser);

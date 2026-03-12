@@ -19,6 +19,8 @@ import { InternalServerErrorException } from '@nestjs/common';
 import { Role, User } from '@prisma/client';
 import { Profile } from 'passport-google-oauth20';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
+import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 
 // --- Mock Dependencies ---
 /**
@@ -29,6 +31,8 @@ import { JwtPayload } from './interfaces/jwt-payload.interface';
  */
 const mockUsersService = {
   findOrCreateByGoogleProfile: jest.fn(),
+  updateUser: jest.fn(),
+  findById: jest.fn(),
 };
 
 /**
@@ -47,6 +51,29 @@ const mockJwtService = {
 const mockConfigService = {
   get: jest.fn(),
   getOrThrow: jest.fn(),
+};
+
+/**
+ * Mock object for the PrismaService.
+ * Provides Jest mock functions for database operations.
+ */
+const mockPrismaService = {
+  user: {
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
+};
+
+/**
+ * Mock object for the RedisService.
+ * Provides Jest mock functions for caching operations.
+ */
+const mockRedisService = {
+  get: jest.fn(),
+  set: jest.fn(),
+  del: jest.fn(),
 };
 
 /**
@@ -75,6 +102,8 @@ describe('AuthService', () => {
         { provide: UsersService, useValue: mockUsersService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: PrismaService, useValue: mockPrismaService },
+        { provide: RedisService, useValue: mockRedisService },
       ],
     }).compile(); // Compile the module
 
@@ -132,9 +161,22 @@ describe('AuthService', () => {
     const mockUser: User = {
       id: 'user-uuid-123',
       email: 'test.google@example.com',
+      name: 'Test User',
+      username: 'testuser',
+      password: 'hashedpassword',
+      pin: '123456',
+      refreshToken: 'mock-refresh-token',
+      whatsappNumber: null,
+      walletAddress: null,
       googleId: 'google123',
-      name: 'Test User Google',
-      role: Role.CUSTOMER, // Use the Role enum from Prisma client
+      role: Role.CUSTOMER,
+      isActive: true,
+      google_avatar_url: null,
+      profile_photo_url: null,
+      profile_photo_storage_key: null,
+      credits: 0,
+      creditExpAt: null,
+      inspectionBranchCityId: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -239,123 +281,133 @@ describe('AuthService', () => {
    */
   describe('login', () => {
     // Define mock user data that would be passed to the login method.
-    const mockUserLoginInput: {
-      id: string;
-      email: string;
-      role: Role;
-      name?: string;
-    } = {
+    const mockUserLoginInput = {
       id: 'user-uuid-456',
       email: 'login.user@example.com',
-      role: Role.ADMIN, // Use Role enum
+      role: Role.ADMIN,
       name: 'Admin User',
+      username: 'adminuser',
     };
 
     // Define mock configuration values and the expected token.
     const mockJwtSecret = 'your-test-secret';
     const mockJwtExpiresIn = '3600s';
+    const mockRefreshSecret = 'your-refresh-secret';
+    const mockRefreshExpiresIn = '7d';
     const mockGeneratedToken = 'mock.jwt.token';
+    const mockRefreshToken = 'mock.refresh.token';
 
     /**
      * Tests if the login method correctly retrieves the JWT_SECRET and
      * JWT_EXPIRATION_TIME configuration values using the mocked ConfigService.
      */
-    it('should call configService to get JWT secret and expiration', async () => {
-      // Arrange: Mock the return values for the two expected calls to getOrThrow.
+    it('should call configService to get JWT secrets and expirations', async () => {
+      // Arrange: Mock the return values for the expected calls to getOrThrow.
       mockConfigService.getOrThrow
-        .mockReturnValueOnce(mockJwtSecret) // First call for secret
-        .mockReturnValueOnce(mockJwtExpiresIn); // Second call for expiration
-      // Arrange: Mock the jwtService.sign to return a value (doesn't matter which for this test).
-      mockJwtService.sign.mockReturnValue(mockGeneratedToken);
+        .mockReturnValueOnce(mockJwtSecret) // JWT_SECRET
+        .mockReturnValueOnce(mockJwtExpiresIn) // JWT_EXPIRATION_TIME
+        .mockReturnValueOnce(mockRefreshSecret) // JWT_REFRESH_SECRET
+        .mockReturnValueOnce(mockRefreshExpiresIn); // JWT_REFRESH_EXPIRATION_TIME
+
+      // Arrange: Mock the jwtService.sign to return different values for access and refresh tokens.
+      mockJwtService.sign
+        .mockReturnValueOnce(mockGeneratedToken)
+        .mockReturnValueOnce(mockRefreshToken);
 
       // Act: Call the login method.
       await service.login(mockUserLoginInput);
 
-      // Assert: Verify that getOrThrow was called twice with the correct keys.
+      // Assert: Verify that getOrThrow was called for all 4 keys.
       expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_SECRET');
-      expect(configService.getOrThrow).toHaveBeenCalledWith(
-        'JWT_EXPIRATION_TIME',
-      );
-      expect(configService.getOrThrow).toHaveBeenCalledTimes(2);
+      expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_EXPIRATION_TIME');
+      expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_REFRESH_SECRET');
+      expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_REFRESH_EXPIRATION_TIME');
+      expect(configService.getOrThrow).toHaveBeenCalledTimes(4);
     });
 
     /**
      * Tests if the login method calls the jwtService.sign method with the correctly
-     * constructed payload (based on user input) and the correct signing options
-     * (secret and expiration time retrieved from ConfigService).
+     * constructed payload (based on user input) and the correct signing options.
      */
     it('should call jwtService.sign with correct payload, secret, and expiration', async () => {
       // Arrange: Mock ConfigService return values.
       mockConfigService.getOrThrow
         .mockReturnValueOnce(mockJwtSecret)
-        .mockReturnValueOnce(mockJwtExpiresIn);
-      // Arrange: Mock JwtService sign return value.
-      mockJwtService.sign.mockReturnValue(mockGeneratedToken);
+        .mockReturnValueOnce(mockJwtExpiresIn)
+        .mockReturnValueOnce(mockRefreshSecret)
+        .mockReturnValueOnce(mockRefreshExpiresIn);
+
+      // Arrange: Mock JwtService sign.
+      mockJwtService.sign
+        .mockReturnValueOnce(mockGeneratedToken)
+        .mockReturnValueOnce(mockRefreshToken);
 
       // Act: Call the login method.
       await service.login(mockUserLoginInput);
 
-      // Assert: Define the expected payload structure based on JwtPayload interface.
-      const expectedPayload: JwtPayload = {
+      // Payload structure as expected by AuthService.login
+      const expectedPayload = {
         sub: mockUserLoginInput.id,
         email: mockUserLoginInput.email,
         role: mockUserLoginInput.role,
         name: mockUserLoginInput.name,
-      };
-      // Assert: Define the expected options passed to sign.
-      const expectedSignOptions = {
-        secret: mockJwtSecret,
-        expiresIn: mockJwtExpiresIn,
+        username: mockUserLoginInput.username,
       };
 
-      // Assert: Verify jwtService.sign was called once with the expected payload and options.
-      expect(jwtService.sign).toHaveBeenCalledWith(
-        expectedPayload,
-        expectedSignOptions,
-      );
-      expect(jwtService.sign).toHaveBeenCalledTimes(1);
+      // Verify sign was called for both access and refresh tokens
+      expect(jwtService.sign).toHaveBeenCalledWith(expectedPayload, {
+        secret: mockJwtSecret,
+        expiresIn: mockJwtExpiresIn,
+      });
+      expect(jwtService.sign).toHaveBeenCalledWith(expectedPayload, {
+        secret: mockRefreshSecret,
+        expiresIn: mockRefreshExpiresIn,
+      });
+      expect(jwtService.sign).toHaveBeenCalledTimes(2);
     });
 
     /**
-     * Tests if the login method successfully returns an object containing the
-     * accessToken property, where the token value matches the one returned by the mocked
-     * jwtService.sign method.
+     * Tests if the login method successfully returns an object containing both
+     * accessToken and refreshToken.
      */
-    it('should return an object with the generated accessToken', async () => {
+    it('should return an object with both generated tokens', async () => {
       // Arrange: Mock ConfigService and JwtService.
       mockConfigService.getOrThrow
         .mockReturnValueOnce(mockJwtSecret)
-        .mockReturnValueOnce(mockJwtExpiresIn);
-      mockJwtService.sign.mockReturnValue(mockGeneratedToken);
+        .mockReturnValueOnce(mockJwtExpiresIn)
+        .mockReturnValueOnce(mockRefreshSecret)
+        .mockReturnValueOnce(mockRefreshExpiresIn);
+
+      mockJwtService.sign
+        .mockReturnValueOnce(mockGeneratedToken)
+        .mockReturnValueOnce(mockRefreshToken);
 
       // Act: Call the login method.
       const result = await service.login(mockUserLoginInput);
 
-      // Assert: Verify the returned object has the correct structure and value.
-      expect(result).toEqual({ accessToken: mockGeneratedToken });
+      // Assert: Verify the returned object has the correct structure and values.
+      expect(result).toEqual({
+        accessToken: mockGeneratedToken,
+        refreshToken: mockRefreshToken,
+      });
     });
 
-    /**
-     * Tests the error handling scenario where the underlying jwtService.sign method
-     * throws an error (e.g., configuration issue, library error).
-     * It expects the AuthService.login method to catch this error and throw a
-     * specific InternalServerErrorException.
-     */
     it('should throw InternalServerErrorException if jwtService.sign throws error', async () => {
-      // Arrange: Mock ConfigService return values needed before the sign call.
+      // Arrange: Mock ConfigService.
       mockConfigService.getOrThrow
         .mockReturnValueOnce(mockJwtSecret)
-        .mockReturnValueOnce(mockJwtExpiresIn);
-      // Arrange: Configure the mock JwtService to throw an error when sign is called.
-      const signError = new Error('Signing failed');
+        .mockReturnValueOnce(mockJwtExpiresIn)
+        .mockReturnValueOnce(mockRefreshSecret)
+        .mockReturnValueOnce(mockRefreshExpiresIn);
+
+      // Arrange: Configure the mock JwtService to throw an error.
       mockJwtService.sign.mockImplementation(() => {
-        throw signError;
+        throw new Error('Signing failed');
       });
 
       // Act & Assert: Verify the call rejects with the expected exception.
-      // The logger in AuthService should output the original 'Signing failed' error.
       await expect(service.login(mockUserLoginInput)).rejects.toThrow(
-        new InternalServerErrorException('Failed to generate access token.'),
+        InternalServerErrorException,
       );
     });
   });

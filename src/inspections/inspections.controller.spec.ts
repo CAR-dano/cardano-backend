@@ -22,6 +22,7 @@ import {
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { ConfigService } from '@nestjs/config';
 
 // ─── Shared Mock Data ───────────────────────────────────────────────────────
 
@@ -119,6 +120,15 @@ describe('InspectionsController', () => {
       providers: [
         { provide: InspectionsService, useValue: mockInspectionsService },
         { provide: PhotosService, useValue: mockPhotosService },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) => {
+              if (key === 'NODE_ENV') return 'test';
+              return null;
+            }),
+          },
+        },
       ],
     })
       .overrideGuard(JwtAuthGuard)
@@ -247,36 +257,44 @@ describe('InspectionsController', () => {
   // searchByKeyword
   // ─────────────────────────────────────────────────────────────────────────
   describe('searchByKeyword', () => {
-    it('should call service.searchByKeyword and return mapped DTOs array', async () => {
-      mockInspectionsService.searchByKeyword.mockResolvedValue([
-        mockArchivedInspection,
-      ]);
+    it('should call service.searchByKeyword and return mapped paginated result', async () => {
+      mockInspectionsService.searchByKeyword.mockResolvedValue(mockPaginatedResult);
 
-      const result = await controller.searchByKeyword('Toyota');
+      const result = await controller.searchByKeyword('Toyota', 1, 10);
 
       expect(mockInspectionsService.searchByKeyword).toHaveBeenCalledWith(
         'Toyota',
+        1,
+        10,
       );
-      expect(result).toHaveLength(1);
+      expect(result.data).toHaveLength(1);
+      expect(result.meta).toEqual(mockPaginatedResult.meta);
     });
 
-    it('should return empty array when no results found', async () => {
-      mockInspectionsService.searchByKeyword.mockResolvedValue([]);
+    it('should return empty data when no results found', async () => {
+      mockInspectionsService.searchByKeyword.mockResolvedValue({
+        data: [],
+        meta: { total: 0, page: 1, pageSize: 10, totalPages: 0 },
+      });
 
-      const result = await controller.searchByKeyword('nonexistent-keyword');
+      const result = await controller.searchByKeyword('nonexistent-keyword', 1, 10);
 
-      expect(result).toEqual([]);
+      expect(result.data).toEqual([]);
     });
 
-    it('should return multiple results when multiple matches found', async () => {
-      mockInspectionsService.searchByKeyword.mockResolvedValue([
-        mockArchivedInspection,
-        { ...mockArchivedInspection, id: 'mock-archived-id-2', pretty_id: 'YOG-14082025-001' },
-      ]);
+    it('should return multiple results in data when multiple matches found', async () => {
+      mockInspectionsService.searchByKeyword.mockResolvedValue({
+        ...mockPaginatedResult,
+        data: [
+          mockInspection,
+          { ...mockInspection, id: 'mock-inspection-id-2', pretty_id: 'YOG-14082025-001' },
+        ],
+        meta: { ...mockPaginatedResult.meta, total: 2 },
+      });
 
-      const result = await controller.searchByKeyword('Toyota');
+      const result = await controller.searchByKeyword('Toyota', 1, 10);
 
-      expect(result).toHaveLength(2);
+      expect(result.data).toHaveLength(2);
     });
   });
 

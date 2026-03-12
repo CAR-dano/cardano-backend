@@ -17,6 +17,8 @@ import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
 import { Role, User } from '@prisma/client';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
+import { AuthService } from '../auth.service';
+import { Request } from 'express';
 
 // --- Mock Dependencies ---
 
@@ -26,6 +28,13 @@ import { JwtPayload } from '../interfaces/jwt-payload.interface';
  */
 const mockUsersService = {
   findById: jest.fn(),
+};
+
+/**
+ * Mock object for AuthService.
+ */
+const mockAuthService = {
+  isTokenBlacklisted: jest.fn(),
 };
 
 /**
@@ -61,6 +70,7 @@ describe('JwtStrategy', () => {
         JwtStrategy, // The strategy to test
         { provide: UsersService, useValue: mockUsersService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: AuthService, useValue: mockAuthService },
       ],
     }).compile();
 
@@ -96,12 +106,32 @@ describe('JwtStrategy', () => {
     const mockUser: User = {
       id: 'user-jwt-id-123',
       email: 'jwt.user@example.com',
-      googleId: null, // User might not have logged in via Google
+      username: 'jwttest',
+      password: 'hashedpassword',
+      pin: null,
+      refreshToken: null,
+      whatsappNumber: null,
+      walletAddress: null,
+      googleId: null,
       name: 'JWT Test User',
       role: Role.ADMIN,
+      isActive: true,
+      google_avatar_url: null,
+      profile_photo_url: null,
+      profile_photo_storage_key: null,
+      credits: 0,
+      creditExpAt: null,
+      inspectionBranchCityId: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+
+    // Mock Express Request
+    const mockRequest = {
+      headers: {
+        authorization: 'Bearer mock-token',
+      },
+    } as unknown as Request;
 
     /**
      * Tests the successful validation scenario where the user is found.
@@ -113,18 +143,19 @@ describe('JwtStrategy', () => {
      * @returns A promise that resolves to the user object (excluding sensitive fields).
      */
     it('should validate and return the user based on JWT payload', async () => {
-      // Arrange: Configure mock UsersService to return the mock user when findById is called
+      // Arrange: Configure mocks
+      mockAuthService.isTokenBlacklisted.mockResolvedValue(false);
       mockUsersService.findById.mockResolvedValue(mockUser);
 
-      // Act: Call the validate method with the mock payload
-      const result = await strategy.validate(mockJwtPayload);
+      // Act: Call the validate method with the mock request and payload
+      const result = await strategy.validate(mockRequest, mockJwtPayload);
 
       // Assert: Verify usersService.findById was called with the correct user ID
       expect(usersService.findById).toHaveBeenCalledWith(mockJwtPayload.sub);
       expect(usersService.findById).toHaveBeenCalledTimes(1);
 
-      // Assert: Verify the returned result contains the user data excluding googleId
-      const { googleId, ...expectedResult } = mockUser; // Create expected result without googleId
+      // Assert: Verify the returned result contains the user data excluding password and googleId
+      const { password, googleId, ...expectedResult } = mockUser;
       expect(result).toEqual(expectedResult);
     });
 
@@ -137,11 +168,12 @@ describe('JwtStrategy', () => {
      * @returns A promise that rejects with UnauthorizedException.
      */
     it('should throw an UnauthorizedException if user is not found', async () => {
-      // Arrange: Configure mock UsersService to return null (user not found)
+      // Arrange: Configure mocks
+      mockAuthService.isTokenBlacklisted.mockResolvedValue(false);
       mockUsersService.findById.mockResolvedValue(null);
 
       // Act & Assert: Expect the call to validate to reject with UnauthorizedException
-      await expect(strategy.validate(mockJwtPayload)).rejects.toThrow(
+      await expect(strategy.validate(mockRequest, mockJwtPayload)).rejects.toThrow(
         UnauthorizedException,
       );
 
@@ -160,12 +192,13 @@ describe('JwtStrategy', () => {
      * @returns A promise that rejects with the original error.
      */
     it('should throw the original error if usersService.findById fails unexpectedly', async () => {
-      // Arrange: Configure mock UsersService to throw a generic error
+      // Arrange: Configure mocks
+      mockAuthService.isTokenBlacklisted.mockResolvedValue(false);
       const dbError = new Error('Database connection error');
       mockUsersService.findById.mockRejectedValue(dbError);
 
       // Act & Assert: Expect the call to validate to reject with the specific dbError
-      await expect(strategy.validate(mockJwtPayload)).rejects.toThrow(dbError);
+      await expect(strategy.validate(mockRequest, mockJwtPayload)).rejects.toThrow(dbError);
 
       // Assert: Verify usersService.findById was still called
       expect(usersService.findById).toHaveBeenCalledWith(mockJwtPayload.sub);

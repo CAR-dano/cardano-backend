@@ -11,16 +11,32 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { BlockchainController } from './blockchain.controller';
+import { BlockchainService } from './blockchain.service';
+import { ThrottlerGuard } from '@nestjs/throttler';
 
 describe('BlockchainController', () => {
   let controller: BlockchainController;
+  let service: any;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [BlockchainController],
-    }).compile();
+      providers: [
+        {
+          provide: BlockchainService,
+          useValue: {
+            getTransactionMetadata: jest.fn(),
+            getNftData: jest.fn(),
+          },
+        },
+      ],
+    })
+      .overrideGuard(ThrottlerGuard)
+      .useValue({ canActivate: () => true })
+      .compile();
 
     controller = module.get<BlockchainController>(BlockchainController);
+    service = module.get<BlockchainService>(BlockchainService);
   });
 
   it('should be defined', () => {

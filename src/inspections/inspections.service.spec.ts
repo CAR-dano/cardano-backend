@@ -131,6 +131,12 @@ const mockConfigService = {
 const mockIpfsService = {
   add: jest.fn(),
 };
+const mockRedisService = {
+  isHealthy: jest.fn().mockResolvedValue(true),
+  get: jest.fn(),
+  set: jest.fn(),
+  incr: jest.fn(),
+};
 
 // ─── Test Suite ──────────────────────────────────────────────────────────────
 
@@ -366,21 +372,24 @@ describe('InspectionsService', () => {
   // searchByKeyword
   // ─────────────────────────────────────────────────────────────────────────
   describe('searchByKeyword', () => {
-    it('should return empty array for empty keyword', async () => {
+    it('should return empty data for empty keyword', async () => {
       const result = await service.searchByKeyword('');
 
-      expect(result).toEqual([]);
+      expect(result.data).toEqual([]);
+      expect(result.meta.total).toBe(0);
       expect(mockPrismaService.inspection.findMany).not.toHaveBeenCalled();
     });
 
-    it('should return empty array for whitespace-only keyword', async () => {
+    it('should return empty data for whitespace-only keyword', async () => {
       const result = await service.searchByKeyword('   ');
 
-      expect(result).toEqual([]);
+      expect(result.data).toEqual([]);
+      expect(result.meta.total).toBe(0);
       expect(mockPrismaService.inspection.findMany).not.toHaveBeenCalled();
     });
 
     it('should call findMany with OR conditions for keyword search', async () => {
+      mockPrismaService.inspection.count.mockResolvedValue(1);
       mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
 
       const result = await service.searchByKeyword('Toyota');
@@ -390,7 +399,7 @@ describe('InspectionsService', () => {
           where: expect.objectContaining({ OR: expect.any(Array) }),
         }),
       );
-      expect(result).toHaveLength(1);
+      expect(result.data).toHaveLength(1);
     });
 
     it('should search by pretty_id', async () => {
@@ -461,13 +470,14 @@ describe('InspectionsService', () => {
       );
     });
 
-    it('should limit results to 50 records', async () => {
+    it('should limit results to pageSize records', async () => {
+      mockPrismaService.inspection.count.mockResolvedValue(0);
       mockPrismaService.inspection.findMany.mockResolvedValue([]);
 
-      await service.searchByKeyword('test');
+      await service.searchByKeyword('test', 1, 10);
 
       expect(mockPrismaService.inspection.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ take: 50 }),
+        expect.objectContaining({ take: 10 }),
       );
     });
 
@@ -642,11 +652,8 @@ describe('InspectionsService', () => {
         const tx = {
           inspection: {
             findUnique: jest.fn().mockResolvedValue(mockInspection),
-            findUniqueOrThrow: jest.fn().mockResolvedValue(mockInspection),
+            findUniqueOrThrow: jest.fn().mockResolvedValue(inspectionAfterChanges),
             update: jest.fn().mockResolvedValue(inspectionAfterChanges),
-            findUniqueOrThrow: jest
-              .fn()
-              .mockResolvedValue(inspectionAfterChanges),
           },
           inspectionChangeLog: {
             findMany: jest.fn().mockResolvedValue(mockChangeLogs),
@@ -734,11 +741,8 @@ describe('InspectionsService', () => {
         const tx = {
           inspection: {
             findUnique: jest.fn().mockResolvedValue(mockInspection),
-            findUniqueOrThrow: jest.fn().mockResolvedValue(mockInspection),
+            findUniqueOrThrow: jest.fn().mockResolvedValue(inspectionAfterChanges),
             update: jest.fn().mockResolvedValue(inspectionAfterChanges),
-            findUniqueOrThrow: jest
-              .fn()
-              .mockResolvedValue(inspectionAfterChanges),
           },
           inspectionChangeLog: {
             findMany: jest.fn().mockResolvedValue(mockChangeLogs),

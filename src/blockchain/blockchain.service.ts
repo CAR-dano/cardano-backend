@@ -884,8 +884,11 @@ export class BlockchainService {
           delay *= 2; // Exponential backoff
           retries++;
         } else {
-          this.logger.error('NFT Minting failed');
-          throw new InternalServerErrorException(`Failed to mint NFT`);
+          this.logger.error(`NFT Minting failed: ${errorMessage}`);
+          if (error instanceof Error) {
+            throw error;
+          }
+          throw new InternalServerErrorException(errorMessage);
         }
       }
     }

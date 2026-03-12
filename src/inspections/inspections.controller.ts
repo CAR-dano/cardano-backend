@@ -866,13 +866,24 @@ export class InspectionsController {
     const pageSizeNumber =
       parseInt(pageSize as any, 10) > 0 ? parseInt(pageSize as any, 10) : 10;
 
+    let parsedStatuses: InspectionStatus[] | undefined = undefined;
+    if (status) {
+      const statusInput = Array.isArray(status) ? status : status.split(',').map(s => s.trim());
+      parsedStatuses = statusInput.map(s => {
+        if (!Object.values(InspectionStatus).includes(s as any)) {
+          throw new BadRequestException(`Invalid inspection status: ${s}`);
+        }
+        return s as InspectionStatus;
+      });
+    }
+
     this.logger.warn(
       `[GET /inspections] Applying filter for role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${status}`,
     );
 
     const result = await this.inspectionsService.findAll(
       userRole,
-      status as any,
+      parsedStatuses,
       pageNumber,
       pageSizeNumber,
     );

@@ -23,6 +23,12 @@ model User {
   isActive      Boolean   @default(true) @map("is_active")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  
+  google_avatar_url         String?   @map("google_avatar_url")
+  profile_photo_url         String?   @map("profile_photo_url")
+  profile_photo_storage_key String?   @map("profile_photo_storage_key")
+  credits                   Int       @default(0)
+  creditExpAt               DateTime? @map("creditExpAt")
 
   // Relations defined here indicate this User can be linked from the Inspection model
   // The actual foreign keys are defined in the Inspection model.
@@ -33,6 +39,10 @@ model User {
 
   inspectionBranchCityId String?               @map("inspection_branch_city_id")
   inspectionBranchCity   InspectionBranchCity? @relation(fields: [inspectionBranchCityId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  credit_consumptions credit_consumptions[]
+  customer_vehicles   customer_vehicles[]
+  purchases           purchases[]
 
   @@index([role], name: "users_role_idx") // For findAllInspectors() queries
   @@map("users") // Explicit table name
@@ -82,6 +92,11 @@ model Inspection {
   @@index([reviewerId])
   @@index([vehiclePlateNumber])
   @@index([status]) // Index on status for filtering by lifecycle stage
+
+  @@index([identityDetails], map: "inspections_identity_details_gin_idx", type: Gin)
+  @@index([vehicleData], map: "inspections_vehicle_data_gin_idx", type: Gin)
+  @@index([inspectionSummary], map: "inspections_inspection_summary_gin_idx", type: Gin)
+  @@index([overallRating])
 
   // --- Composite indexes for findAll (filter + sort in one scan) ---
   @@index([status, createdAt(sort: Desc)], name: "inspections_status_created_at_idx")
