@@ -33,6 +33,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { IpfsModule } from './ipfs/ipfs.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { MetricsMiddleware } from './metrics/metrics.middleware';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -74,6 +75,7 @@ import { MetricsMiddleware } from './metrics/metrics.middleware';
       rootPath: join(process.cwd(), 'public'),
       serveRoot: '/api/v1', // Serve public files under the /api/v1 prefix
     }),
+    RedisModule,
     AuthModule,
     BlockchainModule,
     ExternalAuthModule,

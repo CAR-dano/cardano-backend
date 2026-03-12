@@ -13,8 +13,10 @@
 import { Module } from '@nestjs/common';
 import { InspectionBranchesController } from './inspection-branches.controller';
 import { InspectionBranchesService } from './inspection-branches.service';
+import { RedisModule } from '../redis/redis.module';
 
 @Module({
+  imports: [RedisModule],
   controllers: [InspectionBranchesController],
   providers: [InspectionBranchesService],
 })

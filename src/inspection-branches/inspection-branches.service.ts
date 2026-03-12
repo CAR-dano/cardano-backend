@@ -10,7 +10,7 @@
  * --------------------------------------------------------------------------
  */
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInspectionBranchCityDto } from './dto/create-inspection-branch-city.dto';
 import { UpdateInspectionBranchCityDto } from './dto/update-inspection-branch-city.dto';
@@ -20,6 +20,7 @@ import { RedisService } from '../redis/redis.service';
 
 @Injectable()
 export class InspectionBranchesService {
+  private readonly logger = new Logger(InspectionBranchesService.name);
   private readonly BRANCH_CACHE_TTL = 86400; // 24 hours
   private readonly CACHE_KEY_ALL = 'branches:all';
 
@@ -60,14 +61,36 @@ export class InspectionBranchesService {
 
   /**
    * Retrieves all inspection branch cities from the database.
+   * Uses Redis cache first (TTL: 24 hours). Cache is invalidated on any mutation.
    *
    * @returns A promise that resolves to an array of InspectionBranchCity.
    */
   async findAll(): Promise<InspectionBranchCity[]> {
-    return await this.prisma.executeWithReconnect(
+    // 1. Try cache
+    try {
+      const cached = await this.redisService.get(this.CACHE_KEY_ALL);
+      if (cached) {
+        this.logger.verbose('Branch list cache hit');
+        return JSON.parse(cached) as InspectionBranchCity[];
+      }
+    } catch (e) { /* ignore cache error, fall through to DB */ }
+
+    // 2. Database fallback
+    const branches = await this.prisma.executeWithReconnect(
       'findAllInspectionBranches',
       () => this.prisma.inspectionBranchCity.findMany(),
     );
+
+    // 3. Set cache
+    try {
+      await this.redisService.set(
+        this.CACHE_KEY_ALL,
+        JSON.stringify(branches),
+        this.BRANCH_CACHE_TTL,
+      );
+    } catch (e) { /* ignore cache write error */ }
+
+    return branches;
   }
 
   /**
