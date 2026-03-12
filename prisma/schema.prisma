@@ -311,6 +311,22 @@ model utxo_locks {
   @@index([lockedBy])
 }
 
+model SecurityLog {
+  id        String   @id @default(uuid())
+  type      String   // e.g. 'LOGIN_SUCCESS', 'LOGIN_FAILURE', 'ROLE_CHANGE', 'TOKEN_REVOKED', etc.
+  severity  String   // 'INFO', 'WARNING', 'CRITICAL'
+  userId    String?
+  ip        String?
+  userAgent String?
+  details   Json?
+  timestamp DateTime @default(now())
+
+  @@index([userId, timestamp], name: "security_logs_user_ts_idx")
+  @@index([type, timestamp], name: "security_logs_type_ts_idx")
+  @@index([severity, timestamp], name: "security_logs_severity_ts_idx")
+  @@map("security_logs")
+}
+
 model webhook_events {
   id           String    @id
   gateway      String

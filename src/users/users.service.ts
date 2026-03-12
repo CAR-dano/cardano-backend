@@ -32,6 +32,8 @@ import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 import { CreateAdminDto } from './dto/create-admin.dto'; // Import CreateAdminDto
 
 import { RedisService } from '../redis/redis.service'; // Import RedisService
+import { SecurityLoggerService } from '../security-logger/security-logger.service';
+import { SecurityEventType, SecurityEventSeverity } from '../security-logger/security-event.enum';
 
 @Injectable()
 export class UsersService {
@@ -47,6 +49,7 @@ export class UsersService {
   constructor(
     private prisma: PrismaService,
     private readonly redisService: RedisService,
+    private readonly securityLogger: SecurityLoggerService,
   ) { }
 
   /**
@@ -538,6 +541,17 @@ export class UsersService {
         data: { role: newRole },
       });
       this.logger.log(`Successfully updated role for user ID: ${id}`);
+      void this.securityLogger.log({
+        type: SecurityEventType.ROLE_CHANGED,
+        severity: SecurityEventSeverity.CRITICAL,
+        userId: id,
+        details: {
+          actingUserId,
+          actingUserRole,
+          oldRole: targetUser.role,
+          newRole,
+        },
+      });
       return updatedUser;
     } catch (error) {
       if (
@@ -1188,7 +1202,7 @@ export class UsersService {
       }
     } while (!isPinUnique);
 
-    this.logger.log(`Generated unique PIN: ${plainPin} for ${user.username}`);
+    this.logger.log(`Generated unique PIN for ${user.username}`); // Do NOT log plaintext PIN
 
     // Hash the unique PIN
     let hashedPin: string;
@@ -1220,6 +1234,12 @@ export class UsersService {
       this.logger.log(
         `Successfully generated and saved PIN for inspector: ${updatedUser.id} (${updatedUser.username})`,
       );
+      void this.securityLogger.log({
+        type: SecurityEventType.PIN_REGENERATED,
+        severity: SecurityEventSeverity.WARNING,
+        userId: updatedUser.id,
+        details: { username: updatedUser.username },
+      });
       return { ...updatedUser, plainPin };
     } catch (error) {
       // Catch potential race condition for unique constraints
@@ -1287,6 +1307,16 @@ export class UsersService {
       await this.invalidateUserCache(id, user.email || undefined);
 
       this.logger.log(`Successfully deleted user ID: ${id}`);
+      void this.securityLogger.log({
+        type: SecurityEventType.USER_DELETED,
+        severity: SecurityEventSeverity.CRITICAL,
+        userId: id,
+        details: {
+          actingUserRole,
+          deletedUserRole: user.role,
+          deletedUserEmail: user.email,
+        },
+      });
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -1387,6 +1417,16 @@ export class UsersService {
       this.logger.log(
         `Successfully created ${createAdminDto.role} user: ${newUser.id} (${newUser.username})`,
       );
+      void this.securityLogger.log({
+        type: SecurityEventType.USER_CREATED,
+        severity: SecurityEventSeverity.CRITICAL,
+        userId: newUser.id,
+        details: {
+          role: newUser.role,
+          email: newUser.email,
+          username: newUser.username,
+        },
+      });
       return newUser;
     } catch (error) {
       if (

@@ -52,6 +52,8 @@ import { InspectorGuard } from './guards/inspector.guard';
 import { LoginInspectorDto } from './dto/login-inspector.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { SecurityLoggerService } from '../security-logger/security-logger.service';
+import { SecurityEventType, SecurityEventSeverity } from '../security-logger/security-event.enum';
 
 // Define interface for request object after JWT or Local auth guard runs
 interface AuthenticatedRequest extends Request {
@@ -75,6 +77,7 @@ export class AuthController {
     private readonly usersService: UsersService,
     private readonly configService: ConfigService,
     private readonly jwtService: JwtService, // Inject JwtService
+    private readonly securityLogger: SecurityLoggerService, // Inject SecurityLoggerService
   ) {}
 
   /**
@@ -152,6 +155,15 @@ export class AuthController {
 
     if (user.isActive === false) {
       this.logger.warn(`Login attempt from inactive user account: ${user.id}`);
+      const { ip, userAgent } = this.securityLogger.extractRequestMeta(req);
+      void this.securityLogger.log({
+        type: SecurityEventType.LOGIN_FAILURE_INACTIVE_ACCOUNT,
+        severity: SecurityEventSeverity.WARNING,
+        userId: user.id,
+        ip,
+        userAgent,
+        details: { loginIdentifier: user.email ?? user.username },
+      });
       throw new UnauthorizedException(
         'User account is inactive. Please contact an administrator.',
       );
@@ -160,6 +172,15 @@ export class AuthController {
     this.logger.log(
       `User logged in locally: ${req.user?.email ?? req.user?.username}`,
     );
+    const { ip, userAgent } = this.securityLogger.extractRequestMeta(req);
+    void this.securityLogger.log({
+      type: SecurityEventType.LOGIN_SUCCESS,
+      severity: SecurityEventSeverity.INFO,
+      userId: user.id,
+      ip,
+      userAgent,
+      details: { loginIdentifier: user.email ?? user.username },
+    });
     // req.user contains the validated user object returned by LocalStrategy.validate
     const { accessToken, refreshToken } = await this.authService.login(
       req.user as any,
@@ -209,12 +230,29 @@ export class AuthController {
       this.logger.warn(
         `Login attempt from inactive inspector account: ${inspector.id}`,
       );
+      const { ip, userAgent } = this.securityLogger.extractRequestMeta(req);
+      void this.securityLogger.log({
+        type: SecurityEventType.LOGIN_FAILURE_INACTIVE_ACCOUNT,
+        severity: SecurityEventSeverity.WARNING,
+        userId: inspector.id,
+        ip,
+        userAgent,
+        details: { role: 'INSPECTOR' },
+      });
       throw new UnauthorizedException(
         'Inspector account is inactive. Please contact an administrator.',
       );
     }
 
     this.logger.log(`Inspector logged in: ${inspector.id}`);
+    const { ip, userAgent } = this.securityLogger.extractRequestMeta(req);
+    void this.securityLogger.log({
+      type: SecurityEventType.INSPECTOR_LOGIN_SUCCESS,
+      severity: SecurityEventSeverity.INFO,
+      userId: inspector.id,
+      ip,
+      userAgent,
+    });
     const { accessToken, refreshToken } = await this.authService.login(
       req.user as any,
     );
@@ -359,6 +397,15 @@ export class AuthController {
 
       // Blacklist the token
       await this.authService.blacklistToken(token, expiresAt);
+
+      const { ip, userAgent } = this.securityLogger.extractRequestMeta(req);
+      void this.securityLogger.log({
+        type: SecurityEventType.LOGOUT,
+        severity: SecurityEventSeverity.INFO,
+        userId: req.user?.id,
+        ip,
+        userAgent,
+      });
 
       return res.json({
         message: 'Logout successful. Token has been invalidated on the server.',

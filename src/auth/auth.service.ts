@@ -27,6 +27,8 @@ import { Profile } from 'passport-google-oauth20'; // Google profile type
 import * as bcrypt from 'bcrypt'; // For password comparison
 import { PrismaService } from '../prisma/prisma.service'; // Import PrismaService
 import { RedisService } from '../redis/redis.service'; // Import RedisService
+import { SecurityLoggerService } from '../security-logger/security-logger.service';
+import { SecurityEventType, SecurityEventSeverity } from '../security-logger/security-event.enum';
 
 @Injectable()
 export class AuthService {
@@ -38,6 +40,7 @@ export class AuthService {
     private readonly configService: ConfigService, // Service to access environment variables
     private readonly prisma: PrismaService, // Inject PrismaService
     private readonly redisService: RedisService, // Inject RedisService for caching
+    private readonly securityLogger: SecurityLoggerService, // Inject SecurityLoggerService
   ) { }
 
   /**
@@ -61,16 +64,28 @@ export class AuthService {
     let user: User | null;
     if (loginIdentifier.includes('@')) {
       user = await this.usersService.findByEmail(loginIdentifier);
-      if (!user)
+      if (!user) {
         this.logger.warn(
           `Local validation failed: User not found with email ${loginIdentifier}`,
         );
+        void this.securityLogger.log({
+          type: SecurityEventType.LOGIN_FAILURE_USER_NOT_FOUND,
+          severity: SecurityEventSeverity.WARNING,
+          details: { loginIdentifier },
+        });
+      }
     } else {
       user = await this.usersService.findByUsername(loginIdentifier);
-      if (!user)
+      if (!user) {
         this.logger.warn(
           `Local validation failed: User not found with username ${loginIdentifier}`,
         );
+        void this.securityLogger.log({
+          type: SecurityEventType.LOGIN_FAILURE_USER_NOT_FOUND,
+          severity: SecurityEventSeverity.WARNING,
+          details: { loginIdentifier },
+        });
+      }
     }
 
     // If user exists and has a password set (meaning they registered locally)
@@ -81,7 +96,6 @@ export class AuthService {
         this.logger.log(
           `Local user validated successfully: ${loginIdentifier} (ID: ${user.id})`,
         );
-        // Return user data, excluding sensitive fields like password hash and googleId
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { password, googleId, ...result } = user;
         return result; // This will be passed to the login method by LocalAuthGuard/Passport
@@ -89,6 +103,12 @@ export class AuthService {
         this.logger.warn(
           `Local validation failed: Incorrect password for ${loginIdentifier}`,
         );
+        void this.securityLogger.log({
+          type: SecurityEventType.LOGIN_FAILURE_BAD_PASSWORD,
+          severity: SecurityEventSeverity.WARNING,
+          userId: user.id,
+          details: { loginIdentifier },
+        });
       }
     } else if (user && !user.password) {
       this.logger.warn(
@@ -183,6 +203,12 @@ export class AuthService {
       this.logger.log(
         `Google profile validated successfully for user ID: ${user.id}`,
       );
+      void this.securityLogger.log({
+        type: SecurityEventType.GOOGLE_LOGIN_SUCCESS,
+        severity: SecurityEventSeverity.INFO,
+        userId: user.id,
+        details: { googleProfileId: profile.id },
+      });
       return user; // Return the full user object from DB
     } catch (error) {
       // Log the specific error from findOrCreate
@@ -412,6 +438,12 @@ export class AuthService {
       this.logger.warn(
         `Inspector validation failed for email ${email}: User not found, not an inspector, or no PIN set.`,
       );
+      void this.securityLogger.log({
+        type: SecurityEventType.INSPECTOR_LOGIN_FAILURE,
+        severity: SecurityEventSeverity.WARNING,
+        userId: user?.id,
+        details: { email, reason: 'not_found_or_invalid_role' },
+      });
       return null;
     }
 
@@ -422,6 +454,12 @@ export class AuthService {
       this.logger.log(
         `Inspector validated successfully: ${email} (ID: ${user.id})`,
       );
+      void this.securityLogger.log({
+        type: SecurityEventType.INSPECTOR_LOGIN_SUCCESS,
+        severity: SecurityEventSeverity.INFO,
+        userId: user.id,
+        details: { email },
+      });
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password, googleId, pin: userPin, ...result } = user;
       return result;
@@ -429,6 +467,12 @@ export class AuthService {
       this.logger.warn(
         `Inspector validation failed: Incorrect PIN for ${email}`,
       );
+      void this.securityLogger.log({
+        type: SecurityEventType.INSPECTOR_LOGIN_FAILURE,
+        severity: SecurityEventSeverity.WARNING,
+        userId: user.id,
+        details: { email, reason: 'incorrect_pin' },
+      });
       return null;
     }
   }
@@ -460,6 +504,12 @@ export class AuthService {
     this.logger.log(
       `Token rotated for user ID: ${userId} — sessionVersion bumped to ${newSessionVersion}`,
     );
+    void this.securityLogger.log({
+      type: SecurityEventType.TOKEN_ROTATED,
+      severity: SecurityEventSeverity.INFO,
+      userId,
+      details: { newSessionVersion },
+    });
 
     // Generate new token pair with updated sessionVersion
     return this.login({ ...user, sessionVersion: newSessionVersion });
@@ -493,5 +543,11 @@ export class AuthService {
     this.logger.log(
       `All sessions revoked for user ID: ${userId} — sessionVersion bumped to ${newSessionVersion}`,
     );
+    void this.securityLogger.log({
+      type: SecurityEventType.LOGOUT_ALL_SESSIONS,
+      severity: SecurityEventSeverity.CRITICAL,
+      userId,
+      details: { newSessionVersion },
+    });
   }
 }

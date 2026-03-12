@@ -23,6 +23,7 @@ import { Role, User } from '@prisma/client';
 import { Profile } from 'passport-google-oauth20';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { SecurityLoggerService } from '../security-logger/security-logger.service';
 
 // --- Mock Dependencies ---
 /**
@@ -76,6 +77,15 @@ const mockRedisService = {
   del: jest.fn(),
 };
 
+/**
+ * Mock object for the SecurityLoggerService.
+ * Fire-and-forget — log() simply resolves; extractRequestMeta() returns empty meta.
+ */
+const mockSecurityLoggerService = {
+  log: jest.fn().mockResolvedValue(undefined),
+  extractRequestMeta: jest.fn().mockReturnValue({ ip: undefined, userAgent: undefined }),
+};
+
 // Shared mock user used across multiple test suites
 const buildMockUser = (overrides: Partial<User> = {}): User => ({
   id: 'user-uuid-456',
@@ -120,6 +130,7 @@ describe('AuthService', () => {
         { provide: ConfigService, useValue: mockConfigService },
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: RedisService, useValue: mockRedisService },
+        { provide: SecurityLoggerService, useValue: mockSecurityLoggerService },
       ],
     }).compile();
 

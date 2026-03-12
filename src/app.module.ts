@@ -35,6 +35,7 @@ import { IpfsModule } from './ipfs/ipfs.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { MetricsMiddleware } from './metrics/metrics.middleware';
 import { RedisModule } from './redis/redis.module';
+import { SecurityLoggerModule } from './security-logger/security-logger.module';
 
 @Module({
   imports: [
@@ -91,6 +92,7 @@ import { RedisModule } from './redis/redis.module';
       serveRoot: '/api/v1', // Serve public files under the /api/v1 prefix
     }),
     RedisModule,
+    SecurityLoggerModule,
     AuthModule,
     BlockchainModule,
     ExternalAuthModule,

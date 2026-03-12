@@ -17,11 +17,13 @@ import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RedisModule } from '../redis/redis.module';
+import { SecurityLoggerModule } from '../security-logger/security-logger.module';
 
 @Module({
   imports: [
     PrismaModule,
     RedisModule, // Required for RedisService injection in UsersService
+    SecurityLoggerModule, // Required for SecurityLoggerService injection
     // Import AuthModule if guards here need it (often not needed directly)
     // forwardRef(() => AuthModule) // Use forwardRef if circular dependency exists
   ],

@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { User, Role } from '@prisma/client';
 import { RedisService } from '../redis/redis.service';
+import { SecurityLoggerService } from '../security-logger/security-logger.service';
 
 // --- Mock PrismaService ---
 /**
@@ -42,6 +43,11 @@ const mockRedisService = {
   delete: jest.fn(),
 };
 
+const mockSecurityLoggerService = {
+  log: jest.fn().mockResolvedValue(undefined),
+  extractRequestMeta: jest.fn().mockReturnValue({ ip: undefined, userAgent: undefined }),
+};
+
 /**
  * Test suite for the UsersService class.
  */
@@ -59,6 +65,7 @@ describe('UsersService', () => {
         UsersService,
         { provide: PrismaService, useValue: mockPrismaService },
         { provide: RedisService, useValue: mockRedisService },
+        { provide: SecurityLoggerService, useValue: mockSecurityLoggerService },
       ],
     }).compile();
 

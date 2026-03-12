@@ -32,6 +32,7 @@ import { WalletAuthGuard } from './guards/wallet-auth.guard';
 import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { RedisModule } from '../redis/redis.module';
+import { SecurityLoggerModule } from '../security-logger/security-logger.module';
 
 /**
  * NestJS module responsible for managing authentication.
@@ -57,6 +58,7 @@ import { RedisModule } from '../redis/redis.module';
     }),
     ConfigModule, // Required by Strategies and JwtModule factory
     RedisModule, // Import RedisModule for caching
+    SecurityLoggerModule, // Import SecurityLoggerModule for audit logging
   ],
   /**
    * Declares the controllers used in this module.

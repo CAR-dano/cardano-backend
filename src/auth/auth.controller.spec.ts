@@ -27,6 +27,7 @@ import { Role } from '@prisma/client'; // Import Role enum
 import { UserResponseDto } from '../users/dto/user-response.dto'; // Import UserResponseDto
 import { GetUser } from './decorators/get-user.decorator'; // Import GetUser decorator
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { SecurityLoggerService } from '../security-logger/security-logger.service';
 
 interface AuthenticatedRequest extends Request {
   user?: UserResponseDto; // Use UserResponseDto structure here
@@ -95,6 +96,14 @@ const mockResponse = {
  */
 const mockRequest = {} as Request;
 
+/**
+ * Mock object for SecurityLoggerService.
+ */
+const mockSecurityLoggerService = {
+  log: jest.fn().mockResolvedValue(undefined),
+  extractRequestMeta: jest.fn().mockReturnValue({ ip: undefined, userAgent: undefined }),
+};
+
 // Helper to create a request with a user object
 const createMockRequestWithUser = (
   user: UserResponseDto,
@@ -127,6 +136,7 @@ describe('AuthController', () => {
         { provide: UsersService, useValue: mockUsersService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: JwtService, useValue: mockJwtService },
+        { provide: SecurityLoggerService, useValue: mockSecurityLoggerService },
       ],
     })
       // Override guards for unit testing - assume they allow access
