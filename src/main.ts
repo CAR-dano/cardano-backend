@@ -23,6 +23,7 @@ import { ConfigService } from '@nestjs/config';
 import { json, urlencoded } from 'express';
 import compression from 'compression';
 import { getLoggerConfig } from './config/logger.config';
+import { AllExceptionsFilter } from './common/filters';
 
 let openApiDocument: OpenAPIObject | null = null;
 
@@ -121,6 +122,11 @@ async function bootstrap() {
       disableErrorMessages: false, // Show validation error messages (set true in production if necessary)
     }),
   );
+
+  // Apply Global Exception Filter — standardized error response format
+  // Catches ALL exceptions (AppError, HttpException, unknown) and returns
+  // a consistent { statusCode, message[], error, errorCode, path, timestamp } shape
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   // Enable CORS if frontend and backend have different origins
   // Supports multiple origins separated by comma
