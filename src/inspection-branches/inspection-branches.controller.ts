@@ -22,6 +22,7 @@ import {
   UseGuards,
   HttpStatus,
   Patch,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -111,7 +112,7 @@ export class InspectionBranchesController {
   /**
    * Retrieves an inspection branch city by its ID.
    *
-   * @param id The ID of the inspection branch city.
+   * @param id The UUID of the inspection branch city.
    * @returns A promise that resolves to the InspectionBranchCityResponseDto.
    * @throws NotFoundException if the inspection branch city is not found.
    */
@@ -122,7 +123,8 @@ export class InspectionBranchesController {
   @ApiParam({
     name: 'id',
     type: String,
-    description: 'Inspection branch city ID',
+    format: 'uuid',
+    description: 'Inspection branch city UUID',
   })
   @ApiResponse({
     status: 200,
@@ -133,7 +135,7 @@ export class InspectionBranchesController {
     status: 404,
     description: 'Inspection branch city not found.',
   })
-  async findOne(@Param('id') id: string) {
+  async findOne(@Param('id', ParseUUIDPipe) id: string) {
     return this.inspectionBranchesService.findOne(id);
   }
 
@@ -141,7 +143,7 @@ export class InspectionBranchesController {
    * Updates an existing inspection branch city by its ID.
    * Restricted to ADMIN role only.
    *
-   * @param id The ID of the inspection branch city to update.
+   * @param id The UUID of the inspection branch city to update.
    * @param updateInspectionBranchCityDto The data for updating the inspection branch city.
    * @returns A promise that resolves to the updated InspectionBranchCityResponseDto.
    * @throws BadRequestException if the input data is invalid.
@@ -159,7 +161,8 @@ export class InspectionBranchesController {
   @ApiParam({
     name: 'id',
     type: String,
-    description: 'Inspection branch city ID',
+    format: 'uuid',
+    description: 'Inspection branch city UUID',
   })
   @ApiBody({ type: UpdateInspectionBranchCityDto })
   @ApiResponse({
@@ -184,7 +187,7 @@ export class InspectionBranchesController {
     description: 'Inspection branch city not found.',
   })
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateInspectionBranchCityDto: UpdateInspectionBranchCityDto,
   ) {
     return await this.inspectionBranchesService.update(
@@ -197,7 +200,7 @@ export class InspectionBranchesController {
    * Deletes an inspection branch city by its ID.
    * Restricted to ADMIN role only.
    *
-   * @param id The ID of the inspection branch city to delete.
+   * @param id The UUID of the inspection branch city to delete.
    * @returns A promise that resolves to the deleted InspectionBranchCity.
    * @throws UnauthorizedException if the user is not authenticated.
    * @throws ForbiddenException if the user does not have the required role.
@@ -213,7 +216,8 @@ export class InspectionBranchesController {
   @ApiParam({
     name: 'id',
     type: String,
-    description: 'Inspection branch city ID',
+    format: 'uuid',
+    description: 'Inspection branch city UUID',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -231,7 +235,7 @@ export class InspectionBranchesController {
     status: HttpStatus.NOT_FOUND,
     description: 'Inspection branch city not found.',
   })
-  async remove(@Param('id') id: string) {
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
     return await this.inspectionBranchesService.remove(id);
   }
 
@@ -239,7 +243,7 @@ export class InspectionBranchesController {
    * Toggles the active status of an inspection branch city by its ID.
    * Restricted to ADMIN and SUPERADMIN roles only.
    *
-   * @param id The ID of the inspection branch city to toggle.
+   * @param id The UUID of the inspection branch city to toggle.
    * @returns A promise that resolves to the updated InspectionBranchCityResponseDto.
    * @throws UnauthorizedException if the user is not authenticated.
    * @throws ForbiddenException if the user does not have the required role.
@@ -257,7 +261,8 @@ export class InspectionBranchesController {
   @ApiParam({
     name: 'id',
     type: String,
-    description: 'Inspection branch city ID',
+    format: 'uuid',
+    description: 'Inspection branch city UUID',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -277,7 +282,7 @@ export class InspectionBranchesController {
     status: HttpStatus.NOT_FOUND,
     description: 'Inspection branch city not found.',
   })
-  async toggleActive(@Param('id') id: string) {
+  async toggleActive(@Param('id', ParseUUIDPipe) id: string) {
     return await this.inspectionBranchesService.toggleActive(id);
   }
 }

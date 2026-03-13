@@ -8,7 +8,8 @@
  * --------------------------------------------------------------------------
  */
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, Length, IsEmail } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsString, IsNotEmpty, Length, IsEmail, Matches, MaxLength } from 'class-validator';
 
 export class LoginInspectorDto {
   @ApiProperty({
@@ -19,6 +20,7 @@ export class LoginInspectorDto {
   @IsString()
   @IsNotEmpty()
   @Length(6, 6, { message: 'PIN must be exactly 6 digits' })
+  @Matches(/^\d{6}$/, { message: 'PIN must contain only digits' })
   pin: string;
 
   @ApiProperty({
@@ -26,7 +28,11 @@ export class LoginInspectorDto {
     example: 'inspector@example.com',
     required: true,
   })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsEmail()
   @IsNotEmpty()
+  @MaxLength(255)
   email: string;
 }

@@ -408,14 +408,14 @@ describe('InspectionsController', () => {
 
       const result = await controller.update(
         mockInspectionId,
-        { overallRating: 'VERY GOOD' },
+        { overallRating: 95 },
         mockUserId,
         Role.REVIEWER,
       );
 
       expect(mockInspectionsService.update).toHaveBeenCalledWith(
         mockInspectionId,
-        { overallRating: 'VERY GOOD' },
+        { overallRating: 95 },
         mockUserId,
         Role.REVIEWER,
       );
@@ -430,7 +430,7 @@ describe('InspectionsController', () => {
       await expect(
         controller.update(
           'non-existent-id',
-          { overallRating: 'VERY GOOD' },
+          { overallRating: 95 },
           mockUserId,
           Role.REVIEWER,
         ),
@@ -445,7 +445,7 @@ describe('InspectionsController', () => {
       await expect(
         controller.update(
           mockInspectionId,
-          { overallRating: 'VERY GOOD' },
+          { overallRating: 95 },
           mockUserId,
           Role.REVIEWER,
         ),

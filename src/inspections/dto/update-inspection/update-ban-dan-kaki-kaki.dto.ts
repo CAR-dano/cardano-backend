@@ -1,102 +1,32 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsNumber,
-  IsString,
-  IsArray,
-  IsOptional,
-  MaxLength,
-} from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsNumber, IsString, IsArray, IsOptional, MaxLength, Min, Max } from 'class-validator';
+import { sanitizeStringArray } from '../../../common/sanitize.helper';
 
 export class UpdateBanDanKakiKakiDto {
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  banDepan?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  velgDepan?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  discBrake?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  masterRem?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  tieRod?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  gardan?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  banBelakang?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  velgBelakang?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  brakePad?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  crossmember?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  knalpot?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  balljoint?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  karetBoot?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  upperLowerArm?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  shockBreaker?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  linkStabilizer?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  racksteer?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) banDepan?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) velgDepan?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) discBrake?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) masterRem?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) tieRod?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) gardan?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) banBelakang?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) velgBelakang?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) brakePad?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) crossmember?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) knalpot?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) balljoint?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) karetBoot?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) upperLowerArm?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) shockBreaker?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) linkStabilizer?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) racksteer?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   @MaxLength(1000, { each: true })
+  @Transform(({ value }: { value: unknown }) => sanitizeStringArray(value))
   catatan?: string[];
 }

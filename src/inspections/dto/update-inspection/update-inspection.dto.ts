@@ -8,16 +8,19 @@
  * --------------------------------------------------------------------------
  */
 import {
-  IsString,
   IsDateString,
   IsObject,
   IsOptional,
   ValidateNested,
   IsUUID,
+  IsNumber,
+  Min,
+  Max,
+  IsString,
   MaxLength,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { UpdateIdentityDetailsDto } from './update-identity-details.dto';
 import { UpdateVehicleDataDto } from './update-vehicle-data.dto';
 import { UpdateBodyPaintThicknessDto } from './update-body-paint-thickness.dto';
@@ -31,8 +34,11 @@ import { UpdateEquipmentChecklistDto } from './update-equipment-checklist.dto';
 export class UpdateInspectionDto {
   @ApiPropertyOptional({ example: 'AB 1 DQ' })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
   @IsString()
-  @MaxLength(255)
+  @MaxLength(20)
   vehiclePlateNumber?: string;
 
   @ApiPropertyOptional({ example: '2025-07-05T14:30:00Z' })
@@ -40,11 +46,16 @@ export class UpdateInspectionDto {
   @IsDateString()
   inspectionDate?: string;
 
-  @ApiPropertyOptional({ example: '8' })
+  @ApiPropertyOptional({
+    example: 75,
+    description: 'The overall rating assigned to the vehicle (0–100).',
+  })
   @IsOptional()
-  @IsString()
-  @MaxLength(255)
-  overallRating?: string;
+  @Type(() => Number)
+  @IsNumber({}, { message: 'overallRating must be a number' })
+  @Min(0, { message: 'overallRating must be at least 0' })
+  @Max(100, { message: 'overallRating must be at most 100' })
+  overallRating?: number;
 
   @ApiPropertyOptional({ type: UpdateIdentityDetailsDto })
   @IsOptional()
@@ -89,13 +100,13 @@ export class UpdateInspectionDto {
 
   @ApiPropertyOptional({ description: 'The UUID of the inspector.' })
   @IsOptional()
-  @IsUUID()
+  @IsUUID('4', { message: 'inspectorId must be a valid UUID v4' })
   inspectorId?: string;
 
   @ApiPropertyOptional({
     description: 'The UUID of the inspection branch city.',
   })
   @IsOptional()
-  @IsUUID()
+  @IsUUID('4', { message: 'branchCityId must be a valid UUID v4' })
   branchCityId?: string;
 }

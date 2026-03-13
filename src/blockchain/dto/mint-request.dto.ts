@@ -17,7 +17,15 @@ import {
   IsUrl,
   IsNumber,
   IsOptional,
+  IsUUID,
+  IsEnum,
+  IsDateString,
+  Min,
+  MaxLength,
+  Matches,
+  Length,
 } from 'class-validator';
+import { InspectionStatus } from '@prisma/client';
 
 /**
  * DTO for requesting the minting of an NFT for a car inspection.
@@ -31,7 +39,7 @@ export class MintRequestDto {
     description: 'The internal ID of the inspection record to mint',
     format: 'uuid',
   })
-  @IsString()
+  @IsUUID('4', { message: 'inspectionId must be a valid UUID v4' })
   @IsNotEmpty()
   inspectionId: string; // Internal ID of the inspection record
 
@@ -42,6 +50,7 @@ export class MintRequestDto {
   @ApiProperty({ description: 'Vehicle Plate Number', example: 'B 123 RI' })
   @IsString()
   @IsNotEmpty()
+  @MaxLength(20)
   vehicleNumber: string; // Vehicle plate number
 
   /**
@@ -52,7 +61,7 @@ export class MintRequestDto {
     description: 'Inspection Date (ISO String)',
     example: '2025-05-01T14:30:00Z',
   })
-  @IsString()
+  @IsDateString({}, { message: 'inspectionDate must be a valid ISO date string' })
   @IsNotEmpty()
   inspectionDate: string; // Inspection date in ISO string format
 
@@ -61,7 +70,7 @@ export class MintRequestDto {
    * Included in NFT metadata.
    */
   @ApiProperty({ description: 'ID of the Inspector user', format: 'uuid' })
-  @IsString()
+  @IsUUID('4', { message: 'inspectorId must be a valid UUID v4' })
   @IsNotEmpty()
   inspectorId: string; // ID of the inspector user
 
@@ -71,6 +80,7 @@ export class MintRequestDto {
    */
   @ApiProperty({ description: 'Vehicle Mileage', example: 15000 })
   @IsNumber()
+  @Min(0, { message: 'mileage must be a non-negative number' })
   @IsNotEmpty()
   mileage: number; // Vehicle mileage at the time of inspection
 
@@ -80,18 +90,21 @@ export class MintRequestDto {
    */
   @ApiProperty({
     description: 'Inspection Status (should be APPROVED)',
-    example: 'APPROVED',
+    enum: InspectionStatus,
+    example: InspectionStatus.APPROVED,
   })
-  @IsString()
+  @IsEnum(InspectionStatus, {
+    message: `status must be a valid InspectionStatus value: ${Object.values(InspectionStatus).join(', ')}`,
+  })
   @IsNotEmpty()
-  status: string; // Inspection status (should be APPROVED for minting)
+  status: InspectionStatus; // Inspection status (should be APPROVED for minting)
 
   /**
    * Public URL of the archived PDF report.
    * This URL points to the off-chain inspection report.
    */
   @ApiProperty({ description: 'Public URL of the archived PDF report' })
-  @IsUrl()
+  @IsUrl({}, { message: 'pdfUrl must be a valid URL' })
   @IsNotEmpty()
   pdfUrl: string; // Public URL of the archived PDF report
 
@@ -99,9 +112,14 @@ export class MintRequestDto {
    * SHA-256 Hash of the PDF report.
    * Used to verify the integrity of the off-chain report.
    */
-  @ApiProperty({ description: 'SHA-256 Hash of the PDF report' })
+  @ApiProperty({
+    description: 'SHA-256 Hash of the PDF report (64 lowercase hex characters)',
+    example: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
+  })
   @IsString()
   @IsNotEmpty()
+  @Length(64, 64, { message: 'pdfHash must be exactly 64 characters (SHA-256 hex)' })
+  @Matches(/^[a-f0-9]+$/, { message: 'pdfHash must contain only lowercase hex characters' })
   pdfHash: string; // SHA-256 hash of the PDF report
 
   @ApiProperty({
@@ -112,5 +130,6 @@ export class MintRequestDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   nftDisplayName?: string; // Optional display name for the NFT
 }

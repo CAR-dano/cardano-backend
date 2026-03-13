@@ -11,14 +11,17 @@
  */
 
 // Library imports
-import { ApiProperty } from '@nestjs/swagger'; // Import ApiProperty for Swagger documentation
+import { ApiProperty } from '@nestjs/swagger';
 import {
-  IsString, // Import IsString validator
-  IsNotEmpty, // Import IsNotEmpty validator
-  IsObject, // Import IsObject validator
-  ValidateNested, // Import ValidateNested validator for nested objects
+  IsString,
+  IsNotEmpty,
+  IsObject,
+  ValidateNested,
+  Matches,
+  MaxLength,
+  Length,
 } from 'class-validator';
-import { Type } from 'class-transformer'; // Import Type for class-transformer
+import { Transform, Type } from 'class-transformer';
 
 /**
  * DTO for inspection data to be included in NFT metadata.
@@ -31,19 +34,22 @@ class InspectionDataDto {
     description: "The vehicle's license plate number.",
     example: 'B 1234 XYZ',
   })
-  @IsString() // Validate that vehicleNumber is a string
-  @IsNotEmpty() // Validate that vehicleNumber is not empty
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(20)
   vehicleNumber: string;
 
   /**
-   * The SHA-256 hash of the PDF file content.
+   * The SHA-256 hash of the PDF file content (64 lowercase hex characters).
    */
   @ApiProperty({
     description: 'The SHA-256 hash of the PDF file content.',
-    example: 'a1b2c3...',
+    example: 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2',
   })
-  @IsString() // Validate that pdfHash is a string
-  @IsNotEmpty() // Validate that pdfHash is not empty
+  @IsString()
+  @IsNotEmpty()
+  @Length(64, 64, { message: 'pdfHash must be exactly 64 characters (SHA-256 hex)' })
+  @Matches(/^[a-f0-9]+$/, { message: 'pdfHash must contain only lowercase hex characters' })
   pdfHash: string;
 
   /**
@@ -53,8 +59,9 @@ class InspectionDataDto {
     description: 'The display name for the NFT.',
     example: 'Inspeksi Mobil 2025',
   })
-  @IsString() // Validate that nftDisplayName is a string
-  @IsNotEmpty() // Validate that nftDisplayName is not empty
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
   nftDisplayName: string;
 }
 
@@ -70,8 +77,15 @@ export class BuildMintTxDto {
       'The Cardano address (bech32) of the admin who will sign the transaction.',
     example: 'addr_test1q...',
   })
-  @IsString() // Validate that adminAddress is a string
-  @IsNotEmpty() // Validate that adminAddress is not empty
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
+  @Matches(/^(addr1|addr_test1|stake1|stake_test1)[a-z0-9]+$/, {
+    message: 'adminAddress must be a valid Cardano bech32 address',
+  })
   adminAddress: string;
 
   /**
@@ -80,8 +94,8 @@ export class BuildMintTxDto {
   @ApiProperty({
     description: 'The inspection data to be included in the NFT metadata.',
   })
-  @IsObject() // Validate that inspectionData is an object
-  @ValidateNested() // Ensures the nested object is also validated
-  @Type(() => InspectionDataDto) // Required for class-validator to know how to validate the nested object
+  @IsObject()
+  @ValidateNested()
+  @Type(() => InspectionDataDto)
   inspectionData: InspectionDataDto;
 }

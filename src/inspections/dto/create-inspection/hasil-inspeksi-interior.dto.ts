@@ -1,143 +1,51 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsNumber,
   IsString,
   IsNotEmpty,
   IsArray,
+  ArrayMaxSize,
   IsOptional,
   MaxLength,
+  Min,
+  Max,
 } from 'class-validator';
+import { sanitizeStringArray } from '../../../common/sanitize.helper';
 
 export class HasilInspeksiInteriorDto {
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  stir: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) stir: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) remTangan: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) pedal: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) switchWiper: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) lampuHazard: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) switchLampu: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) panelDashboard: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) pembukaKapMesin: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) pembukaBagasi: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) jokDepan: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) aromaInterior: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) handlePintu: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) consoleBox: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) spionTengah: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) tuasPersneling: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) jokBelakang: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) panelIndikator: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) switchLampuInterior: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) karpetDasar: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) klakson: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) sunVisor: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) tuasTangkiBensin: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) sabukPengaman: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) trimInterior: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) plafon: number;
 
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  remTangan: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  pedal: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  switchWiper: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  lampuHazard: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  switchLampu: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  panelDashboard: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  pembukaKapMesin: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  pembukaBagasi: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  jokDepan: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  aromaInterior: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  handlePintu: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  consoleBox: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  spionTengah: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  tuasPersneling: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  jokBelakang: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  panelIndikator: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  switchLampuInterior: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  karpetDasar: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  klakson: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  sunVisor: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  tuasTangkiBensin: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  sabukPengaman: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  trimInterior: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  plafon: number;
-
-  @ApiProperty()
+  @ApiProperty({ required: false })
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
   @MaxLength(1000, { each: true })
   @IsOptional()
-  catatan: string[];
+  @Transform(({ value }: { value: unknown }) => sanitizeStringArray(value))
+  catatan?: string[];
 }

@@ -1384,6 +1384,7 @@ export class UsersService {
           id: randomUUID(),
           email: createAdminDto.email.toLowerCase(),
           username: createAdminDto.username,
+          name: createAdminDto.name,
           password: hashedPassword,
           role: createAdminDto.role, // Assign role from DTO
         },

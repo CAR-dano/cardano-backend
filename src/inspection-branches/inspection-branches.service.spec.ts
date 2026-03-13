@@ -86,7 +86,7 @@ describe('InspectionBranchesService', () => {
   // -------------------------------------------------------------------------
   describe('create', () => {
     it('should create a branch with code derived from first 3 chars of city', async () => {
-      const dto = { city: 'Yogyakarta', isActive: true };
+      const dto = { city: 'Yogyakarta', code: 'YOG', isActive: true };
       const created = makeBranch();
       prismaMock.inspectionBranchCity.create.mockResolvedValue(created);
 
@@ -99,7 +99,7 @@ describe('InspectionBranchesService', () => {
     });
 
     it('should invalidate the cache after creation', async () => {
-      const dto = { city: 'Solo', isActive: false };
+      const dto = { city: 'Solo', code: 'SOL', isActive: false };
       prismaMock.inspectionBranchCity.create.mockResolvedValue(
         makeBranch({ city: 'Solo', code: 'SOL' }),
       );
@@ -110,7 +110,7 @@ describe('InspectionBranchesService', () => {
     });
 
     it('should uppercase the 3-char code', async () => {
-      const dto = { city: 'bandung', isActive: true };
+      const dto = { city: 'bandung', code: 'BAN', isActive: true };
       prismaMock.inspectionBranchCity.create.mockResolvedValue(
         makeBranch({ city: 'bandung', code: 'BAN' }),
       );

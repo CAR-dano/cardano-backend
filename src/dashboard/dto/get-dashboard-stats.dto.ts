@@ -1,5 +1,17 @@
-import { IsString, IsOptional, IsDateString } from 'class-validator';
+/*
+ * --------------------------------------------------------------------------
+ * File: get-dashboard-stats.dto.ts
+ * Project: car-dano-backend
+ * Copyright © 2025 PT. Inspeksi Mobil Jogja
+ * --------------------------------------------------------------------------
+ */
+import { Transform } from 'class-transformer';
+import { IsString, IsOptional, IsDateString, Matches, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+
+// IANA timezone format: Region/City or abbreviations like UTC, EST, etc.
+// This regex covers the vast majority of valid IANA tz names.
+const IANA_TZ_REGEX = /^[A-Za-z]+([/+\-][A-Za-z0-9_]+)*$/;
 
 export class GetDashboardStatsDto {
   @ApiProperty({
@@ -30,11 +42,19 @@ export class GetDashboardStatsDto {
 
   @ApiProperty({
     description:
-      'Timezone for date calculations (e.g., "Asia/Jakarta"). Defaults to "Asia/Jakarta".',
+      'IANA timezone for date calculations (e.g., "Asia/Jakarta"). Defaults to "Asia/Jakarta".',
     example: 'Asia/Jakarta',
     required: false,
   })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString({ message: 'timezone must be a string' })
+  @MaxLength(50, { message: 'timezone must not exceed 50 characters' })
+  @Matches(IANA_TZ_REGEX, {
+    message:
+      'timezone must be a valid IANA timezone identifier (e.g. Asia/Jakarta, UTC, America/New_York)',
+  })
   timezone?: string = 'Asia/Jakarta';
 }

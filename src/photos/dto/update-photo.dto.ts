@@ -16,6 +16,8 @@ import {
   IsNotEmpty,
   MaxLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { sanitizeString } from '../../common/sanitize.helper';
 
 export class UpdatePhotoDto {
   /**
@@ -28,6 +30,7 @@ export class UpdatePhotoDto {
     example: 'Baret Pintu Kanan (Close Up)',
   })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @IsNotEmpty({ message: 'Label cannot be empty if provided' })
   @MaxLength(255)
@@ -59,6 +62,7 @@ export class UpdatePhotoDto {
     default: 'general',
   })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @MaxLength(255)
   category?: string;

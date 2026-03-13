@@ -60,6 +60,7 @@
     "puppeteer": "^24.8.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sanitize-html": "^2.17.1",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^13.0.0"
   },
@@ -81,6 +82,7 @@
     "@types/passport-google-oauth20": "^2.0.16",
     "@types/passport-jwt": "^4.0.1",
     "@types/passport-local": "^1.0.38",
+    "@types/sanitize-html": "^2.16.1",
     "@types/supertest": "^6.0.2",
     "@types/uuid": "^11.0.0",
     "eslint": "^9.18.0",

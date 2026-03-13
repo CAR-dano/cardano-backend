@@ -1,142 +1,41 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsNumber,
-  IsString,
-  IsArray,
-  IsOptional,
-  MaxLength,
-} from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsNumber, IsString, IsArray, ArrayMaxSize, IsOptional, MaxLength, Min, Max } from 'class-validator';
+import { sanitizeStringArray } from '../../../common/sanitize.helper';
 
 export class UpdateHasilInspeksiInteriorDto {
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  stir?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  remTangan?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  pedal?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  switchWiper?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  lampuHazard?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  switchLampu?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  panelDashboard?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  pembukaKapMesin?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  pembukaBagasi?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  jokDepan?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  aromaInterior?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  handlePintu?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  consoleBox?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  spionTengah?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  tuasPersneling?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  jokBelakang?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  panelIndikator?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  switchLampuInterior?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  karpetDasar?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  klakson?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  sunVisor?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  tuasTangkiBensin?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  sabukPengaman?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  trimInterior?: number;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  plafon?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) stir?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) remTangan?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) pedal?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) switchWiper?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) lampuHazard?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) switchLampu?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) panelDashboard?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) pembukaKapMesin?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) pembukaBagasi?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) jokDepan?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) aromaInterior?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) handlePintu?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) consoleBox?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) spionTengah?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) tuasPersneling?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) jokBelakang?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) panelIndikator?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) switchLampuInterior?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) karpetDasar?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) klakson?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) sunVisor?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) tuasTangkiBensin?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) sabukPengaman?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) trimInterior?: number;
+  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(10) plafon?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
   @MaxLength(1000, { each: true })
+  @Transform(({ value }: { value: unknown }) => sanitizeStringArray(value))
   catatan?: string[];
 }

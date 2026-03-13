@@ -12,10 +12,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
   IsArray,
-  IsString,
   IsNotEmpty,
   ArrayMinSize,
   ArrayMaxSize,
+  IsUUID,
 } from 'class-validator';
 
 /**
@@ -37,7 +37,7 @@ export class BulkApproveInspectionDto {
     maxItems: 20, // Limit bulk operations to prevent server overload
   })
   @IsArray()
-  @IsString({ each: true })
+  @IsUUID('4', { each: true, message: 'each inspectionId must be a valid UUID v4' })
   @IsNotEmpty({ each: true })
   @ArrayMinSize(1, { message: 'At least one inspection ID must be provided' })
   @ArrayMaxSize(20, {

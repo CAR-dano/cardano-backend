@@ -288,7 +288,7 @@ export class InspectionsController {
   })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async update(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() updateInspectionDto: UpdateInspectionDto,
     @GetUser('id') userId: string,
     @GetUser('role') userRole: Role,
@@ -370,7 +370,7 @@ export class InspectionsController {
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async addMultiplePhotos(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() addBatchDto: AddMultiplePhotosDto,
     @UploadedFiles(new FileValidationPipe())
     files: Array<Express.Multer.File>,
@@ -438,7 +438,7 @@ export class InspectionsController {
   @ApiResponse({ status: 404, description: 'Inspection not found.' })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async addSinglePhoto(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() addSingleDto: AddSinglePhotoDto,
     @UploadedFile(new FileValidationPipe()) file: Express.Multer.File,
   ): Promise<PhotoResponseDto> {
@@ -523,7 +523,7 @@ export class InspectionsController {
   })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async getPhotosForInspection(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<PhotoResponseDto[]> {
     this.logger.log(`[GET /inspections/${id}/photos] Request received`);
     const photos = await this.photosService.findForInspection(id);
@@ -596,7 +596,7 @@ export class InspectionsController {
   })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async updatePhoto(
-    @Param('id') inspectionId: string,
+    @Param('id', ParseUUIDPipe) inspectionId: string,
     @Param('photoId', ParseUUIDPipe) photoId: string,
     @Body() updatePhotoDto: UpdatePhotoDto, // Contains optional label/needAttention
     @GetUser('id') userId: string,
@@ -942,7 +942,7 @@ export class InspectionsController {
   })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async findOne(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @GetUser('role') realUserRole: Role,
   ): Promise<InspectionResponseDto> {
     const inspection = await this.inspectionsService.findOne(id, realUserRole);
@@ -997,7 +997,7 @@ export class InspectionsController {
   })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async approveInspection(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @GetUser('id') reviewerId: string,
     @Req() req: Request, // Inject Request object
   ): Promise<InspectionResponseDto> {
@@ -1136,7 +1136,7 @@ export class InspectionsController {
     description: 'User does not have the required permissions.',
   })
   async processToArchive(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
     // Service will handle fetching URL, converting to PDF, saving PDF, hash, blockchain sim, update status
@@ -1191,7 +1191,7 @@ export class InspectionsController {
     description: 'Internal Server Error.',
   })
   async buildArchiveTransaction(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() buildMintRequestDto: BuildMintRequestDto,
   ): Promise<BuildMintTxResponseDto> {
     if (!buildMintRequestDto.adminAddress) {
@@ -1248,7 +1248,7 @@ export class InspectionsController {
     description: 'Internal Server Error.',
   })
   async confirmArchive(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @Body() confirmDto: ConfirmMintDto,
   ): Promise<InspectionResponseDto> {
     const inspection = await this.inspectionsService.confirmArchive(
@@ -1302,7 +1302,7 @@ export class InspectionsController {
   })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async deactivateArchive(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
     const inspection = await this.inspectionsService.deactivateArchive(
@@ -1356,7 +1356,7 @@ export class InspectionsController {
   })
   // @ApiBearerAuth('NamaSkemaKeamanan') // Add if JWT guard is enabled
   async activateArchive(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
     @GetUser('id') userId: string,
   ): Promise<InspectionResponseDto> {
     const inspection = await this.inspectionsService.activateArchive(

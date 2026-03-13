@@ -766,7 +766,7 @@ export class InspectionsService {
 
           vehiclePlateNumber: createInspectionDto.vehiclePlateNumber,
           inspectionDate: inspectionDateObj,
-          overallRating: createInspectionDto.overallRating,
+          overallRating: createInspectionDto.overallRating != null ? String(createInspectionDto.overallRating) : undefined,
 
           // Update identityDetails to store names and customer name
           identityDetails: {
@@ -2059,9 +2059,9 @@ export class InspectionsService {
                   updateData.inspectionDate = new Date(value);
                 } else if (
                   fieldName === 'overallRating' &&
-                  typeof value === 'string'
+                  typeof value === 'number'
                 ) {
-                  updateData.overallRating = value;
+                  updateData.overallRating = String(value);
                 }
               }
             } else if ((jsonUpdatableFields as string[]).includes(fieldName)) {

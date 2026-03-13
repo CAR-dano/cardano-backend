@@ -9,7 +9,7 @@
  * --------------------------------------------------------------------------
  */
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsJSON } from 'class-validator';
+import { IsString, IsNotEmpty, IsJSON, MaxLength } from 'class-validator';
 
 export class AddMultiplePhotosDto {
   /**
@@ -30,6 +30,8 @@ export class AddMultiplePhotosDto {
   @IsString()
   @IsNotEmpty()
   @IsJSON()
+  // Generous ceiling: 20 photos × ~200 chars/entry + overhead = ~5000 chars
+  @MaxLength(5000, { message: 'metadata JSON string must not exceed 5000 characters' })
   metadata: string;
 
   // 'photos' field (files) handled by FilesInterceptor

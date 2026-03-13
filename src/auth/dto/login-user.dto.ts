@@ -5,18 +5,16 @@
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
  * Description: Data Transfer Object (DTO) for user login requests.
- * Defines the structure of the data expected from the client when a user attempts to log in
- * using either their email or username and password.
  * --------------------------------------------------------------------------
  */
 
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsString, IsNotEmpty, MaxLength } from 'class-validator';
 
 export class LoginUserDto {
   /**
    * The user's registered email address OR username used for login.
-   * Required for login.
    * @example "newuser@example.com" or "newuser123"
    */
   @ApiProperty({
@@ -24,13 +22,16 @@ export class LoginUserDto {
     example: 'user@example.com',
     required: true,
   })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @IsNotEmpty()
-  loginIdentifier: string; // Use a generic name to accept email or username
+  @MaxLength(255)
+  loginIdentifier: string;
 
   /**
    * The user's password.
-   * Required for login.
    * @example "P@sswOrd123!"
    */
   @ApiProperty({
@@ -42,5 +43,7 @@ export class LoginUserDto {
   })
   @IsString()
   @IsNotEmpty()
+  // MaxLength prevents bcrypt DoS attack via extremely long password strings
+  @MaxLength(72, { message: 'password must not exceed 72 characters' })
   password: string;
 }

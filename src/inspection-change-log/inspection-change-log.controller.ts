@@ -10,7 +10,7 @@
  * --------------------------------------------------------------------------
  */
 
-import { Controller, Get, Delete, Param, UseGuards, HttpStatus, HttpCode } from '@nestjs/common';
+import { Controller, Get, Delete, Param, UseGuards, HttpStatus, HttpCode, ParseUUIDPipe } from '@nestjs/common';
 import { InspectionChangeLogService } from './inspection-change-log.service';
 import { InspectionChangeLog, Role } from '@prisma/client';
 import {
@@ -38,7 +38,7 @@ export class InspectionChangeLogController {
    * Retrieves change logs for a specific inspection.
    * Restricted to ADMIN and REVIEWER roles only.
    *
-   * @param inspectionId The ID of the inspection.
+   * @param inspectionId The UUID of the inspection.
    * @returns A promise that resolves to an array of InspectionChangeLog objects.
    * @throws UnauthorizedException if the user is not authenticated.
    * @throws ForbiddenException if the user does not have the required role.
@@ -55,7 +55,8 @@ export class InspectionChangeLogController {
   @ApiParam({
     name: 'inspectionId',
     type: String,
-    description: 'The ID of the inspection',
+    format: 'uuid',
+    description: 'The UUID of the inspection',
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -75,7 +76,7 @@ export class InspectionChangeLogController {
     description: 'Inspection not found.',
   })
   async findByInspectionId(
-    @Param('inspectionId') inspectionId: string,
+    @Param('inspectionId', ParseUUIDPipe) inspectionId: string,
   ): Promise<InspectionChangeLog[]> {
     return this.inspectionChangeLogService.findByInspectionId(inspectionId);
   }
@@ -84,8 +85,8 @@ export class InspectionChangeLogController {
    * Deletes a change log for a specific inspection.
    * Restricted to ADMIN, REVIEWER, and SUPERADMIN roles.
    *
-   * @param inspectionId The ID of the inspection.
-   * @param changeLogId The ID of the change log.
+   * @param inspectionId The UUID of the inspection.
+   * @param changeLogId The UUID of the change log.
    * @returns A promise that resolves when the change log is successfully deleted.
    * @throws UnauthorizedException if the user is not authenticated.
    * @throws ForbiddenException if the user does not have the required role.
@@ -103,12 +104,14 @@ export class InspectionChangeLogController {
   @ApiParam({
     name: 'inspectionId',
     type: String,
-    description: 'The ID of the inspection',
+    format: 'uuid',
+    description: 'The UUID of the inspection',
   })
   @ApiParam({
     name: 'changeLogId',
     type: String,
-    description: 'The ID of the change log entry to delete',
+    format: 'uuid',
+    description: 'The UUID of the change log entry to delete',
   })
   @ApiResponse({
     status: HttpStatus.NO_CONTENT,
@@ -127,8 +130,8 @@ export class InspectionChangeLogController {
     description: 'Change log entry not found.',
   })
   async remove(
-    @Param('inspectionId') inspectionId: string,
-    @Param('changeLogId') changeLogId: string,
+    @Param('inspectionId', ParseUUIDPipe) inspectionId: string,
+    @Param('changeLogId', ParseUUIDPipe) changeLogId: string,
   ): Promise<void> {
     await this.inspectionChangeLogService.remove(inspectionId, changeLogId);
   }

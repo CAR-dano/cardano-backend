@@ -10,43 +10,43 @@ import { UpdateHasilInspeksiMesinDto } from './update-hasil-inspeksi-mesin.dto';
 import { UpdateHasilInspeksiInteriorDto } from './update-hasil-inspeksi-interior.dto';
 
 export class UpdateDetailedAssessmentDto {
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: () => UpdateTestDriveDto })
   @IsOptional()
   @ValidateNested()
   @Type(() => UpdateTestDriveDto)
   testDrive?: UpdateTestDriveDto;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: () => UpdateBanDanKakiKakiDto })
   @IsOptional()
   @ValidateNested()
   @Type(() => UpdateBanDanKakiKakiDto)
   banDanKakiKaki?: UpdateBanDanKakiKakiDto;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: () => UpdateHasilInspeksiEksteriorDto })
   @IsOptional()
   @ValidateNested()
   @Type(() => UpdateHasilInspeksiEksteriorDto)
   hasilInspeksiEksterior?: UpdateHasilInspeksiEksteriorDto;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: () => UpdateToolsTestDto })
   @IsOptional()
   @ValidateNested()
   @Type(() => UpdateToolsTestDto)
   toolsTest?: UpdateToolsTestDto;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: () => UpdateFiturDto })
   @IsOptional()
   @ValidateNested()
   @Type(() => UpdateFiturDto)
   fitur?: UpdateFiturDto;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: () => UpdateHasilInspeksiMesinDto })
   @IsOptional()
   @ValidateNested()
   @Type(() => UpdateHasilInspeksiMesinDto)
   hasilInspeksiMesin?: UpdateHasilInspeksiMesinDto;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ type: () => UpdateHasilInspeksiInteriorDto })
   @IsOptional()
   @ValidateNested()
   @Type(() => UpdateHasilInspeksiInteriorDto)

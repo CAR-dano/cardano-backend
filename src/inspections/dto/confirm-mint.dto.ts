@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, Length, Matches } from 'class-validator';
 
 /**
  * DTO untuk endpoint yang mengonfirmasi bahwa proses minting telah berhasil dikirim
@@ -13,6 +13,8 @@ export class ConfirmMintDto {
   })
   @IsString()
   @IsNotEmpty()
+  @Length(64, 64, { message: 'txHash must be exactly 64 characters (Cardano transaction hash)' })
+  @Matches(/^[a-f0-9]+$/, { message: 'txHash must contain only lowercase hex characters' })
   txHash: string;
 
   @ApiProperty({
@@ -23,5 +25,8 @@ export class ConfirmMintDto {
   })
   @IsString()
   @IsNotEmpty()
+  // Cardano asset IDs are hex-encoded: policy ID (56 chars) + asset name (0–64 chars) = 56–120 hex chars
+  @Length(56, 120, { message: 'nftAssetId must be between 56 and 120 characters (Cardano asset ID)' })
+  @Matches(/^[a-f0-9]+$/, { message: 'nftAssetId must contain only lowercase hex characters' })
   nftAssetId: string;
 }

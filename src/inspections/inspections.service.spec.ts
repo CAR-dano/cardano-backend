@@ -35,7 +35,7 @@ const mockInspection = {
   branchCityId: 'mock-branch-id',
   vehiclePlateNumber: 'AB 1234 CD',
   inspectionDate: new Date('2025-08-13'),
-  overallRating: 'GOOD',
+  overallRating: 85,
   status: InspectionStatus.NEED_REVIEW,
   identityDetails: {
     namaInspektor: 'Mock Inspector',
@@ -517,7 +517,7 @@ describe('InspectionsService', () => {
   // ─────────────────────────────────────────────────────────────────────────
   describe('update', () => {
     const mockUpdateDto = {
-      overallRating: 'VERY GOOD',
+      overallRating: 95,
     };
 
     it('should log changes and return message when fields differ', async () => {
@@ -545,7 +545,7 @@ describe('InspectionsService', () => {
 
       const result = await service.update(
         mockInspectionId,
-        { overallRating: 'GOOD' }, // Same value as mockInspection
+        { overallRating: 85 }, // Same value as mockInspection
         mockReviewerId,
         Role.REVIEWER,
       );
@@ -650,7 +650,7 @@ describe('InspectionsService', () => {
     const mockCreateDto = {
       vehiclePlateNumber: 'AB 1234 CD',
       inspectionDate: '2025-08-13',
-      overallRating: 'GOOD',
+      overallRating: 85,
       identityDetails: {
         namaInspektor: mockInspectorId,
         namaCustomer: 'Mock Customer',
@@ -1270,7 +1270,7 @@ describe('InspectionsService', () => {
     it('should apply change logs and call PDF generation on full happy path', async () => {
       const inspectionAfterChanges = {
         ...mockInspection,
-        overallRating: 'VERY GOOD',
+        overallRating: 95,
         vehicleData: { merekKendaraan: 'Toyota', tipeKendaraan: 'Veloz' },
         pretty_id: 'YOG-13082025-001',
       };
@@ -1362,7 +1362,7 @@ describe('InspectionsService', () => {
     it('should call rollback and throw InternalServerErrorException if PDF generation fails', async () => {
       const inspectionAfterChanges = {
         ...mockInspection,
-        overallRating: 'VERY GOOD',
+        overallRating: 95,
         pretty_id: 'YOG-13082025-001',
       };
       mockPrismaService.$transaction.mockImplementation(async (callback) => {

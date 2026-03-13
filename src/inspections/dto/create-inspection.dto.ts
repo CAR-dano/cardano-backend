@@ -5,11 +5,6 @@
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
  * Description: Data Transfer Object (DTO) used for creating a new inspection record.
- * This DTO defines the expected structure of the data sent in the request body
- * when using the `POST /inspections` endpoint (expecting `application/json`).
- * It includes basic data fields and properties intended to hold structured data
- * (parsed from JSON) related to different sections of the inspection form.
- * Minimal validation is applied at this stage. File uploads are handled separately.
  * --------------------------------------------------------------------------
  */
 import {
@@ -20,10 +15,13 @@ import {
   MaxLength,
   IsNotEmpty,
   IsOptional,
+  IsNumber,
+  Min,
+  Max,
 } from 'class-validator';
 
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IdentityDetailsDto } from './create-inspection/identity-details.dto';
 import { VehicleDataDto } from './create-inspection/vehicle-data.dto';
 import { BodyPaintThicknessDto } from './create-inspection/body-paint-thickness.dto';
@@ -43,14 +41,16 @@ export class CreateInspectionDto {
     example: 'AB 1 DQ',
     description: 'The license plate number of the inspected vehicle.',
   })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toUpperCase() : value,
+  )
   @IsString()
   @IsNotEmpty()
-  @MaxLength(255)
+  @MaxLength(20)
   vehiclePlateNumber: string;
 
   /**
-   * The date and time when the inspection was performed.
-   * Expected as an ISO 8601 format string in the request body.
+   * The date and time when the inspection was performed (ISO 8601).
    * @example "2025-07-05T14:30:00Z"
    */
   @ApiProperty({
@@ -63,24 +63,24 @@ export class CreateInspectionDto {
   inspectionDate: string;
 
   /**
-   * The overall rating assigned to the vehicle based on the inspection.
-   * @example "8"
+   * The overall rating assigned to the vehicle (0–100).
+   * Sent as a number or a numeric string; coerced to number by enableImplicitConversion.
+   * @example 75
    */
   @ApiProperty({
-    example: '8',
+    example: 75,
     description:
-      'The overall rating assigned to the vehicle based on the inspection.',
+      'The overall rating assigned to the vehicle based on the inspection (0–100).',
   })
-  @IsString()
+  @Type(() => Number)
+  @IsNumber({}, { message: 'overallRating must be a number' })
   @IsNotEmpty()
-  @MaxLength(255)
-  overallRating: string;
+  @Min(0, { message: 'overallRating must be at least 0' })
+  @Max(100, { message: 'overallRating must be at most 100' })
+  overallRating: number;
 
   /**
-   * Object containing details from the "Identitas" section of the inspection form.
-   * Expected to be a valid JavaScript object after potential parsing from a JSON string by NestJS pipes.
-   * Contains UUIDs for the inspector (`namaInspektor`) and the inspection branch city (`cabangInspeksi`).
-   * @example { "namaInspektor": "ac5ae369-a422-426f-b01e-fad5476edda5", "namaCustomer": "Maul", "cabangInspeksi": "ac5ae369-a422-426f-b01e-fad5476edda5" }
+   * Object containing details from the "Identitas" section.
    */
   @ApiProperty({
     example: {
@@ -89,14 +89,14 @@ export class CreateInspectionDto {
       cabangInspeksi: 'ac5ae369-a422-426f-b01e-fad5476edda5',
     },
     description:
-      'Object containing details from the "Identitas" section of the inspection form, with UUIDs for inspector and branch city.',
+      'Object containing details from the "Identitas" section of the inspection form.',
   })
   @Type(() => IdentityDetailsDto)
   @ValidateNested()
   identityDetails: IdentityDetailsDto;
 
   /**
-   * Object containing details from the "Data Kendaraan" section of the inspection form.
+   * Object containing details from the "Data Kendaraan" section.
    */
   @ApiProperty({
     description:
@@ -107,18 +107,18 @@ export class CreateInspectionDto {
   vehicleData: VehicleDataDto;
 
   /**
-   * Object containing details from the "Kelengkapan" section(s) of the inspection form.
+   * Object containing details from the "Kelengkapan" section.
    */
   @ApiProperty({
     description:
-      'Object containing details from the "Kelengkapan" section(s) of the inspection form.',
+      'Object containing details from the "Kelengkapan" section of the inspection form.',
   })
   @Type(() => EquipmentChecklistDto)
   @ValidateNested()
   equipmentChecklist: EquipmentChecklistDto;
 
   /**
-   * Object containing details from the "Hasil Inspeksi" summary section of the form.
+   * Object containing details from the "Hasil Inspeksi" summary section.
    */
   @ApiProperty({
     description:
@@ -129,18 +129,18 @@ export class CreateInspectionDto {
   inspectionSummary: InspectionSummaryDto;
 
   /**
-   * Object containing details from the "Penilaian" section(s) of the inspection form.
+   * Object containing details from the "Penilaian" section.
    */
   @ApiProperty({
     description:
-      'Object containing details from the "Penilaian" section(s) of the inspection form.',
+      'Object containing details from the "Penilaian" section of the inspection form.',
   })
   @Type(() => DetailedAssessmentDto)
   @ValidateNested()
   detailedAssessment: DetailedAssessmentDto;
 
   /**
-   * Object containing details from the "Body Paint Thickness" test section of the form.
+   * Object containing details from the "Body Paint Thickness" section.
    */
   @ApiProperty({
     description:
@@ -151,22 +151,12 @@ export class CreateInspectionDto {
   bodyPaintThickness: BodyPaintThicknessDto;
 
   /**
-   * Map of note field paths to their desired font sizes in the report.
+   * Map of note field paths to their desired font sizes in the PDF report.
    */
   @ApiProperty({
     example: {
       'inspectionSummary.interiorNotes': 12,
-      'inspectionSummary.eksteriorNotes': 12,
-      'inspectionSummary.kakiKakiNotes': 12,
-      'inspectionSummary.mesinNotes': 12,
       'inspectionSummary.deskripsiKeseluruhan': 12,
-      'detailedAssessment.testDrive.catatan': 12,
-      'detailedAssessment.banDanKakiKaki.catatan': 12,
-      'detailedAssessment.hasilInspeksiEksterior.catatan': 12,
-      'detailedAssessment.toolsTest.catatan': 12,
-      'detailedAssessment.fitur.catatan': 12,
-      'detailedAssessment.hasilInspeksiMesin.catatan': 12,
-      'detailedAssessment.hasilInspeksiInterior.catatan': 12,
     },
     description:
       'Map of note field paths to their desired font sizes in the report.',
@@ -174,7 +164,4 @@ export class CreateInspectionDto {
   @IsOptional()
   @IsObject()
   notesFontSizes?: object;
-
-  // Note: Files (like 'photos') are not included in this DTO as they are handled
-  // by file upload interceptors (e.g., FilesInterceptor) in the controller method.
 }

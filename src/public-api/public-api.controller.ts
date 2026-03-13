@@ -22,6 +22,7 @@ import {
   Logger,
   InternalServerErrorException,
   Param,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 
 // Swagger documentation modules
@@ -242,7 +243,9 @@ export class PublicApiController {
     status: HttpStatus.INTERNAL_SERVER_ERROR,
     description: 'Internal Server Error.',
   })
-  async findOne(@Param('id') id: string): Promise<InspectionResponseDto> {
+  async findOne(
+    @Param('id', ParseUUIDPipe) id: string,
+  ): Promise<InspectionResponseDto> {
     // Retrieve the inspection using the PublicApiService
     const inspection = await this.publicApiService.findOne(id);
     // Map the retrieved inspection entity to InspectionResponseDto
@@ -279,7 +282,7 @@ export class PublicApiController {
     description: 'Inspection not found.',
   })
   async findOneWithoutDocuments(
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<InspectionResponseDto> {
     const inspection = await this.publicApiService.findOneWithoutDocuments(id);
     return new InspectionResponseDto(inspection);
@@ -324,7 +327,7 @@ export class PublicApiController {
     description: 'Internal Server Error.',
   })
   async findChangesByInspectionId(
-    @Param('id') inspectionId: string,
+    @Param('id', ParseUUIDPipe) inspectionId: string,
   ): Promise<InspectionChangeLog[]> {
     // Retrieve the change logs for the specified inspection ID using PublicApiService
     return this.publicApiService.findChangesByInspectionId(inspectionId);

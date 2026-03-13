@@ -1,168 +1,56 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsNumber,
   IsString,
   IsNotEmpty,
   IsArray,
+  ArrayMaxSize,
   IsOptional,
   MaxLength,
+  Min,
+  Max,
 } from 'class-validator';
+import { sanitizeStringArray } from '../../../common/sanitize.helper';
 
 export class HasilInspeksiEksteriorDto {
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  bumperDepan: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) bumperDepan: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) kapMesin: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) lampuUtama: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) panelAtap: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) grill: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) lampuFoglamp: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) kacaBening: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) wiperBelakang: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) bumperBelakang: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) lampuBelakang: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) trunklid: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) kacaDepan: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) fenderKanan: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) quarterPanelKanan: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) pintuBelakangKanan: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) spionKanan: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) lisplangKanan: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) sideSkirtKanan: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) daunWiper: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) pintuBelakang: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) fenderKiri: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) quarterPanelKiri: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) pintuDepan: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) kacaJendelaKanan: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) pintuBelakangKiri: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) spionKiri: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) pintuDepanKiri: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) kacaJendelaKiri: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) lisplangKiri: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) sideSkirtKiri: number;
 
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  kapMesin: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  lampuUtama: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  panelAtap: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  grill: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  lampuFoglamp: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  kacaBening: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  wiperBelakang: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  bumperBelakang: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  lampuBelakang: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  trunklid: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  kacaDepan: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  fenderKanan: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  quarterPanelKanan: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  pintuBelakangKanan: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  spionKanan: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  lisplangKanan: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  sideSkirtKanan: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  daunWiper: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  pintuBelakang: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  fenderKiri: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  quarterPanelKiri: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  pintuDepan: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  kacaJendelaKanan: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  pintuBelakangKiri: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  spionKiri: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  pintuDepanKiri: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  kacaJendelaKiri: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  lisplangKiri: number;
-
-  @ApiProperty()
-  @IsNumber()
-  @IsNotEmpty()
-  sideSkirtKiri: number;
-
-  @ApiProperty()
+  @ApiProperty({ required: false })
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
   @MaxLength(1000, { each: true })
   @IsOptional()
-  catatan: string[];
+  @Transform(({ value }: { value: unknown }) => sanitizeStringArray(value))
+  catatan?: string[];
 }

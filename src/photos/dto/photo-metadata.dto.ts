@@ -9,9 +9,12 @@
  * --------------------------------------------------------------------------
  */
 import { IsString, IsOptional, MaxLength, IsBoolean } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { sanitizeString } from '../../common/sanitize.helper';
 
 export class PhotoMetadataDto {
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @MaxLength(255)
   label?: string;
@@ -21,6 +24,7 @@ export class PhotoMetadataDto {
   needAttention?: boolean;
 
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @MaxLength(255)
   category?: string;

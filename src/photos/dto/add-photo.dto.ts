@@ -15,6 +15,8 @@ import {
   IsBooleanString,
   MaxLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { sanitizeString } from '../../common/sanitize.helper';
 
 export class AddPhotoDto {
   /**
@@ -29,6 +31,7 @@ export class AddPhotoDto {
     default: 'Tambahan',
   })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @MaxLength(255)
   label?: string;
@@ -59,6 +62,7 @@ export class AddPhotoDto {
     default: 'general',
   })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @MaxLength(255)
   category?: string;

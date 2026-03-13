@@ -5,12 +5,11 @@
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
  * Description: Defines the data transfer object (DTO) for updating an
- * existing inspector user. This DTO includes properties that can be
- * modified by an admin, such as username, email, and wallet address.
- * It uses class-validator decorators to enforce validation rules.
+ * existing inspector user.
  * --------------------------------------------------------------------------
  */
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsString,
   IsEmail,
@@ -19,7 +18,10 @@ import {
   Matches,
   Length,
   IsBoolean,
+  IsUUID,
+  MaxLength,
 } from 'class-validator';
+import { sanitizeString } from '../../common/sanitize.helper';
 
 export class UpdateInspectorDto {
   @ApiProperty({
@@ -28,17 +30,26 @@ export class UpdateInspectorDto {
     required: false,
   })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) => sanitizeString(value) || undefined)
   @IsString()
+  @MaxLength(255)
   name?: string;
 
   @ApiProperty({
-    description: "The inspector's username",
-    example: 'john.doe',
+    description: "The inspector's username (alphanumeric + underscores, 3-50 chars)",
+    example: 'john_doe',
     required: false,
   })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
   @MinLength(3)
+  @MaxLength(50)
+  @Matches(/^[a-zA-Z0-9_]+$/, {
+    message: 'username can only contain alphanumeric characters and underscores.',
+  })
   username?: string;
 
   @ApiProperty({
@@ -47,16 +58,28 @@ export class UpdateInspectorDto {
     required: false,
   })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim().toLowerCase() : value,
+  )
   @IsEmail()
+  @MaxLength(255)
   email?: string;
 
   @ApiProperty({
-    description: "The inspector's wallet address",
+    description: "The inspector's Cardano wallet address",
     example: 'addr1q9... (Cardano address)',
     required: false,
   })
   @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
   @IsString()
+  @MaxLength(255)
+  @Matches(/^(addr1|addr_test1|stake1|stake_test1)[a-z0-9]+$/, {
+    message:
+      'walletAddress must be a valid Cardano bech32 address (addr1…, addr_test1…, stake1…, or stake_test1…)',
+  })
   walletAddress?: string;
 
   @ApiProperty({
@@ -81,7 +104,7 @@ export class UpdateInspectorDto {
     required: false,
   })
   @IsOptional()
-  @IsString()
+  @IsUUID('4', { message: 'inspectionBranchCityId must be a valid UUID v4' })
   inspectionBranchCityId?: string;
 
   @ApiProperty({
