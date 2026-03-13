@@ -38,6 +38,23 @@ export class LoginWalletDto {
   walletAddress!: string;
 
   /**
+   * The plain-text message (payload) that the user signed with their wallet.
+   * The backend verifies the CIP-0030 signature against this exact string.
+   * The frontend must embed a short-lived timestamp to prevent replay attacks,
+   * e.g. "Login to CAR-dano: addr1xxx... at 2026-03-14T10:00:00.000Z"
+   * @example "Login to CAR-dano: addr1qx... at 2026-03-14T10:00:00.000Z"
+   */
+  @ApiProperty({
+    description: 'The plain-text message that was signed by the wallet',
+    example: 'Login to CAR-dano: addr1qx... at 2026-03-14T10:00:00.000Z',
+    required: true,
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(512, { message: 'payload must not exceed 512 characters' })
+  payload!: string;
+
+  /**
    * A message signed by the user's wallet to prove ownership.
    * The backend needs to verify this signature against the walletAddress.
    * CIP-0030 signatures are JSON objects; the serialized string is bounded in practice.

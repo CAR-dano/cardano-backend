@@ -16,6 +16,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { AuthGuard } from '@nestjs/passport';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { WalletAuthGuard } from './guards/wallet-auth.guard';
 import { Request, Response } from 'express';
 import { Role } from '@prisma/client';
 import { UserResponseDto } from '../users/dto/user-response.dto';
@@ -120,6 +121,8 @@ describe('AuthController', () => {
       .overrideGuard(AuthGuard('google'))
       .useValue({ canActivate: jest.fn(() => true) })
       .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: jest.fn(() => true) })
+      .overrideGuard(WalletAuthGuard)
       .useValue({ canActivate: jest.fn(() => true) })
       .overrideGuard(ThrottlerGuard)
       .useValue({ canActivate: () => true })
@@ -433,6 +436,68 @@ describe('AuthController', () => {
     it('should return { message: "Token is valid." }', () => {
       const result = controller.checkTokenValidity();
       expect(result).toEqual({ message: 'Token is valid.' });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // loginWallet
+  // ---------------------------------------------------------------------------
+  describe('loginWallet', () => {
+    const walletUserEntity = {
+      ...mockUserEntity,
+      id: 'wallet-user-123',
+      email: null,
+      walletAddress: 'addr1qx2k8testwalletaddress',
+      role: Role.CUSTOMER,
+    };
+
+    it('should return LoginResponseDto with tokens when wallet auth succeeds', async () => {
+      const req = createMockRequest({ user: walletUserEntity as any });
+      mockAuthService.login.mockResolvedValue({
+        accessToken: 'wallet-access-token',
+        refreshToken: 'wallet-refresh-token',
+      });
+
+      const result = await controller.loginWallet(req);
+
+      expect(mockAuthService.login).toHaveBeenCalledWith(walletUserEntity);
+      expect(result.accessToken).toBe('wallet-access-token');
+      expect(result.refreshToken).toBe('wallet-refresh-token');
+      expect(result.user).toBeInstanceOf(UserResponseDto);
+    });
+
+    it('should throw InternalServerErrorException when req.user is missing after guard', async () => {
+      const req = createMockRequest({ user: undefined });
+
+      await expect(controller.loginWallet(req)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+      expect(mockAuthService.login).not.toHaveBeenCalled();
+    });
+
+    it('should propagate InternalServerErrorException when authService.login throws', async () => {
+      const req = createMockRequest({ user: walletUserEntity as any });
+      mockAuthService.login.mockRejectedValue(
+        new InternalServerErrorException('JWT signing failed'),
+      );
+
+      await expect(controller.loginWallet(req)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+
+    it('should log a security event on successful wallet login', async () => {
+      const req = createMockRequest({ user: walletUserEntity as any });
+      mockAuthService.login.mockResolvedValue({
+        accessToken: 'wallet-access-token',
+        refreshToken: 'wallet-refresh-token',
+      });
+
+      await controller.loginWallet(req);
+
+      expect(mockSecurityLoggerService.log).toHaveBeenCalledWith(
+        expect.objectContaining({ details: expect.objectContaining({ method: 'wallet' }) }),
+      );
     });
   });
 });

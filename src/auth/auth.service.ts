@@ -5,7 +5,7 @@
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
  * Description: NestJS service responsible for handling authentication logic.
- * It validates users through various methods (Local, Google OAuth, and Wallet - placeholder)
+ * It validates users through various methods (Local, Google OAuth, and Wallet)
  * and generates JWT access tokens upon successful authentication.
  * It interacts with the UsersService to manage user data and uses JwtService for token handling
  * and ConfigService for accessing environment variables.
@@ -29,6 +29,18 @@ import { PrismaService } from '../prisma/prisma.service'; // Import PrismaServic
 import { RedisService } from '../redis/redis.service'; // Import RedisService
 import { SecurityLoggerService } from '../security-logger/security-logger.service';
 import { SecurityEventType, SecurityEventSeverity } from '../security-logger/security-event.enum';
+import { checkSignature } from '@meshsdk/core-cst'; // CIP-0030 signature verification
+
+/** Shape of the CIP-0030 DataSignature provided by the frontend */
+export interface WalletSignatureData {
+  /** CBOR-hex encoded COSE_Sign1 signature produced by the wallet */
+  signature: string;
+  /** CBOR-hex encoded COSE_Key public key produced by the wallet */
+  key: string;
+}
+
+/** How long (ms) a wallet login payload timestamp is considered fresh */
+const WALLET_PAYLOAD_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
 
 @Injectable()
 export class AuthService {
@@ -122,64 +134,86 @@ export class AuthService {
   }
 
   /**
-   * Validates a user based on a signed message from a Cardano wallet.
-   * This method is a placeholder and requires integration with a Cardano wallet library (e.g., MeshJS or Lucid)
-   * for signature verification. It is intended to be called by a potential WalletStrategy.
+   * Validates a user based on a signed message from a Cardano wallet (CIP-0030).
    *
-   * @param walletAddress The wallet address claiming ownership.
-   * @param signatureData The signature and potentially the message/payload that was signed. (Currently unused placeholder)
-   * @returns A promise that resolves to the user object without sensitive fields if validation succeeds and signature is valid, otherwise null.
+   * Security properties:
+   * - Verifies the Ed25519 signature cryptographically using @meshsdk/core-cst checkSignature.
+   * - Validates that the signing key belongs to the claimed walletAddress.
+   * - Checks the signed payload contains a timestamp within WALLET_PAYLOAD_MAX_AGE_MS to
+   *   prevent replay attacks (frontend must embed an ISO timestamp in the payload).
+   *
+   * @param walletAddress The bech32 wallet address claiming ownership.
+   * @param payload The plain-text message the user signed (must include a recent ISO timestamp).
+   * @param signatureData The CIP-0030 DataSignature { signature, key } hex strings.
+   * @returns The user (without sensitive fields) if valid, or null.
    */
   async validateWalletUser(
     walletAddress: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    signatureData: any, // signatureData is currently unused as signature verification is not implemented.
+    payload: string,
+    signatureData: WalletSignatureData,
   ): Promise<Omit<User, 'password' | 'googleId'> | null> {
     this.logger.verbose(`Attempting to validate wallet user: ${walletAddress}`);
 
-    // 1. Find user by wallet address
+    // 1. Verify the CIP-0030 signature cryptographically.
+    //    checkSignature also validates the public key matches walletAddress.
+    let isSignatureValid = false;
+    try {
+      isSignatureValid = await checkSignature(
+        payload,
+        { key: signatureData.key, signature: signatureData.signature },
+        walletAddress,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Wallet signature verification threw for ${walletAddress}: ${(err as Error).message}`,
+      );
+      isSignatureValid = false;
+    }
+
+    if (!isSignatureValid) {
+      this.logger.warn(
+        `Wallet validation failed: invalid signature for ${walletAddress}`,
+      );
+      void this.securityLogger.log({
+        type: SecurityEventType.LOGIN_FAILURE_BAD_PASSWORD,
+        severity: SecurityEventSeverity.WARNING,
+        details: { walletAddress, reason: 'invalid_signature' },
+      });
+      return null;
+    }
+
+    // 2. Replay-attack protection — the frontend must embed an ISO timestamp in the payload.
+    //    We extract the last ISO-8601 date-time substring and check it is recent.
+    const isoMatch = payload.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)/);
+    if (!isoMatch) {
+      this.logger.warn(
+        `Wallet validation failed: payload does not contain a timestamp for ${walletAddress}`,
+      );
+      return null;
+    }
+    const payloadTime = new Date(isoMatch[1]).getTime();
+    if (isNaN(payloadTime) || Date.now() - payloadTime > WALLET_PAYLOAD_MAX_AGE_MS) {
+      this.logger.warn(
+        `Wallet validation failed: payload timestamp expired or invalid for ${walletAddress}`,
+      );
+      return null;
+    }
+
+    // 3. Find the user by wallet address.
     const user = await this.usersService.findByWalletAddress(walletAddress);
     if (!user) {
       this.logger.warn(
         `Wallet validation failed: User not found with wallet address ${walletAddress}`,
       );
-      // Option 1: Fail validation if user must exist
       return null;
-      // Option 2: Create user on the fly (like findOrCreate) - Less common for wallet login
-      // try { user = await this.usersService.createWalletUser(walletAddress); } catch { return null; }
     }
 
-    // 2. --- IMPORTANT: Implement Signature Verification ---
-    //    This part is highly dependent on the specific wallet interaction library and signing method used on the frontend.
-    //    You need to:
-    //    a. Define a standard message/nonce for the user to sign.
-    //    b. Receive the signature and the key used for signing from the frontend (within signatureData).
-    //    c. Use a library (e.g., MeshJS's Transaction signing/verification or cardano-serialization-lib)
-    //       to verify that the signature is valid for the given message/nonce and corresponds to the public key
-    //       derived from the provided walletAddress.
-    this.logger.warn(
-      `!!! Wallet signature verification logic is NOT IMPLEMENTED in validateWalletUser for ${walletAddress} !!!`,
+    this.logger.log(
+      `Wallet user validated successfully: ${walletAddress} (ID: ${user.id})`,
     );
-    const isSignatureValid = false; // <-- Replace with actual verification call
-    // Example (Conceptual - Actual implementation depends on library):
-    // const messageToVerify = "Login to CAR-dano"; // Or a unique nonce
-    // isSignatureValid = verifyCardanoSignature(walletAddress, messageToVerify, signatureData.signature, signatureData.key);
-    // -----------------------------------------------
-
-    if (user && isSignatureValid) {
-      // Check user exists *and* signature is valid
-      this.logger.log(
-        `Wallet user validated successfully: ${walletAddress} (ID: ${user.id})`,
-      );
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password, googleId, ...result } = user;
-      return result;
-    } else {
-      this.logger.warn(
-        `Wallet validation failed for ${walletAddress}. Signature valid: ${isSignatureValid}`,
-      );
-      return null;
-    }
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password, googleId, ...result } = user;
+    return result;
   }
 
   /**

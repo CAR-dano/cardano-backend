@@ -64,21 +64,33 @@ export class RegisterUserDto {
   username!: string;
 
   /**
-   * The user's chosen password. Minimum 8 characters. Will be hashed before storage.
+   * The user's chosen password. Minimum 12 characters with complexity requirements.
+   * Must contain at least one uppercase letter, one lowercase letter, one digit,
+   * and one special character.
    * @example "P@sswOrd123!"
    */
   @ApiProperty({
-    description: "User's password (will be hashed). Minimum 8 characters.",
+    description:
+      "User's password (will be hashed). Minimum 12 characters. " +
+      'Must contain uppercase, lowercase, digit, and special character.',
     example: 'P@sswOrd123!',
-    minLength: 8,
+    minLength: 12,
     required: true,
     type: String,
     format: 'password',
   })
   @IsString()
   @IsNotEmpty()
-  @MinLength(8)
-  @MaxLength(255)
+  @MinLength(12, { message: 'password must be at least 12 characters' })
+  // MaxLength 72 prevents bcrypt DoS (bcrypt silently truncates beyond 72 bytes)
+  @MaxLength(72, { message: 'password must not exceed 72 characters' })
+  @Matches(
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&\-_#^()[\]{}|~`<>,.;:'"\\\/+= ])[A-Za-z\d@$!%*?&\-_#^()[\]{}|~`<>,.;:'"\\\/+= ]{12,}$/,
+    {
+      message:
+        'password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
+    },
+  )
   password!: string;
 
   /**

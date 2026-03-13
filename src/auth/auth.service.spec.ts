@@ -11,7 +11,7 @@
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
-import { AuthService } from './auth.service';
+import { AuthService, WalletSignatureData } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -24,6 +24,11 @@ import { Profile } from 'passport-google-oauth20';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { SecurityLoggerService } from '../security-logger/security-logger.service';
+
+// Mock @meshsdk/core-cst so checkSignature can be controlled per test
+jest.mock('@meshsdk/core-cst', () => ({
+  checkSignature: jest.fn(),
+}));
 
 // --- Mock Dependencies ---
 /**
@@ -752,4 +757,143 @@ describe('AuthService', () => {
       );
     });
   });
+  // ---------------------------------------------------------------------------
+  // validateWalletUser
+  // ---------------------------------------------------------------------------
+  describe('validateWalletUser', () => {
+    const walletAddress = 'addr1qx2k8testwalletaddress';
+    const recentTimestamp = new Date(Date.now() - 60_000).toISOString(); // 1 minute ago
+    const validPayload = `Login to CAR-dano: ${walletAddress} at ${recentTimestamp}`;
+    const validSignatureData: WalletSignatureData = {
+      signature: 'cbor-sig-hex',
+      key: 'cbor-key-hex',
+    };
+
+    // We need to mock checkSignature from @meshsdk/core-cst.
+    // Jest auto-mocking is used via jest.mock at module level — we mock it here inline.
+    let checkSignatureMock: jest.Mock;
+
+    beforeEach(() => {
+      // Replace the module-level checkSignature with a jest mock
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const meshModule = require('@meshsdk/core-cst') as { checkSignature: jest.Mock };
+      checkSignatureMock = meshModule.checkSignature as jest.Mock;
+      jest.clearAllMocks();
+    });
+
+    it('should return null when signature verification throws', async () => {
+      checkSignatureMock.mockRejectedValue(new Error('CBOR parse error'));
+
+      const result = await service.validateWalletUser(
+        walletAddress,
+        validPayload,
+        validSignatureData,
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when signature verification returns false', async () => {
+      checkSignatureMock.mockResolvedValue(false);
+
+      const result = await service.validateWalletUser(
+        walletAddress,
+        validPayload,
+        validSignatureData,
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when payload contains no ISO timestamp', async () => {
+      checkSignatureMock.mockResolvedValue(true);
+
+      const result = await service.validateWalletUser(
+        walletAddress,
+        'Login to CAR-dano without a timestamp',
+        validSignatureData,
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when payload timestamp is older than 5 minutes', async () => {
+      checkSignatureMock.mockResolvedValue(true);
+      const staleTimestamp = new Date(Date.now() - 6 * 60 * 1000).toISOString(); // 6 min ago
+      const stalePayload = `Login to CAR-dano: ${walletAddress} at ${staleTimestamp}`;
+
+      const result = await service.validateWalletUser(
+        walletAddress,
+        stalePayload,
+        validSignatureData,
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when user is not found by wallet address', async () => {
+      checkSignatureMock.mockResolvedValue(true);
+      mockUsersService.findByWalletAddress.mockResolvedValue(null);
+
+      const result = await service.validateWalletUser(
+        walletAddress,
+        validPayload,
+        validSignatureData,
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('should return user (without password/googleId) when signature and user are valid', async () => {
+      const mockUser = buildMockUser({
+        walletAddress,
+        password: 'hashedpassword',
+        googleId: 'gid-123',
+      });
+      checkSignatureMock.mockResolvedValue(true);
+      mockUsersService.findByWalletAddress.mockResolvedValue(mockUser);
+
+      const result = await service.validateWalletUser(
+        walletAddress,
+        validPayload,
+        validSignatureData,
+      );
+
+      expect(result).not.toBeNull();
+      expect((result as any).password).toBeUndefined();
+      expect((result as any).googleId).toBeUndefined();
+      expect(result?.id).toBe(mockUser.id);
+    });
+
+    it('should call checkSignature with correct arguments', async () => {
+      const mockUser = buildMockUser({ walletAddress });
+      checkSignatureMock.mockResolvedValue(true);
+      mockUsersService.findByWalletAddress.mockResolvedValue(mockUser);
+
+      await service.validateWalletUser(walletAddress, validPayload, validSignatureData);
+
+      expect(checkSignatureMock).toHaveBeenCalledWith(
+        validPayload,
+        { key: validSignatureData.key, signature: validSignatureData.signature },
+        walletAddress,
+      );
+    });
+
+    it('should accept a payload timestamp that is just within the 5-minute window', async () => {
+      const nearlyStaleTimestamp = new Date(Date.now() - 4 * 60 * 1000 - 50_000).toISOString(); // ~4m50s ago
+      const nearlyStalePayload = `Login to CAR-dano: ${walletAddress} at ${nearlyStaleTimestamp}`;
+      const mockUser = buildMockUser({ walletAddress });
+      checkSignatureMock.mockResolvedValue(true);
+      mockUsersService.findByWalletAddress.mockResolvedValue(mockUser);
+
+      const result = await service.validateWalletUser(
+        walletAddress,
+        nearlyStalePayload,
+        validSignatureData,
+      );
+
+      expect(result).not.toBeNull();
+    });
+  });
+
 });

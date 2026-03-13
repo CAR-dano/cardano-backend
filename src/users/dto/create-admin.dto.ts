@@ -63,13 +63,23 @@ export class CreateAdminDto {
   name!: string;
 
   @ApiProperty({
-    description: 'The password for the new user. Minimum 8 characters.',
-    example: 'password123',
+    description:
+      'The password for the new user. Minimum 12 characters. ' +
+      'Must contain uppercase, lowercase, digit, and special character.',
+    example: 'P@sswOrd123!',
   })
   @IsString()
-  @MinLength(8)
-  @MaxLength(255)
+  @MinLength(12, { message: 'password must be at least 12 characters' })
+  // MaxLength 72 prevents bcrypt DoS (bcrypt silently truncates beyond 72 bytes)
+  @MaxLength(72, { message: 'password must not exceed 72 characters' })
   @IsNotEmpty()
+  @Matches(
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&\-_#^()[\]{}|~`<>,.;:'"\\\/+= ])[A-Za-z\d@$!%*?&\-_#^()[\]{}|~`<>,.;:'"\\\/+= ]{12,}$/,
+    {
+      message:
+        'password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
+    },
+  )
   password!: string;
 
   @ApiProperty({

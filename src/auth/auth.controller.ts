@@ -40,6 +40,8 @@ import {
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from './guards/jwt-auth.guard'; // Protects profile & logout
 import { LocalAuthGuard } from './guards/local-auth.guard'; // Triggers local strategy for login
+import { WalletAuthGuard } from './guards/wallet-auth.guard'; // Triggers wallet strategy for login
+import { LoginWalletDto } from './dto/login-wallet.dto'; // DTO for wallet login input
 import { Role, User } from '@prisma/client'; // Import Role for interface
 import { RegisterUserDto } from './dto/register-user.dto'; // DTO for local registration
 import { LoginUserDto } from './dto/login-user.dto'; // DTO for local login input
@@ -552,18 +554,58 @@ export class AuthController {
   //   // return this.usersService.linkWalletAddress(userId, linkWalletDto.walletAddress);
   // }
 
-  // --- Placeholder Endpoint for Wallet Login (Implement Later) ---
+  /**
+   * Handles wallet login via a Cardano CIP-0030 signature.
+   * Uses WalletAuthGuard to trigger WalletStrategy validation.
+   * If successful, Passport attaches the user object to req.user.
+   * Calls AuthService.login to generate JWT.
+   *
+   * @param req - The request object with user attached by WalletAuthGuard.
+   * @returns {Promise<LoginResponseDto>} JWT access token, refresh token, and user details.
+   */
+  @Post('login/wallet')
+  @UseGuards(WalletAuthGuard)
+  @Throttle({ auth: { limit: 5, ttl: 60000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Login with Cardano Wallet Signature (CIP-0030)' })
+  @ApiBody({ type: LoginWalletDto })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Wallet login successful, JWT returned.',
+    type: LoginResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Invalid wallet signature or user not found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Missing or malformed wallet authentication fields.',
+  })
+  async loginWallet(@Req() req: AuthenticatedRequest): Promise<LoginResponseDto> {
+    if (!req.user) {
+      this.logger.error('WalletAuthGuard succeeded but req.user is missing!');
+      throw new InternalServerErrorException('Authentication flow error.');
+    }
 
-  // @Post('login/wallet')
-  // @UseGuards(WalletAuthGuard) // Use the (placeholder) wallet guard
-  // @HttpCode(HttpStatus.OK)
-  // @ApiOperation({ summary: 'Login with Cardano Wallet Signature' })
-  // @ApiBody({ type: LoginWalletDto })
-  // async loginWallet(@Req() req: AuthenticatedRequest): Promise<LoginResponseDto> {
-  //    // Placeholder for logging in with a Cardano wallet signature.
-  //    // It would typically involve verifying the signature and generating a JWT.
-  //    this.logger.log(`User logged in via wallet: ${req.user?.walletAddress}`);
-  //    const { accessToken } = await this.authService.login(req.user);
-  //    return { accessToken, user: new UserResponseDto(req.user as User) };
-  // }
+    const user = req.user as unknown as User;
+
+    this.logger.log(`User logged in via wallet: ${user.id}`);
+    const { ip, userAgent } = this.securityLogger.extractRequestMeta(req);
+    void this.securityLogger.log({
+      type: SecurityEventType.LOGIN_SUCCESS,
+      severity: SecurityEventSeverity.INFO,
+      userId: user.id,
+      ip,
+      userAgent,
+      details: { method: 'wallet' },
+    });
+
+    const { accessToken, refreshToken } = await this.authService.login(req.user as any);
+    return {
+      accessToken,
+      refreshToken,
+      user: new UserResponseDto(req.user as any),
+    };
+  }
 }

@@ -4,10 +4,10 @@
  * Project: car-dano-backend
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
- * Description: Placeholder for a custom Passport.js strategy for Cardano wallet authentication.
- * WARNING: The core signature verification logic within AuthService.validateWalletUser
- * needs to be implemented using a suitable Cardano library (MeshJS, Lucid, CSL)
- * based on the frontend's signing mechanism.
+ * Description: Custom Passport.js strategy for Cardano wallet authentication (CIP-0030).
+ * Extracts walletAddress, payload, and signature fields from the request body,
+ * parses the CIP-0030 DataSignature JSON, and delegates to AuthService.validateWalletUser
+ * for cryptographic signature verification.
  * --------------------------------------------------------------------------
  */
 
@@ -19,14 +19,17 @@ import {
   Logger,
   BadRequestException,
 } from '@nestjs/common';
-import { AuthService } from '../auth.service';
+import { AuthService, WalletSignatureData } from '../auth.service';
 import { User } from '@prisma/client';
 import { Request } from 'express'; // Import Request to access body/query
 
-// Define an interface for the expected request body structure
+// Define an interface for the expected request body structure (matches LoginWalletDto)
 interface WalletAuthRequestBody {
   walletAddress?: string;
-  signatureData?: any; // Adjust 'any' to a more specific type if known
+  /** Plain-text message that was signed */
+  payload?: string;
+  /** JSON-serialized CIP-0030 DataSignature: '{"signature":"...","key":"..."}' */
+  signature?: string;
 }
 
 @Injectable()
@@ -36,43 +39,57 @@ export class WalletStrategy extends PassportStrategy(Strategy, 'wallet') {
 
   constructor(private authService: AuthService) {
     super(); // Call super for passport-custom
-    this.logger.log(
-      'Wallet Strategy Initialized (Placeholder - Verification Logic Missing!)',
-    );
+    this.logger.log('Wallet Strategy Initialized');
   }
 
   /**
    * Validate method for the custom wallet strategy.
-   * Receives the Express request object to extract wallet address and signature data.
-   * Delegates the actual signature verification and user lookup to AuthService.validateWalletUser.
+   * Receives the Express request object to extract wallet address, payload, and signature data.
+   * Parses the JSON-serialized CIP-0030 DataSignature from the body, then delegates
+   * to AuthService.validateWalletUser for cryptographic verification.
    *
    * @param {Request} req - The incoming Express request object.
    * @returns {Promise<Omit<User, 'password' | 'googleId'>>} The validated user object.
-   * @throws {UnauthorizedException | BadRequestException} If validation or signature verification fails.
+   * @throws {BadRequestException} If required fields are missing or signature JSON is malformed.
+   * @throws {UnauthorizedException} If signature verification fails or user is not found.
    */
   async validate(req: Request): Promise<Omit<User, 'password' | 'googleId'>> {
     this.logger.verbose('WalletStrategy attempting validation...');
 
-    // --- Extract Data from Request ---
-    // Adjust this based on how the frontend sends the data (body, query, headers?)
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const { walletAddress, signatureData } = req.body as WalletAuthRequestBody; // Example: Assuming sent in body
-    // ---------------------------------
+    const { walletAddress, payload, signature } = req.body as WalletAuthRequestBody;
 
-    if (!walletAddress || !signatureData) {
+    if (!walletAddress || !payload || !signature) {
       this.logger.warn(
-        'WalletStrategy validation failed: Missing walletAddress or signatureData in request.',
+        'WalletStrategy validation failed: Missing walletAddress, payload, or signature in request.',
       );
       throw new BadRequestException(
-        'Missing wallet address or signature data.',
+        'Missing wallet address, payload, or signature data.',
+      );
+    }
+
+    // Parse the JSON-serialized CIP-0030 DataSignature
+    let signatureData: WalletSignatureData;
+    try {
+      const parsed = JSON.parse(signature) as WalletSignatureData;
+      if (!parsed.signature || !parsed.key) {
+        throw new Error('Missing signature or key fields');
+      }
+      signatureData = parsed;
+    } catch (err) {
+      this.logger.warn(
+        `WalletStrategy validation failed: Invalid signature JSON — ${(err as Error).message}`,
+      );
+      throw new BadRequestException(
+        'signature must be a valid JSON object with "signature" and "key" fields.',
       );
     }
 
     this.logger.verbose(`Validating wallet address: ${walletAddress}`);
 
-    // Delegate validation (including the crucial, unimplemented signature check) to AuthService
+    // Delegate validation (including cryptographic signature check) to AuthService
     const user = await this.authService.validateWalletUser(
       walletAddress,
+      payload,
       signatureData,
     );
 

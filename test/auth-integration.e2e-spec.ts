@@ -1,18 +1,29 @@
 /**
  * @fileoverview Integration tests for Authentication endpoints.
  * Covers: registration, login (email/username), login/inspector, refresh token,
- * profile access, check-token, logout, and logout-all.
+ * profile access, check-token, logout, logout-all, and wallet login (CIP-0030).
  *
  * NOTE: Google OAuth flow is not testable in integration tests (requires browser redirect).
+ * NOTE: @meshsdk/core-cst checkSignature is mocked here so tests are not dependent
+ *       on real Cardano wallet CBOR hex values.
  */
+
+// Mock @meshsdk/core-cst at the top so that when WalletStrategy/AuthService import
+// checkSignature, they get the jest mock instead of the real library.
+jest.mock('@meshsdk/core-cst', () => ({
+  checkSignature: jest.fn(),
+}));
 
 import request from 'supertest';
 import { HttpStatus } from '@nestjs/common';
+import { checkSignature } from '@meshsdk/core-cst';
+import { randomUUID } from 'crypto';
 import {
   getTestApp,
   closeTestApp,
   TestAppContext,
   createRegisterPayload,
+  E2E_SUFFIX,
 } from './helpers';
 
 describe('AuthController (e2e) - Integration Tests', () => {
@@ -58,9 +69,25 @@ describe('AuthController (e2e) - Integration Tests', () => {
         .expect(HttpStatus.BAD_REQUEST);
     });
 
-    it('should return 400 if password is too short', () => {
+    it('should return 400 if password is too short (less than 12 chars)', () => {
       const payload = createRegisterPayload({ password: 'short' });
 
+      return request(ctx.app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send(payload)
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+
+    it('should return 400 if password lacks complexity (no special char)', () => {
+      const payload = createRegisterPayload({ password: 'Passw0rdAbcdEfgh' }); // no special char
+      return request(ctx.app.getHttpServer())
+        .post('/api/v1/auth/register')
+        .send(payload)
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+
+    it('should return 400 if password lacks complexity (no uppercase)', () => {
+      const payload = createRegisterPayload({ password: 'p@ssw0rd!abcdef' }); // no uppercase
       return request(ctx.app.getHttpServer())
         .post('/api/v1/auth/register')
         .send(payload)
@@ -330,6 +357,199 @@ describe('AuthController (e2e) - Integration Tests', () => {
       return request(ctx.app.getHttpServer())
         .post('/api/v1/auth/logout-all')
         .expect(HttpStatus.UNAUTHORIZED);
+    });
+  });
+
+  // ─── Wallet Login (CIP-0030) ──────────────────────────────────────────────────
+  //
+  // @meshsdk/core-cst's checkSignature is mocked at the top of this file.
+  // This lets us test the full HTTP layer, DTO validation, guard, and DB lookup
+  // without requiring real Cardano wallet CBOR hex values.
+
+  describe('POST /api/v1/auth/login/wallet', () => {
+    const checkSignatureMock = checkSignature as jest.Mock;
+
+    /** Bech32 wallet address used for all wallet login tests */
+    const WALLET_ADDRESS = 'addr1qx2k8walletintegrationtest000000000000000000000000000';
+
+    /** A timestamp that is 1 minute in the future — always within the 5-minute window */
+    const freshTimestamp = () => new Date(Date.now() + 60_000).toISOString();
+
+    /** A valid CIP-0030 DataSignature JSON string */
+    const validSignatureJson = JSON.stringify({
+      signature: 'cbor-sig-hex-mock',
+      key: 'cbor-key-hex-mock',
+    });
+
+    /** Creates a wallet user directly in the database */
+    async function createWalletUser() {
+      return ctx.prisma.user.create({
+        data: {
+          id: randomUUID(),
+          email: `walletuser${Date.now()}${E2E_SUFFIX}`,
+          username: `inttest_wallet_${Date.now()}`,
+          name: 'IntTest Wallet User',
+          role: 'CUSTOMER',
+          isActive: true,
+          walletAddress: WALLET_ADDRESS,
+        },
+      });
+    }
+
+    beforeEach(() => {
+      checkSignatureMock.mockReset();
+    });
+
+    // ── 400 Bad Request cases (DTO validation) ─────────────────────────────────
+
+    it('should return 400 when walletAddress is missing', () => {
+      return request(ctx.app.getHttpServer())
+        .post('/api/v1/auth/login/wallet')
+        .send({
+          payload: `Login at ${freshTimestamp()}`,
+          signature: validSignatureJson,
+        })
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+
+    it('should return 400 when payload is missing', () => {
+      return request(ctx.app.getHttpServer())
+        .post('/api/v1/auth/login/wallet')
+        .send({
+          walletAddress: WALLET_ADDRESS,
+          signature: validSignatureJson,
+        })
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+
+    it('should return 400 when signature is missing', () => {
+      return request(ctx.app.getHttpServer())
+        .post('/api/v1/auth/login/wallet')
+        .send({
+          walletAddress: WALLET_ADDRESS,
+          payload: `Login at ${freshTimestamp()}`,
+        })
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+
+    it('should return 400 when walletAddress is not a valid Cardano bech32 format', () => {
+      return request(ctx.app.getHttpServer())
+        .post('/api/v1/auth/login/wallet')
+        .send({
+          walletAddress: 'not-a-valid-cardano-address',
+          payload: `Login at ${freshTimestamp()}`,
+          signature: validSignatureJson,
+        })
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+
+    it('should return 400 when signature is not valid JSON (caught by WalletStrategy)', () => {
+      // checkSignature won't even be called since JSON.parse fails first
+      checkSignatureMock.mockResolvedValue(false);
+
+      return request(ctx.app.getHttpServer())
+        .post('/api/v1/auth/login/wallet')
+        .send({
+          walletAddress: WALLET_ADDRESS,
+          payload: `Login at ${freshTimestamp()}`,
+          signature: 'this-is-not-json',
+        })
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+
+    it('should return 400 when signature JSON is missing required fields', () => {
+      checkSignatureMock.mockResolvedValue(false);
+
+      return request(ctx.app.getHttpServer())
+        .post('/api/v1/auth/login/wallet')
+        .send({
+          walletAddress: WALLET_ADDRESS,
+          payload: `Login at ${freshTimestamp()}`,
+          signature: JSON.stringify({ signature: 'sig-only' }), // missing 'key'
+        })
+        .expect(HttpStatus.BAD_REQUEST);
+    });
+
+    // ── 401 Unauthorized cases ─────────────────────────────────────────────────
+
+    it('should return 401 when signature verification fails', () => {
+      checkSignatureMock.mockResolvedValue(false);
+
+      return request(ctx.app.getHttpServer())
+        .post('/api/v1/auth/login/wallet')
+        .send({
+          walletAddress: WALLET_ADDRESS,
+          payload: `Login at ${freshTimestamp()}`,
+          signature: validSignatureJson,
+        })
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    it('should return 401 when payload timestamp is older than 5 minutes', () => {
+      checkSignatureMock.mockResolvedValue(true);
+      const staleTimestamp = new Date(Date.now() - 6 * 60 * 1000).toISOString();
+
+      return request(ctx.app.getHttpServer())
+        .post('/api/v1/auth/login/wallet')
+        .send({
+          walletAddress: WALLET_ADDRESS,
+          payload: `Login to CAR-dano at ${staleTimestamp}`,
+          signature: validSignatureJson,
+        })
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    it('should return 401 when payload has no ISO timestamp', () => {
+      checkSignatureMock.mockResolvedValue(true);
+
+      return request(ctx.app.getHttpServer())
+        .post('/api/v1/auth/login/wallet')
+        .send({
+          walletAddress: WALLET_ADDRESS,
+          payload: 'Login to CAR-dano with no timestamp here',
+          signature: validSignatureJson,
+        })
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    it('should return 401 when user is not found by wallet address', () => {
+      checkSignatureMock.mockResolvedValue(true);
+
+      return request(ctx.app.getHttpServer())
+        .post('/api/v1/auth/login/wallet')
+        .send({
+          walletAddress: WALLET_ADDRESS,
+          payload: `Login to CAR-dano at ${freshTimestamp()}`,
+          signature: validSignatureJson,
+        })
+        .expect(HttpStatus.UNAUTHORIZED);
+    });
+
+    // ── 200 Success ────────────────────────────────────────────────────────────
+
+    it('should return 200 with tokens and user data when signature is valid and user exists', async () => {
+      const walletUser = await createWalletUser();
+      checkSignatureMock.mockResolvedValue(true);
+
+      const res = await request(ctx.app.getHttpServer())
+        .post('/api/v1/auth/login/wallet')
+        .send({
+          walletAddress: WALLET_ADDRESS,
+          payload: `Login to CAR-dano: ${WALLET_ADDRESS} at ${freshTimestamp()}`,
+          signature: validSignatureJson,
+        })
+        .expect(HttpStatus.OK);
+
+      expect(res.body).toHaveProperty('accessToken');
+      expect(res.body).toHaveProperty('refreshToken');
+      expect(res.body).toHaveProperty('user');
+      expect(res.body.user.id).toBe(walletUser.id);
+      expect(res.body.user.walletAddress).toBe(WALLET_ADDRESS);
+      expect(res.body.user).not.toHaveProperty('password');
+      expect(res.body.user).not.toHaveProperty('googleId');
+
+      // Clean up the wallet user
+      await ctx.prisma.user.delete({ where: { id: walletUser.id } });
     });
   });
 });
