@@ -9,12 +9,12 @@ export class EstimasiPerbaikanDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  namaPart: string;
+  namaPart!: string;
 
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
   @IsNotEmpty()
   @Min(0, { message: 'harga must be a non-negative number' })
-  harga: number;
+  harga!: number;
 }

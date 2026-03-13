@@ -980,7 +980,7 @@ export class InspectionsService {
       }
     } catch (error) {
       this.logger.warn(
-        `[findByVehiclePlateNumber] Failed to retrieve from cache: ${error.message}`,
+        `[findByVehiclePlateNumber] Failed to retrieve from cache: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
     // --- CACHING LOGIC END ---
@@ -1038,7 +1038,7 @@ export class InspectionsService {
           await this.redisService.set(cacheKey, JSON.stringify(inspection), 300);
         } catch (error) {
           this.logger.warn(
-            `[findByVehiclePlateNumber] Failed to cache result: ${error.message}`,
+            `[findByVehiclePlateNumber] Failed to cache result: ${error instanceof Error ? error.message : String(error)}`,
           );
         }
       }
@@ -1106,7 +1106,7 @@ export class InspectionsService {
       }
     } catch (error) {
       this.logger.warn(
-        `[searchByKeyword] Failed to retrieve from cache: ${error.message}`,
+        `[searchByKeyword] Failed to retrieve from cache: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
     // --- CACHING LOGIC END ---
@@ -1193,7 +1193,7 @@ export class InspectionsService {
         await this.redisService.set(cacheKey, JSON.stringify(result), 300);
       } catch (error) {
         this.logger.warn(
-          `[searchByKeyword] Failed to cache result: ${error.message}`,
+          `[searchByKeyword] Failed to cache result: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
 
@@ -1404,7 +1404,7 @@ export class InspectionsService {
     // Use Object.keys and type assertion for better type safety than 'for...in' with hasOwnProperty
     for (const key of Object.keys(updateInspectionDto)) {
       const dtoKey = key;
-      const newValue = updateInspectionDto[dtoKey]; // Value from the DTO
+      const newValue = (updateInspectionDto as Record<string, unknown>)[dtoKey]; // Value from the DTO
       // Access existingInspection using bracket notation with keyof Inspection type assertion
       const oldValue = (existingInspection as Inspection)[
         dtoKey as keyof Inspection
@@ -1651,7 +1651,7 @@ export class InspectionsService {
       }
     } catch (error) {
       this.logger.warn(
-        `[findAll] Failed to retrieve from cache: ${error.message}`,
+        `[findAll] Failed to retrieve from cache: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
     // --- CACHING LOGIC END ---
@@ -1700,7 +1700,7 @@ export class InspectionsService {
       try {
         await this.redisService.set(cacheKey, JSON.stringify(result), 300); // 5 min TTL
       } catch (error) {
-        this.logger.warn(`[findAll] Failed to cache result: ${error.message}`);
+        this.logger.warn(`[findAll] Failed to cache result: ${error instanceof Error ? error.message : String(error)}`);
       }
 
       return result;
@@ -1752,7 +1752,7 @@ export class InspectionsService {
       }
     } catch (error) {
       this.logger.warn(
-        `[findOne] Failed to retrieve from cache: ${error.message}`,
+        `[findOne] Failed to retrieve from cache: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
     // --- CACHING LOGIC END ---
@@ -1824,7 +1824,7 @@ export class InspectionsService {
           await this.redisService.set(cacheKey, JSON.stringify(inspection), 300); // 5 min TTL
         }
       } catch (error) {
-        this.logger.warn(`[findOne] Failed to cache result: ${error.message}`);
+        this.logger.warn(`[findOne] Failed to cache result: ${error instanceof Error ? error.message : String(error)}`);
       }
 
       return inspection as Inspection;
@@ -2066,12 +2066,13 @@ export class InspectionsService {
               }
             } else if ((jsonUpdatableFields as string[]).includes(fieldName)) {
               // Ensure updateData[fieldName] is an object for nested updates
+              const updateDataAny = updateData as Record<string, unknown>;
               if (
-                !updateData[fieldName] ||
-                typeof updateData[fieldName] !== 'object' ||
-                Array.isArray(updateData[fieldName])
+                !updateDataAny[fieldName] ||
+                typeof updateDataAny[fieldName] !== 'object' ||
+                Array.isArray(updateDataAny[fieldName])
               ) {
-                updateData[fieldName] = inspection[fieldName]
+                updateDataAny[fieldName] = inspection[fieldName]
                   ? {
                     ...(inspection[fieldName] as Record<
                       string,
@@ -2081,7 +2082,7 @@ export class InspectionsService {
                   : {};
               }
 
-              let current: Record<string, Prisma.JsonValue> = updateData[
+              let current: Record<string, Prisma.JsonValue> = updateDataAny[
                 fieldName
               ] as Record<string, Prisma.JsonValue>; // Explicitly type current
               for (let i = 1; i < parts.length - 1; i++) {
@@ -2679,9 +2680,10 @@ export class InspectionsService {
           carType: carTypeNorm,
         } as unknown as NftMetadata & Partial<InspectionNftMetadata>;
         // Hapus field null/undefined dari metadata jika perlu (This step might be redundant now with checks above, but kept for safety)
-        Object.keys(metadataForNft).forEach((key) =>
-          metadataForNft[key] === undefined || metadataForNft[key] === null
-            ? delete metadataForNft[key]
+        const metadataAny = metadataForNft as unknown as Record<string, unknown>;
+        Object.keys(metadataAny).forEach((key) =>
+          metadataAny[key] === undefined || metadataAny[key] === null
+            ? delete metadataAny[key]
             : {},
         );
 

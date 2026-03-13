@@ -41,7 +41,7 @@ export class MintRequestDto {
   })
   @IsUUID('4', { message: 'inspectionId must be a valid UUID v4' })
   @IsNotEmpty()
-  inspectionId: string; // Internal ID of the inspection record
+  inspectionId!: string; // Internal ID of the inspection record
 
   /**
    * Vehicle Plate Number.
@@ -51,7 +51,7 @@ export class MintRequestDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(20)
-  vehicleNumber: string; // Vehicle plate number
+  vehicleNumber!: string; // Vehicle plate number
 
   /**
    * Inspection Date in ISO String format.
@@ -63,7 +63,7 @@ export class MintRequestDto {
   })
   @IsDateString({}, { message: 'inspectionDate must be a valid ISO date string' })
   @IsNotEmpty()
-  inspectionDate: string; // Inspection date in ISO string format
+  inspectionDate!: string; // Inspection date in ISO string format
 
   /**
    * ID of the Inspector user who performed the inspection.
@@ -72,7 +72,7 @@ export class MintRequestDto {
   @ApiProperty({ description: 'ID of the Inspector user', format: 'uuid' })
   @IsUUID('4', { message: 'inspectorId must be a valid UUID v4' })
   @IsNotEmpty()
-  inspectorId: string; // ID of the inspector user
+  inspectorId!: string; // ID of the inspector user
 
   /**
    * Vehicle Mileage at the time of inspection.
@@ -82,7 +82,7 @@ export class MintRequestDto {
   @IsNumber()
   @Min(0, { message: 'mileage must be a non-negative number' })
   @IsNotEmpty()
-  mileage: number; // Vehicle mileage at the time of inspection
+  mileage!: number; // Vehicle mileage at the time of inspection
 
   /**
    * Inspection Status. Should be 'APPROVED' for minting.
@@ -97,7 +97,7 @@ export class MintRequestDto {
     message: `status must be a valid InspectionStatus value: ${Object.values(InspectionStatus).join(', ')}`,
   })
   @IsNotEmpty()
-  status: InspectionStatus; // Inspection status (should be APPROVED for minting)
+  status!: InspectionStatus; // Inspection status (should be APPROVED for minting)
 
   /**
    * Public URL of the archived PDF report.
@@ -106,7 +106,7 @@ export class MintRequestDto {
   @ApiProperty({ description: 'Public URL of the archived PDF report' })
   @IsUrl({}, { message: 'pdfUrl must be a valid URL' })
   @IsNotEmpty()
-  pdfUrl: string; // Public URL of the archived PDF report
+  pdfUrl!: string; // Public URL of the archived PDF report
 
   /**
    * SHA-256 Hash of the PDF report.
@@ -120,7 +120,7 @@ export class MintRequestDto {
   @IsNotEmpty()
   @Length(64, 64, { message: 'pdfHash must be exactly 64 characters (SHA-256 hex)' })
   @Matches(/^[a-f0-9]+$/, { message: 'pdfHash must contain only lowercase hex characters' })
-  pdfHash: string; // SHA-256 hash of the PDF report
+  pdfHash!: string; // SHA-256 hash of the PDF report
 
   @ApiProperty({
     description:

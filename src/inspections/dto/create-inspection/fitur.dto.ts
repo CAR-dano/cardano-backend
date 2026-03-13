@@ -14,13 +14,13 @@ import {
 import { sanitizeStringArray } from '../../../common/sanitize.helper';
 
 export class FiturDto {
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) airbag: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) sistemAudio: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) powerWindow: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) sistemAC: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) remAbs: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) centralLock: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) electricMirror: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) airbag!: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) sistemAudio!: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) powerWindow!: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) sistemAC!: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) remAbs!: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) centralLock!: number;
+  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) electricMirror!: number;
 
   @ApiProperty({ required: false }) @IsOptional() @IsNumber() @Min(0) @Max(10) interior1?: number;
   @ApiProperty({ required: false }) @IsOptional() @IsNumber() @Min(0) @Max(10) interior2?: number;

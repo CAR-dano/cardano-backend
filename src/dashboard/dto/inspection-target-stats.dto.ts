@@ -14,19 +14,19 @@ export class InspectionTargetStatsItemDto {
     description: 'Total inspections for the period',
     example: 85,
   })
-  totalInspections: number;
+  totalInspections!: number;
 
   @ApiProperty({
     description: 'Target inspections for the period',
     example: 100,
   })
-  targetInspections: number;
+  targetInspections!: number;
 
   @ApiProperty({
     description: 'Percentage of target met',
     example: '85.00%',
   })
-  percentageMet: string;
+  percentageMet!: string;
 }
 
 export class InspectionTargetStatsResponseDto {

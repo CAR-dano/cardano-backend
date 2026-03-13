@@ -17,14 +17,14 @@ export class VehicleDataDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  merekKendaraan: string;
+  merekKendaraan!: string;
 
   @ApiProperty()
   @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  tipeKendaraan: string;
+  tipeKendaraan!: string;
 
   @ApiProperty()
   @Type(() => Number)
@@ -32,59 +32,59 @@ export class VehicleDataDto {
   @IsNotEmpty()
   @Min(1900, { message: 'tahun must be 1900 or later' })
   @Max(new Date().getFullYear() + 1, { message: 'tahun cannot be in the future' })
-  tahun: number;
+  tahun!: number;
 
   @ApiProperty()
   @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  transmisi: string;
+  transmisi!: string;
 
   @ApiProperty()
   @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  warnaKendaraan: string;
+  warnaKendaraan!: string;
 
   @ApiProperty()
   @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  odometer: string;
+  odometer!: string;
 
   @ApiProperty()
   @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  kepemilikan: string;
+  kepemilikan!: string;
 
   @ApiProperty()
   @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(20)
-  platNomor: string;
+  platNomor!: string;
 
   @ApiProperty()
   @Type(() => Date)
   @IsDate()
   @IsNotEmpty()
-  pajak1Tahun: Date;
+  pajak1Tahun!: Date;
 
   @ApiProperty()
   @Type(() => Date)
   @IsDate()
   @IsNotEmpty()
-  pajak5Tahun: Date;
+  pajak5Tahun!: Date;
 
   @ApiProperty()
   @Type(() => Number)
   @IsNumber()
   @IsNotEmpty()
   @Min(0, { message: 'biayaPajak must be a non-negative number' })
-  biayaPajak: number;
+  biayaPajak!: number;
 }

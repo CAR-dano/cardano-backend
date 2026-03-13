@@ -128,25 +128,25 @@ export class NftDataResponseDto {
     description: 'Concatenated Policy ID and Hex-encoded Asset Name.',
     example: 'f0f0f0...4d7941737365744e616d65',
   })
-  asset: string;
+  asset!: string;
 
   /**
    * The Policy ID of the asset's minting policy.
    */
   @ApiProperty({ description: 'Policy ID of the minting policy.' })
-  policy_id: string;
+  policy_id!: string;
 
   /**
    * The Asset Name in hexadecimal encoding.
    */
   @ApiProperty({ description: 'Hex-encoded Asset Name.' })
-  asset_name: string | null; // Can be null for the ADA asset itself
+  asset_name!: string | null; // Can be null for the ADA asset itself
 
   /**
    * The CIP-14 asset fingerprint.
    */
   @ApiProperty({ description: 'CIP-14 asset fingerprint.' })
-  fingerprint: string;
+  fingerprint!: string;
 
   /**
    * Current circulating quantity of the asset. Should be "1" for a standard NFT.
@@ -154,19 +154,19 @@ export class NftDataResponseDto {
   @ApiProperty({
     description: 'Current circulating quantity (usually "1" for NFTs).',
   })
-  quantity: string;
+  quantity!: string;
 
   /**
    * The transaction hash of the initial minting event.
    */
   @ApiProperty({ description: 'Transaction hash of the initial mint.' })
-  initial_mint_tx_hash: string;
+  initial_mint_tx_hash!: string;
 
   /**
    * The total number of minting and burning transactions for this asset.
    */
   @ApiProperty({ description: 'Total number of mint and burn transactions.' })
-  mint_or_burn_count: number;
+  mint_or_burn_count!: number;
 
   /**
    * On-chain metadata conforming to the CIP-25 or CIP-68 NFT standard.

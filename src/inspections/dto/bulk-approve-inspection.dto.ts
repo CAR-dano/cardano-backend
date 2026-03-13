@@ -43,7 +43,7 @@ export class BulkApproveInspectionDto {
   @ArrayMaxSize(20, {
     message: 'Maximum 20 inspections can be approved at once',
   })
-  inspectionIds: string[];
+  inspectionIds!: string[];
 }
 
 /**
@@ -61,7 +61,7 @@ export class BulkApproveInspectionResponseDto {
       },
     },
   })
-  successful: Array<{ id: string; message: string }>;
+  successful!: Array<{ id: string; message: string }>;
 
   @ApiProperty({
     description: 'Failed approval attempts',
@@ -74,7 +74,7 @@ export class BulkApproveInspectionResponseDto {
       },
     },
   })
-  failed: Array<{ id: string; error: string }>;
+  failed!: Array<{ id: string; error: string }>;
 
   @ApiProperty({
     description: 'Summary of bulk approval operation',
@@ -86,7 +86,7 @@ export class BulkApproveInspectionResponseDto {
       estimatedTime: { type: 'string' },
     },
   })
-  summary: {
+  summary!: {
     total: number;
     successful: number;
     failed: number;

@@ -29,7 +29,7 @@ export class InspectionSummaryDto {
   @IsNotEmpty()
   @Min(0)
   @Max(100)
-  interiorScore: number;
+  interiorScore!: number;
 
   @ApiProperty({ required: false })
   @IsArray()
@@ -45,7 +45,7 @@ export class InspectionSummaryDto {
   @IsNotEmpty()
   @Min(0)
   @Max(100)
-  eksteriorScore: number;
+  eksteriorScore!: number;
 
   @ApiProperty({ required: false })
   @IsArray()
@@ -61,7 +61,7 @@ export class InspectionSummaryDto {
   @IsNotEmpty()
   @Min(0)
   @Max(100)
-  kakiKakiScore: number;
+  kakiKakiScore!: number;
 
   @ApiProperty({ required: false })
   @IsArray()
@@ -77,7 +77,7 @@ export class InspectionSummaryDto {
   @IsNotEmpty()
   @Min(0)
   @Max(100)
-  mesinScore: number;
+  mesinScore!: number;
 
   @ApiProperty({ required: false })
   @IsArray()
@@ -93,7 +93,7 @@ export class InspectionSummaryDto {
   @IsNotEmpty()
   @Min(0)
   @Max(100)
-  penilaianKeseluruhanScore: number;
+  penilaianKeseluruhanScore!: number;
 
   @ApiProperty({ required: false })
   @IsArray()
@@ -107,45 +107,45 @@ export class InspectionSummaryDto {
   @ApiProperty()
   @IsBoolean()
   @IsNotEmpty()
-  indikasiTabrakan: boolean;
+  indikasiTabrakan!: boolean;
 
   @ApiProperty()
   @IsBoolean()
   @IsNotEmpty()
-  indikasiBanjir: boolean;
+  indikasiBanjir!: boolean;
 
   @ApiProperty()
   @IsBoolean()
   @IsNotEmpty()
-  indikasiOdometerReset: boolean;
+  indikasiOdometerReset!: boolean;
 
   @ApiProperty()
   @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  posisiBan: string;
+  posisiBan!: string;
 
   @ApiProperty()
   @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  merkban: string;
+  merkban!: string;
 
   @ApiProperty()
   @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  tipeVelg: string;
+  tipeVelg!: string;
 
   @ApiProperty()
   @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  ketebalanBan: string;
+  ketebalanBan!: string;
 
   @ApiProperty({ type: [EstimasiPerbaikanDto], required: false })
   @IsArray()

@@ -28,7 +28,7 @@ export class LoginUserDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  loginIdentifier: string;
+  loginIdentifier!: string;
 
   /**
    * The user's password.
@@ -45,5 +45,5 @@ export class LoginUserDto {
   @IsNotEmpty()
   // MaxLength prevents bcrypt DoS attack via extremely long password strings
   @MaxLength(72, { message: 'password must not exceed 72 characters' })
-  password: string;
+  password!: string;
 }

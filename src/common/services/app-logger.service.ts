@@ -14,9 +14,9 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class AppLoggerService extends Logger implements LoggerService {
-  private enabledLevels: Set<string>;
-  private enableTimestamp: boolean;
-  private enableColors: boolean;
+  private enabledLevels!: Set<string>;
+  private enableTimestamp!: boolean;
+  private enableColors!: boolean;
 
   constructor(private configService: ConfigService) {
     super();

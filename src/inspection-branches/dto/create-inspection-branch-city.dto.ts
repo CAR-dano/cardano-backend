@@ -31,7 +31,7 @@ export class CreateInspectionBranchCityDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  city: string;
+  city!: string;
 
   /**
    * Short branch code (1–3 uppercase letters/digits).
@@ -51,7 +51,7 @@ export class CreateInspectionBranchCityDto {
   @Matches(/^[A-Z0-9]+$/, {
     message: 'code must contain only uppercase letters or digits',
   })
-  code: string;
+  code!: string;
 
   /**
    * The status of the inspection branch city.

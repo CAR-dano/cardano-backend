@@ -24,21 +24,21 @@ export class InspectionBranchCityResponseDto {
     example: 'cuid',
     description: 'Unique identifier of the inspection branch city',
   })
-  id: string;
+  id!: string;
 
   /**
    * The name of the city for the inspection branch.
    * @example 'Jakarta'
    */
   @ApiProperty({ example: 'Jakarta', description: 'Name of the city' })
-  city: string;
+  city!: string;
 
   /**
    * The status of the inspection branch city.
    * @example true
    */
   @ApiProperty({ example: true, description: 'Status of the city' })
-  isActive: boolean;
+  isActive!: boolean;
 
   /**
    * The code or name of the inspection branch.
@@ -48,7 +48,7 @@ export class InspectionBranchCityResponseDto {
     example: 'Main Branch',
     description: 'Name of the inspection branch',
   })
-  code: string;
+  code!: string;
 
   /**
    * The timestamp when the inspection branch city entry was created.
@@ -58,7 +58,7 @@ export class InspectionBranchCityResponseDto {
     example: '2023-10-27T10:00:00.000Z',
     description: 'Creation timestamp',
   })
-  createdAt: Date;
+  createdAt!: Date;
 
   /**
    * The timestamp when the inspection branch city entry was last updated.
@@ -68,5 +68,5 @@ export class InspectionBranchCityResponseDto {
     example: '2023-10-27T10:00:00.000Z',
     description: 'Last update timestamp',
   })
-  updatedAt: Date;
+  updatedAt!: Date;
 }

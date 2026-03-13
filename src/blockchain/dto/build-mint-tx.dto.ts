@@ -37,7 +37,7 @@ class InspectionDataDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(20)
-  vehicleNumber: string;
+  vehicleNumber!: string;
 
   /**
    * The SHA-256 hash of the PDF file content (64 lowercase hex characters).
@@ -50,7 +50,7 @@ class InspectionDataDto {
   @IsNotEmpty()
   @Length(64, 64, { message: 'pdfHash must be exactly 64 characters (SHA-256 hex)' })
   @Matches(/^[a-f0-9]+$/, { message: 'pdfHash must contain only lowercase hex characters' })
-  pdfHash: string;
+  pdfHash!: string;
 
   /**
    * The display name for the NFT.
@@ -62,7 +62,7 @@ class InspectionDataDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  nftDisplayName: string;
+  nftDisplayName!: string;
 }
 
 /**
@@ -86,7 +86,7 @@ export class BuildMintTxDto {
   @Matches(/^(addr1|addr_test1|stake1|stake_test1)[a-z0-9]+$/, {
     message: 'adminAddress must be a valid Cardano bech32 address',
   })
-  adminAddress: string;
+  adminAddress!: string;
 
   /**
    * The inspection data to be included in the NFT metadata.
@@ -97,5 +97,5 @@ export class BuildMintTxDto {
   @IsObject()
   @ValidateNested()
   @Type(() => InspectionDataDto)
-  inspectionData: InspectionDataDto;
+  inspectionData!: InspectionDataDto;
 }

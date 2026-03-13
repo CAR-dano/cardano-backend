@@ -11,35 +11,35 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class MainStatsResponseDto {
   @ApiProperty({ description: 'Total number of orders/records', example: 1000 })
-  totalOrders: number;
+  totalOrders!: number;
 
   @ApiProperty({
     description: 'Number of orders with status Need Review',
     example: 50,
   })
-  needReview: number;
+  needReview!: number;
 
   @ApiProperty({
     description: 'Number of orders with status Approved',
     example: 800,
   })
-  approved: number;
+  approved!: number;
 
   @ApiProperty({
     description: 'Number of orders with status Minted',
     example: 100,
   })
-  archived: number;
+  archived!: number;
 
   @ApiProperty({
     description: 'Number of orders with status Failed to Mint',
     example: 10,
   })
-  failArchive: number;
+  failArchive!: number;
 
   @ApiProperty({
     description: 'Number of orders with status Deactivated',
     example: 40,
   })
-  deactivated: number;
+  deactivated!: number;
 }

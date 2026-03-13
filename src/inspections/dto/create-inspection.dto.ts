@@ -47,7 +47,7 @@ export class CreateInspectionDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(20)
-  vehiclePlateNumber: string;
+  vehiclePlateNumber!: string;
 
   /**
    * The date and time when the inspection was performed (ISO 8601).
@@ -60,7 +60,7 @@ export class CreateInspectionDto {
   })
   @IsDateString()
   @IsNotEmpty()
-  inspectionDate: string;
+  inspectionDate!: string;
 
   /**
    * The overall rating assigned to the vehicle (0–100).
@@ -77,7 +77,7 @@ export class CreateInspectionDto {
   @IsNotEmpty()
   @Min(0, { message: 'overallRating must be at least 0' })
   @Max(100, { message: 'overallRating must be at most 100' })
-  overallRating: number;
+  overallRating!: number;
 
   /**
    * Object containing details from the "Identitas" section.
@@ -93,7 +93,7 @@ export class CreateInspectionDto {
   })
   @Type(() => IdentityDetailsDto)
   @ValidateNested()
-  identityDetails: IdentityDetailsDto;
+  identityDetails!: IdentityDetailsDto;
 
   /**
    * Object containing details from the "Data Kendaraan" section.
@@ -104,7 +104,7 @@ export class CreateInspectionDto {
   })
   @Type(() => VehicleDataDto)
   @ValidateNested()
-  vehicleData: VehicleDataDto;
+  vehicleData!: VehicleDataDto;
 
   /**
    * Object containing details from the "Kelengkapan" section.
@@ -115,7 +115,7 @@ export class CreateInspectionDto {
   })
   @Type(() => EquipmentChecklistDto)
   @ValidateNested()
-  equipmentChecklist: EquipmentChecklistDto;
+  equipmentChecklist!: EquipmentChecklistDto;
 
   /**
    * Object containing details from the "Hasil Inspeksi" summary section.
@@ -126,7 +126,7 @@ export class CreateInspectionDto {
   })
   @Type(() => InspectionSummaryDto)
   @ValidateNested()
-  inspectionSummary: InspectionSummaryDto;
+  inspectionSummary!: InspectionSummaryDto;
 
   /**
    * Object containing details from the "Penilaian" section.
@@ -137,7 +137,7 @@ export class CreateInspectionDto {
   })
   @Type(() => DetailedAssessmentDto)
   @ValidateNested()
-  detailedAssessment: DetailedAssessmentDto;
+  detailedAssessment!: DetailedAssessmentDto;
 
   /**
    * Object containing details from the "Body Paint Thickness" section.
@@ -148,7 +148,7 @@ export class CreateInspectionDto {
   })
   @Type(() => BodyPaintThicknessDto)
   @ValidateNested()
-  bodyPaintThickness: BodyPaintThicknessDto;
+  bodyPaintThickness!: BodyPaintThicknessDto;
 
   /**
    * Map of note field paths to their desired font sizes in the PDF report.

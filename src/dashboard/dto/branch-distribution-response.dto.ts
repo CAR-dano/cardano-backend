@@ -11,16 +11,16 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class BranchDistributionItemDto {
   @ApiProperty({ description: 'Branch name', example: 'Main Branch' })
-  branch: string;
+  branch!: string;
 
   @ApiProperty({ description: 'Number of orders in the branch', example: 250 })
-  count: number;
+  count!: number;
 
   @ApiProperty({ description: 'Percentage of total orders', example: '50%' })
-  percentage: string;
+  percentage!: string;
 
   @ApiProperty({ description: 'Percentage change (e.g., +5%)', example: '+5%' })
-  change: string;
+  change!: string;
 }
 
 export class BranchDistributionResponseDto {
@@ -42,5 +42,5 @@ export class BranchDistributionResponseDto {
       },
     ],
   })
-  data: BranchDistributionItemDto[];
+  data!: BranchDistributionItemDto[];
 }

@@ -128,7 +128,7 @@ async function bootstrap() {
     const allowedOrigins = clientUrl.split(',').map(url => url.trim());
     logger.log(`Enabling CORS for origins: ${allowedOrigins.join(', ')}`);
     app.enableCors({
-      origin: (origin, callback) => {
+      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
         // Allow requests with no origin (like mobile apps or curl)
         if (!origin) return callback(null, true);
 

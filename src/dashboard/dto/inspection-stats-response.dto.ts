@@ -2,18 +2,18 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class InspectionStatsPeriodData {
   @ApiProperty({ description: 'Total number of inspections' })
-  total: number;
+  total!: number;
 
   @ApiProperty({ description: 'Number of approved inspections' })
-  approved: number;
+  approved!: number;
 
   @ApiProperty({ description: 'Number of inspections needing review' })
-  needReview: number;
+  needReview!: number;
 
   @ApiProperty({
     description: 'Percentage of inspections reviewed (approved out of total)',
   })
-  percentageReviewed: string;
+  percentageReviewed!: string;
 }
 
 export class InspectionStatsResponseDto {
@@ -21,23 +21,23 @@ export class InspectionStatsResponseDto {
     type: InspectionStatsPeriodData,
     description: 'Statistics for all time',
   })
-  allTime: InspectionStatsPeriodData;
+  allTime!: InspectionStatsPeriodData;
 
   @ApiProperty({
     type: InspectionStatsPeriodData,
     description: 'Statistics for the current month',
   })
-  thisMonth: InspectionStatsPeriodData;
+  thisMonth!: InspectionStatsPeriodData;
 
   @ApiProperty({
     type: InspectionStatsPeriodData,
     description: 'Statistics for the current week',
   })
-  thisWeek: InspectionStatsPeriodData;
+  thisWeek!: InspectionStatsPeriodData;
 
   @ApiProperty({
     type: InspectionStatsPeriodData,
     description: 'Statistics for today',
   })
-  today: InspectionStatsPeriodData;
+  today!: InspectionStatsPeriodData;
 }

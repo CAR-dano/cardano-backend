@@ -21,7 +21,7 @@ export class LoginInspectorDto {
   @IsNotEmpty()
   @Length(6, 6, { message: 'PIN must be exactly 6 digits' })
   @Matches(/^\d{6}$/, { message: 'PIN must contain only digits' })
-  pin: string;
+  pin!: string;
 
   @ApiProperty({
     description: "Inspector's email address",
@@ -34,5 +34,5 @@ export class LoginInspectorDto {
   @IsEmail()
   @IsNotEmpty()
   @MaxLength(255)
-  email: string;
+  email!: string;
 }

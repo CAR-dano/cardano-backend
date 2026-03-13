@@ -19,7 +19,7 @@ export class InspectionChangeLogResponseDto {
    * The unique identifier of the change log entry.
    */
   @ApiProperty({ description: 'The unique identifier of the change log entry' })
-  id: string;
+  id!: string;
 
   /**
    * The ID of the inspection the change log belongs to.
@@ -27,29 +27,29 @@ export class InspectionChangeLogResponseDto {
   @ApiProperty({
     description: 'The ID of the inspection the change log belongs to',
   })
-  inspectionId: string;
+  inspectionId!: string;
 
   /**
    * The name of the field that was changed.
    */
   @ApiProperty({ description: 'The name of the field that was changed' })
-  fieldName: string;
+  fieldName!: string;
 
   /**
    * The old value of the field.
    */
   @ApiProperty({ description: 'The old value of the field' })
-  oldValue: string;
+  oldValue!: string;
 
   /**
    * The new value of the field.
    */
   @ApiProperty({ description: 'The new value of the field' })
-  newValue: string;
+  newValue!: string;
 
   /**
    * The timestamp when the change occurred.
    */
   @ApiProperty({ description: 'The timestamp when the change occurred' })
-  changedAt: Date;
+  changedAt!: Date;
 }

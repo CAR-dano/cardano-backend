@@ -28,7 +28,7 @@ export class TransactionMetadataResponseDto {
     description: 'Metadata label (key) as a string (e.g., "721")', // Description for Swagger documentation
     example: '721', // Example value for Swagger documentation
   })
-  label: string; // Property to hold the metadata label
+  label!: string; // Property to hold the metadata label
 
   /**
    * The content of the metadata associated with the label.

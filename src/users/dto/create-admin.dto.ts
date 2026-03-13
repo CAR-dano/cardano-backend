@@ -37,7 +37,7 @@ export class CreateAdminDto {
   @Matches(/^[a-zA-Z0-9_]+$/, {
     message: 'username can only contain alphanumeric characters and underscores.',
   })
-  username: string;
+  username!: string;
 
   @ApiProperty({
     description: 'The email address for the new user.',
@@ -49,7 +49,7 @@ export class CreateAdminDto {
   @IsEmail()
   @IsNotEmpty()
   @MaxLength(255)
-  email: string;
+  email!: string;
 
   @ApiProperty({
     description: 'The full name of the new user.',
@@ -60,7 +60,7 @@ export class CreateAdminDto {
   @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @MaxLength(255)
-  name: string;
+  name!: string;
 
   @ApiProperty({
     description: 'The password for the new user. Minimum 8 characters.',
@@ -70,7 +70,7 @@ export class CreateAdminDto {
   @MinLength(8)
   @MaxLength(255)
   @IsNotEmpty()
-  password: string;
+  password!: string;
 
   @ApiProperty({
     description: 'The role to assign to the new user.',
@@ -79,5 +79,5 @@ export class CreateAdminDto {
   })
   @IsIn([Role.ADMIN, Role.SUPERADMIN])
   @IsNotEmpty()
-  role: Role;
+  role!: Role;
 }

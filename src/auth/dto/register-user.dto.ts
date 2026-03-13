@@ -37,7 +37,7 @@ export class RegisterUserDto {
   @IsEmail()
   @IsNotEmpty()
   @MaxLength(255)
-  email: string;
+  email!: string;
 
   /**
    * The user's desired username. Must be unique, 3-20 chars, alphanumeric + underscore.
@@ -61,7 +61,7 @@ export class RegisterUserDto {
   @Matches(/^[a-zA-Z0-9_]+$/, {
     message: 'Username can only contain alphanumeric characters and underscores.',
   })
-  username: string;
+  username!: string;
 
   /**
    * The user's chosen password. Minimum 8 characters. Will be hashed before storage.
@@ -79,7 +79,7 @@ export class RegisterUserDto {
   @IsNotEmpty()
   @MinLength(8)
   @MaxLength(255)
-  password: string;
+  password!: string;
 
   /**
    * The user's display name. Optional during registration.

@@ -215,7 +215,7 @@ export class DashboardService {
         return JSON.parse(cachedData);
       }
     } catch (error) {
-      this.logger.warn(`Redis error while fetching cache: ${error.message}`);
+      this.logger.warn(`Redis error while fetching cache: ${error instanceof Error ? error.message : String(error)}`);
     }
     // --- Caching Logic End ---
 
@@ -260,7 +260,7 @@ export class DashboardService {
         3600 * 24, // Cache for 24 hours (invalidated by version increment)
       );
     } catch (error) {
-      this.logger.warn(`Redis error while setting cache: ${error.message}`);
+      this.logger.warn(`Redis error while setting cache: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     return response;
@@ -486,7 +486,7 @@ export class DashboardService {
         return JSON.parse(cachedData);
       }
     } catch (error) {
-      this.logger.warn(`Redis error while fetching cache: ${error.message}`);
+      this.logger.warn(`Redis error while fetching cache: ${error instanceof Error ? error.message : String(error)}`);
     }
     // --- Caching Logic End ---
 
@@ -574,7 +574,7 @@ export class DashboardService {
         3600 * 24, // Cache for 24 hours
       );
     } catch (error) {
-      this.logger.warn(`Redis error while setting cache: ${error.message}`);
+      this.logger.warn(`Redis error while setting cache: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     return response;
@@ -611,7 +611,7 @@ export class DashboardService {
         return JSON.parse(cachedData);
       }
     } catch (error) {
-      this.logger.warn(`Redis error while fetching cache: ${error.message}`);
+      this.logger.warn(`Redis error while fetching cache: ${error instanceof Error ? error.message : String(error)}`);
     }
     // --- Caching Logic End ---
 
@@ -718,7 +718,7 @@ export class DashboardService {
         3600 * 24, // Cache for 24 hours
       );
     } catch (error) {
-      this.logger.warn(`Redis error while setting cache: ${error.message}`);
+      this.logger.warn(`Redis error while setting cache: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     return response;
@@ -748,7 +748,7 @@ export class DashboardService {
         return JSON.parse(cachedData);
       }
     } catch (error) {
-      this.logger.warn(`Redis error while fetching cache: ${error.message}`);
+      this.logger.warn(`Redis error while fetching cache: ${error instanceof Error ? error.message : String(error)}`);
     }
     // --- Caching Logic End ---
 
@@ -808,7 +808,7 @@ export class DashboardService {
         3600 * 24, // Cache for 24 hours
       );
     } catch (error) {
-      this.logger.warn(`Redis error while setting cache: ${error.message}`);
+      this.logger.warn(`Redis error while setting cache: ${error instanceof Error ? error.message : String(error)}`);
     }
 
     return response;

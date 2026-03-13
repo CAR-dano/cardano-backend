@@ -19,7 +19,7 @@ export class SetInspectionTargetDto {
   })
   @IsNotEmpty()
   @IsEnum(TargetPeriod)
-  period: TargetPeriod;
+  period!: TargetPeriod;
 
   @ApiProperty({
     description: 'The target number of inspections for the specified period',
@@ -29,5 +29,5 @@ export class SetInspectionTargetDto {
   @IsNotEmpty()
   @IsInt()
   @Min(0)
-  targetValue: number;
+  targetValue!: number;
 }

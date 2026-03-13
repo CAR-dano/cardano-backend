@@ -24,73 +24,73 @@ export class PhotoDetailResponseDTO {
     example: 'add815ce-d602-4e49-a360-e6012e23cead',
     description: 'The unique identifier (UUID) for the photo record.',
   })
-  id: string;
+  id!: string;
 
   @ApiProperty({
     example: '2a2b508c-c0c5-4d41-9341-2cdc88635c8a',
     description: 'The UUID of the inspection this photo belongs to.',
   })
-  inspectionId: string;
+  inspectionId!: string;
 
   @ApiProperty({
     example: '1748917020710-compressed-1748917126971-729831521.jpg',
     description: 'The file path of the photo.',
   })
-  path: string;
+  path!: string;
 
   @ApiProperty({
     example: 'Foto Tambahan',
     description: 'The label assigned to the photo.',
     nullable: true,
   })
-  label: string | null;
+  label!: string | null;
 
   @ApiProperty({
     example: 'General Tambahan',
     description: 'The category of the photo.',
     nullable: true,
   })
-  category: string | null;
+  category!: string | null;
 
   @ApiProperty({
     example: false,
     description: 'Indicates if the photo is mandatory.',
     nullable: true,
   })
-  isMandatory: boolean | null;
+  isMandatory!: boolean | null;
 
   @ApiProperty({
     example: null,
     description: 'The original label of the photo.',
     nullable: true,
   })
-  originalLabel: string | null;
+  originalLabel!: string | null;
 
   @ApiProperty({
     example: false,
     description: 'Indicates if the photo needs attention.',
     nullable: true,
   })
-  needAttention: boolean | null;
+  needAttention!: boolean | null;
 
   @ApiProperty({
     example: true,
     description:
       'Indicates if the photo should be displayed in the PDF report.',
   })
-  displayInPdf: boolean;
+  displayInPdf!: boolean;
 
   @ApiProperty({
     example: '2025-06-03T02:18:46.983Z',
     description: 'The timestamp when the photo record was created.',
   })
-  createdAt: Date;
+  createdAt!: Date;
 
   @ApiProperty({
     example: '2025-06-03T02:18:46.983Z',
     description: 'The timestamp when the photo record was last updated.',
   })
-  updatedAt: Date;
+  updatedAt!: Date;
 
   constructor(partial: Partial<PhotoDetailResponseDTO>) {
     Object.assign(this, partial);
@@ -110,7 +110,7 @@ export class InspectionResponseDto {
     example: 'a1b2c3d4-e5f6-7890-1234-567890abcdef',
     description: 'The unique identifier (UUID) for the inspection record.',
   })
-  id: string;
+  id!: string;
 
   /**
    * The UUID of the user (Inspector) who submitted this inspection.
@@ -123,7 +123,7 @@ export class InspectionResponseDto {
       'The UUID of the user (Inspector) who submitted this inspection.',
     nullable: true,
   })
-  submittedByUserId: string | null;
+  submittedByUserId!: string | null;
 
   /**
    * The UUID of the user (Reviewer) who last reviewed (approved/rejected) this inspection.
@@ -136,7 +136,7 @@ export class InspectionResponseDto {
       'The UUID of the user (Reviewer) who last reviewed (approved/rejected) this inspection.',
     nullable: true,
   })
-  reviewerId: string | null;
+  reviewerId!: string | null;
 
   /**
    * The license plate number of the inspected vehicle.
@@ -147,7 +147,7 @@ export class InspectionResponseDto {
     description: 'The license plate number of the inspected vehicle.',
     nullable: true,
   })
-  vehiclePlateNumber: string | null;
+  vehiclePlateNumber!: string | null;
 
   /**
    * The date and time the inspection occurred.
@@ -158,7 +158,7 @@ export class InspectionResponseDto {
     description: 'The date and time the inspection occurred.',
     nullable: true,
   })
-  inspectionDate: Date | null;
+  inspectionDate!: Date | null;
 
   /**
    * The overall rating assigned during the inspection.
@@ -169,7 +169,7 @@ export class InspectionResponseDto {
     description: 'The overall rating assigned during the inspection.',
     nullable: true,
   })
-  overallRating: string | null;
+  overallRating!: string | null;
 
   /**
    * The current status of the inspection in its lifecycle.
@@ -180,7 +180,7 @@ export class InspectionResponseDto {
     example: 'ARCHIVED',
     description: 'The current status of the inspection in its lifecycle.',
   })
-  status: string; // Exposing enum as string in response is common
+  status!: string; // Exposing enum as string in response is common
 
   /**
    * Object containing identity details (inspector, customer, branch) from the inspection form.
@@ -196,7 +196,7 @@ export class InspectionResponseDto {
     description: 'Object containing identity details from the inspection form.',
     nullable: true,
   })
-  identityDetails: Prisma.JsonValue | null;
+  identityDetails!: Prisma.JsonValue | null;
 
   /**
    * Object containing vehicle details (make, model, year, transmission, etc.) from the inspection form.
@@ -220,7 +220,7 @@ export class InspectionResponseDto {
     description: 'Object containing vehicle details from the inspection form.',
     nullable: true,
   })
-  vehicleData: Prisma.JsonValue | null;
+  vehicleData!: Prisma.JsonValue | null;
 
   /**
    * Object containing checklist results for equipment (service book, spare key, etc.) from the inspection form.
@@ -243,12 +243,11 @@ export class InspectionResponseDto {
       'Object containing checklist results for equipment from the inspection form.',
     nullable: true,
   })
-  equipmentChecklist: Prisma.JsonValue | null;
+  equipmentChecklist!: Prisma.JsonValue | null;
 
   /**
    * Object containing summary results (scores, indicators, tire info, estimates) from the inspection form.
    * Stored as JSON in the database.
-   * @example { "merkban": "Bridgestone", "tipeVelg": "Original", "posisiBan": "Bridgestone", "mesinNotes": "Suara halus", "mesinScore": 9, "ketebalanBan": "80%", "interiorNotes": "Bersih terawat", "interiorScore": 9, "kakiKakiNotes": "Aman", "kakiKakiScore": 10, "eksteriorNotes": "Baret halus pintu kanan", "eksteriorScore": 8, "indikasiBanjir": false, "indikasiTabrakan": false, "estimasiPerbaikan": [ { "harga": 700000, "namaPart": "Tie Rod Kanan Kiri" }, { "harga": 300000, "namaPart": "Spooring" } ], "deskripsiKeseluruhan": [ "Kondisi sangat baik", "Ada baret halus" ], "indikasiOdometerReset": false, "penilaianKeseluruhanScore": 9 }
    */
   @ApiProperty({
     example: {
@@ -283,12 +282,11 @@ export class InspectionResponseDto {
     description: 'Object containing summary results from the inspection form.',
     nullable: true,
   })
-  inspectionSummary: Prisma.JsonValue | null;
+  inspectionSummary!: Prisma.JsonValue | null;
 
   /**
    * Object containing detailed assessment scores across various categories from the inspection form.
    * Stored as JSON in the database.
-   * @example { "fitur": { "airbag": 7, "catatan": "OK", "sistemAC": 6, "interior1": 5, "interior2": 4, "interior3": 3, "powerWindow": 2, "sistemAudio": 1 }, "testDrive": { "rpm": 10, "catatan": "OK", "stirBalance": 10, "bunyiGetaran": 10, "performaStir": 9, "performaKopling": 10, "performaSuspensi": 9, "perpindahanTransmisi": 10 }, "toolsTest": { "catatan": "OK", "testAccu": 10, "obdScanner": 10, "temperatureAC": 4, "tebalCatBodyAtap": 110, "tebalCatBodyKiri": 8, "tebalCatBodyDepan": 8, "tebalCatBodyKanan": 5, "tebalCatBodyBelakang": 1 }, "banDanKakiKaki": { "gardan": 10, "tieRod": 10, "catatan": "OK", "knalpot": 10, "banDepan": 9, "brakePad": 9, "balljoint": 10, "discBrake": 10, "karetBoot": 10, "masterRem": 10, "rocksteer": 10, "velgDepan": 10, "banBelakang": 9, "crossmember": 10, "shockBreaker": 9, "velgBelakang": 10, "upperLowerArm": 10, "linkStabilizer": 10 }, "hasilInspeksiMesin": { "fan": 10, "accu": 9, "belt": 9, "kabel": 10, "oliRem": 10, "selang": 10, "catatan": "OK", "oliMesin": 9, "radiator": 10, "coverKlep": 10, "karterOli": 10, "kondensor": 10, "transmisi": 10, "waterPump": 10, "alternator": 10, "suaraMesin": 10, "airRadiator": 10, "bushingBesar": 10, "bushingKecil": 10, "cylinderHead": 10, "getaranMesin": 10, "kompressorAC": 10, "oliTransmisi": 10, "cylinderBlock": 10, "tutupRadiator": 10, "coverTimingChain": 10, "oliPowerSteering": 10, "pompaPowerSteering": 10 }, "hasilInspeksiInterior": { "stir": 10, "pedal": 10, "plafon": 10, "catatan": "OK", "klakson": 10, "jokDepan": 9, "sunVisor": 10, "remTangan": 10, "consoleBox": 10, "handlePintu": 10, "jokBelakang": 9, "karpetDasar": 8, "lampuHazard": 10, "spionTengah": 10, "switchLampu": 10, "switchWiper": 10, "trimInterior": 9, "aromaInterior": 10, "pembukaBagasi": 10, "sabukPengaman": 10, "panelDashboard": 9, "panelIndikator": 10, "tuasPersneling": 10, "pembukaKapMesin": 10, "tuasTangkiBensin": 10, "switchLampuInterior": 10 }, "hasilInspeksiEksterior": { "grill": 10, "catatan": "Baret halus pintu kanan", "kapMesin": 10, "trunklid": 10, "daunWiper": 10, "kacaDepan": 10, "panelAtap": 10, "spionKiri": 10, "fenderKiri": 10, "kacaBening": 10, "lampuUtama": 10, "pintuDepan": 10, "spionKanan": 10, "bumperDepan": 8, "fenderKanan": 10, "lampuFoglamp": 10, "lisplangKiri": 10, "lampuBelakang": 10, "lisplangKanan": 10, "pintuBelakang": 10, "sideSkirtKiri": 10, "wiperBelakang": 10, "bumperBelakang": 9, "pintuDepanKiri": 10, "sideSkirtKanan": 10, "kacaJendelaKiri": 10, "kacaJendelaKanan": 10, "quarterPanelKiri": 10, "pintuBelakangKiri": 10, "quarterPanelKanan": 10, "pintuBelakangKanan": 10 } }
    */
   @ApiProperty({
     example: {
@@ -439,7 +437,7 @@ export class InspectionResponseDto {
       'Object containing detailed assessment scores from the inspection form.',
     nullable: true,
   })
-  detailedAssessment: Prisma.JsonValue | null;
+  detailedAssessment!: Prisma.JsonValue | null;
 
   /**
    * Object containing body paint thickness measurements from the inspection form.
@@ -470,7 +468,7 @@ export class InspectionResponseDto {
       'Object containing body paint thickness measurements from the inspection form.',
     nullable: true,
   })
-  bodyPaintThickness: Prisma.JsonValue | null;
+  bodyPaintThickness!: Prisma.JsonValue | null;
 
   /**
    * An array containing metadata for photos associated with this inspection.
@@ -492,7 +490,7 @@ export class InspectionResponseDto {
     type: PhotoDetailResponseDTO, // Specify the DTO type for array items
     isArray: true, // Indicate that this is an array
   })
-  photos: PhotoDetailResponseDTO[]; // Use the new PhotoDetailResponseDTO type
+  photos!: PhotoDetailResponseDTO[]; // Use the new PhotoDetailResponseDTO type
 
   /**
    * The URL pointing to the generated PDF report file (stored off-chain).
@@ -505,7 +503,7 @@ export class InspectionResponseDto {
       'The URL pointing to the generated PDF report file (stored off-chain).',
     nullable: true,
   })
-  urlPdf: string | null;
+  urlPdf!: string | null;
 
   /**
    * The unique Cardano NFT Asset ID representing this inspection on the blockchain.
@@ -519,7 +517,7 @@ export class InspectionResponseDto {
       'The unique Cardano NFT Asset ID representing this inspection on the blockchain.',
     nullable: true,
   })
-  nftAssetId: string | null;
+  nftAssetId!: string | null;
 
   /**
    * The Cardano transaction hash for the NFT minting process.
@@ -531,7 +529,7 @@ export class InspectionResponseDto {
     description: 'The Cardano transaction hash for the NFT minting process.',
     nullable: true,
   })
-  blockchainTxHash: string | null;
+  blockchainTxHash!: string | null;
 
   /**
    * The cryptographic hash (e.g., SHA-256) of the generated PDF report file.
@@ -544,7 +542,7 @@ export class InspectionResponseDto {
       'The cryptographic hash (e.g., SHA-256) of the generated PDF report file.',
     nullable: true,
   })
-  pdfFileHash: string | null;
+  pdfFileHash!: string | null;
 
   /**
    * The timestamp indicating when the inspection was successfully archived (PDF stored, NFT minted).
@@ -557,7 +555,7 @@ export class InspectionResponseDto {
       'The timestamp indicating when the inspection was successfully archived.',
     nullable: true,
   })
-  archivedAt: Date | null;
+  archivedAt!: Date | null;
 
   /**
    * The timestamp indicating when the inspection was deactivated (soft delete).
@@ -570,7 +568,7 @@ export class InspectionResponseDto {
       'The timestamp indicating when the inspection was deactivated (soft delete).',
     nullable: true,
   })
-  deactivatedAt: Date | null;
+  deactivatedAt!: Date | null;
 
   /**
    * Map of note field paths to their desired font sizes in the report.
@@ -583,7 +581,7 @@ export class InspectionResponseDto {
       'Map of note field paths to their desired font sizes in the report.',
     nullable: true,
   })
-  notesFontSizes: Prisma.JsonValue | null;
+  notesFontSizes!: Prisma.JsonValue | null;
 
   /**
    * The timestamp when this inspection record was first created in the database.
@@ -594,7 +592,7 @@ export class InspectionResponseDto {
     description:
       'The timestamp when this inspection record was first created in the database.',
   })
-  createdAt: Date;
+  createdAt!: Date;
 
   /**
    * The timestamp when this inspection record was last updated in the database.
@@ -605,7 +603,7 @@ export class InspectionResponseDto {
     description:
       'The timestamp when this inspection record was last updated in the database.',
   })
-  updatedAt: Date;
+  updatedAt!: Date;
 
   /**
    * The unique human-readable identifier for the inspection.
@@ -615,7 +613,7 @@ export class InspectionResponseDto {
     example: 'SOL-05072025-002',
     description: 'The unique human-readable identifier for the inspection.',
   })
-  pretty_id: string;
+  pretty_id!: string;
 
   /**
    * The UUID of the user (Inspector) who performed this inspection.
@@ -628,7 +626,7 @@ export class InspectionResponseDto {
       'The UUID of the user (Inspector) who performed this inspection.',
     nullable: true,
   })
-  inspectorId: string | null;
+  inspectorId!: string | null;
 
   /**
    * Constructor to facilitate mapping from a Prisma Inspection entity.

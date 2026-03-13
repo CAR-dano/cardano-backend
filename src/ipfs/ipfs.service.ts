@@ -21,7 +21,7 @@ export class IpfsService implements OnModuleInit {
   // Logger instance for logging messages
   private readonly logger = new Logger(IpfsService.name);
   // IPFS client instance
-  private ipfs: IPFSHTTPClient;
+  private ipfs!: IPFSHTTPClient;
 
   /**
    * Constructs the IpfsService.

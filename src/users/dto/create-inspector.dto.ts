@@ -39,7 +39,7 @@ export class CreateInspectorDto {
   @IsEmail()
   @IsString()
   @MaxLength(255)
-  email: string;
+  email!: string;
 
   /**
    * Username for the inspector (must be unique, min 3 chars, alphanumeric + underscore).
@@ -59,7 +59,7 @@ export class CreateInspectorDto {
   @Matches(/^[a-zA-Z0-9_]+$/, {
     message: 'username can only contain alphanumeric characters and underscores.',
   })
-  username: string;
+  username!: string;
 
   /**
    * Full name of the inspector.
@@ -73,7 +73,7 @@ export class CreateInspectorDto {
   @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @MaxLength(255)
-  name: string;
+  name!: string;
 
   /**
    * Optional Cardano wallet address for the inspector (must be unique).
@@ -128,5 +128,5 @@ export class CreateInspectorDto {
   })
   @IsNotEmpty()
   @IsUUID('4', { message: 'inspectionBranchCityId must be a valid UUID v4' })
-  inspectionBranchCityId: string;
+  inspectionBranchCityId!: string;
 }

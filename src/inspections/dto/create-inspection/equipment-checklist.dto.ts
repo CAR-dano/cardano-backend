@@ -5,45 +5,45 @@ export class EquipmentChecklistDto {
   @ApiProperty()
   @IsBoolean()
   @IsNotEmpty()
-  bukuService: boolean;
+  bukuService!: boolean;
 
   @ApiProperty()
   @IsBoolean()
   @IsNotEmpty()
-  kunciSerep: boolean;
+  kunciSerep!: boolean;
 
   @ApiProperty()
   @IsBoolean()
   @IsNotEmpty()
-  bukuManual: boolean;
+  bukuManual!: boolean;
 
   @ApiProperty()
   @IsBoolean()
   @IsNotEmpty()
-  banSerep: boolean;
+  banSerep!: boolean;
 
   @ApiProperty()
   @IsBoolean()
   @IsNotEmpty()
-  bpkb: boolean;
+  bpkb!: boolean;
 
   @ApiProperty()
   @IsBoolean()
   @IsNotEmpty()
-  dongkrak: boolean;
+  dongkrak!: boolean;
 
   @ApiProperty()
   @IsBoolean()
   @IsNotEmpty()
-  toolkit: boolean;
+  toolkit!: boolean;
 
   @ApiProperty()
   @IsBoolean()
   @IsNotEmpty()
-  noRangka: boolean;
+  noRangka!: boolean;
 
   @ApiProperty()
   @IsBoolean()
   @IsNotEmpty()
-  noMesin: boolean;
+  noMesin!: boolean;
 }

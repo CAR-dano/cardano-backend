@@ -28,7 +28,7 @@ export class BuildMintTxResponseDto {
       'The unsigned transaction in CBOR hex string format. This string will be passed to the wallet on the frontend for signing.',
     example: '84a40082825820...',
   })
-  unsignedTx: string; // Represents the unsigned transaction as a string.
+  unsignedTx!: string; // Represents the unsigned transaction as a string.
 
   /**
    * The unique Asset ID (PolicyID + AssetNameHex) of the NFT to be created. The frontend needs to temporarily store this to send back during confirmation.
@@ -39,5 +39,5 @@ export class BuildMintTxResponseDto {
     example:
       '401c967008d42885400991f9225715e1c3a8e43757b1fd36a1328195496e7370656374696f6e4e4654',
   })
-  nftAssetId: string; // Represents the NFT Asset ID as a string.
+  nftAssetId!: string; // Represents the NFT Asset ID as a string.
 }

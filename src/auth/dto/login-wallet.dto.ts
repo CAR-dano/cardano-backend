@@ -35,7 +35,7 @@ export class LoginWalletDto {
     message:
       'walletAddress must be a valid Cardano bech32 address (addr1…, addr_test1…, stake1…, or stake_test1…)',
   })
-  walletAddress: string;
+  walletAddress!: string;
 
   /**
    * A message signed by the user's wallet to prove ownership.
@@ -53,5 +53,5 @@ export class LoginWalletDto {
   @IsNotEmpty()
   // CIP-0030 wallet signatures are bounded hex/cbor strings; 4096 chars is a generous ceiling
   @MaxLength(4096, { message: 'signature must not exceed 4096 characters' })
-  signature: string;
+  signature!: string;
 }

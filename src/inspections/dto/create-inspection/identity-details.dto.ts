@@ -29,7 +29,7 @@ export class IdentityDetailsDto {
   @IsNotEmpty({ message: 'namaInspektor (inspector UUID) is required' })
   @IsString()
   @IsUUID('4', { message: 'namaInspektor must be a valid UUID v4' })
-  namaInspektor: string;
+  namaInspektor!: string;
 
   /**
    * The name of the customer.
@@ -43,7 +43,7 @@ export class IdentityDetailsDto {
   @Transform(({ value }: { value: unknown }) => sanitizeString(value))
   @IsString()
   @MaxLength(255)
-  namaCustomer: string;
+  namaCustomer!: string;
 
   /**
    * The UUID of the inspection branch city (required for a new inspection).
@@ -56,5 +56,5 @@ export class IdentityDetailsDto {
   @IsNotEmpty({ message: 'cabangInspeksi (branch city UUID) is required' })
   @IsString()
   @IsUUID('4', { message: 'cabangInspeksi must be a valid UUID v4' })
-  cabangInspeksi: string;
+  cabangInspeksi!: string;
 }

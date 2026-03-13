@@ -9,7 +9,7 @@ export class BodyPaintThicknessRearDto {
   @IsNotEmpty()
   @Min(0, { message: 'trunk must be a non-negative number' })
   @Max(2000, { message: 'trunk exceeds maximum paint thickness (2000 µm)' })
-  trunk: number;
+  trunk!: number;
 
   @ApiProperty()
   @Type(() => Number)
@@ -17,5 +17,5 @@ export class BodyPaintThicknessRearDto {
   @IsNotEmpty()
   @Min(0, { message: 'bumper must be a non-negative number' })
   @Max(2000, { message: 'bumper exceeds maximum paint thickness (2000 µm)' })
-  bumper: number;
+  bumper!: number;
 }

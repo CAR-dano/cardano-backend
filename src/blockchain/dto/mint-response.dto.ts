@@ -22,7 +22,7 @@ export class MintResponseDto {
   @ApiProperty({
     description: 'The transaction hash of the minting process on Cardano.',
   })
-  txHash: string;
+  txHash!: string;
 
   /**
    * The full Asset ID (PolicyID + HexAssetName) of the minted NFT.
@@ -32,7 +32,7 @@ export class MintResponseDto {
     description:
       'The full Asset ID (PolicyID + HexAssetName) of the minted NFT.',
   })
-  assetId: string;
+  assetId!: string;
 
   /**
    * Message indicating the success of the transaction submission.

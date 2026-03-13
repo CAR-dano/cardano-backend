@@ -22,7 +22,7 @@ export class LoginResponseDto {
     description: 'JWT access token for subsequent authenticated requests',
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
   })
-  accessToken: string;
+  accessToken!: string;
 
   /**
    * The JSON Web Token (JWT) used for refreshing the access token.
@@ -31,7 +31,7 @@ export class LoginResponseDto {
     description: 'JWT refresh token for refreshing the access token',
     example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
   })
-  refreshToken: string;
+  refreshToken!: string;
 
   /**
    * Details of the authenticated user (excluding sensitive information).
@@ -40,5 +40,5 @@ export class LoginResponseDto {
     description: 'Authenticated user details',
     type: UserResponseDto, // Use the existing DTO for user details
   })
-  user: UserResponseDto;
+  user!: UserResponseDto;
 }

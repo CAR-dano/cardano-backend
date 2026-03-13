@@ -32,5 +32,5 @@ export class UpdateUserRoleDto {
     message: 'Role must be a valid role value (ADMIN, REVIEWER, etc.)',
   })
   @IsNotEmpty({ message: 'Role cannot be empty' })
-  role: Role;
+  role!: Role;
 }

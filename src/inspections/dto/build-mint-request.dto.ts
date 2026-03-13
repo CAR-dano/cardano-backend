@@ -22,5 +22,5 @@ export class BuildMintRequestDto {
     message:
       'adminAddress harus berupa alamat Cardano bech32 yang valid (addr1…, addr_test1…, stake1…, atau stake_test1…)',
   })
-  adminAddress: string;
+  adminAddress!: string;
 }

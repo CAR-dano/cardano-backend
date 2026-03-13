@@ -15,7 +15,7 @@ export class ConfirmMintDto {
   @IsNotEmpty()
   @Length(64, 64, { message: 'txHash must be exactly 64 characters (Cardano transaction hash)' })
   @Matches(/^[a-f0-9]+$/, { message: 'txHash must contain only lowercase hex characters' })
-  txHash: string;
+  txHash!: string;
 
   @ApiProperty({
     description:
@@ -28,5 +28,5 @@ export class ConfirmMintDto {
   // Cardano asset IDs are hex-encoded: policy ID (56 chars) + asset name (0–64 chars) = 56–120 hex chars
   @Length(56, 120, { message: 'nftAssetId must be between 56 and 120 characters (Cardano asset ID)' })
   @Matches(/^[a-f0-9]+$/, { message: 'nftAssetId must contain only lowercase hex characters' })
-  nftAssetId: string;
+  nftAssetId!: string;
 }

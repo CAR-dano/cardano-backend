@@ -14,41 +14,41 @@ export class DetailedAssessmentDto {
   @ValidateNested()
   @Type(() => TestDriveDto)
   @IsNotEmpty()
-  testDrive: TestDriveDto;
+  testDrive!: TestDriveDto;
 
   @ApiProperty()
   @ValidateNested()
   @Type(() => BanDanKakiKakiDto)
   @IsNotEmpty()
-  banDanKakiKaki: BanDanKakiKakiDto;
+  banDanKakiKaki!: BanDanKakiKakiDto;
 
   @ApiProperty()
   @ValidateNested()
   @Type(() => HasilInspeksiEksteriorDto)
   @IsNotEmpty()
-  hasilInspeksiEksterior: HasilInspeksiEksteriorDto;
+  hasilInspeksiEksterior!: HasilInspeksiEksteriorDto;
 
   @ApiProperty()
   @ValidateNested()
   @Type(() => ToolsTestDto)
   @IsNotEmpty()
-  toolsTest: ToolsTestDto;
+  toolsTest!: ToolsTestDto;
 
   @ApiProperty()
   @ValidateNested()
   @Type(() => FiturDto)
   @IsNotEmpty()
-  fitur: FiturDto;
+  fitur!: FiturDto;
 
   @ApiProperty()
   @ValidateNested()
   @Type(() => HasilInspeksiMesinDto)
   @IsNotEmpty()
-  hasilInspeksiMesin: HasilInspeksiMesinDto;
+  hasilInspeksiMesin!: HasilInspeksiMesinDto;
 
   @ApiProperty()
   @ValidateNested()
   @Type(() => HasilInspeksiInteriorDto)
   @IsNotEmpty()
-  hasilInspeksiInterior: HasilInspeksiInteriorDto;
+  hasilInspeksiInterior!: HasilInspeksiInteriorDto;
 }

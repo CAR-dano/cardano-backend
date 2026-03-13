@@ -11,23 +11,23 @@ export class BodyPaintThicknessDto {
   @IsNotEmpty()
   @Min(0, { message: 'front must be a non-negative number' })
   @Max(2000, { message: 'front exceeds maximum paint thickness (2000 µm)' })
-  front: number;
+  front!: number;
 
   @ApiProperty()
   @ValidateNested()
   @Type(() => BodyPaintThicknessRearDto)
   @IsNotEmpty()
-  rear: BodyPaintThicknessRearDto;
+  rear!: BodyPaintThicknessRearDto;
 
   @ApiProperty()
   @ValidateNested()
   @Type(() => BodyPaintThicknessSideDto)
   @IsNotEmpty()
-  right: BodyPaintThicknessSideDto;
+  right!: BodyPaintThicknessSideDto;
 
   @ApiProperty()
   @ValidateNested()
   @Type(() => BodyPaintThicknessSideDto)
   @IsNotEmpty()
-  left: BodyPaintThicknessSideDto;
+  left!: BodyPaintThicknessSideDto;
 }

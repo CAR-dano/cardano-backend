@@ -52,8 +52,8 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
    * @throws {UnauthorizedException} If authentication fails.
    */
   handleRequest(
-    err,
-    user,
+    err: any,
+    user: any,
     info: Error,
     context: ExecutionContext,
     status?: any,

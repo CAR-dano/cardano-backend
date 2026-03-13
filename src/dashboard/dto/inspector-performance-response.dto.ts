@@ -11,14 +11,14 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class InspectorPerformanceItemDto {
   @ApiProperty({ description: 'Inspector name', example: 'John Doe' })
-  inspector: string;
+  inspector!: string;
 
   @ApiProperty({
     description:
       'Total number of inspections performed by the inspector within the specified date range',
     example: 75, // Updated example
   })
-  totalInspections: number;
+  totalInspections!: number;
 }
 
 export class InspectorPerformanceResponseDto {
@@ -36,5 +36,5 @@ export class InspectorPerformanceResponseDto {
       },
     ],
   })
-  data: InspectorPerformanceItemDto[];
+  data!: InspectorPerformanceItemDto[];
 }
