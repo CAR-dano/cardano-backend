@@ -34,6 +34,9 @@ const mockUsersService = {
   findOrCreateByGoogleProfile: jest.fn(),
   updateUser: jest.fn(),
   findById: jest.fn(),
+  findByEmail: jest.fn(),
+  findByUsername: jest.fn(),
+  findByWalletAddress: jest.fn(),
 };
 
 /**
@@ -533,6 +536,220 @@ describe('AuthService', () => {
       mockPrismaService.user.update.mockResolvedValue({});
 
       await expect(service.revokeAllSessions(mockUser.id)).resolves.toBeUndefined();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // validateLocalUser
+  // ---------------------------------------------------------------------------
+  describe('validateLocalUser', () => {
+    const bcryptModule = require('bcrypt');
+
+    it('should return user (without password/googleId) when email + password are valid', async () => {
+      const hashed = await bcryptModule.hash('correctpass', 10);
+      const mockUser = buildMockUser({ email: 'u@example.com', password: hashed });
+      mockUsersService.findByEmail.mockResolvedValue(mockUser);
+
+      const result = await service.validateLocalUser('u@example.com', 'correctpass');
+
+      expect(result).not.toBeNull();
+      expect((result as any).password).toBeUndefined();
+      expect((result as any).googleId).toBeUndefined();
+    });
+
+    it('should return null when password does not match', async () => {
+      const hashed = await bcryptModule.hash('correctpass', 10);
+      const mockUser = buildMockUser({ email: 'u@example.com', password: hashed });
+      mockUsersService.findByEmail.mockResolvedValue(mockUser);
+
+      const result = await service.validateLocalUser('u@example.com', 'wrongpass');
+      expect(result).toBeNull();
+    });
+
+    it('should return null when user not found by email', async () => {
+      mockUsersService.findByEmail.mockResolvedValue(null);
+
+      const result = await service.validateLocalUser('noone@example.com', 'pass');
+      expect(result).toBeNull();
+    });
+
+    it('should return null when user has no password (OAuth-only user)', async () => {
+      const mockUser = buildMockUser({ password: null });
+      mockUsersService.findByEmail.mockResolvedValue(mockUser);
+
+      const result = await service.validateLocalUser('u@example.com', 'anypass');
+      expect(result).toBeNull();
+    });
+
+    it('should use findByUsername when identifier has no @', async () => {
+      const hashed = await bcryptModule.hash('pass', 10);
+      const mockUser = buildMockUser({ username: 'johndoe', password: hashed });
+      mockUsersService.findByUsername.mockResolvedValue(mockUser);
+
+      const result = await service.validateLocalUser('johndoe', 'pass');
+
+      expect(mockUsersService.findByUsername).toHaveBeenCalledWith('johndoe');
+      expect(result).not.toBeNull();
+    });
+
+    it('should return null when username not found', async () => {
+      mockUsersService.findByUsername.mockResolvedValue(null);
+
+      const result = await service.validateLocalUser('unknownuser', 'pass');
+      expect(result).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // validateInspector
+  // ---------------------------------------------------------------------------
+  describe('validateInspector', () => {
+    const bcryptModule = require('bcrypt');
+
+    it('should return inspector (without password/googleId/pin) when pin matches', async () => {
+      const hashed = await bcryptModule.hash('123456', 10);
+      const mockUser = buildMockUser({ role: Role.INSPECTOR, pin: hashed });
+      mockUsersService.findByEmail.mockResolvedValue(mockUser);
+
+      const result = await service.validateInspector('123456', mockUser.email!);
+
+      expect(result).not.toBeNull();
+      expect((result as any).pin).toBeUndefined();
+      expect((result as any).password).toBeUndefined();
+    });
+
+    it('should return null when PIN does not match', async () => {
+      const hashed = await bcryptModule.hash('123456', 10);
+      const mockUser = buildMockUser({ role: Role.INSPECTOR, pin: hashed });
+      mockUsersService.findByEmail.mockResolvedValue(mockUser);
+
+      const result = await service.validateInspector('999999', mockUser.email!);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when user not found', async () => {
+      mockUsersService.findByEmail.mockResolvedValue(null);
+
+      const result = await service.validateInspector('123456', 'nobody@example.com');
+      expect(result).toBeNull();
+    });
+
+    it('should return null when user is not an inspector', async () => {
+      const mockUser = buildMockUser({ role: Role.ADMIN, pin: 'hashedpin' });
+      mockUsersService.findByEmail.mockResolvedValue(mockUser);
+
+      const result = await service.validateInspector('123456', mockUser.email!);
+      expect(result).toBeNull();
+    });
+
+    it('should return null when inspector has no PIN set', async () => {
+      const mockUser = buildMockUser({ role: Role.INSPECTOR, pin: null });
+      mockUsersService.findByEmail.mockResolvedValue(mockUser);
+
+      const result = await service.validateInspector('123456', mockUser.email!);
+      expect(result).toBeNull();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // isTokenBlacklisted
+  // ---------------------------------------------------------------------------
+  describe('isTokenBlacklisted', () => {
+    const token = 'some.jwt.token';
+
+    it('should return true when token is found in Redis cache', async () => {
+      mockRedisService.get.mockResolvedValue('true');
+
+      const result = await service.isTokenBlacklisted(token);
+      expect(result).toBe(true);
+      expect(mockPrismaService.blacklistedToken.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should return false when Redis returns "false"', async () => {
+      mockRedisService.get.mockResolvedValue('false');
+
+      const result = await service.isTokenBlacklisted(token);
+      expect(result).toBe(false);
+    });
+
+    it('should fall through to DB when Redis misses (returns null)', async () => {
+      mockRedisService.get.mockResolvedValue(null);
+      const futureDate = new Date(Date.now() + 3600 * 1000);
+      mockPrismaService.blacklistedToken.findUnique.mockResolvedValue({
+        token,
+        expiresAt: futureDate,
+      });
+
+      const result = await service.isTokenBlacklisted(token);
+      expect(result).toBe(true);
+    });
+
+    it('should return false when token not found in DB either', async () => {
+      mockRedisService.get.mockResolvedValue(null);
+      mockPrismaService.blacklistedToken.findUnique.mockResolvedValue(null);
+
+      const result = await service.isTokenBlacklisted(token);
+      expect(result).toBe(false);
+    });
+
+    it('should fallback to DB when Redis.get throws', async () => {
+      mockRedisService.get.mockRejectedValue(new Error('Redis down'));
+      mockPrismaService.blacklistedToken.findUnique.mockResolvedValue({ token, expiresAt: new Date(Date.now() + 1000) });
+
+      const result = await service.isTokenBlacklisted(token);
+      expect(result).toBe(true);
+    });
+
+    it('should throw InternalServerErrorException when both Redis and DB fail', async () => {
+      mockRedisService.get.mockRejectedValue(new Error('Redis down'));
+      mockPrismaService.blacklistedToken.findUnique.mockRejectedValue(new Error('DB down'));
+
+      await expect(service.isTokenBlacklisted(token)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // blacklistToken
+  // ---------------------------------------------------------------------------
+  describe('blacklistToken', () => {
+    const token = 'some.jwt.token';
+    const expiresAt = new Date(Date.now() + 3600 * 1000);
+
+    it('should write to both Redis and DB', async () => {
+      mockRedisService.set.mockResolvedValue(undefined);
+      mockPrismaService.blacklistedToken.create.mockResolvedValue({ token, expiresAt });
+
+      await service.blacklistToken(token, expiresAt);
+
+      expect(mockRedisService.set).toHaveBeenCalled();
+      expect(mockPrismaService.blacklistedToken.create).toHaveBeenCalledWith({
+        data: { token, expiresAt },
+      });
+    });
+
+    it('should succeed when only Redis write fails (DB succeeds)', async () => {
+      mockRedisService.set.mockRejectedValue(new Error('Redis down'));
+      mockPrismaService.blacklistedToken.create.mockResolvedValue({ token, expiresAt });
+
+      await expect(service.blacklistToken(token, expiresAt)).resolves.toBeUndefined();
+    });
+
+    it('should succeed when only DB write fails (Redis succeeds)', async () => {
+      mockRedisService.set.mockResolvedValue(undefined);
+      mockPrismaService.blacklistedToken.create.mockRejectedValue(new Error('DB down'));
+
+      await expect(service.blacklistToken(token, expiresAt)).resolves.toBeUndefined();
+    });
+
+    it('should throw InternalServerErrorException when both writes fail', async () => {
+      mockRedisService.set.mockRejectedValue(new Error('Redis down'));
+      mockPrismaService.blacklistedToken.create.mockRejectedValue(new Error('DB down'));
+
+      await expect(service.blacklistToken(token, expiresAt)).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 });

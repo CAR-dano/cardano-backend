@@ -5,12 +5,6 @@
  * Copyright © 2025 PT. Inspeksi Mobil Jogja
  * --------------------------------------------------------------------------
  * Description: Unit tests for the AuthController.
- * This file focuses on testing the controller's logic in isolation, ensuring that
- * it correctly handles incoming requests, interacts with mocked dependencies
- * (AuthService, ConfigService), and manages HTTP responses (like redirects
- * or JSON responses) appropriately for the authentication flows (Google OAuth, JWT).
- * Guards (`AuthGuard`, `JwtAuthGuard`) are assumed to function correctly at this
- * unit testing level; their full effect is better tested in E2E tests.
  * --------------------------------------------------------------------------
  */
 
@@ -20,118 +14,102 @@ import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { AuthGuard } from '@nestjs/passport'; // Need AuthGuard for canActivate mock/override
-import { JwtAuthGuard } from './guards/jwt-auth.guard'; // Need JwtAuthGuard for canActivate mock/override
-import { Request, Response } from 'express'; // Import Express types
-import { Role } from '@prisma/client'; // Import Role enum
-import { UserResponseDto } from '../users/dto/user-response.dto'; // Import UserResponseDto
-import { GetUser } from './decorators/get-user.decorator'; // Import GetUser decorator
+import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { Request, Response } from 'express';
+import { Role } from '@prisma/client';
+import { UserResponseDto } from '../users/dto/user-response.dto';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { SecurityLoggerService } from '../security-logger/security-logger.service';
+import {
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 
 interface AuthenticatedRequest extends Request {
-  user?: UserResponseDto; // Use UserResponseDto structure here
+  user?: any;
 }
 
 // --- Mock Dependencies ---
 
-/**
- * Mock object for AuthService.
- * Provides Jest mock functions for methods called by AuthController.
- */
 const mockAuthService = {
   login: jest.fn(),
   blacklistToken: jest.fn().mockResolvedValue(undefined),
-  // validateUserGoogle is called within GoogleStrategy, not directly by controller
-  // logout (if server-side logic existed) would be mocked here
+  refreshTokens: jest.fn(),
+  revokeAllSessions: jest.fn(),
 };
 
-/**
- * Mock object for UsersService.
- * Provides Jest mock functions for user-related operations.
- */
 const mockUsersService = {
   findById: jest.fn(),
   findByEmail: jest.fn(),
   findByUsername: jest.fn(),
   findOrCreateByGoogleProfile: jest.fn(),
   updateUser: jest.fn(),
+  createLocalUser: jest.fn(),
 };
 
-/**
- * Mock object for JwtService.
- * Provides Jest mock functions for JWT operations.
- */
 const mockJwtService = {
   sign: jest.fn(),
   verify: jest.fn(),
   decode: jest.fn().mockReturnValue({ exp: Math.floor(Date.now() / 1000) + 3600 }),
 };
 
-/**
- * Mock object for ConfigService.
- * Provides Jest mock functions for configuration value retrieval.
- */
 const mockConfigService = {
   get: jest.fn(),
   getOrThrow: jest.fn(),
 };
 
-/**
- * Mock object for Express Response.
- * Provides Jest mock functions for methods used by the controller like
- * redirect, cookie, clearCookie, status, and json.
- */
 const mockResponse = {
   redirect: jest.fn(),
   cookie: jest.fn(),
   clearCookie: jest.fn(),
-  status: jest.fn().mockReturnThis(), // Allows chaining like .status(200).json(...)
+  status: jest.fn().mockReturnThis(),
   json: jest.fn(),
-} as unknown as Response; // Use 'as unknown as Response' to satisfy type checking
+} as unknown as Response;
 
-/**
- * Mock object for Express Request.
- * We will add the 'user' property dynamically in tests where needed.
- */
-const mockRequest = {} as Request;
-
-/**
- * Mock object for SecurityLoggerService.
- */
 const mockSecurityLoggerService = {
   log: jest.fn().mockResolvedValue(undefined),
-  extractRequestMeta: jest.fn().mockReturnValue({ ip: undefined, userAgent: undefined }),
+  extractRequestMeta: jest.fn().mockReturnValue({ ip: '127.0.0.1', userAgent: 'test-agent' }),
 };
 
-// Helper to create a request with a user object
-const createMockRequestWithUser = (
-  user: UserResponseDto,
-): AuthenticatedRequest =>
+// Base mock user for tests
+const mockUserEntity = {
+  id: 'user-123',
+  email: 'test@example.com',
+  username: 'testuser',
+  name: 'Test User',
+  role: Role.ADMIN,
+  walletAddress: null,
+  whatsappNumber: null,
+  isActive: true,
+  password: 'hashed',
+  googleId: null,
+  hashedRefreshToken: null,
+  sessionVersion: 1,
+  pinHash: null,
+  inspectionBranchCityId: null,
+  inspectionBranchCity: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+const mockUserResponseDto = new UserResponseDto(mockUserEntity as any);
+
+const createMockRequest = (overrides: Partial<AuthenticatedRequest> = {}): AuthenticatedRequest =>
   ({
-    ...mockRequest,
-    user,
-  }) as AuthenticatedRequest;
+    headers: { authorization: 'Bearer mock-jwt-token' },
+    ip: '127.0.0.1',
+    socket: {},
+    ...overrides,
+  }) as unknown as AuthenticatedRequest;
 
 describe('AuthController', () => {
   let controller: AuthController;
-  // authService and configService are not directly used in the tests after mocking,
-  // so we can remove their declarations and assignments.
-  // let authService: AuthService;
-  // let configService: ConfigService;
 
-  /**
-   * Sets up the NestJS testing module before each test case.
-   * It provides the AuthController and uses mock implementations for its dependencies
-   * (AuthService, ConfigService). It also overrides the default guards (`AuthGuard('google')`,
-   * `JwtAuthGuard`) to simply allow requests through for unit testing the controller logic,
-   * as the guard functionality itself is tested separately or in E2E tests.
-   */
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [AuthController], // Provide the controller to be tested
+      controllers: [AuthController],
       providers: [
-        // Provide mocks for injected services
         { provide: AuthService, useValue: mockAuthService },
         { provide: UsersService, useValue: mockUsersService },
         { provide: ConfigService, useValue: mockConfigService },
@@ -139,308 +117,322 @@ describe('AuthController', () => {
         { provide: SecurityLoggerService, useValue: mockSecurityLoggerService },
       ],
     })
-      // Override guards for unit testing - assume they allow access
       .overrideGuard(AuthGuard('google'))
-      .useValue({ canActivate: jest.fn(() => true) }) // Mock Google Guard
+      .useValue({ canActivate: jest.fn(() => true) })
       .overrideGuard(JwtAuthGuard)
-      .useValue({ canActivate: jest.fn(() => true) }) // Mock JWT Guard
+      .useValue({ canActivate: jest.fn(() => true) })
       .overrideGuard(ThrottlerGuard)
       .useValue({ canActivate: () => true })
       .compile();
 
-    // Retrieve instances from the testing module
     controller = module.get<AuthController>(AuthController);
-    // authService = module.get<AuthService>(AuthService); // Removed assignment
-    // configService = module.get<ConfigService>(ConfigService); // Removed assignment
-
-    // Reset mocks before each test
     jest.clearAllMocks();
+    // restore default mock after clearAllMocks
+    mockJwtService.decode.mockReturnValue({ exp: Math.floor(Date.now() / 1000) + 3600 });
+    mockSecurityLoggerService.extractRequestMeta.mockReturnValue({ ip: '127.0.0.1', userAgent: 'test-agent' });
+    mockAuthService.blacklistToken.mockResolvedValue(undefined);
   });
 
-  /**
-   * Basic test to ensure the controller instance is created correctly.
-   */
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });
 
-  /**
-   * Test suite for the GET /auth/google endpoint.
-   */
+  // ---------------------------------------------------------------------------
+  // registerLocal
+  // ---------------------------------------------------------------------------
+  describe('registerLocal', () => {
+    const registerDto = {
+      email: 'new@example.com',
+      username: 'newuser',
+      password: 'P@ssword1',
+    };
+
+    it('should call usersService.createLocalUser and return UserResponseDto', async () => {
+      mockUsersService.createLocalUser.mockResolvedValue(mockUserEntity);
+
+      const result = await controller.registerLocal(registerDto as any);
+
+      expect(mockUsersService.createLocalUser).toHaveBeenCalledWith(registerDto);
+      expect(result).toBeInstanceOf(UserResponseDto);
+      expect(result.email).toBe(mockUserEntity.email);
+    });
+
+    it('should propagate errors from usersService.createLocalUser', async () => {
+      mockUsersService.createLocalUser.mockRejectedValue(new Error('Conflict'));
+
+      await expect(controller.registerLocal(registerDto as any)).rejects.toThrow('Conflict');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // loginLocal
+  // ---------------------------------------------------------------------------
+  describe('loginLocal', () => {
+    it('should return LoginResponseDto with tokens when user is active', async () => {
+      const req = createMockRequest({ user: mockUserEntity as any });
+      mockAuthService.login.mockResolvedValue({
+        accessToken: 'access-token',
+        refreshToken: 'refresh-token',
+      });
+
+      const result = await controller.loginLocal(req);
+
+      expect(mockAuthService.login).toHaveBeenCalledWith(mockUserEntity);
+      expect(result.accessToken).toBe('access-token');
+      expect(result.refreshToken).toBe('refresh-token');
+      expect(result.user).toBeInstanceOf(UserResponseDto);
+    });
+
+    it('should throw InternalServerErrorException when req.user is missing', async () => {
+      const req = createMockRequest({ user: undefined });
+
+      await expect(controller.loginLocal(req)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+
+    it('should throw UnauthorizedException when user.isActive is false', async () => {
+      const inactiveUser = { ...mockUserEntity, isActive: false };
+      const req = createMockRequest({ user: inactiveUser as any });
+
+      await expect(controller.loginLocal(req)).rejects.toThrow(
+        UnauthorizedException,
+      );
+      expect(mockAuthService.login).not.toHaveBeenCalled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // loginInspector
+  // ---------------------------------------------------------------------------
+  describe('loginInspector', () => {
+    const inspectorEntity = { ...mockUserEntity, role: Role.INSPECTOR };
+
+    it('should return LoginResponseDto when inspector is active', async () => {
+      const req = createMockRequest({ user: inspectorEntity as any });
+      mockAuthService.login.mockResolvedValue({
+        accessToken: 'insp-access',
+        refreshToken: 'insp-refresh',
+      });
+
+      const result = await controller.loginInspector(req);
+
+      expect(mockAuthService.login).toHaveBeenCalledWith(inspectorEntity);
+      expect(result.accessToken).toBe('insp-access');
+    });
+
+    it('should throw InternalServerErrorException when req.user is missing', async () => {
+      const req = createMockRequest({ user: undefined });
+
+      await expect(controller.loginInspector(req)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+
+    it('should throw UnauthorizedException when inspector.isActive is false', async () => {
+      const inactiveInspector = { ...inspectorEntity, isActive: false };
+      const req = createMockRequest({ user: inactiveInspector as any });
+
+      await expect(controller.loginInspector(req)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // refreshTokens
+  // ---------------------------------------------------------------------------
+  describe('refreshTokens', () => {
+    it('should call authService.refreshTokens with userId and return new tokens', async () => {
+      const req = createMockRequest({ user: mockUserResponseDto as any });
+      mockAuthService.refreshTokens.mockResolvedValue({
+        accessToken: 'new-access',
+        refreshToken: 'new-refresh',
+      });
+
+      const result = await controller.refreshTokens(req);
+
+      expect(mockAuthService.refreshTokens).toHaveBeenCalledWith('user-123');
+      expect(result.accessToken).toBe('new-access');
+    });
+
+    it('should throw InternalServerErrorException when req.user is missing', async () => {
+      const req = createMockRequest({ user: undefined });
+
+      await expect(controller.refreshTokens(req)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // googleAuth
+  // ---------------------------------------------------------------------------
   describe('googleAuth', () => {
-    /**
-     * Tests that the googleAuth method exists and can be called.
-     * In reality, the AuthGuard('google') handles the redirect logic,
-     * so the controller method itself doesn't do much.
-     * This test mainly ensures the endpoint is set up.
-     *
-     * @param req The mock request object.
-     */
-    it('should initiate the Google OAuth flow (guard handles redirect)', async () => {
-      // Arrange: No specific arrangement needed as guard handles the flow
-      // Act: Call the method
-      await controller.googleAuth(mockRequest);
-      // Assert: We mainly expect no errors. Asserting redirect is hard here.
-      // We can check if the guard was conceptually applied (though we mocked it).
-      // In a real scenario, this route would trigger the Passport redirect.
-      expect(true).toBe(true); // Simple assertion that code execution reached here
+    it('should call the method without errors (guard handles redirect)', async () => {
+      await expect(controller.googleAuth({} as Request)).resolves.not.toThrow();
     });
   });
 
-  /**
-   * Test suite for the GET /auth/google/callback endpoint.
-   * This endpoint handles the redirect back from Google after successful authentication.
-   * NOTE: This test suite is commented out because the corresponding method
-   * in auth.controller.ts is currently commented out.
-   */
-  /*
+  // ---------------------------------------------------------------------------
+  // googleAuthRedirect
+  // ---------------------------------------------------------------------------
   describe('googleAuthRedirect', () => {
-    const mockUser: UserResponseDto = { // Use UserResponseDto structure
-      id: 'user-123',
-      email: 'test@example.com',
-      name: 'Test User',
-      role: Role.CUSTOMER,
-      username: 'testuser', // Added required fields from UserResponseDto
-      walletAddress: null,
-      whatsappNumber: null,
-      isActive: true,
-      inspectionBranchCity: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    const mockRequestWithAuthUser = createMockRequestWithUser(mockUser);
-    const mockAccessToken = { accessToken: 'mock-jwt-token' };
-    const mockClientUrl = 'http://localhost:3001'; // Example frontend URL
+    const clientUrl = 'http://localhost:3001';
 
-    // Tests the successful callback scenario where req.user exists.
-    // It should call authService.login, get the client URL, and redirect
-    // the user to the frontend with the token (using query param method here).
-    it('should log in the user and redirect to frontend with token on successful callback', async () => {
-      // Arrange
-      mockAuthService.login.mockResolvedValue(mockAccessToken);
-      mockConfigService.getOrThrow.mockReturnValue(mockClientUrl);
+    beforeEach(() => {
+      mockConfigService.getOrThrow.mockReturnValue(clientUrl);
+    });
 
-      // Act
-      await controller.googleAuthRedirect(
-        mockRequestWithAuthUser,
-        mockResponse,
-      );
+    it('should redirect to frontend with tokens on success', async () => {
+      const req = createMockRequest({ user: mockUserEntity as any });
+      mockAuthService.login.mockResolvedValue({
+        accessToken: 'access-tok',
+        refreshToken: 'refresh-tok',
+      });
 
-      // Assert
-      expect(authService.login).toHaveBeenCalledWith(mockUser);
-      expect(configService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
+      await controller.googleAuthRedirect(req, mockResponse);
+
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        `${mockClientUrl}/auth/callback?token=${mockAccessToken.accessToken}`,
+        `${clientUrl}/auth?token=access-tok&refreshToken=refresh-tok`,
       );
     });
 
-    // Tests the scenario where the callback is hit but req.user is missing
-    // (e.g., Google Guard failed or state mismatch).
-    // It should redirect back to the frontend login page with an error query parameter.
-    it('should redirect to frontend login with error if req.user is missing', async () => {
-      // Arrange
-      const mockRequestWithoutUser = { ...mockRequest } as AuthenticatedRequest; // Simulate missing user
-      mockConfigService.getOrThrow.mockReturnValue(mockClientUrl);
+    it('should redirect to error URL when req.user is missing', async () => {
+      const req = createMockRequest({ user: undefined });
 
-      // Act
-      await controller.googleAuthRedirect(mockRequestWithoutUser, mockResponse);
+      await controller.googleAuthRedirect(req, mockResponse);
 
-      // Assert
-      expect(authService.login).not.toHaveBeenCalled(); // Login should not be called
-      expect(configService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        `${mockClientUrl}/login?error=AuthenticationFailed`,
+        `${clientUrl}/auth?error=authentication-failed`,
       );
     });
 
-    // Tests the error handling scenario where authService.login throws an error
-    // after a successful Google validation.
-    // It should redirect back to the frontend login page with a generic error parameter.
-    it('should redirect to frontend login with error if authService.login fails', async () => {
-      // Arrange
-      const loginError = new InternalServerErrorException('JWT signing failed');
-      mockAuthService.login.mockRejectedValue(loginError); // Simulate login failure
-      mockConfigService.getOrThrow.mockReturnValue(mockClientUrl);
-      const reqWithUser = createMockRequestWithUser(mockUser);
-      // Act
-      await controller.googleAuthRedirect(reqWithUser, mockResponse);
+    it('should redirect to error URL when authService.login throws', async () => {
+      const req = createMockRequest({ user: mockUserEntity as any });
+      mockAuthService.login.mockRejectedValue(new Error('JWT error'));
 
-      // Assert
-      expect(authService.login).toHaveBeenCalledWith(mockUser);
-      expect(configService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
+      await controller.googleAuthRedirect(req, mockResponse);
+
       expect(mockResponse.redirect).toHaveBeenCalledWith(
-        `${mockClientUrl}/auth/callback?token=${mockAccessToken.accessToken}`,
+        `${clientUrl}/auth?error=authentication-failed`,
       );
     });
-
-    // Tests the successful callback scenario using HttpOnly cookies for token delivery.
-    // (Uncomment and adapt if you switch to cookie-based approach).
-    /*
-    it('should log in the user, set HttpOnly cookie, and redirect to dashboard (Cookie Method)', async () => {
-        // Arrange
-        mockAuthService.login.mockResolvedValue(mockAccessToken);
-        mockConfigService.getOrThrow
-            .mockReturnValueOnce('JWT_EXPIRATION_TIME_VALUE') // Mock expiry first
-            .mockReturnValueOnce(mockClientUrl); // Then mock client URL
-        mockConfigService.get = jest.fn().mockReturnValue('development'); // Mock NODE_ENV for secure flag
-
-        const mockExpirySeconds = 3600;
-        jest.spyOn(global, 'parseInt').mockReturnValue(mockExpirySeconds); // Mock parseInt if needed
-
-        // Act
-        await controller.googleAuthRedirect(mockRequestWithAuthUser, mockResponse);
-
-        // Assert
-        expect(authService.login).toHaveBeenCalledWith(mockUser);
-        expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_EXPIRATION_TIME');
-        expect(configService.getOrThrow).toHaveBeenCalledWith('CLIENT_BASE_URL');
-        expect(mockResponse.cookie).toHaveBeenCalledWith(
-            'access_token',
-            mockAccessToken.accessToken,
-            {
-                httpOnly: true,
-                secure: false, // Based on NODE_ENV mock
-                sameSite: 'lax',
-                maxAge: mockExpirySeconds * 1000,
-                path: '/',
-            }
-        );
-        expect(mockResponse.redirect).toHaveBeenCalledWith(`${mockClientUrl}/dashboard`);
-    });
-    */
-  /*
   });
-  */
 
-  /**
-   * Test suite for the POST /auth/logout endpoint.
-   */
+  // ---------------------------------------------------------------------------
+  // logout
+  // ---------------------------------------------------------------------------
   describe('logout', () => {
-    const mockUser: UserResponseDto = {
-      id: 'user-123',
-      email: 'test@example.com',
-      name: 'Test User',
-      role: Role.CUSTOMER,
-      username: 'testcustomer',
-      walletAddress: null,
-      whatsappNumber: null,
-      isActive: true,
-      inspectionBranchCity: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    it('should blacklist token and return success message', async () => {
+      const req = createMockRequest({ user: mockUserResponseDto as any });
 
-    // Create a mock request with user and authorization header
-    const mockRequestWithAuthUserAndToken = {
-      ...mockRequest,
-      user: mockUser,
-      headers: {
-        authorization: 'Bearer mock-jwt-token',
-      },
-    } as unknown as AuthenticatedRequest;
+      await controller.logout(req, mockResponse);
 
-    /**
-     * Tests the basic logout functionality for stateless JWT.
-     * It should return a confirmation message.
-     * Assumes the JwtAuthGuard allows the request and req.user is populated.
-     *
-     * @param req The mock authenticated request object.
-     * @param res The mock response object.
-     */
-    it('should return OK status and success message for stateless JWT logout', async () => {
-      // Arrange: mock jwtService.decode and authService.blacklistToken
-      mockJwtService.decode.mockReturnValue({ exp: Math.floor(Date.now() / 1000) + 3600 });
-      mockAuthService.blacklistToken.mockResolvedValue(undefined);
-
-      // Act
-      await controller.logout(
-        mockRequestWithAuthUserAndToken as AuthenticatedRequest,
-        mockResponse,
-      );
-
-      // Assert
       expect(mockAuthService.blacklistToken).toHaveBeenCalled();
       expect(mockResponse.json).toHaveBeenCalledWith({
         message: 'Logout successful. Token has been invalidated on the server.',
       });
     });
 
-    /**
-     * Tests if the logout endpoint correctly clears the HttpOnly cookie if implemented.
-     * (Uncomment and adapt if using cookie-based auth).
-     */
-    /*
-    it('should clear the access_token cookie if using HttpOnly cookies', async () => {
-        // Arrange
-        mockConfigService.get = jest.fn().mockReturnValue('production'); // Simulate production for secure flag
+    it('should throw UnauthorizedException when no token in header', async () => {
+      const req = createMockRequest({
+        user: mockUserResponseDto as any,
+        headers: {},
+      });
 
-        // Act
-        await controller.logout(mockRequestWithAuthUser, mockResponse);
-
-        // Assert
-        expect(mockResponse.clearCookie).toHaveBeenCalledWith(
-            'access_token',
-            {
-                httpOnly: true,
-                secure: true, // Based on NODE_ENV mock
-                sameSite: 'lax', // Adjust as needed
-                path: '/',
-            }
-        );
-        expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.OK);
-        expect(mockResponse.json).toHaveBeenCalledWith({ message: 'Logout successful.' }); // Maybe different message
+      await expect(controller.logout(req, mockResponse)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
-    */
+
+    it('should throw InternalServerErrorException when decoded token has no exp', async () => {
+      mockJwtService.decode.mockReturnValue({ sub: 'user-123' }); // no exp
+      const req = createMockRequest({ user: mockUserResponseDto as any });
+
+      // The controller catches the UnauthorizedException internally and re-throws
+      // as InternalServerErrorException from the outer catch block
+      await expect(controller.logout(req, mockResponse)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+
+    it('should throw InternalServerErrorException when blacklistToken throws', async () => {
+      mockAuthService.blacklistToken.mockRejectedValue(new Error('Redis error'));
+      const req = createMockRequest({ user: mockUserResponseDto as any });
+
+      await expect(controller.logout(req, mockResponse)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
   });
 
-  /**
-   * Test suite for the GET /auth/profile endpoint.
-   */
+  // ---------------------------------------------------------------------------
+  // getProfile
+  // ---------------------------------------------------------------------------
   describe('getProfile', () => {
-    const mockUser: UserResponseDto = {
-      id: 'user-123',
-      email: 'test@example.com',
-      name: 'Test User',
-      role: Role.ADMIN,
-      username: 'testadmin', // Added required fields from UserResponseDto
-      walletAddress: null,
-      whatsappNumber: null,
-      isActive: true,
-      inspectionBranchCity: null,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+    it('should return the user object passed in', () => {
+      const result = controller.getProfile(mockUserResponseDto);
+      expect(result).toEqual(mockUserResponseDto);
+    });
+  });
 
-    // Mock the @GetUser() decorator for this test suite
-    // This is a common pattern to mock custom decorators in NestJS tests
-    beforeEach(() => {
-      jest
-        .spyOn(require('./decorators/get-user.decorator'), 'GetUser')
-        .mockImplementation(() => (data: any, req: any) => {
-          // The decorator typically extracts the user from req.user
-          // We return the mockUser directly here to simulate the decorator's behavior
-          return mockUser;
-        });
+  // ---------------------------------------------------------------------------
+  // logoutAll
+  // ---------------------------------------------------------------------------
+  describe('logoutAll', () => {
+    it('should revoke all sessions and blacklist current token, then return success', async () => {
+      const req = createMockRequest({ user: mockUserResponseDto as any });
+      mockAuthService.revokeAllSessions.mockResolvedValue(undefined);
+
+      await controller.logoutAll(req, mockResponse);
+
+      expect(mockAuthService.blacklistToken).toHaveBeenCalled();
+      expect(mockAuthService.revokeAllSessions).toHaveBeenCalledWith('user-123');
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        message: 'All sessions revoked. You have been logged out from all devices.',
+      });
     });
 
-    /**
-     * Tests if the getProfile endpoint returns the user object injected by the @GetUser() decorator.
-     * Assumes the JwtAuthGuard and JwtStrategy successfully validated the token
-     * and attached the user information as UserResponseDto, which is then
-     * provided to the controller method by the @GetUser() decorator.
-     *
-     * @param user The mock user object injected by @GetUser().
-     * @returns The user's profile information.
-     */
-    it('should return the user object injected by @GetUser()', () => {
-      // Arrange: The @GetUser() decorator is mocked in beforeEach to return mockUser
+    it('should throw UnauthorizedException when userId is missing from req.user', async () => {
+      const req = createMockRequest({ user: undefined });
 
-      // Act: Call the controller method. The actual request object passed here
-      // doesn't matter as the decorator is mocked.
-      const result = controller.getProfile(mockUser); // Pass the mockUser directly as expected by the controller method
+      await expect(controller.logoutAll(req, mockResponse)).rejects.toThrow(
+        UnauthorizedException,
+      );
+    });
 
-      // Assert: Check if the returned result is the same as the mock user object
-      expect(result).toEqual(mockUser);
+    it('should throw InternalServerErrorException when revokeAllSessions throws', async () => {
+      const req = createMockRequest({ user: mockUserResponseDto as any });
+      mockAuthService.revokeAllSessions.mockRejectedValue(new Error('DB error'));
+
+      await expect(controller.logoutAll(req, mockResponse)).rejects.toThrow(
+        InternalServerErrorException,
+      );
+    });
+
+    it('should proceed even when no bearer token exists (skip blacklist)', async () => {
+      const req = createMockRequest({
+        user: mockUserResponseDto as any,
+        headers: {}, // no authorization header
+      });
+      mockAuthService.revokeAllSessions.mockResolvedValue(undefined);
+
+      await controller.logoutAll(req, mockResponse);
+
+      // blacklistToken should NOT be called since there's no token
+      expect(mockAuthService.blacklistToken).not.toHaveBeenCalled();
+      expect(mockAuthService.revokeAllSessions).toHaveBeenCalledWith('user-123');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // checkTokenValidity
+  // ---------------------------------------------------------------------------
+  describe('checkTokenValidity', () => {
+    it('should return { message: "Token is valid." }', () => {
+      const result = controller.checkTokenValidity();
+      expect(result).toEqual({ message: 'Token is valid.' });
     });
   });
 });

@@ -206,6 +206,27 @@ describe('JwtStrategy', () => {
       expect(usersService.findById).toHaveBeenCalledTimes(1);
     });
 
+    it('should throw UnauthorizedException when token is not in the request', async () => {
+      // Arrange: request with no Authorization header
+      const requestWithoutToken = { headers: {} } as unknown as Request;
+
+      // Act & Assert
+      await expect(strategy.validate(requestWithoutToken, mockJwtPayload)).rejects.toThrow(
+        UnauthorizedException,
+      );
+
+      expect(mockUsersService.findById).not.toHaveBeenCalled();
+    });
+
+    it('should throw TokenBlacklistedException when token is blacklisted', async () => {
+      // Arrange
+      mockAuthService.isTokenBlacklisted.mockResolvedValue(true);
+
+      // Act & Assert
+      await expect(strategy.validate(mockRequest, mockJwtPayload)).rejects.toThrow();
+      expect(mockUsersService.findById).not.toHaveBeenCalled();
+    });
+
     it('should throw UnauthorizedException when token sessionVersion is stale', async () => {
       // Arrange: token has sessionVersion 0, but DB user is already at version 1
       const stalePayload: JwtPayload = { ...mockJwtPayload, sessionVersion: 0 };

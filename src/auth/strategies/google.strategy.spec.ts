@@ -227,5 +227,23 @@ describe('GoogleStrategy', () => {
       expect(mockDone).toHaveBeenCalledWith(validationError, false);
       expect(mockDone).toHaveBeenCalledTimes(1);
     });
+
+    it('should call done with error if authService.validateUserGoogle throws a non-Error value', async () => {
+      // Arrange: throw a plain string (not an Error instance) to cover the else branch
+      const nonErrorValue = 'unexpected string rejection';
+      mockAuthService.validateUserGoogle.mockRejectedValue(nonErrorValue);
+
+      // Act
+      await strategy.validate(
+        'mockAccessToken',
+        undefined,
+        mockGoogleProfile,
+        mockDone,
+      );
+
+      // Assert: done called with the non-Error value and false
+      expect(mockDone).toHaveBeenCalledWith(nonErrorValue, false);
+      expect(mockDone).toHaveBeenCalledTimes(1);
+    });
   });
 });

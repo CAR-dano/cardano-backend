@@ -1,86 +1,87 @@
 /**
- * @fileoverview This file contains unit tests for the UsersController.
- * It tests the controller's methods for managing users (findAll, findOne, updateUserRole, etc.),
- * ensuring they correctly interact with the mocked UsersService and apply appropriate
- * authorization guards (JwtAuthGuard, RolesGuard) and decorators (@Roles).
- * Dependencies are mocked to test the controller logic in isolation.
+ * @fileoverview Unit tests for the UsersController.
+ * Tests all methods for managing users, ensuring they correctly interact
+ * with the mocked UsersService and return proper DTOs.
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { UsersController } from './users.controller';
 import { UsersService } from './users.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard'; // Needed for mocking
-import { RolesGuard } from '../auth/guards/roles.guard'; // Needed for mocking
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
 import { Role, User } from '@prisma/client';
 import { UserResponseDto } from './dto/user-response.dto';
-import { UpdateUserRoleDto } from './dto/update-user-role.dto';
+import { InspectorResponseDto } from './dto/inspector-response.dto';
+import { GeneratePinResponseDto } from './dto/generate-pin-response.dto';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import {
   NotFoundException,
   InternalServerErrorException,
-  ForbiddenException,
 } from '@nestjs/common';
-import { Reflector } from '@nestjs/core'; // Reflector is needed by RolesGuard
 
 // --- Mock Dependencies ---
 
-/**
- * Mock object for UsersService.
- * Provides Jest mock functions for all methods called by UsersController.
- */
 const mockUsersService = {
   findAll: jest.fn(),
   findById: jest.fn(),
   updateUser: jest.fn(),
   deleteUser: jest.fn(),
   updateRole: jest.fn(),
+  findAllInspectors: jest.fn(),
+  findAllAdminsAndSuperAdmins: jest.fn(),
+  createAdminOrSuperAdmin: jest.fn(),
+  createInspector: jest.fn(),
+  updateInspector: jest.fn(),
+  generatePin: jest.fn(),
 };
 
-/**
- * Mock implementation for JwtAuthGuard.
- * For unit tests, we typically assume the user is authenticated if the guard is applied.
- * It might attach a mock user to the request if needed by RolesGuard.
- */
 const mockJwtAuthGuard = {
-  canActivate: jest.fn().mockImplementation((context) => {
-    // Simulate attaching a user for RolesGuard to check (optional, depends on RolesGuard implementation)
-    // const request = context.switchToHttp().getRequest();
-    // request.user = { id: 'mock-user-id', role: Role.ADMIN }; // Example mock user
-    return true; // Assume authentication passes for controller logic tests
-  }),
+  canActivate: jest.fn(() => true),
 };
 
-/**
- * Mock implementation for RolesGuard.
- * For unit tests, we can mock it to always return true, assuming role checks
- * are tested elsewhere (like E2E tests or RolesGuard's own unit tests).
- * Or, we could make it check mock roles attached by mockJwtAuthGuard if needed.
- */
 const mockRolesGuard = {
-  canActivate: jest.fn(() => true), // Simplest mock: always allow
+  canActivate: jest.fn(() => true),
 };
 
-/**
- * Test suite for the UsersController class.
- */
+// Reusable base user entity
+const baseUser: User = {
+  id: 'user-uuid-1',
+  email: 'user@test.com',
+  username: 'testuser',
+  name: 'Test User',
+  role: Role.ADMIN,
+  isActive: true,
+  walletAddress: null,
+  whatsappNumber: null,
+  password: 'hashed',
+  googleId: null,
+  hashedRefreshToken: null,
+  sessionVersion: 1,
+  pinHash: null,
+  inspectionBranchCityId: null,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+} as any;
+
+const baseInspector: User = {
+  ...baseUser,
+  id: 'inspector-uuid-1',
+  role: Role.INSPECTOR,
+  email: 'inspector@test.com',
+  username: 'inspector1',
+} as any;
+
 describe('UsersController', () => {
   let controller: UsersController;
   let usersService: UsersService;
 
-  /**
-   * Sets up the NestJS testing module before each test case.
-   * Provides the UsersController and mocked versions of its dependencies.
-   * Overrides the actual guards with mocks to isolate controller logic.
-   */
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      controllers: [UsersController], // The controller under test
+      controllers: [UsersController],
       providers: [
-        { provide: UsersService, useValue: mockUsersService }, // Provide the mock service
-        // Reflector is usually provided automatically by NestJS core when needed by guards/interceptors
+        { provide: UsersService, useValue: mockUsersService },
       ],
     })
-      // Override the actual guards with simplified mocks for unit testing
       .overrideGuard(JwtAuthGuard)
       .useValue(mockJwtAuthGuard)
       .overrideGuard(RolesGuard)
@@ -90,190 +91,345 @@ describe('UsersController', () => {
       .compile();
 
     controller = module.get<UsersController>(UsersController);
-    usersService = module.get<UsersService>(UsersService); // Get the mock instance
+    usersService = module.get<UsersService>(UsersService);
 
-    // Reset mocks before each test
     jest.clearAllMocks();
   });
 
-  /**
-   * Basic test to ensure the controller instance is created correctly.
-   */
   it('should be defined', () => {
     expect(controller).toBeDefined();
   });
 
-  /**
-   * Test suite for the `findAll` method (GET /admin/users).
-   */
+  // ---------------------------------------------------------------------------
+  // findAll
+  // ---------------------------------------------------------------------------
   describe('findAll', () => {
-    const mockUserList: any[] = [
-      // Use 'any' or create a partial User type for testing
-      {
-        id: '1',
-        email: 'admin@test.com',
-        name: 'Admin',
-        role: Role.ADMIN,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } as any,
-      {
-        id: '2',
-        email: 'cust@test.com',
-        name: 'Customer',
-        role: Role.CUSTOMER,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      } as any,
-    ];
-    // Expected result after mapping to DTO
-    const mockUserResponseList = mockUserList.map(
-      (u) => new UserResponseDto(u as User),
-    );
-
-    /**
-     * Tests the successful retrieval of all users.
-     * Expects usersService.findAll to be called and the result to be mapped to UserResponseDto.
-     */
     it('should return an array of users mapped to UserResponseDto', async () => {
-      // Arrange: Mock service to return a list of users
-      mockUsersService.findAll.mockResolvedValue(mockUserList);
+      mockUsersService.findAll.mockResolvedValue([baseUser]);
 
-      // Act: Call the controller method with a role
       const result = await controller.findAll(Role.ADMIN);
 
-      // Assert: Check service call and result structure/content
       expect(usersService.findAll).toHaveBeenCalledWith(Role.ADMIN);
-      expect(result).toEqual(mockUserResponseList);
-      expect(result[0]).toBeInstanceOf(UserResponseDto); // Ensure DTO mapping occurred
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBeInstanceOf(UserResponseDto);
     });
 
-    /**
-     * Tests error handling if the service fails.
-     */
-    it('should throw an error if usersService.findAll fails', async () => {
-      // Arrange: Mock service to throw an error
-      const serviceError = new InternalServerErrorException('DB Error');
-      mockUsersService.findAll.mockRejectedValue(serviceError);
+    it('should return empty array when no users exist', async () => {
+      mockUsersService.findAll.mockResolvedValue([]);
 
-      // Act & Assert: Expect the controller call to reject with the same error
+      const result = await controller.findAll(Role.SUPERADMIN);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should propagate errors from usersService.findAll', async () => {
+      mockUsersService.findAll.mockRejectedValue(new InternalServerErrorException('DB Error'));
+
       await expect(controller.findAll(Role.ADMIN)).rejects.toThrow(
         InternalServerErrorException,
       );
     });
   });
 
-  /**
-   * Test suite for the `findOne` method (GET /admin/users/:id).
-   */
-  describe('findOne', () => {
-    const testId = 'test-uuid-1';
-    const mockUser: User = {
-      id: testId,
-      email: 'findone@test.com',
-      name: 'Find Me',
-      googleId: null,
-      role: Role.REVIEWER,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    } as any;
-    const mockUserResponse = new UserResponseDto(mockUser);
+  // ---------------------------------------------------------------------------
+  // findAllInspectors
+  // ---------------------------------------------------------------------------
+  describe('findAllInspectors', () => {
+    it('should return array of inspector users mapped to UserResponseDto', async () => {
+      mockUsersService.findAllInspectors.mockResolvedValue([baseInspector]);
 
-    /**
-     * Tests successful retrieval of a user by ID.
-     * Expects usersService.findById to be called with the ID and the result mapped to DTO.
-     */
-    it('should return a single user mapped to UserResponseDto if found', async () => {
-      // Arrange
-      mockUsersService.findById.mockResolvedValue(mockUser);
+      const result = await controller.findAllInspectors();
 
-      // Act
-      const result = await controller.findOne(testId, Role.ADMIN);
-
-      // Assert
-      expect(usersService.findById).toHaveBeenCalledWith(testId);
-      expect(result).toEqual(mockUserResponse);
+      expect(usersService.findAllInspectors).toHaveBeenCalled();
+      expect(result).toHaveLength(1);
+      expect(result[0]).toBeInstanceOf(UserResponseDto);
+      expect(result[0].role).toBe(Role.INSPECTOR);
     });
 
-    it('should throw NotFoundException if an ADMIN tries to access a SUPERADMIN', async () => {
-      const superAdminUser = { ...mockUser, role: Role.SUPERADMIN };
-      mockUsersService.findById.mockResolvedValue(superAdminUser);
+    it('should return empty array when no inspectors found', async () => {
+      mockUsersService.findAllInspectors.mockResolvedValue([]);
 
-      await expect(controller.findOne(testId, Role.ADMIN)).rejects.toThrow(
+      const result = await controller.findAllInspectors();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // findAllAdminsAndSuperAdmins
+  // ---------------------------------------------------------------------------
+  describe('findAllAdminsAndSuperAdmins', () => {
+    const superAdmin = { ...baseUser, id: 'super-uuid', role: Role.SUPERADMIN } as any;
+
+    it('should return array of admin and superadmin users', async () => {
+      mockUsersService.findAllAdminsAndSuperAdmins.mockResolvedValue([baseUser, superAdmin]);
+
+      const result = await controller.findAllAdminsAndSuperAdmins();
+
+      expect(usersService.findAllAdminsAndSuperAdmins).toHaveBeenCalled();
+      expect(result).toHaveLength(2);
+      expect(result[0]).toBeInstanceOf(UserResponseDto);
+    });
+
+    it('should return empty array when no admins found', async () => {
+      mockUsersService.findAllAdminsAndSuperAdmins.mockResolvedValue([]);
+
+      const result = await controller.findAllAdminsAndSuperAdmins();
+
+      expect(result).toEqual([]);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // findOne
+  // ---------------------------------------------------------------------------
+  describe('findOne', () => {
+    it('should return UserResponseDto when user is found', async () => {
+      mockUsersService.findById.mockResolvedValue(baseUser);
+
+      const result = await controller.findOne(baseUser.id, Role.ADMIN);
+
+      expect(usersService.findById).toHaveBeenCalledWith(baseUser.id);
+      expect(result).toBeInstanceOf(UserResponseDto);
+    });
+
+    it('should throw NotFoundException when user not found', async () => {
+      mockUsersService.findById.mockResolvedValue(null);
+
+      await expect(controller.findOne('non-existent', Role.ADMIN)).rejects.toThrow(
         NotFoundException,
       );
     });
 
-    it('should allow a SUPERADMIN to access another SUPERADMIN', async () => {
-      const superAdminUser = { ...mockUser, role: Role.SUPERADMIN };
-      mockUsersService.findById.mockResolvedValue(superAdminUser);
+    it('should throw NotFoundException when ADMIN tries to view a SUPERADMIN', async () => {
+      const superAdmin = { ...baseUser, role: Role.SUPERADMIN };
+      mockUsersService.findById.mockResolvedValue(superAdmin);
 
-      const result = await controller.findOne(testId, Role.SUPERADMIN);
+      await expect(controller.findOne(baseUser.id, Role.ADMIN)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should allow SUPERADMIN to view another SUPERADMIN', async () => {
+      const superAdmin = { ...baseUser, role: Role.SUPERADMIN };
+      mockUsersService.findById.mockResolvedValue(superAdmin);
+
+      const result = await controller.findOne(baseUser.id, Role.SUPERADMIN);
 
       expect(result.role).toBe(Role.SUPERADMIN);
     });
 
-    /**
-     * Tests the scenario where the user with the given ID is not found.
-     * Expects usersService.findById to be called and a NotFoundException to be thrown by the controller.
-     */
-    it('should throw NotFoundException if user is not found', async () => {
-      // Arrange: Mock service to return null
-      mockUsersService.findById.mockResolvedValue(null);
+    it('should propagate errors from usersService.findById', async () => {
+      mockUsersService.findById.mockRejectedValue(new InternalServerErrorException('DB Error'));
 
-      // Act & Assert: Expect the controller call to reject with NotFoundException
-      await expect(controller.findOne(testId, Role.ADMIN)).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    /**
-     * Tests error handling if the service fails.
-     */
-    it('should throw an error if usersService.findById fails', async () => {
-      // Arrange
-      const serviceError = new InternalServerErrorException('DB Error');
-      mockUsersService.findById.mockRejectedValue(serviceError);
-
-      // Act & Assert
-      await expect(controller.findOne(testId, Role.ADMIN)).rejects.toThrow(
+      await expect(controller.findOne(baseUser.id, Role.ADMIN)).rejects.toThrow(
         InternalServerErrorException,
       );
     });
   });
 
-  /**
-   * Test suite for the `updateUser` method.
-   */
+  // ---------------------------------------------------------------------------
+  // createAdminOrSuperAdmin
+  // ---------------------------------------------------------------------------
+  describe('createAdminOrSuperAdmin', () => {
+    const createAdminDto = {
+      email: 'newadmin@test.com',
+      username: 'newadmin',
+      password: 'P@ssword1',
+      role: Role.ADMIN,
+    };
+
+    it('should call usersService.createAdminOrSuperAdmin and return UserResponseDto', async () => {
+      const createdUser = { ...baseUser, email: createAdminDto.email };
+      mockUsersService.createAdminOrSuperAdmin.mockResolvedValue(createdUser);
+
+      const result = await controller.createAdminOrSuperAdmin(createAdminDto as any);
+
+      expect(usersService.createAdminOrSuperAdmin).toHaveBeenCalledWith(createAdminDto);
+      expect(result).toBeInstanceOf(UserResponseDto);
+    });
+
+    it('should propagate errors from usersService.createAdminOrSuperAdmin', async () => {
+      mockUsersService.createAdminOrSuperAdmin.mockRejectedValue(
+        new Error('Conflict'),
+      );
+
+      await expect(
+        controller.createAdminOrSuperAdmin(createAdminDto as any),
+      ).rejects.toThrow('Conflict');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // updateUserRole
+  // ---------------------------------------------------------------------------
+  describe('updateUserRole', () => {
+    const updateRoleDto = { role: Role.REVIEWER };
+    const actingUserId = 'acting-user-id';
+
+    it('should call usersService.updateRole and return UserResponseDto', async () => {
+      const updatedUser = { ...baseUser, role: Role.REVIEWER };
+      mockUsersService.updateRole.mockResolvedValue(updatedUser);
+
+      const result = await controller.updateUserRole(
+        baseUser.id,
+        updateRoleDto as any,
+        actingUserId,
+        Role.SUPERADMIN,
+      );
+
+      expect(usersService.updateRole).toHaveBeenCalledWith(
+        baseUser.id,
+        Role.REVIEWER,
+        actingUserId,
+        Role.SUPERADMIN,
+      );
+      expect(result).toBeInstanceOf(UserResponseDto);
+      expect(result.role).toBe(Role.REVIEWER);
+    });
+
+    it('should propagate NotFoundException from usersService.updateRole', async () => {
+      mockUsersService.updateRole.mockRejectedValue(new NotFoundException('User not found'));
+
+      await expect(
+        controller.updateUserRole(baseUser.id, updateRoleDto as any, actingUserId, Role.ADMIN),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // createInspector
+  // ---------------------------------------------------------------------------
+  describe('createInspector', () => {
+    const createInspectorDto = {
+      username: 'newinspector',
+      name: 'New Inspector',
+      inspectionBranchCityId: 'branch-id',
+    };
+
+    it('should call usersService.createInspector and return InspectorResponseDto with PIN', async () => {
+      const returnVal = { ...baseInspector, plainPin: '123456' };
+      mockUsersService.createInspector.mockResolvedValue(returnVal);
+
+      const result = await controller.createInspector(createInspectorDto as any);
+
+      expect(usersService.createInspector).toHaveBeenCalledWith(createInspectorDto);
+      expect(result).toBeInstanceOf(InspectorResponseDto);
+      expect(result.pin).toBe('123456');
+    });
+
+    it('should propagate errors from usersService.createInspector', async () => {
+      mockUsersService.createInspector.mockRejectedValue(new Error('Conflict'));
+
+      await expect(
+        controller.createInspector(createInspectorDto as any),
+      ).rejects.toThrow('Conflict');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // updateUser
+  // ---------------------------------------------------------------------------
   describe('updateUser', () => {
-    const testId = 'test-id';
-    const updateDto = { name: 'New Name' };
+    const updateDto = { name: 'Updated Name' };
 
-    it('should call usersService.updateUser with correct params', async () => {
-      mockUsersService.updateUser.mockResolvedValue({ id: testId, ...updateDto });
+    it('should call usersService.updateUser and return UserResponseDto', async () => {
+      const updatedUser = { ...baseUser, name: 'Updated Name' };
+      mockUsersService.updateUser.mockResolvedValue(updatedUser);
 
-      await controller.updateUser(testId, updateDto as any, Role.ADMIN);
+      const result = await controller.updateUser(baseUser.id, updateDto as any, Role.ADMIN);
 
-      expect(usersService.updateUser).toHaveBeenCalledWith(
-        testId,
-        updateDto,
-        Role.ADMIN,
+      expect(usersService.updateUser).toHaveBeenCalledWith(baseUser.id, updateDto, Role.ADMIN);
+      expect(result).toBeInstanceOf(UserResponseDto);
+      expect(result.name).toBe('Updated Name');
+    });
+
+    it('should propagate errors from usersService.updateUser', async () => {
+      mockUsersService.updateUser.mockRejectedValue(new NotFoundException('Not found'));
+
+      await expect(
+        controller.updateUser(baseUser.id, updateDto as any, Role.ADMIN),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // updateInspector
+  // ---------------------------------------------------------------------------
+  describe('updateInspector', () => {
+    const updateInspectorDto = { name: 'Updated Inspector' };
+
+    it('should call usersService.updateInspector and return UserResponseDto', async () => {
+      const updatedInspector = { ...baseInspector, name: 'Updated Inspector' };
+      mockUsersService.updateInspector.mockResolvedValue(updatedInspector);
+
+      const result = await controller.updateInspector(
+        baseInspector.id,
+        updateInspectorDto as any,
+      );
+
+      expect(usersService.updateInspector).toHaveBeenCalledWith(
+        baseInspector.id,
+        updateInspectorDto,
+      );
+      expect(result).toBeInstanceOf(UserResponseDto);
+    });
+
+    it('should propagate NotFoundException from usersService.updateInspector', async () => {
+      mockUsersService.updateInspector.mockRejectedValue(
+        new NotFoundException('Inspector not found'),
+      );
+
+      await expect(
+        controller.updateInspector(baseInspector.id, updateInspectorDto as any),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // generatePin
+  // ---------------------------------------------------------------------------
+  describe('generatePin', () => {
+    it('should call usersService.generatePin and return GeneratePinResponseDto', async () => {
+      const returnVal = { ...baseInspector, plainPin: '654321' };
+      mockUsersService.generatePin.mockResolvedValue(returnVal);
+
+      const result = await controller.generatePin(baseInspector.id);
+
+      expect(usersService.generatePin).toHaveBeenCalledWith(baseInspector.id);
+      expect(result).toBeInstanceOf(GeneratePinResponseDto);
+      expect(result.pin).toBe('654321');
+    });
+
+    it('should propagate NotFoundException from usersService.generatePin', async () => {
+      mockUsersService.generatePin.mockRejectedValue(
+        new NotFoundException('Inspector not found'),
+      );
+
+      await expect(controller.generatePin(baseInspector.id)).rejects.toThrow(
+        NotFoundException,
       );
     });
   });
 
-  /**
-   * Test suite for the `deleteUser` method.
-   */
+  // ---------------------------------------------------------------------------
+  // deleteUser
+  // ---------------------------------------------------------------------------
   describe('deleteUser', () => {
-    const testId = 'test-id';
-
     it('should call usersService.deleteUser with correct params', async () => {
       mockUsersService.deleteUser.mockResolvedValue(undefined);
 
-      await controller.deleteUser(testId, Role.ADMIN);
+      await controller.deleteUser(baseUser.id, Role.ADMIN);
 
-      expect(usersService.deleteUser).toHaveBeenCalledWith(testId, Role.ADMIN);
+      expect(usersService.deleteUser).toHaveBeenCalledWith(baseUser.id, Role.ADMIN);
+    });
+
+    it('should propagate NotFoundException from usersService.deleteUser', async () => {
+      mockUsersService.deleteUser.mockRejectedValue(new NotFoundException('User not found'));
+
+      await expect(controller.deleteUser(baseUser.id, Role.ADMIN)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });
