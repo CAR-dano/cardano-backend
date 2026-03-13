@@ -24,17 +24,10 @@ import { json, urlencoded } from 'express';
 import compression from 'compression';
 import { getLoggerConfig } from './config/logger.config';
 import { AllExceptionsFilter } from './common/filters';
+import { setOpenApiDocument } from './openapi-document';
 
-let openApiDocument: OpenAPIObject | null = null;
-
-/**
- * Retrieves the generated OpenAPI document.
- *
- * @returns The OpenAPI document object or null if not yet generated.
- */
-export function getOpenApiDocument(): OpenAPIObject | null {
-  return openApiDocument;
-}
+// Re-export for backward compatibility (unit tests, etc.)
+export { getOpenApiDocument } from './openapi-document';
 
 /**
  * The main bootstrap function to initialize and start the NestJS application.
@@ -189,8 +182,8 @@ async function bootstrap() {
   // Generate OpenAPI document WITHOUT setting up the default Swagger UI
   const document = SwaggerModule.createDocument(app, swaggerConfig);
 
-  // Store the document in a global variable (optional)
-  openApiDocument = document;
+  // Store the document for retrieval by ScalarDocsController
+  setOpenApiDocument(document);
 
   const port = configService.get<number>('PORT') || 3000; // Retrieve port from .env
   await app.listen(port);

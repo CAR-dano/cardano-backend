@@ -20,7 +20,7 @@ import {
 import { Response } from 'express';
 import * as path from 'path';
 import * as fs from 'fs';
-import { getOpenApiDocument } from '../main'; // Import the function to get the generated document
+import { getOpenApiDocument } from '../openapi-document'; // Import from shared module (not main.ts to avoid side-effects)
 import { SkipThrottle } from '@nestjs/throttler';
 import { ConfigService } from '@nestjs/config';
 

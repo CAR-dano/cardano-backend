@@ -10,11 +10,12 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, HttpStatus } from '@nestjs/common';
-import * as request from 'supertest'; // Use supertest for HTTP requests
+import request from 'supertest'; // Use supertest for HTTP requests
 import { AppModule } from './../src/app.module'; // Import main AppModule
 import { PrismaService } from '../src/prisma/prisma.service'; // To clean DB
 import { Role, User } from '@prisma/client'; // Import Role enum and User type
 import { AuthService } from '../src/auth/auth.service'; // To generate tokens for tests
+import { randomUUID } from 'crypto';
 // UsersService might not be strictly needed if we create users via Prisma directly
 // import { UsersService } from '../src/users/users.service';
 
@@ -27,11 +28,13 @@ describe('AuthController (e2e) - UI User Flows', () => {
   // --- Test User Data ---
   // Define data for users with different roles needed for tests
   const testAdminUser = {
+    id: randomUUID(),
     email: 'admin.e2e@test.com',
     name: 'E2E Admin',
     role: Role.ADMIN,
   };
   const testCustomerUser = {
+    id: randomUUID(),
     email: 'customer.e2e@test.com',
     name: 'E2E Customer',
     role: Role.CUSTOMER,

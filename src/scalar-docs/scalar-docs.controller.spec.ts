@@ -22,13 +22,13 @@ jest.mock('fs', () => ({
   existsSync: jest.fn(),
 }));
 
-// Mock the getOpenApiDocument import from main
-jest.mock('../main', () => ({
+// Mock the getOpenApiDocument import from openapi-document
+jest.mock('../openapi-document', () => ({
   getOpenApiDocument: jest.fn(),
 }));
 
 import * as fs from 'fs';
-import { getOpenApiDocument } from '../main';
+import { getOpenApiDocument } from '../openapi-document';
 
 const mockFsExistsSync = fs.existsSync as jest.Mock;
 const mockGetOpenApiDocument = getOpenApiDocument as jest.Mock;
