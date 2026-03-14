@@ -2,10 +2,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { InspectionsService } from './inspections.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { BlockchainService } from '../blockchain/blockchain.service';
 import { ConfigService } from '@nestjs/config';
-import { IpfsService } from '../ipfs/ipfs.service';
 import { RedisService } from '../redis/redis.service';
+import { InspectionQueryService } from './inspection-query.service';
+import { InspectionPdfService } from './inspection-pdf.service';
+import { InspectionBlockchainService } from './inspection-blockchain.service';
 import {
   Inspection,
   InspectionChangeLog,
@@ -132,18 +133,53 @@ const mockPrismaService = {
   $queryRaw: jest.fn(),
 };
 
-const mockBlockchainService = {};
 const mockConfigService = {
   getOrThrow: jest.fn().mockReturnValue('http://localhost:3000'),
-};
-const mockIpfsService = {
-  add: jest.fn(),
+  get: jest.fn(),
 };
 const mockRedisService = {
   isHealthy: jest.fn().mockResolvedValue(true),
   get: jest.fn(),
   set: jest.fn(),
   incr: jest.fn(),
+};
+
+// ─── Mock Sub-Services ──────────────────────────────────────────────────────
+
+const mockQueryService = {
+  findAll: jest.fn(),
+  findOne: jest.fn(),
+  findByVehiclePlateNumber: jest.fn(),
+  searchByKeyword: jest.fn(),
+  findLatestArchivedInspections: jest.fn(),
+  invalidateListCache: jest.fn().mockResolvedValue(undefined),
+};
+
+const mockPdfService = {
+  generateAndSavePdf: jest.fn(),
+  generatePdfFromUrl: jest.fn(),
+  getQueueStats: jest.fn().mockReturnValue({
+    queueLength: 0,
+    running: 0,
+    totalProcessed: 0,
+    totalErrors: 0,
+    circuitBreakerOpen: false,
+  }),
+};
+
+const mockBlockchainService = {
+  processToArchive: jest.fn(),
+  deactivateArchive: jest.fn(),
+  activateArchive: jest.fn(),
+  buildArchiveTransaction: jest.fn(),
+  confirmArchive: jest.fn(),
+  revertInspectionToApproved: jest.fn(),
+  getQueueStats: jest.fn().mockReturnValue({
+    queueLength: 0,
+    running: 0,
+    totalProcessed: 0,
+    totalErrors: 0,
+  }),
 };
 
 // ─── Test Suite ──────────────────────────────────────────────────────────────
@@ -157,10 +193,11 @@ describe('InspectionsService', () => {
       providers: [
         InspectionsService,
         { provide: PrismaService, useValue: mockPrismaService },
-        { provide: BlockchainService, useValue: mockBlockchainService },
         { provide: ConfigService, useValue: mockConfigService },
-        { provide: IpfsService, useValue: mockIpfsService },
         { provide: RedisService, useValue: mockRedisService },
+        { provide: InspectionQueryService, useValue: mockQueryService },
+        { provide: InspectionPdfService, useValue: mockPdfService },
+        { provide: InspectionBlockchainService, useValue: mockBlockchainService },
       ],
     }).compile();
 
@@ -177,343 +214,258 @@ describe('InspectionsService', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // findAll
+  // Delegated Query Methods
   // ─────────────────────────────────────────────────────────────────────────
-  describe('findAll', () => {
-    it('should return paginated inspections for ADMIN role (sees all statuses)', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(1);
-      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
+
+  describe('findAll (delegated)', () => {
+    it('should delegate to queryService.findAll with all arguments', async () => {
+      const expected = { data: [mockInspection], meta: { total: 1, page: 1, pageSize: 10, totalPages: 1 } };
+      mockQueryService.findAll.mockResolvedValue(expected);
 
       const result = await service.findAll(Role.ADMIN, undefined, 1, 10);
 
-      expect(result.data).toHaveLength(1);
-      expect(result.meta.total).toBe(1);
-      expect(result.meta.page).toBe(1);
-      expect(result.meta.pageSize).toBe(10);
-      expect(result.meta.totalPages).toBe(1);
-      // ADMIN should NOT have default status filter
-      expect(mockPrismaService.inspection.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.not.objectContaining({ status: InspectionStatus.ARCHIVED }),
-        }),
-      );
+      expect(mockQueryService.findAll).toHaveBeenCalledWith(Role.ADMIN, undefined, 1, 10);
+      expect(result).toBe(expected);
     });
 
-    it('should default to ARCHIVED status for CUSTOMER role', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(1);
-      mockPrismaService.inspection.findMany.mockResolvedValue([
-        mockArchivedInspection,
-      ]);
+    it('should pass status filter through to queryService', async () => {
+      mockQueryService.findAll.mockResolvedValue({ data: [], meta: {} });
 
-      await service.findAll(Role.CUSTOMER, undefined, 1, 10);
+      await service.findAll(Role.CUSTOMER, 'ARCHIVED', 2, 5);
 
-      expect(mockPrismaService.inspection.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            status: InspectionStatus.ARCHIVED,
-          }),
-        }),
-      );
+      expect(mockQueryService.findAll).toHaveBeenCalledWith(Role.CUSTOMER, 'ARCHIVED', 2, 5);
     });
 
-    it('should default to ARCHIVED status for INSPECTOR role', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(1);
-      mockPrismaService.inspection.findMany.mockResolvedValue([]);
+    it('should propagate errors from queryService', async () => {
+      mockQueryService.findAll.mockRejectedValue(new BadRequestException('Invalid status'));
 
-      await service.findAll(Role.INSPECTOR, undefined, 1, 10);
-
-      expect(mockPrismaService.inspection.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ status: InspectionStatus.ARCHIVED }),
-        }),
-      );
-    });
-
-    it('should apply explicit status filter (NEED_REVIEW) overriding role default', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(2);
-      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
-
-      await service.findAll(Role.ADMIN, 'NEED_REVIEW', 1, 10);
-
-      expect(mockPrismaService.inspection.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            status: { in: [InspectionStatus.NEED_REVIEW] },
-          }),
-        }),
-      );
-    });
-
-    it('should handle DATABASE special status (exclude NEED_REVIEW)', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(5);
-      mockPrismaService.inspection.findMany.mockResolvedValue([
-        mockArchivedInspection,
-      ]);
-
-      await service.findAll(Role.ADMIN, 'DATABASE', 1, 10);
-
-      expect(mockPrismaService.inspection.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({
-            status: { not: InspectionStatus.NEED_REVIEW },
-          }),
-        }),
-      );
-    });
-
-    it('should throw BadRequestException for invalid status string', async () => {
-      await expect(
-        service.findAll(Role.ADMIN, 'INVALID_STATUS', 1, 10),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw BadRequestException for page < 1', async () => {
-      await expect(
-        service.findAll(Role.ADMIN, undefined, 0, 10),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should return correct totalPages in meta', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(25);
-      mockPrismaService.inspection.findMany.mockResolvedValue([]);
-
-      const result = await service.findAll(Role.ADMIN, undefined, 1, 10);
-
-      expect(result.meta.totalPages).toBe(3); // ceil(25/10)
-    });
-
-    it('should throw InternalServerErrorException when DB throws', async () => {
-      mockPrismaService.inspection.count.mockRejectedValue(
-        new Error('DB connection error'),
-      );
-
-      await expect(
-        service.findAll(Role.ADMIN, undefined, 1, 10),
-      ).rejects.toThrow(InternalServerErrorException);
+      await expect(service.findAll(Role.ADMIN, 'INVALID', 1, 10)).rejects.toThrow(BadRequestException);
     });
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // findOne
-  // ─────────────────────────────────────────────────────────────────────────
-  describe('findOne', () => {
-    it('should return any inspection for ADMIN role', async () => {
-      mockPrismaService.inspection.findUniqueOrThrow.mockResolvedValue(
-        mockInspection,
-      );
+  describe('findOne (delegated)', () => {
+    it('should delegate to queryService.findOne', async () => {
+      mockQueryService.findOne.mockResolvedValue(mockInspection);
 
       const result = await service.findOne(mockInspectionId, Role.ADMIN);
 
-      expect(result).toEqual(mockInspection);
+      expect(mockQueryService.findOne).toHaveBeenCalledWith(mockInspectionId, Role.ADMIN);
+      expect(result).toBe(mockInspection);
     });
 
-    it('should return any inspection for REVIEWER role', async () => {
-      mockPrismaService.inspection.findUniqueOrThrow.mockResolvedValue(
-        mockInspection,
-      );
+    it('should propagate NotFoundException from queryService', async () => {
+      mockQueryService.findOne.mockRejectedValue(new NotFoundException('Not found'));
 
-      const result = await service.findOne(mockInspectionId, Role.REVIEWER);
-
-      expect(result).toEqual(mockInspection);
+      await expect(service.findOne('nonexistent', Role.ADMIN)).rejects.toThrow(NotFoundException);
     });
 
-    it('should return ARCHIVED inspection for CUSTOMER role', async () => {
-      mockPrismaService.inspection.findUniqueOrThrow.mockResolvedValue(
-        mockArchivedInspection,
-      );
+    it('should propagate ForbiddenException from queryService', async () => {
+      mockQueryService.findOne.mockRejectedValue(new ForbiddenException('Access denied'));
 
-      const result = await service.findOne('mock-archived-id', Role.CUSTOMER);
+      await expect(service.findOne(mockInspectionId, Role.CUSTOMER)).rejects.toThrow(ForbiddenException);
+    });
+  });
 
-      expect(result.status).toBe(InspectionStatus.ARCHIVED);
+  describe('searchByKeyword (delegated)', () => {
+    it('should delegate to queryService.searchByKeyword', async () => {
+      const expected = { data: [mockInspection], meta: { total: 1 } };
+      mockQueryService.searchByKeyword.mockResolvedValue(expected);
+
+      const result = await service.searchByKeyword('Toyota', 1, 10);
+
+      expect(mockQueryService.searchByKeyword).toHaveBeenCalledWith('Toyota', 1, 10);
+      expect(result).toBe(expected);
     });
 
-    it('should throw ForbiddenException when CUSTOMER tries to access NEED_REVIEW inspection', async () => {
-      mockPrismaService.inspection.findUniqueOrThrow.mockResolvedValue(
-        mockInspection, // NEED_REVIEW status
-      );
+    it('should propagate errors from queryService', async () => {
+      mockQueryService.searchByKeyword.mockRejectedValue(new InternalServerErrorException('DB error'));
 
-      await expect(
-        service.findOne(mockInspectionId, Role.CUSTOMER),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.searchByKeyword('test')).rejects.toThrow(InternalServerErrorException);
+    });
+  });
+
+  describe('findByVehiclePlateNumber (delegated)', () => {
+    it('should delegate to queryService.findByVehiclePlateNumber', async () => {
+      const expected = { id: 'db-id', vehiclePlateNumber: 'AB 1234 CD' };
+      mockQueryService.findByVehiclePlateNumber.mockResolvedValue(expected);
+
+      const result = await service.findByVehiclePlateNumber('AB 1234 CD');
+
+      expect(mockQueryService.findByVehiclePlateNumber).toHaveBeenCalledWith('AB 1234 CD');
+      expect(result).toBe(expected);
     });
 
-    it('should throw ForbiddenException when INSPECTOR tries to access APPROVED inspection', async () => {
-      const approvedInspection = {
-        ...mockInspection,
-        status: InspectionStatus.APPROVED,
+    it('should return null when queryService returns null', async () => {
+      mockQueryService.findByVehiclePlateNumber.mockResolvedValue(null);
+
+      const result = await service.findByVehiclePlateNumber('UNKNOWN 999');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('findLatestArchivedInspections (delegated)', () => {
+    it('should delegate to queryService.findLatestArchivedInspections', async () => {
+      const expected = [{ ...mockArchivedInspection, photos: [{ id: 'p1', label: 'Tampak Depan', path: 'photo.jpg' }] }];
+      mockQueryService.findLatestArchivedInspections.mockResolvedValue(expected);
+
+      const result = await service.findLatestArchivedInspections();
+
+      expect(mockQueryService.findLatestArchivedInspections).toHaveBeenCalled();
+      expect(result).toBe(expected);
+    });
+
+    it('should propagate errors from queryService', async () => {
+      mockQueryService.findLatestArchivedInspections.mockRejectedValue(new InternalServerErrorException('DB error'));
+
+      await expect(service.findLatestArchivedInspections()).rejects.toThrow(InternalServerErrorException);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Delegated Blockchain Methods
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('processToArchive (delegated)', () => {
+    it('should delegate to blockchainService.processToArchive', async () => {
+      const expected = { ...mockArchivedInspection, status: InspectionStatus.ARCHIVED };
+      mockBlockchainService.processToArchive.mockResolvedValue(expected);
+
+      const result = await service.processToArchive(mockInspectionId, 'admin-id');
+
+      expect(mockBlockchainService.processToArchive).toHaveBeenCalledWith(mockInspectionId, 'admin-id');
+      expect(result).toBe(expected);
+    });
+
+    it('should propagate NotFoundException from blockchainService', async () => {
+      mockBlockchainService.processToArchive.mockRejectedValue(new NotFoundException('Not found'));
+
+      await expect(service.processToArchive(mockInspectionId, 'admin-id')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should propagate BadRequestException when status is not APPROVED', async () => {
+      mockBlockchainService.processToArchive.mockRejectedValue(new BadRequestException('Not APPROVED'));
+
+      await expect(service.processToArchive(mockInspectionId, 'admin-id')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('deactivateArchive (delegated)', () => {
+    it('should delegate to blockchainService.deactivateArchive', async () => {
+      const deactivated = { ...mockArchivedInspection, status: 'DEACTIVATED' };
+      mockBlockchainService.deactivateArchive.mockResolvedValue(deactivated);
+
+      const result = await service.deactivateArchive('mock-archived-id', 'admin-id');
+
+      expect(mockBlockchainService.deactivateArchive).toHaveBeenCalledWith('mock-archived-id', 'admin-id');
+      expect(result.status).toBe('DEACTIVATED');
+    });
+
+    it('should propagate NotFoundException from blockchainService', async () => {
+      mockBlockchainService.deactivateArchive.mockRejectedValue(new NotFoundException('Not found'));
+
+      await expect(service.deactivateArchive('nonexistent', 'admin-id')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should propagate BadRequestException for wrong status', async () => {
+      mockBlockchainService.deactivateArchive.mockRejectedValue(new BadRequestException('Wrong status'));
+
+      await expect(service.deactivateArchive(mockInspectionId, 'admin-id')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('activateArchive (delegated)', () => {
+    it('should delegate to blockchainService.activateArchive', async () => {
+      const reactivated = { ...mockArchivedInspection, status: 'ARCHIVED', deactivatedAt: null };
+      mockBlockchainService.activateArchive.mockResolvedValue(reactivated);
+
+      const result = await service.activateArchive(mockInspectionId, 'admin-id');
+
+      expect(mockBlockchainService.activateArchive).toHaveBeenCalledWith(mockInspectionId, 'admin-id');
+      expect(result.status).toBe('ARCHIVED');
+    });
+
+    it('should propagate NotFoundException from blockchainService', async () => {
+      mockBlockchainService.activateArchive.mockRejectedValue(new NotFoundException('Not found'));
+
+      await expect(service.activateArchive('nonexistent', 'admin-id')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should propagate BadRequestException for wrong status', async () => {
+      mockBlockchainService.activateArchive.mockRejectedValue(new BadRequestException('Wrong status'));
+
+      await expect(service.activateArchive(mockInspectionId, 'admin-id')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('confirmArchive (delegated)', () => {
+    const mockConfirmDto = { txHash: 'tx-hash-123', nftAssetId: 'asset-123' };
+
+    it('should delegate to blockchainService.confirmArchive', async () => {
+      const expected = {
+        ...mockArchivedInspection,
+        blockchainTxHash: 'tx-hash-123',
+        nftAssetId: 'asset-123',
       };
-      mockPrismaService.inspection.findUniqueOrThrow.mockResolvedValue(
-        approvedInspection,
-      );
+      mockBlockchainService.confirmArchive.mockResolvedValue(expected);
 
-      await expect(
-        service.findOne(mockInspectionId, Role.INSPECTOR),
-      ).rejects.toThrow(ForbiddenException);
+      const result = await service.confirmArchive('mock-archived-id', mockConfirmDto as any);
+
+      expect(mockBlockchainService.confirmArchive).toHaveBeenCalledWith('mock-archived-id', mockConfirmDto);
+      expect(result.blockchainTxHash).toBe('tx-hash-123');
     });
 
-    it('should throw NotFoundException when inspection does not exist (Prisma P2025)', async () => {
-      const prismaError = new Prisma.PrismaClientKnownRequestError(
-        'Record not found',
-        { code: 'P2025', clientVersion: '5.0.0' },
-      );
-      mockPrismaService.inspection.findUniqueOrThrow.mockRejectedValue(
-        prismaError,
-      );
+    it('should propagate NotFoundException from blockchainService', async () => {
+      mockBlockchainService.confirmArchive.mockRejectedValue(new NotFoundException('Not found'));
+
+      await expect(service.confirmArchive('nonexistent', mockConfirmDto as any)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('revertInspectionToApproved (delegated)', () => {
+    it('should delegate to blockchainService.revertInspectionToApproved', async () => {
+      const reverted = { ...mockArchivedInspection, status: InspectionStatus.APPROVED };
+      mockBlockchainService.revertInspectionToApproved.mockResolvedValue(reverted);
+
+      const result = await service.revertInspectionToApproved('mock-archived-id', 'superadmin-id');
+
+      expect(mockBlockchainService.revertInspectionToApproved).toHaveBeenCalledWith('mock-archived-id', 'superadmin-id');
+      expect(result.status).toBe(InspectionStatus.APPROVED);
+    });
+
+    it('should propagate NotFoundException from blockchainService', async () => {
+      mockBlockchainService.revertInspectionToApproved.mockRejectedValue(new NotFoundException('Not found'));
 
       await expect(
-        service.findOne('non-existent-id', Role.ADMIN),
+        service.revertInspectionToApproved('nonexistent', 'superadmin-id'),
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('should throw InternalServerErrorException on unknown DB error', async () => {
-      mockPrismaService.inspection.findUniqueOrThrow.mockRejectedValue(
-        new Error('Unknown DB error'),
-      );
+    it('should propagate BadRequestException for wrong status', async () => {
+      mockBlockchainService.revertInspectionToApproved.mockRejectedValue(new BadRequestException('Wrong status'));
 
       await expect(
-        service.findOne(mockInspectionId, Role.ADMIN),
-      ).rejects.toThrow(InternalServerErrorException);
+        service.revertInspectionToApproved(mockInspectionId, 'superadmin-id'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // searchByKeyword
+  // getQueueStats (combines PDF + Blockchain)
   // ─────────────────────────────────────────────────────────────────────────
-  describe('searchByKeyword', () => {
-    it('should return empty data for empty keyword', async () => {
-      const result = await service.searchByKeyword('');
-
-      expect(result.data).toEqual([]);
-      expect(result.meta.total).toBe(0);
-      expect(mockPrismaService.inspection.findMany).not.toHaveBeenCalled();
-    });
-
-    it('should return empty data for whitespace-only keyword', async () => {
-      const result = await service.searchByKeyword('   ');
-
-      expect(result.data).toEqual([]);
-      expect(result.meta.total).toBe(0);
-      expect(mockPrismaService.inspection.findMany).not.toHaveBeenCalled();
-    });
-
-    it('should call findMany with OR conditions for keyword search', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(1);
-      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
-
-      const result = await service.searchByKeyword('Toyota');
-
-      expect(mockPrismaService.inspection.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ OR: expect.any(Array) }),
-        }),
-      );
-      expect(result.data).toHaveLength(1);
-    });
-
-    it('should search by pretty_id', async () => {
-      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
-
-      await service.searchByKeyword('YOG');
-
-      const callArgs = mockPrismaService.inspection.findMany.mock.calls[0][0];
-      const orConditions = callArgs.where.OR;
-      expect(orConditions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ pretty_id: expect.any(Object) }),
-        ]),
-      );
-    });
-
-    it('should search by vehiclePlateNumber (case-insensitive)', async () => {
-      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
-
-      await service.searchByKeyword('ab 1234');
-
-      const callArgs = mockPrismaService.inspection.findMany.mock.calls[0][0];
-      const orConditions = callArgs.where.OR;
-      expect(orConditions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            vehiclePlateNumber: expect.objectContaining({
-              mode: 'insensitive',
-            }),
-          }),
-        ]),
-      );
-    });
-
-    it('should search by vehicleData.merekKendaraan (JSONB path)', async () => {
-      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
-
-      await service.searchByKeyword('Toyota');
-
-      const callArgs = mockPrismaService.inspection.findMany.mock.calls[0][0];
-      const orConditions = callArgs.where.OR;
-      expect(orConditions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            vehicleData: expect.objectContaining({
-              path: ['merekKendaraan'],
-            }),
-          }),
-        ]),
-      );
-    });
-
-    it('should search by identityDetails.namaCustomer (JSONB path)', async () => {
-      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
-
-      await service.searchByKeyword('Mock Customer');
-
-      const callArgs = mockPrismaService.inspection.findMany.mock.calls[0][0];
-      const orConditions = callArgs.where.OR;
-      expect(orConditions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            identityDetails: expect.objectContaining({
-              path: ['namaCustomer'],
-            }),
-          }),
-        ]),
-      );
-    });
-
-    it('should limit results to pageSize records', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(0);
-      mockPrismaService.inspection.findMany.mockResolvedValue([]);
-
-      await service.searchByKeyword('test', 1, 10);
-
-      expect(mockPrismaService.inspection.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ take: 10 }),
-      );
-    });
-
-    it('should order results by createdAt desc', async () => {
-      mockPrismaService.inspection.findMany.mockResolvedValue([]);
-
-      await service.searchByKeyword('test');
-
-      expect(mockPrismaService.inspection.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          orderBy: { createdAt: 'desc' },
-        }),
-      );
-    });
-
-    it('should throw InternalServerErrorException on DB error', async () => {
-      mockPrismaService.inspection.findMany.mockRejectedValue(
-        new Error('DB error'),
-      );
-
-      await expect(service.searchByKeyword('test')).rejects.toThrow(
-        InternalServerErrorException,
-      );
+  describe('getQueueStats', () => {
+    it('should return pdf and blockchain queue stats from sub-services', () => {
+      const stats = service.getQueueStats();
+      expect(stats).toHaveProperty('pdfQueue');
+      expect(stats).toHaveProperty('blockchainQueue');
+      expect(stats.pdfQueue).toHaveProperty('queueLength');
+      expect(stats.pdfQueue).toHaveProperty('running');
+      expect(mockPdfService.getQueueStats).toHaveBeenCalled();
+      expect(mockBlockchainService.getQueueStats).toHaveBeenCalled();
     });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // update (change log)
+  // update (change log) — retained in facade, uses PrismaService directly
   // ─────────────────────────────────────────────────────────────────────────
   describe('update', () => {
     const mockUpdateDto = {
@@ -644,7 +596,7 @@ describe('InspectionsService', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // create
+  // create — retained in facade, uses PrismaService + queryService.invalidateListCache
   // ─────────────────────────────────────────────────────────────────────────
   describe('create', () => {
     const mockCreateDto = {
@@ -687,6 +639,7 @@ describe('InspectionsService', () => {
 
       const result = await service.create(mockCreateDto, mockInspectorId);
       expect(result).toEqual({ id: 'new-id' });
+      expect(mockQueryService.invalidateListCache).toHaveBeenCalled();
     });
 
     it('should throw BadRequestException when inspectorId is missing', async () => {
@@ -731,7 +684,7 @@ describe('InspectionsService', () => {
         code: 'YOG',
       });
       mockRedisService.isHealthy.mockResolvedValue(false);
-      mockRedisService.set.mockResolvedValue(undefined); // ensure set returns a Promise
+      mockRedisService.set.mockResolvedValue(undefined);
 
       const txMock = {
         inspectionSequence: {
@@ -749,297 +702,7 @@ describe('InspectionsService', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // findByVehiclePlateNumber
-  // ─────────────────────────────────────────────────────────────────────────
-  describe('findByVehiclePlateNumber', () => {
-    it('should return cached result when cache hits', async () => {
-      const cachedData = { id: 'cached-id', vehiclePlateNumber: 'AB 1234 CD' };
-      mockRedisService.get
-        .mockResolvedValueOnce('0') // version key
-        .mockResolvedValueOnce(JSON.stringify(cachedData)); // cache hit
-
-      const result = await service.findByVehiclePlateNumber('AB 1234 CD');
-      expect(result).toEqual(cachedData);
-    });
-
-    it('should query DB and return result on cache miss', async () => {
-      mockRedisService.get
-        .mockResolvedValueOnce('0') // version
-        .mockResolvedValueOnce(null); // cache miss
-
-      const dbRow = { id: 'db-id', vehiclePlateNumber: 'AB 1234 CD', status: 'ARCHIVED' };
-      mockPrismaService.$queryRaw = jest.fn().mockResolvedValue([dbRow]);
-
-      const result = await service.findByVehiclePlateNumber('AB 1234 CD');
-      expect(result).toEqual(dbRow);
-    });
-
-    it('should return null when no row found', async () => {
-      mockRedisService.get
-        .mockResolvedValueOnce('0')
-        .mockResolvedValueOnce(null);
-
-      mockPrismaService.$queryRaw = jest.fn().mockResolvedValue([]);
-
-      const result = await service.findByVehiclePlateNumber('UNKNOWN 999');
-      expect(result).toBeNull();
-    });
-
-    it('should throw InternalServerErrorException on DB error', async () => {
-      mockRedisService.get
-        .mockResolvedValueOnce('0')
-        .mockResolvedValueOnce(null);
-
-      mockPrismaService.$queryRaw = jest.fn().mockRejectedValue(new Error('DB error'));
-
-      await expect(service.findByVehiclePlateNumber('AB 1234 CD')).rejects.toThrow(
-        InternalServerErrorException,
-      );
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // deactivateArchive
-  // ─────────────────────────────────────────────────────────────────────────
-  describe('deactivateArchive', () => {
-    it('should deactivate an ARCHIVED inspection', async () => {
-      const deactivated = { ...mockArchivedInspection, status: 'DEACTIVATED' };
-      mockPrismaService.inspection.update.mockResolvedValue(deactivated);
-
-      const result = await service.deactivateArchive('mock-archived-id', 'admin-id');
-      expect(result.status).toBe('DEACTIVATED');
-    });
-
-    it('should throw NotFoundException when inspection not found (P2025)', async () => {
-      const prismaError = new Prisma.PrismaClientKnownRequestError('Not found', {
-        code: 'P2025',
-        clientVersion: '5.0.0',
-      });
-      mockPrismaService.inspection.update.mockRejectedValue(prismaError);
-      mockPrismaService.inspection.findUnique.mockResolvedValue(null);
-
-      await expect(service.deactivateArchive('nonexistent', 'admin-id')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    it('should throw BadRequestException when inspection has wrong status (P2025)', async () => {
-      const prismaError = new Prisma.PrismaClientKnownRequestError('Not found', {
-        code: 'P2025',
-        clientVersion: '5.0.0',
-      });
-      mockPrismaService.inspection.update.mockRejectedValue(prismaError);
-      mockPrismaService.inspection.findUnique.mockResolvedValue({
-        status: 'NEED_REVIEW',
-      });
-
-      await expect(service.deactivateArchive(mockInspectionId, 'admin-id')).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('should throw InternalServerErrorException on unknown DB error', async () => {
-      mockPrismaService.inspection.update.mockRejectedValue(new Error('Unknown error'));
-
-      await expect(service.deactivateArchive(mockInspectionId, 'admin-id')).rejects.toThrow(
-        InternalServerErrorException,
-      );
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // activateArchive
-  // ─────────────────────────────────────────────────────────────────────────
-  describe('activateArchive', () => {
-    it('should reactivate a DEACTIVATED inspection', async () => {
-      const reactivated = { ...mockArchivedInspection, status: 'ARCHIVED', deactivatedAt: null };
-      mockPrismaService.inspection.update.mockResolvedValue(reactivated);
-
-      const result = await service.activateArchive(mockInspectionId, 'admin-id');
-      expect(result.status).toBe('ARCHIVED');
-    });
-
-    it('should throw NotFoundException when inspection not found (P2025)', async () => {
-      const prismaError = new Prisma.PrismaClientKnownRequestError('Not found', {
-        code: 'P2025',
-        clientVersion: '5.0.0',
-      });
-      mockPrismaService.inspection.update.mockRejectedValue(prismaError);
-      mockPrismaService.inspection.findUnique.mockResolvedValue(null);
-
-      await expect(service.activateArchive('nonexistent', 'admin-id')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    it('should throw BadRequestException when inspection has wrong status', async () => {
-      const prismaError = new Prisma.PrismaClientKnownRequestError('Not found', {
-        code: 'P2025',
-        clientVersion: '5.0.0',
-      });
-      mockPrismaService.inspection.update.mockRejectedValue(prismaError);
-      mockPrismaService.inspection.findUnique.mockResolvedValue({
-        status: 'APPROVED',
-      });
-
-      await expect(service.activateArchive(mockInspectionId, 'admin-id')).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // processToArchive
-  // ─────────────────────────────────────────────────────────────────────────
-  describe('processToArchive', () => {
-    const mockApprovedInspection = {
-      ...mockInspection,
-      status: InspectionStatus.APPROVED,
-      vehiclePlateNumber: 'AB 1234 CD',
-      pdfFileHash: 'hash-abc',
-      pdfFileHashNoDocs: 'hash-def',
-      vehicleData: { merekKendaraan: 'Toyota', tipeKendaraan: 'Avanza' },
-      pretty_id: 'YOG-13082025-001',
-    };
-
-    it('should throw NotFoundException when inspection not found', async () => {
-      mockPrismaService.inspection.findUnique.mockResolvedValue(null);
-      await expect(service.processToArchive(mockInspectionId, 'admin-id')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    it('should throw BadRequestException when status is not APPROVED', async () => {
-      mockPrismaService.inspection.findUnique.mockResolvedValue(mockInspection); // NEED_REVIEW
-      await expect(service.processToArchive(mockInspectionId, 'admin-id')).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('should throw BadRequestException when vehiclePlateNumber is missing', async () => {
-      mockPrismaService.inspection.findUnique.mockResolvedValue({
-        ...mockApprovedInspection,
-        vehiclePlateNumber: null,
-      });
-      await expect(service.processToArchive(mockInspectionId, 'admin-id')).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('should throw BadRequestException when pdfFileHash is missing', async () => {
-      mockPrismaService.inspection.findUnique.mockResolvedValue({
-        ...mockApprovedInspection,
-        pdfFileHash: null,
-      });
-      await expect(service.processToArchive(mockInspectionId, 'admin-id')).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('should throw BadRequestException when pdfFileHashNoDocs is missing', async () => {
-      mockPrismaService.inspection.findUnique.mockResolvedValue({
-        ...mockApprovedInspection,
-        pdfFileHashNoDocs: null,
-      });
-      await expect(service.processToArchive(mockInspectionId, 'admin-id')).rejects.toThrow(
-        BadRequestException,
-      );
-    });
-
-    it('should archive successfully when blockchain succeeds', async () => {
-      mockPrismaService.inspection.findUnique.mockResolvedValue(mockApprovedInspection);
-
-      const blockchainSvcMock = {
-        mintInspectionNft: jest.fn().mockResolvedValue({ txHash: 'tx-123', assetId: 'asset-456' }),
-      };
-      // Re-create service with blockchain mock
-      const module = await Test.createTestingModule({
-        providers: [
-          InspectionsService,
-          { provide: PrismaService, useValue: mockPrismaService },
-          { provide: BlockchainService, useValue: blockchainSvcMock },
-          { provide: ConfigService, useValue: mockConfigService },
-          { provide: IpfsService, useValue: mockIpfsService },
-          { provide: RedisService, useValue: mockRedisService },
-        ],
-      }).compile();
-      const svc = module.get<InspectionsService>(InspectionsService);
-
-      mockPrismaService.inspection.update.mockResolvedValue({
-        ...mockApprovedInspection,
-        status: InspectionStatus.ARCHIVED,
-        nftAssetId: 'asset-456',
-        blockchainTxHash: 'tx-123',
-        archivedAt: new Date(),
-      });
-
-      const result = await svc.processToArchive(mockInspectionId, 'admin-id');
-      expect(result.status).toBe(InspectionStatus.ARCHIVED);
-    });
-
-    it('should remain APPROVED when blockchain minting fails', async () => {
-      mockPrismaService.inspection.findUnique.mockResolvedValue(mockApprovedInspection);
-
-      const blockchainSvcMock = {
-        mintInspectionNft: jest.fn().mockRejectedValue(new Error('Blockchain error')),
-      };
-      const module = await Test.createTestingModule({
-        providers: [
-          InspectionsService,
-          { provide: PrismaService, useValue: mockPrismaService },
-          { provide: BlockchainService, useValue: blockchainSvcMock },
-          { provide: ConfigService, useValue: mockConfigService },
-          { provide: IpfsService, useValue: mockIpfsService },
-          { provide: RedisService, useValue: mockRedisService },
-        ],
-      }).compile();
-      const svc = module.get<InspectionsService>(InspectionsService);
-
-      mockPrismaService.inspection.update.mockResolvedValue({
-        ...mockApprovedInspection,
-        status: InspectionStatus.APPROVED,
-      });
-
-      const result = await svc.processToArchive(mockInspectionId, 'admin-id');
-      expect(result.status).toBe(InspectionStatus.APPROVED);
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // findLatestArchivedInspections
-  // ─────────────────────────────────────────────────────────────────────────
-  describe('findLatestArchivedInspections', () => {
-    it('should return latest archived inspections with photos', async () => {
-      const archivedWithPhotos = [
-        { ...mockArchivedInspection, photos: [{ id: 'p1', label: 'Tampak Depan', path: 'photo.jpg' }] },
-      ];
-      mockPrismaService.inspection.findMany.mockResolvedValue(archivedWithPhotos);
-
-      const result = await service.findLatestArchivedInspections();
-      expect(result).toHaveLength(1);
-      expect((result[0] as any).photos).toHaveLength(1);
-    });
-
-    it('should filter out inspections without Tampak Depan photo', async () => {
-      const archivedWithoutPhotos = [
-        { ...mockArchivedInspection, photos: [] },
-      ];
-      mockPrismaService.inspection.findMany.mockResolvedValue(archivedWithoutPhotos);
-
-      const result = await service.findLatestArchivedInspections();
-      expect(result).toHaveLength(0);
-    });
-
-    it('should throw InternalServerErrorException on DB error', async () => {
-      mockPrismaService.inspection.findMany.mockRejectedValue(new Error('DB error'));
-      await expect(service.findLatestArchivedInspections()).rejects.toThrow(
-        InternalServerErrorException,
-      );
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // deleteInspectionPermanently
+  // deleteInspectionPermanently — retained in facade
   // ─────────────────────────────────────────────────────────────────────────
   describe('deleteInspectionPermanently', () => {
     it('should throw NotFoundException when inspection not found', async () => {
@@ -1067,6 +730,7 @@ describe('InspectionsService', () => {
 
       await expect(service.deleteInspectionPermanently('mock-archived-id')).resolves.toBeUndefined();
       expect(txMock.inspection.delete).toHaveBeenCalledWith({ where: { id: 'mock-archived-id' } });
+      expect(mockQueryService.invalidateListCache).toHaveBeenCalled();
     });
 
     it('should throw InternalServerErrorException on transaction failure', async () => {
@@ -1086,7 +750,7 @@ describe('InspectionsService', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // rollbackInspectionStatus
+  // rollbackInspectionStatus — retained in facade
   // ─────────────────────────────────────────────────────────────────────────
   describe('rollbackInspectionStatus', () => {
     it('should rollback inspection status to NEED_REVIEW', async () => {
@@ -1106,6 +770,7 @@ describe('InspectionsService', () => {
 
       const result = await service.rollbackInspectionStatus('mock-archived-id', 'superadmin-id');
       expect(result.status).toBe(InspectionStatus.NEED_REVIEW);
+      expect(mockQueryService.invalidateListCache).toHaveBeenCalled();
     });
 
     it('should throw NotFoundException when inspection not found', async () => {
@@ -1136,85 +801,7 @@ describe('InspectionsService', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // revertInspectionToApproved
-  // ─────────────────────────────────────────────────────────────────────────
-  describe('revertInspectionToApproved', () => {
-    it('should revert ARCHIVED inspection to APPROVED', async () => {
-      const reverted = { ...mockArchivedInspection, status: InspectionStatus.APPROVED };
-      mockPrismaService.$transaction.mockImplementation(async (cb) => {
-        const tx = {
-          inspection: {
-            findUnique: jest.fn().mockResolvedValue(mockArchivedInspection),
-            update: jest.fn().mockResolvedValue(reverted),
-          },
-          inspectionChangeLog: {
-            create: jest.fn().mockResolvedValue({}),
-          },
-        };
-        return cb(tx);
-      });
-
-      const result = await service.revertInspectionToApproved('mock-archived-id', 'superadmin-id');
-      expect(result.status).toBe(InspectionStatus.APPROVED);
-    });
-
-    it('should throw NotFoundException when inspection not found', async () => {
-      mockPrismaService.$transaction.mockImplementation(async (cb) => {
-        const tx = {
-          inspection: { findUnique: jest.fn().mockResolvedValue(null) },
-        };
-        return cb(tx);
-      });
-
-      await expect(
-        service.revertInspectionToApproved('nonexistent', 'superadmin-id'),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw BadRequestException when status is NEED_REVIEW (not ARCHIVED/FAIL_ARCHIVE)', async () => {
-      mockPrismaService.$transaction.mockImplementation(async (cb) => {
-        const tx = {
-          inspection: { findUnique: jest.fn().mockResolvedValue(mockInspection) }, // NEED_REVIEW
-        };
-        return cb(tx);
-      });
-
-      await expect(
-        service.revertInspectionToApproved(mockInspectionId, 'superadmin-id'),
-      ).rejects.toThrow(BadRequestException);
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // confirmArchive
-  // ─────────────────────────────────────────────────────────────────────────
-  describe('confirmArchive', () => {
-    const mockConfirmDto = { txHash: 'tx-hash-123', nftAssetId: 'asset-123' };
-
-    it('should confirm archive and return updated inspection', async () => {
-      mockPrismaService.inspection.findUnique.mockResolvedValue(mockArchivedInspection);
-      mockPrismaService.inspection.update.mockResolvedValue({
-        ...mockArchivedInspection,
-        status: InspectionStatus.ARCHIVED,
-        blockchainTxHash: 'tx-hash-123',
-        nftAssetId: 'asset-123',
-      });
-
-      const result = await service.confirmArchive('mock-archived-id', mockConfirmDto);
-      expect(result.status).toBe(InspectionStatus.ARCHIVED);
-      expect(result.blockchainTxHash).toBe('tx-hash-123');
-    });
-
-    it('should throw NotFoundException when inspection not found', async () => {
-      mockPrismaService.inspection.findUnique.mockResolvedValue(null);
-      await expect(service.confirmArchive('nonexistent', mockConfirmDto)).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // bulkApproveInspections
+  // bulkApproveInspections — retained in facade
   // ─────────────────────────────────────────────────────────────────────────
   describe('bulkApproveInspections', () => {
     it('should return successful and failed results', async () => {
@@ -1233,6 +820,7 @@ describe('InspectionsService', () => {
       expect(result.summary.failed).toBe(1);
       expect(result.successful).toHaveLength(1);
       expect(result.failed).toHaveLength(1);
+      expect(mockQueryService.invalidateListCache).toHaveBeenCalled();
     }, 10000);
 
     it('should return all successful when all approvals succeed', async () => {
@@ -1251,20 +839,7 @@ describe('InspectionsService', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // getQueueStats
-  // ─────────────────────────────────────────────────────────────────────────
-  describe('getQueueStats', () => {
-    it('should return pdf and blockchain queue stats', () => {
-      const stats = service.getQueueStats();
-      expect(stats).toHaveProperty('pdfQueue');
-      expect(stats).toHaveProperty('blockchainQueue');
-      expect(stats.pdfQueue).toHaveProperty('queueLength');
-      expect(stats.pdfQueue).toHaveProperty('running');
-    });
-  });
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // approveInspection (existing tests — preserved)
+  // approveInspection — retained in facade, uses pdfService.generateAndSavePdf
   // ─────────────────────────────────────────────────────────────────────────
   describe('approveInspection', () => {
     it('should apply change logs and call PDF generation on full happy path', async () => {
@@ -1290,13 +865,11 @@ describe('InspectionsService', () => {
         return await callback(tx);
       });
 
-      const generatePdfSpy = jest
-        .spyOn(service as any, '_generateAndSavePdf')
-        .mockResolvedValue({
-          pdfPublicUrl: '/pdf/new.pdf',
-          pdfCid: 'new-cid',
-          pdfHashString: 'new-hash',
-        });
+      mockPdfService.generateAndSavePdf.mockResolvedValue({
+        pdfPublicUrl: '/pdf/new.pdf',
+        pdfCid: 'new-cid',
+        pdfHashString: 'new-hash',
+      });
 
       mockPrismaService.inspection.update.mockResolvedValue({
         ...inspectionAfterChanges,
@@ -1313,13 +886,14 @@ describe('InspectionsService', () => {
       );
 
       expect(mockPrismaService.$transaction).toHaveBeenCalled();
-      expect(generatePdfSpy).toHaveBeenCalledTimes(2); // full PDF + no-docs PDF
+      expect(mockPdfService.generateAndSavePdf).toHaveBeenCalledTimes(2); // full PDF + no-docs PDF
       expect(mockPrismaService.inspection.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: mockInspectionId },
           data: expect.objectContaining({ status: InspectionStatus.APPROVED }),
         }),
       );
+      expect(mockQueryService.invalidateListCache).toHaveBeenCalled();
     });
 
     it('should throw NotFoundException if inspection does not exist', async () => {
@@ -1379,9 +953,7 @@ describe('InspectionsService', () => {
         return await callback(tx);
       });
 
-      jest
-        .spyOn(service as any, '_generateAndSavePdf')
-        .mockRejectedValue(new Error('PDF generation failed'));
+      mockPdfService.generateAndSavePdf.mockRejectedValue(new Error('PDF generation failed'));
 
       // Spy on the rollback helper method
       const rollbackSpy = jest
@@ -1402,4 +974,3 @@ describe('InspectionsService', () => {
     });
   });
 });
-

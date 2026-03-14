@@ -15,6 +15,9 @@
 import { Module } from '@nestjs/common';
 import { InspectionsService } from './inspections.service';
 import { InspectionsController } from './inspections.controller';
+import { InspectionQueryService } from './inspection-query.service';
+import { InspectionPdfService } from './inspection-pdf.service';
+import { InspectionBlockchainService } from './inspection-blockchain.service';
 import { PrismaModule } from '../prisma/prisma.module';
 import { PhotosModule } from '../photos/photos.module';
 import { BlockchainModule } from '../blockchain/blockchain.module';
@@ -45,7 +48,12 @@ import { VaultConfigService } from '../config/vault-config.service';
     }),
   ],
   controllers: [InspectionsController],
-  providers: [InspectionsService],
+  providers: [
+    InspectionsService,
+    InspectionQueryService,
+    InspectionPdfService,
+    InspectionBlockchainService,
+  ],
   exports: [InspectionsService],
 })
 export class InspectionsModule { }
