@@ -13,7 +13,7 @@
 
 import { ExtractJwt, Strategy } from 'passport-jwt'; // Import JWT Strategy components
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+import { Injectable, OnModuleInit, UnauthorizedException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config'; // Needed for JWT secret
 import { UsersService } from '../../users/users.service'; // Needed to find user by ID
 import { JwtPayload } from '../interfaces/jwt-payload.interface'; // Type definition for the decoded payload
@@ -21,49 +21,63 @@ import { User } from '@prisma/client'; // Prisma User type
 import { AuthService } from '../auth.service'; // Import AuthService
 import { Request } from 'express'; // Import Request type
 import { TokenBlacklistedException } from '../exceptions/token-blacklisted.exception'; // Import custom exception
+import { VaultConfigService } from '../../config/vault-config.service';
 
 @Injectable()
 // Define the strategy, extending PassportStrategy with the base JWT Strategy.
 // The default name 'jwt' is implicitly used by JwtAuthGuard unless specified otherwise.
-export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
+export class JwtStrategy
+  extends PassportStrategy(Strategy, 'jwt')
+  implements OnModuleInit
+{
   private readonly logger = new Logger(JwtStrategy.name);
 
   /**
-   * Injects ConfigService to retrieve the JWT secret and UsersService to find the user.
-   * Configures the underlying passport-jwt Strategy:
-   * - `jwtFromRequest`: Specifies how to extract the JWT (Bearer token from Authorization header).
-   * - `ignoreExpiration: false`: Ensures expired tokens are rejected.
-   * - `secretOrKey`: Provides the secret key used to sign and verify the JWT signature.
+   * Injects ConfigService, VaultConfigService, UsersService, and AuthService.
    *
    * @param {ConfigService} configService - Service for accessing configuration (JWT_SECRET).
+   * @param {VaultConfigService} vaultConfigService - Service for Vault-managed secrets.
    * @param {UsersService} usersService - Service for user database operations.
    * @param {AuthService} authService - Service for authentication logic, including token blacklisting.
    */
   constructor(
     private readonly configService: ConfigService,
+    private readonly vaultConfigService: VaultConfigService,
     private readonly usersService: UsersService,
     private readonly authService: AuthService, // Inject AuthService
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(), // Standard extraction method
       ignoreExpiration: false, // Validate token expiration
-      secretOrKey: configService.getOrThrow<string>('JWT_SECRET'), // Get secret from config
+      secretOrKey:
+        configService.get<string>('JWT_SECRET') || 'placeholder-jwt-secret',
       passReqToCallback: true, // Pass the request to the validate method
     });
     this.logger.log('JWT Strategy Initialized');
   }
 
   /**
+   * After module init, update the secret key from Vault if available.
+   */
+  async onModuleInit(): Promise<void> {
+    try {
+      const secrets = await this.vaultConfigService.getSecrets();
+      const jwtSecret =
+        secrets.JWT_SECRET ||
+        this.configService.get<string>('JWT_SECRET');
+      if (jwtSecret) {
+        // Patch the internal secret used by passport-jwt
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (this as any)._secretOrKey = jwtSecret;
+      }
+    } catch {
+      // Non-fatal — continue with env value set during construction
+    }
+  }
+
+  /**
    * Validate method automatically called by Passport after successfully verifying
    * the JWT's signature and expiration.
-   * It receives the decoded JWT payload.
-   * This method must look up the user based on the payload information (usually the user ID in 'sub')
-   * and return the user object if valid, or throw an error if not.
-   *
-   * @param {Request} req - The raw request object, needed to extract the token for blacklisting check.
-   * @param {JwtPayload} payload - The decoded payload extracted from the validated JWT.
-   * @returns {Promise<Omit<User, 'password' | 'googleId'>>} The validated user object (excluding sensitive fields). Passport attaches this to `request.user`.
-   * @throws {UnauthorizedException} If the user referenced in the payload (`payload.sub`) is not found in the database, or if the token is blacklisted.
    */
   async validate(
     req: Request, // Add req parameter
@@ -101,8 +115,6 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     }
 
     // Session version check: reject tokens whose sessionVersion is stale.
-    // This fires when refreshTokens() or revokeAllSessions() has incremented the version
-    // in the database, effectively invalidating all previously issued access tokens.
     const tokenSessionVersion = payload.sessionVersion ?? 0;
     const userSessionVersion = user.sessionVersion ?? 0;
     if (tokenSessionVersion !== userSessionVersion) {

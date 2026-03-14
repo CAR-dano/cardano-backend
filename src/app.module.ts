@@ -17,6 +17,7 @@ import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { SecretsModule } from './config/secrets.module';
 import { AuthModule } from './auth/auth.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
 import { ExternalAuthModule } from './external-auth/external-auth.module';
@@ -43,6 +44,7 @@ import { SecurityLoggerModule } from './security-logger/security-logger.module';
       isGlobal: true, // Make ConfigModule available across applications
       envFilePath: '.env', // Specifies the .env file
     }),
+    SecretsModule, // Global secrets management via HashiCorp Vault (fallback: env vars)
     ThrottlerModule.forRoot([
       {
         // Default tier: general authenticated endpoints

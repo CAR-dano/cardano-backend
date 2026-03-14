@@ -22,6 +22,7 @@ import { IpfsModule } from '../ipfs/ipfs.module';
 import { MulterModule } from '@nestjs/platform-express';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { s3StorageConfig } from '../common/configs/s3-storage.config';
+import { VaultConfigService } from '../config/vault-config.service';
 
 /**
  * NestJS module for inspection-related features.
@@ -34,10 +35,13 @@ import { s3StorageConfig } from '../common/configs/s3-storage.config';
     IpfsModule,
     MulterModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        storage: s3StorageConfig(configService),
+      useFactory: async (
+        configService: ConfigService,
+        vaultConfigService: VaultConfigService,
+      ) => ({
+        storage: await s3StorageConfig(configService, vaultConfigService),
       }),
-      inject: [ConfigService],
+      inject: [ConfigService, VaultConfigService],
     }),
   ],
   controllers: [InspectionsController],

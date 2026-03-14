@@ -15,11 +15,22 @@ import { UsersService } from '../../users/users.service';
 import { UnauthorizedException } from '@nestjs/common';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { VaultConfigService } from '../../config/vault-config.service';
 
 jest.mock('bcrypt');
 
 const mockConfigService = {
+  get: jest.fn().mockReturnValue('test-refresh-secret'),
   getOrThrow: jest.fn().mockReturnValue('test-refresh-secret'),
+};
+
+/** Minimal VaultConfigService mock — no Vault server needed in unit tests. */
+const mockVaultConfigService: Partial<VaultConfigService> = {
+  getSecrets: jest.fn().mockResolvedValue({}),
+  get: jest.fn().mockResolvedValue(''),
+  isVaultAvailable: jest.fn().mockReturnValue(false),
+  invalidateCache: jest.fn(),
+  onModuleInit: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockUsersService = {
@@ -61,6 +72,7 @@ describe('JwtRefreshStrategy', () => {
         JwtRefreshStrategy,
         { provide: ConfigService, useValue: mockConfigService },
         { provide: UsersService, useValue: mockUsersService },
+        { provide: VaultConfigService, useValue: mockVaultConfigService },
       ],
     }).compile();
 

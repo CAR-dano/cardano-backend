@@ -13,34 +13,45 @@
 
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, VerifyCallback, Profile } from 'passport-google-oauth20'; // Google strategy components
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config'; // For Google credentials
 import { AuthService } from '../auth.service'; // For user validation/creation logic
 import { User } from '@prisma/client'; // Import Role for type safety
+import { VaultConfigService } from '../../config/vault-config.service';
 
 @Injectable()
 // Define the strategy, extending PassportStrategy with the base Google Strategy
 // and naming it 'google'. This name is used in AuthGuard('google').
-export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
+export class GoogleStrategy
+  extends PassportStrategy(Strategy, 'google')
+  implements OnModuleInit
+{
   private readonly logger = new Logger(GoogleStrategy.name);
 
   /**
-   * Injects ConfigService for Google API credentials and AuthService for user processing.
-   * Configures the Google OAuth 2.0 client:
-   * - `clientID`, `clientSecret`: Credentials obtained from Google Cloud Console.
-   * - `callbackURL`: The URL in this backend application that Google redirects back to after authentication.
-   * - `scope`: The user information requested from Google (email and profile).
+   * Injects ConfigService, VaultConfigService, and AuthService.
+   * Google OAuth credentials are resolved from Vault at module init;
+   * constructor uses ConfigService as the initial source with Vault override applied via
+   * onModuleInit (strategy re-registration is handled by Passport internally).
    *
    * @param {ConfigService} configService - Service to access configuration variables.
+   * @param {VaultConfigService} vaultConfigService - Service for Vault-managed secrets.
    * @param {AuthService} authService - Service containing logic to validate/create Google users.
    */
   constructor(
     private readonly configService: ConfigService,
+    private readonly vaultConfigService: VaultConfigService,
     private readonly authService: AuthService,
   ) {
+    // Initialize with ConfigService values; Vault override happens in onModuleInit
+    // via _setOAuthOptions which patches the underlying OAuth2 client credentials.
     super({
-      clientID: configService.getOrThrow<string>('GOOGLE_CLIENT_ID'),
-      clientSecret: configService.getOrThrow<string>('GOOGLE_CLIENT_SECRET'),
+      clientID:
+        configService.get<string>('GOOGLE_CLIENT_ID') ||
+        'placeholder-client-id',
+      clientSecret:
+        configService.get<string>('GOOGLE_CLIENT_SECRET') ||
+        'placeholder-client-secret',
       callbackURL: configService.getOrThrow<string>('GOOGLE_CALLBACK_URL'),
       scope: ['email', 'profile'], // Request email and basic profile info
     });
@@ -48,18 +59,40 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   }
 
   /**
+   * After module init, re-apply credentials from Vault to override env-based values.
+   * This patches the underlying passport-oauth2 client credentials in-place.
+   */
+  async onModuleInit(): Promise<void> {
+    try {
+      const secrets = await this.vaultConfigService.getSecrets();
+      const clientId =
+        secrets.GOOGLE_CLIENT_ID ||
+        this.configService.get<string>('GOOGLE_CLIENT_ID') ||
+        '';
+      const clientSecret =
+        secrets.GOOGLE_CLIENT_SECRET ||
+        this.configService.get<string>('GOOGLE_CLIENT_SECRET') ||
+        '';
+
+      if (clientId && clientSecret) {
+        // Patch the OAuth2 client credentials on the underlying strategy instance
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (this as any)._oauth2._clientId = clientId;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (this as any)._oauth2._clientSecret = clientSecret;
+        this.logger.log(
+          'Google Strategy credentials updated from Vault.',
+        );
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Google Strategy Vault credential update failed: ${(error as Error).message}. Using env values.`,
+      );
+    }
+  }
+
+  /**
    * Validate method automatically called by Passport after successful authentication with Google.
-   * Receives the Google access token, refresh token (optional), and the user's Google profile.
-   * It delegates the actual user lookup/creation to `authService.validateUserGoogle`.
-   * Finally, it calls the `done` callback provided by Passport.
-   *
-   * @param {string} accessToken - Google access token (can be used to call Google APIs, often not needed here).
-   * @param {string | undefined} refreshToken - Google refresh token (if configured and granted).
-   * @param {Profile} profile - User profile information provided by Google (ID, name, emails, etc.).
-   * @param {VerifyCallback} done - Passport callback function `(error: any, user?: Express.User | false, info?: object) => void`.
-   *        - Call `done(null, user)` on success, passing the validated user object.
-   *        - Call `done(error, false)` on failure.
-   * @returns {Promise<any>} - The promise resolves when the `done` callback is invoked.
    */
   async validate(
     accessToken: string,
@@ -71,25 +104,15 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
       `GoogleStrategy validating profile for: ${profile.displayName} (ID: ${profile.id})`,
     );
     try {
-      // Delegate the core logic of finding or creating the user based on the Google profile
-      // to the AuthService. This keeps the strategy focused on the OAuth flow itself.
       const user: User = await this.authService.validateUserGoogle(profile);
-
-      // If user validation/creation is successful, prepare the user object
-      // to be passed to the 'done' callback. This object will become `req.user`
-      // in the subsequent request handler (e.g., the googleAuthRedirect controller method).
-      // Only include necessary fields for the next step (usually login/JWT generation).
       const simplifiedUser = {
         id: user.id,
-        email: user.email, // Email is crucial, ensure it's present
+        email: user.email,
         name: user.name,
-        role: user.role, // Role is important for authorization
+        role: user.role,
       };
-
-      // Call the 'done' callback with null error and the simplified user object.
       done(null, simplifiedUser);
     } catch (error) {
-      // If any error occurs during user validation/creation in AuthService
       if (error instanceof Error) {
         this.logger.error(
           `GoogleStrategy validation failed for profile ID ${profile.id}: ${error.message}`,
@@ -100,7 +123,6 @@ export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
           `GoogleStrategy validation failed for profile ID ${profile.id}: ${error}`,
         );
       }
-      // Call the 'done' callback with the error object and 'false' to indicate failure.
       done(error, false);
     }
   }

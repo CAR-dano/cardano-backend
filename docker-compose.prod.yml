@@ -106,3 +106,21 @@ services:
         limits:
           memory: 128M
           cpus: '0.1'
+
+  # Vault - Production (file storage backend, not dev mode)
+  vault:
+    restart: always
+    command: server -config=/vault/config/vault.hcl
+    volumes:
+      - vault_data:/vault/data
+      - ./vault/config:/vault/config:ro
+    environment:
+      - VAULT_ADDR=http://0.0.0.0:8200
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.2'
+
+volumes:
+  vault_data:

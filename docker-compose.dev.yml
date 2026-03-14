@@ -40,7 +40,7 @@ services:
   grafana:
     restart: 'no'
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin123}
       - GF_USERS_ALLOW_SIGN_UP=true # Allow signup in development
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SERVER_DOMAIN=localhost
@@ -62,3 +62,11 @@ services:
   # PostgreSQL Exporter - Development monitoring
   postgres-exporter:
     restart: 'no'
+
+  # Vault - Development mode (in-memory, auto-unseal)
+  vault:
+    restart: 'no'
+    command: server -dev
+    environment:
+      - VAULT_DEV_ROOT_TOKEN_ID=${VAULT_TOKEN:-dev-root-token}
+      - VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200

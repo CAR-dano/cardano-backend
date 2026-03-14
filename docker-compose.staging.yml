@@ -96,3 +96,21 @@ services:
         limits:
           memory: 32M
           cpus: '0.05'
+
+  # Vault - Staging (file storage backend, not dev mode)
+  vault:
+    restart: unless-stopped
+    command: server -config=/vault/config/vault.hcl
+    volumes:
+      - vault_data:/vault/data
+      - ./vault/config:/vault/config:ro
+    environment:
+      - VAULT_ADDR=http://0.0.0.0:8200
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.1'
+
+volumes:
+  vault_data:

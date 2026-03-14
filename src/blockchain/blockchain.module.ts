@@ -16,9 +16,10 @@ import { ConfigModule } from '@nestjs/config';
 // Local application files
 import { BlockchainController } from './blockchain.controller';
 import { BlockchainService } from './blockchain.service';
+import { SecretsModule } from '../config/secrets.module';
 
 @Module({
-  imports: [ConfigModule], // Import ConfigModule to use ConfigService
+  imports: [ConfigModule, SecretsModule], // SecretsModule provides VaultConfigService
   providers: [BlockchainService],
   exports: [BlockchainService],
   controllers: [BlockchainController], // Export service to be used by other modules (e.g., InspectionsService)

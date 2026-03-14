@@ -10,27 +10,50 @@
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy, StrategyOptionsWithRequest } from 'passport-jwt';
 import { Request } from 'express';
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../../users/users.service';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
 import * as bcrypt from 'bcrypt';
+import { VaultConfigService } from '../../config/vault-config.service';
 
 @Injectable()
-export class JwtRefreshStrategy extends PassportStrategy(
-  Strategy,
-  'jwt-refresh',
-) {
+export class JwtRefreshStrategy
+  extends PassportStrategy(Strategy, 'jwt-refresh')
+  implements OnModuleInit
+{
   constructor(
     private readonly configService: ConfigService,
     private readonly usersService: UsersService,
+    private readonly vaultConfigService: VaultConfigService,
   ) {
     const opts: StrategyOptionsWithRequest = {
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
-      secretOrKey: configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+      secretOrKey:
+        configService.get<string>('JWT_REFRESH_SECRET') ||
+        'placeholder-refresh-secret',
       passReqToCallback: true,
     };
     super(opts);
+  }
+
+  /**
+   * After module init, update the secret key from Vault if available.
+   */
+  async onModuleInit(): Promise<void> {
+    try {
+      const secrets = await this.vaultConfigService.getSecrets();
+      const refreshSecret =
+        secrets.JWT_REFRESH_SECRET ||
+        this.configService.get<string>('JWT_REFRESH_SECRET');
+      if (refreshSecret) {
+        // Patch the internal secret used by passport-jwt's jsonwebtoken
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (this as any)._secretOrKey = refreshSecret;
+      }
+    } catch {
+      // Non-fatal — will continue with env value set during construction
+    }
   }
 
   async validate(req: Request, payload: JwtPayload) {

@@ -17,6 +17,7 @@ import { ConfigService } from '@nestjs/config';
 import { InternalServerErrorException } from '@nestjs/common';
 import { Role, User } from '@prisma/client';
 import { Profile, VerifyCallback } from 'passport-google-oauth20';
+import { VaultConfigService } from '../../config/vault-config.service';
 
 // --- Mock Dependencies ---
 
@@ -47,6 +48,15 @@ const mockConfigService = {
   }),
 };
 
+/** Minimal VaultConfigService mock — no Vault server needed in unit tests. */
+const mockVaultConfigService: Partial<VaultConfigService> = {
+  getSecrets: jest.fn().mockResolvedValue({}),
+  get: jest.fn().mockResolvedValue(''),
+  isVaultAvailable: jest.fn().mockReturnValue(false),
+  invalidateCache: jest.fn(),
+  onModuleInit: jest.fn().mockResolvedValue(undefined),
+};
+
 /**
  * Test suite for the GoogleStrategy class.
  */
@@ -70,6 +80,7 @@ describe('GoogleStrategy', () => {
         GoogleStrategy, // The strategy to test
         { provide: AuthService, useValue: mockAuthService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: VaultConfigService, useValue: mockVaultConfigService },
       ],
     }).compile();
 

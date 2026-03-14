@@ -15,6 +15,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { RedisService } from './redis.service';
+import { VaultConfigService } from '../config/vault-config.service';
+
+/** Minimal VaultConfigService mock — no Vault server needed in unit tests. */
+const mockVaultConfigService: Partial<VaultConfigService> = {
+  getSecrets: jest.fn().mockResolvedValue({}),
+  get: jest.fn().mockResolvedValue(''),
+  isVaultAvailable: jest.fn().mockReturnValue(false),
+  invalidateCache: jest.fn(),
+};
 
 // ---------------------------------------------------------------------------
 // Typed mock helpers
@@ -50,9 +59,13 @@ describe('RedisService', () => {
   let clientMock: ReturnType<typeof buildClientMock>;
 
   // Helper: create the NestJS module with a ConfigService stub
+  // Calls onModuleInit() so the Redis client is created (as it happens in production).
   async function createModule(redisUrl: string | undefined) {
     clientMock = buildClientMock();
     MockRedis.mockImplementation(() => clientMock as unknown as Redis);
+
+    // VaultConfigService returns empty secrets so REDIS_URL resolves from ConfigService
+    (mockVaultConfigService.getSecrets as jest.Mock).mockResolvedValue({});
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -63,10 +76,16 @@ describe('RedisService', () => {
             get: jest.fn().mockReturnValue(redisUrl),
           },
         },
+        {
+          provide: VaultConfigService,
+          useValue: mockVaultConfigService,
+        },
       ],
     }).compile();
 
     service = module.get<RedisService>(RedisService);
+    // Trigger lifecycle hook so the Redis client is initialized
+    await service.onModuleInit();
   }
 
   afterEach(() => {
@@ -513,10 +532,16 @@ describe('RedisService', () => {
             provide: ConfigService,
             useValue: { get: jest.fn().mockReturnValue('redis://bad-host:9999') },
           },
+          {
+            provide: VaultConfigService,
+            useValue: mockVaultConfigService,
+          },
         ],
       }).compile();
 
       service = module.get<RedisService>(RedisService);
+      // Trigger lifecycle hook — first Redis init will throw, service falls back to dummy client
+      await service.onModuleInit();
       expect(service).toBeDefined();
     });
   });

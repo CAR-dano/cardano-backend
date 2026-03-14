@@ -33,6 +33,7 @@ import { JwtRefreshStrategy } from './strategies/jwt-refresh.strategy';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
 import { RedisModule } from '../redis/redis.module';
 import { SecurityLoggerModule } from '../security-logger/security-logger.module';
+import { VaultConfigService } from '../config/vault-config.service';
 
 /**
  * NestJS module responsible for managing authentication.
@@ -45,16 +46,26 @@ import { SecurityLoggerModule } from '../security-logger/security-logger.module'
     UsersModule, // Depends on UsersService
     PassportModule.register({ defaultStrategy: 'jwt' }), // Register Passport, default can be jwt
     JwtModule.registerAsync({
-      // Configure JWT Module asynchronously
+      // Configure JWT Module asynchronously — resolves JWT_SECRET from Vault or env
       imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: async (configService: ConfigService) => ({
-        secret: configService.getOrThrow<string>('JWT_SECRET'),
-        signOptions: {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          expiresIn: configService.get<string>('JWT_EXPIRATION_TIME') as any,
-        },
-      }),
+      inject: [ConfigService, VaultConfigService],
+      useFactory: async (
+        configService: ConfigService,
+        vaultConfigService: VaultConfigService,
+      ) => {
+        // Prefer Vault-sourced secret; fall back to ConfigService
+        const secrets = await vaultConfigService.getSecrets();
+        const jwtSecret =
+          secrets.JWT_SECRET ||
+          configService.getOrThrow<string>('JWT_SECRET');
+        return {
+          secret: jwtSecret,
+          signOptions: {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            expiresIn: configService.get<string>('JWT_EXPIRATION_TIME') as any,
+          },
+        };
+      },
     }),
     ConfigModule, // Required by Strategies and JwtModule factory
     RedisModule, // Import RedisModule for caching

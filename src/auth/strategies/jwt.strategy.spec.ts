@@ -19,6 +19,7 @@ import { Role, User } from '@prisma/client';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
 import { AuthService } from '../auth.service';
 import { Request } from 'express';
+import { VaultConfigService } from '../../config/vault-config.service';
 
 // --- Mock Dependencies ---
 
@@ -50,6 +51,15 @@ const mockConfigService = {
   }),
 };
 
+/** Minimal VaultConfigService mock — no Vault server needed in unit tests. */
+const mockVaultConfigService: Partial<VaultConfigService> = {
+  getSecrets: jest.fn().mockResolvedValue({}),
+  get: jest.fn().mockResolvedValue(''),
+  isVaultAvailable: jest.fn().mockReturnValue(false),
+  invalidateCache: jest.fn(),
+  onModuleInit: jest.fn().mockResolvedValue(undefined),
+};
+
 /**
  * Test suite for the JwtStrategy class.
  */
@@ -71,6 +81,7 @@ describe('JwtStrategy', () => {
         { provide: UsersService, useValue: mockUsersService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: AuthService, useValue: mockAuthService },
+        { provide: VaultConfigService, useValue: mockVaultConfigService },
       ],
     }).compile();
 

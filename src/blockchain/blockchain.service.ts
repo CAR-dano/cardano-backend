@@ -16,10 +16,14 @@ import {
   InternalServerErrorException,
   BadRequestException,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 
 // NestJS Config Module
 import { ConfigService } from '@nestjs/config';
+
+// Vault secrets management
+import { VaultConfigService } from '../config/vault-config.service';
 
 // Mesh SDK Core Library for blockchain interactions
 import {
@@ -115,7 +119,7 @@ class SimpleMutex {
 }
 
 @Injectable()
-export class BlockchainService {
+export class BlockchainService implements OnModuleInit {
   // Lightweight in-process mutex to serialize operations per wallet address.
   // This prevents near-concurrent mint builders in the same process from
   // attempting to use the same UTXOs at the same time. For multi-instance
@@ -131,11 +135,11 @@ export class BlockchainService {
     return m;
   }
   private readonly logger = new Logger(BlockchainService.name);
-  private readonly blockfrostProvider: BlockfrostProvider;
-  private readonly wallet: MeshWallet; // Use AppWallet type for better type safety
-  private readonly apiKey: string;
-  private readonly secretKey: string;
-  private readonly blockfrostBaseUrl: string;
+  private blockfrostProvider!: BlockfrostProvider;
+  private wallet!: MeshWallet; // Use AppWallet type for better type safety
+  private apiKey!: string;
+  private secretKey!: string;
+  private blockfrostBaseUrl!: string;
 
   private readonly MAX_RETRIES = 5;
   private readonly INITIAL_RETRY_DELAY_MS = 1000; // 1 second
@@ -147,16 +151,36 @@ export class BlockchainService {
   // Minimum lovelace per individual UTXO to be considered usable for tx building.
   // This can be configured via environment using MIN_UTXO_LOVELACE (in lovelace)
   // or MIN_UTXO_ADA (in ADA). Defaults to 2 ADA.
-  private readonly MIN_UTXO_LOVELACE: number;
+  private MIN_UTXO_LOVELACE: number = 2000000;
 
   /**
    * Constructs the BlockchainService instance.
-   * Initializes BlockfrostProvider and MeshWallet based on environment configuration.
+   * Actual initialization (Blockfrost + Wallet) is deferred to onModuleInit
+   * to allow async secret resolution from Vault.
    *
    * @param configService The NestJS ConfigService for accessing environment variables.
+   * @param vaultConfigService The VaultConfigService for accessing Vault-managed secrets.
+   */
+  constructor(
+    private configService: ConfigService,
+    private readonly vaultConfigService: VaultConfigService,
+  ) {}
+
+  /**
+   * Lifecycle hook — called after the NestJS module is fully initialized.
+   * Fetches secrets from Vault (or env fallback) then initializes Blockfrost and MeshWallet.
+   *
    * @throws Error if BLOCKFROST_ENV is unsupported or WALLET_SECRET_KEY is not set.
    */
-  constructor(private configService: ConfigService) {
+  async onModuleInit(): Promise<void> {
+    await this.initializeBlockchain();
+  }
+
+  /**
+   * Initializes BlockfrostProvider and MeshWallet using resolved secrets.
+   * Separated from the lifecycle hook for testability.
+   */
+  async initializeBlockchain(): Promise<void> {
     // Determine Blockfrost environment and base URL
     const blockfrostEnv = this.configService.getOrThrow<
       'preview' | 'preprod' | 'mainnet'
@@ -164,19 +188,30 @@ export class BlockchainService {
     this.blockfrostBaseUrl = `https://cardano-${blockfrostEnv}.blockfrost.io/api/v0`;
     this.logger.log(`Using Blockfrost environment: ${blockfrostEnv}`);
 
+    // Resolve API key and wallet key from Vault (fallback to ConfigService)
+    const secrets = await this.vaultConfigService.getSecrets();
+    const apiKeyEnvKey =
+      `BLOCKFROST_API_KEY_${blockfrostEnv.toUpperCase()}` as keyof typeof secrets;
+    const walletKeyEnvKey =
+      `WALLET_SECRET_KEY_${blockfrostEnv.toUpperCase()}` as keyof typeof secrets;
+
+    this.apiKey =
+      secrets[apiKeyEnvKey] ||
+      this.configService.getOrThrow<string>(
+        `BLOCKFROST_API_KEY_${blockfrostEnv.toUpperCase()}`,
+      );
+
     // Initialize Blockfrost Provider
-    this.apiKey = this.configService.getOrThrow<string>(
-      `BLOCKFROST_API_KEY_${blockfrostEnv.toUpperCase()}`,
-    );
     this.blockfrostProvider = new BlockfrostProvider(this.apiKey);
     this.logger.log('BlockfrostProvider Initialized.');
 
-    // Initialize Wallet - Ensure WALLET_SECRET_KEY is set securely in .env
-    // WARNING: Storing secret keys directly like this is NOT recommended for production.
-    // Consider using secure key management solutions or backend wallets like Nami/Eternl with connector approach.
-    this.secretKey = this.configService.getOrThrow<string>(
-      `WALLET_SECRET_KEY_${blockfrostEnv.toUpperCase()}`,
-    );
+    // Initialize Wallet — fetch key from Vault (preferred) or env
+    // SECURITY: Keys are resolved from Vault at runtime; not stored in plaintext env files.
+    this.secretKey =
+      secrets[walletKeyEnvKey] ||
+      this.configService.getOrThrow<string>(
+        `WALLET_SECRET_KEY_${blockfrostEnv.toUpperCase()}`,
+      );
 
     if (!this.secretKey) {
       throw new Error(
@@ -194,7 +229,7 @@ export class BlockchainService {
       },
       // Parameters can be added here if needed globally
     });
-    this.logger.log('MeshWallet Initialized.');
+    this.logger.log('MeshWallet Initialized (key sourced from Vault/env).');
 
     // Read per-UTXO minimum from configuration if provided
     const configuredMinLovelace =

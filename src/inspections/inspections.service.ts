@@ -49,7 +49,7 @@ import { RedisService } from '../redis/redis.service';
 // Define path for archived PDFs (ensure this exists or is created by deployment script/manually)
 const PDF_ARCHIVE_PATH = './pdfarchived';
 // Define public base URL for accessing archived PDFs (should come from config in real app)
-const PDF_PUBLIC_BASE_URL = process.env.PDF_PUBLIC_BASE_URL || '/pdfarchived'; // Example: /pdfarchived if served by Nginx
+// PDF_PUBLIC_BASE_URL is resolved at runtime via ConfigService in InspectionsService
 
 interface NftMetadata {
   vehicleNumber: string | null;
@@ -1907,7 +1907,8 @@ export class InspectionsService {
         `PDF hash calculated for ${baseFileName}: ${pdfHashString}`,
       );
 
-      const pdfPublicUrl = `${PDF_PUBLIC_BASE_URL}/${baseFileName}`;
+      const pdfBaseUrl = this.config.get<string>('PDF_PUBLIC_BASE_URL', '/pdfarchived');
+      const pdfPublicUrl = `${pdfBaseUrl}/${baseFileName}`;
 
       const finalStats = this.pdfQueue.stats;
       this.logger.log(
@@ -2359,7 +2360,7 @@ export class InspectionsService {
       });
 
       // Get compression level from environment
-      const compressionLevel = process.env.PDF_COMPRESSION_LEVEL || 'low';
+      const compressionLevel = this.config.get<string>('PDF_COMPRESSION_LEVEL', 'low');
       const enableOptimization = compressionLevel !== 'none';
 
       // Only apply optimizations if compression is enabled

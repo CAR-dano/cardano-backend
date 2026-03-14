@@ -4,8 +4,15 @@ import { ConfigService } from '@nestjs/config';
 import { extname } from 'path';
 import { NodeHttpHandler } from '@smithy/node-http-handler';
 import { Agent } from 'https';
+import { VaultConfigService } from '../../config/vault-config.service';
 
-export const s3StorageConfig = (configService: ConfigService) => {
+export const s3StorageConfig = async (
+    configService: ConfigService,
+    vaultConfigService: VaultConfigService,
+) => {
+    // Resolve B2 credentials from Vault (preferred) or env fallback
+    const secrets = await vaultConfigService.getSecrets();
+
     // Force IPv4 to avoid ETIMEDOUT on networks with poor IPv6 support (fixes Backblaze B2 connection issues)
     const agent = new Agent({
         keepAlive: true,
@@ -16,8 +23,8 @@ export const s3StorageConfig = (configService: ConfigService) => {
         endpoint: configService.get<string>('B2_ENDPOINT'),
         region: configService.get<string>('B2_REGION'),
         credentials: {
-            accessKeyId: configService.get<string>('B2_KEY_ID') || '',
-            secretAccessKey: configService.get<string>('B2_APP_KEY') || '',
+            accessKeyId: secrets.B2_KEY_ID || configService.get<string>('B2_KEY_ID') || '',
+            secretAccessKey: secrets.B2_APP_KEY || configService.get<string>('B2_APP_KEY') || '',
         },
         maxAttempts: 3,
         requestHandler: new NodeHttpHandler({

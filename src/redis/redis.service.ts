@@ -10,19 +10,39 @@
  * --------------------------------------------------------------------------
  */
 
-import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { VaultConfigService } from '../config/vault-config.service';
 
 @Injectable()
-export class RedisService implements OnModuleDestroy {
+export class RedisService implements OnModuleDestroy, OnModuleInit {
     private readonly logger = new Logger(RedisService.name);
-    private readonly client: Redis;
+    private client!: Redis;
     private isConnected = false;
     private keepaliveTimer?: NodeJS.Timeout; // Add keepalive timer
 
-    constructor(private readonly configService: ConfigService) {
-        const redisUrl = this.configService.get<string>('REDIS_URL');
+    constructor(
+        private readonly configService: ConfigService,
+        private readonly vaultConfigService: VaultConfigService,
+    ) {}
+
+    /**
+     * Lifecycle hook — initializes Redis client after Vault secrets are available.
+     */
+    async onModuleInit(): Promise<void> {
+        await this.initRedisClient();
+    }
+
+    /**
+     * Initializes the Redis client using REDIS_URL from Vault (or env fallback).
+     */
+    async initRedisClient(): Promise<void> {
+        // Resolve REDIS_URL from Vault first, fall back to ConfigService
+        const secrets = await this.vaultConfigService.getSecrets();
+        const redisUrl =
+            secrets.REDIS_URL ||
+            this.configService.get<string>('REDIS_URL');
 
         if (!redisUrl) {
             this.logger.warn(

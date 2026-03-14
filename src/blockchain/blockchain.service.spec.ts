@@ -25,6 +25,16 @@ jest.mock('@meshsdk/core', () => ({
 
 import { BlockchainService } from './blockchain.service';
 
+/** Minimal VaultConfigService mock — falls back to env (no Vault server needed). */
+const mockVaultConfigService = {
+  getSecrets: jest.fn().mockResolvedValue({}),
+  get: jest.fn().mockResolvedValue(''),
+  isVaultAvailable: jest.fn().mockReturnValue(false),
+  invalidateCache: jest.fn(),
+  onModuleInit: jest.fn().mockResolvedValue(undefined),
+  initVaultClient: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('BlockchainService - mintInspectionNft', () => {
   let service: BlockchainService;
 
@@ -45,7 +55,7 @@ describe('BlockchainService - mintInspectionNft', () => {
 
   beforeEach(() => {
     // Create real service instance with mocked config
-    service = new BlockchainService(mockConfigService as any);
+    service = new BlockchainService(mockConfigService as any, mockVaultConfigService as any);
   });
 
   function makeUtxo(txHash: string, idx: number, lovelace: number) {
@@ -287,7 +297,7 @@ describe('BlockchainService - getTransactionMetadata', () => {
   };
 
   beforeEach(() => {
-    service = new BlockchainService(mockConfigService as any);
+    service = new BlockchainService(mockConfigService as any, mockVaultConfigService as any);
   });
 
   afterEach(() => {
@@ -367,7 +377,7 @@ describe('BlockchainService - getNftData', () => {
   };
 
   beforeEach(() => {
-    service = new BlockchainService(mockConfigService as any);
+    service = new BlockchainService(mockConfigService as any, mockVaultConfigService as any);
   });
 
   afterEach(() => {
@@ -486,7 +496,7 @@ describe('BlockchainService - buildAikenMintTransaction', () => {
   };
 
   beforeEach(() => {
-    service = new BlockchainService(mockConfigService as any);
+    service = new BlockchainService(mockConfigService as any, mockVaultConfigService as any);
   });
 
   it('should throw NotFoundException when no UTXOs available', async () => {
@@ -574,7 +584,7 @@ describe('BlockchainService - sanitizeMetadatumString / sanitizeMetadataObject',
   };
 
   beforeEach(() => {
-    service = new BlockchainService(mockConfigService as any);
+    service = new BlockchainService(mockConfigService as any, mockVaultConfigService as any);
   });
 
   it('should return string unchanged when <= 64 bytes', () => {
