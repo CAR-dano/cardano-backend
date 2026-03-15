@@ -484,4 +484,263 @@ describe('InspectionsController (e2e)', () => {
       expect([403, 400]).toContain(res.status);
     });
   });
+
+  // ─── Payload Optimization (Integration Tests) ────────────────────────────────
+
+  describe('Payload Optimization - Selective Field Projection', () => {
+    let testInspectionId: string;
+
+    beforeAll(async () => {
+      // Create inspection with full JSON data for testing
+      testInspectionId = await createTestInspection({
+        identityDetails: {
+          namaInspektor: 'Test Inspector',
+          namaCustomer: 'Test Customer',
+          cabangInspeksi: 'Yogyakarta',
+          alamatCustomer: 'Jl. Test Street No. 123',
+          nomorTelepon: '08123456789',
+          email: 'test@example.com',
+          nik: '1234567890123456',
+        },
+        vehicleData: {
+          merekKendaraan: 'Toyota',
+          tipeKendaraan: 'Avanza',
+          tahunPembuatan: 2020,
+          warna: 'Silver',
+          nomorRangka: 'MH123456',
+          nomorMesin: 'ABC123',
+          kapasitasMesin: 1500,
+          bahanBakar: 'Bensin',
+        },
+      });
+    });
+
+    describe('GET /api/v1/inspections (list endpoint)', () => {
+      it('should return optimized payload without unused root fields', async () => {
+        const res = await request(ctx.app.getHttpServer())
+          .get(inspRoute)
+          .set('Authorization', `Bearer ${ctx.tokens.admin.accessToken}`)
+          .query({ page: 1, pageSize: 10 })
+          .expect(HttpStatus.OK);
+
+        expect(res.body.data.length).toBeGreaterThan(0);
+        const inspection = res.body.data[0];
+
+        // Should have these root fields
+        expect(inspection).toHaveProperty('id');
+        expect(inspection).toHaveProperty('vehiclePlateNumber');
+        expect(inspection).toHaveProperty('inspectionDate');
+        expect(inspection).toHaveProperty('status');
+        expect(inspection).toHaveProperty('urlPdf');
+        expect(inspection).toHaveProperty('identityDetails');
+        expect(inspection).toHaveProperty('vehicleData');
+
+        // Should NOT have these unused root fields
+        expect(inspection).not.toHaveProperty('pretty_id');
+        expect(inspection).not.toHaveProperty('createdAt');
+        expect(inspection).not.toHaveProperty('updatedAt');
+        expect(inspection).not.toHaveProperty('blockchainTxHash');
+      });
+
+      it('should return optimized identityDetails with only 2 fields', async () => {
+        const res = await request(ctx.app.getHttpServer())
+          .get(inspRoute)
+          .set('Authorization', `Bearer ${ctx.tokens.admin.accessToken}`)
+          .query({ page: 1, pageSize: 10 })
+          .expect(HttpStatus.OK);
+
+        const inspection = res.body.data.find(
+          (i: any) => i.id === testInspectionId,
+        );
+        if (inspection) {
+          const { identityDetails } = inspection;
+
+          // Should only have these 2 fields
+          expect(Object.keys(identityDetails)).toHaveLength(2);
+          expect(identityDetails).toHaveProperty('namaCustomer');
+          expect(identityDetails).toHaveProperty('namaInspektor');
+
+          // Should NOT have these fields
+          expect(identityDetails).not.toHaveProperty('cabangInspeksi');
+          expect(identityDetails).not.toHaveProperty('alamatCustomer');
+          expect(identityDetails).not.toHaveProperty('nomorTelepon');
+          expect(identityDetails).not.toHaveProperty('email');
+          expect(identityDetails).not.toHaveProperty('nik');
+        }
+      });
+
+      it('should return optimized vehicleData with only 2 fields', async () => {
+        const res = await request(ctx.app.getHttpServer())
+          .get(inspRoute)
+          .set('Authorization', `Bearer ${ctx.tokens.admin.accessToken}`)
+          .query({ page: 1, pageSize: 10 })
+          .expect(HttpStatus.OK);
+
+        const inspection = res.body.data.find(
+          (i: any) => i.id === testInspectionId,
+        );
+        if (inspection) {
+          const { vehicleData } = inspection;
+
+          // Should only have these 2 fields
+          expect(Object.keys(vehicleData)).toHaveLength(2);
+          expect(vehicleData).toHaveProperty('merekKendaraan');
+          expect(vehicleData).toHaveProperty('tipeKendaraan');
+
+          // Should NOT have these fields
+          expect(vehicleData).not.toHaveProperty('tahunPembuatan');
+          expect(vehicleData).not.toHaveProperty('warna');
+          expect(vehicleData).not.toHaveProperty('nomorRangka');
+          expect(vehicleData).not.toHaveProperty('nomorMesin');
+          expect(vehicleData).not.toHaveProperty('kapasitasMesin');
+          expect(vehicleData).not.toHaveProperty('bahanBakar');
+        }
+      });
+
+      it('should maintain backward-compatible nested structure', async () => {
+        const res = await request(ctx.app.getHttpServer())
+          .get(inspRoute)
+          .set('Authorization', `Bearer ${ctx.tokens.admin.accessToken}`)
+          .query({ page: 1, pageSize: 10 })
+          .expect(HttpStatus.OK);
+
+        const inspection = res.body.data[0];
+
+        // Structure should still be nested (not flattened)
+        expect(typeof inspection.identityDetails).toBe('object');
+        expect(typeof inspection.vehicleData).toBe('object');
+        expect(inspection.identityDetails.namaCustomer).toBeDefined();
+        expect(inspection.vehicleData.merekKendaraan).toBeDefined();
+      });
+    });
+
+    describe('GET /api/v1/inspections/search/keyword (search endpoint)', () => {
+      it('should return optimized payload in search results', async () => {
+        const res = await request(ctx.app.getHttpServer())
+          .get(`${inspRoute}/search/keyword`)
+          .set('Authorization', `Bearer ${ctx.tokens.admin.accessToken}`)
+          .query({ keyword: 'Toyota', page: 1, pageSize: 10 })
+          .expect(HttpStatus.OK);
+
+        if (res.body.data.length > 0) {
+          const inspection = res.body.data[0];
+
+          // Should NOT have unused fields
+          expect(inspection).not.toHaveProperty('pretty_id');
+          expect(inspection).not.toHaveProperty('createdAt');
+          expect(inspection).not.toHaveProperty('updatedAt');
+          expect(inspection).not.toHaveProperty('blockchainTxHash');
+
+          // JSON objects should be filtered
+          if (inspection.identityDetails) {
+            expect(Object.keys(inspection.identityDetails)).toHaveLength(2);
+          }
+          if (inspection.vehicleData) {
+            expect(Object.keys(inspection.vehicleData)).toHaveLength(2);
+          }
+        }
+      });
+    });
+
+    describe('GET /api/v1/inspections/search/:vehiclePlateNumber (plate search)', () => {
+      it('should return optimized payload in plate search result', async () => {
+        // Get a test inspection's plate number
+        const testInspection = await ctx.prisma.inspection.findUnique({
+          where: { id: testInspectionId },
+          select: { vehiclePlateNumber: true },
+        });
+
+        if (testInspection?.vehiclePlateNumber) {
+          const res = await request(ctx.app.getHttpServer())
+            .get(`${inspRoute}/search/${testInspection.vehiclePlateNumber}`)
+            .expect(HttpStatus.OK);
+
+          // Should NOT have unused root fields
+          expect(res.body).not.toHaveProperty('pretty_id');
+          expect(res.body).not.toHaveProperty('createdAt');
+          expect(res.body).not.toHaveProperty('updatedAt');
+          expect(res.body).not.toHaveProperty('blockchainTxHash');
+
+          // JSON objects should be filtered
+          if (res.body.identityDetails) {
+            expect(Object.keys(res.body.identityDetails)).toHaveLength(2);
+            expect(res.body.identityDetails).toHaveProperty('namaCustomer');
+            expect(res.body.identityDetails).toHaveProperty('namaInspektor');
+          }
+          if (res.body.vehicleData) {
+            expect(Object.keys(res.body.vehicleData)).toHaveLength(2);
+            expect(res.body.vehicleData).toHaveProperty('merekKendaraan');
+            expect(res.body.vehicleData).toHaveProperty('tipeKendaraan');
+          }
+        }
+      });
+    });
+
+    describe('Payload Size Verification', () => {
+      it('should significantly reduce payload size compared to unoptimized version', async () => {
+        const res = await request(ctx.app.getHttpServer())
+          .get(inspRoute)
+          .set('Authorization', `Bearer ${ctx.tokens.admin.accessToken}`)
+          .query({ page: 1, pageSize: 10 })
+          .expect(HttpStatus.OK);
+
+        // Get the full inspection from DB for comparison
+        const fullInspection = await ctx.prisma.inspection.findFirst({
+          where: { id: testInspectionId },
+          select: {
+            id: true,
+            pretty_id: true,
+            vehiclePlateNumber: true,
+            inspectionDate: true,
+            status: true,
+            identityDetails: true,
+            vehicleData: true,
+            createdAt: true,
+            updatedAt: true,
+            urlPdf: true,
+            blockchainTxHash: true,
+          },
+        });
+
+        const optimizedInspection = res.body.data.find(
+          (i: any) => i.id === testInspectionId,
+        );
+
+        if (fullInspection && optimizedInspection) {
+          const fullSize = JSON.stringify(fullInspection).length;
+          const optimizedSize = JSON.stringify(optimizedInspection).length;
+          const reduction = ((fullSize - optimizedSize) / fullSize) * 100;
+
+          // Should reduce by at least 30% (target ~62%, allow variance)
+          expect(reduction).toBeGreaterThan(30);
+        }
+      });
+    });
+
+    describe('Detail Endpoint - Should NOT be optimized', () => {
+      it('should return full inspection data for detail endpoint', async () => {
+        const res = await request(ctx.app.getHttpServer())
+          .get(`${inspRoute}/${testInspectionId}`)
+          .set('Authorization', `Bearer ${ctx.tokens.admin.accessToken}`)
+          .expect(HttpStatus.OK);
+
+        // Detail endpoint should return ALL fields (not optimized)
+        expect(res.body).toHaveProperty('id');
+        expect(res.body).toHaveProperty('pretty_id');
+        expect(res.body).toHaveProperty('createdAt');
+        expect(res.body).toHaveProperty('updatedAt');
+        expect(res.body).toHaveProperty('blockchainTxHash');
+
+        // Full JSON objects should be intact
+        if (res.body.identityDetails) {
+          expect(Object.keys(res.body.identityDetails).length).toBeGreaterThan(
+            2,
+          );
+        }
+        if (res.body.vehicleData) {
+          expect(Object.keys(res.body.vehicleData).length).toBeGreaterThan(2);
+        }
+      });
+    });
+  });
 });

@@ -490,7 +490,7 @@ describe('InspectionQueryService', () => {
       expect(result).toEqual(cachedData);
     });
 
-    it('should query DB and return result on cache miss', async () => {
+    it('should query DB and return optimized result on cache miss', async () => {
       mockRedisService.get
         .mockResolvedValueOnce('0') // version
         .mockResolvedValueOnce(null); // cache miss
@@ -499,11 +499,23 @@ describe('InspectionQueryService', () => {
         id: 'db-id',
         vehiclePlateNumber: 'AB 1234 CD',
         status: 'ARCHIVED',
+        identityDetails: { namaCustomer: 'Test', namaInspektor: 'Inspector' },
+        vehicleData: { merekKendaraan: 'Toyota', tipeKendaraan: 'Avanza' },
+        inspectionDate: new Date(),
+        urlPdf: null,
       };
       mockPrismaService.$queryRaw.mockResolvedValue([dbRow]);
 
       const result = await service.findByVehiclePlateNumber('AB 1234 CD');
-      expect(result).toEqual(dbRow);
+      
+      // Should return optimized structure
+      expect(result).toHaveProperty('id', 'db-id');
+      expect(result).toHaveProperty('vehiclePlateNumber', 'AB 1234 CD');
+      expect(result).toHaveProperty('status', 'ARCHIVED');
+      expect(result).toHaveProperty('identityDetails');
+      expect(result).toHaveProperty('vehicleData');
+      expect(result).toHaveProperty('inspectionDate');
+      expect(result).toHaveProperty('urlPdf');
     });
 
     it('should return null when no row found', async () => {
@@ -550,7 +562,7 @@ describe('InspectionQueryService', () => {
       ).rejects.toThrow(InternalServerErrorException);
     });
 
-    it('should not throw when cache retrieval fails', async () => {
+    it('should not throw when cache retrieval fails and return optimized result', async () => {
       mockRedisService.get
         .mockResolvedValueOnce('0')
         .mockRejectedValueOnce(new Error('Redis error'));
@@ -559,11 +571,19 @@ describe('InspectionQueryService', () => {
         id: 'db-id',
         vehiclePlateNumber: 'AB 1234 CD',
         status: 'ARCHIVED',
+        identityDetails: { namaCustomer: 'Test', namaInspektor: 'Inspector' },
+        vehicleData: { merekKendaraan: 'Toyota', tipeKendaraan: 'Avanza' },
+        inspectionDate: new Date(),
+        urlPdf: null,
       };
       mockPrismaService.$queryRaw.mockResolvedValue([dbRow]);
 
       const result = await service.findByVehiclePlateNumber('AB 1234 CD');
-      expect(result).toEqual(dbRow);
+      
+      // Should return optimized structure even when cache fails
+      expect(result).toHaveProperty('id', 'db-id');
+      expect(result).toHaveProperty('vehiclePlateNumber', 'AB 1234 CD');
+      expect(result).toHaveProperty('status', 'ARCHIVED');
     });
   });
 
@@ -735,6 +755,295 @@ describe('InspectionQueryService', () => {
       await expect(
         service.findLatestArchivedInspections(),
       ).rejects.toThrow(InternalServerErrorException);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // optimizeListPayload (Payload Optimization Tests)
+  // ─────────────────────────────────────────────────────────────────────────
+  describe('optimizeListPayload', () => {
+    it('should remove unused root-level fields (pretty_id, createdAt, updatedAt, blockchainTxHash)', async () => {
+      mockPrismaService.inspection.count.mockResolvedValue(1);
+      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
+
+      const result = await service.findAll(Role.ADMIN, undefined, 1, 10);
+      const inspection = result.data[0];
+
+      // Should keep only required root fields
+      expect(inspection).toHaveProperty('id');
+      expect(inspection).toHaveProperty('vehiclePlateNumber');
+      expect(inspection).toHaveProperty('inspectionDate');
+      expect(inspection).toHaveProperty('status');
+      expect(inspection).toHaveProperty('urlPdf');
+      expect(inspection).toHaveProperty('identityDetails');
+      expect(inspection).toHaveProperty('vehicleData');
+
+      // Should NOT have these fields
+      expect(inspection).not.toHaveProperty('pretty_id');
+      expect(inspection).not.toHaveProperty('createdAt');
+      expect(inspection).not.toHaveProperty('updatedAt');
+      expect(inspection).not.toHaveProperty('blockchainTxHash');
+    });
+
+    it('should filter identityDetails to only include namaCustomer and namaInspektor', async () => {
+      const inspectionWithFullIdentity = {
+        ...mockInspection,
+        identityDetails: {
+          namaInspektor: 'Mock Inspector',
+          namaCustomer: 'Mock Customer',
+          cabangInspeksi: 'Yogyakarta', // Should be removed
+          alamatCustomer: 'Jl. Mock Street', // Should be removed
+          nomorTelepon: '08123456789', // Should be removed
+          email: 'mock@example.com', // Should be removed
+          nik: '1234567890123456', // Should be removed
+        } as Prisma.JsonObject,
+      };
+
+      mockPrismaService.inspection.count.mockResolvedValue(1);
+      mockPrismaService.inspection.findMany.mockResolvedValue([
+        inspectionWithFullIdentity,
+      ]);
+
+      const result = await service.findAll(Role.ADMIN, undefined, 1, 10);
+      const identityDetails = result.data[0].identityDetails;
+
+      // Should only have these 2 fields
+      expect(Object.keys(identityDetails)).toHaveLength(2);
+      expect(identityDetails).toHaveProperty('namaCustomer', 'Mock Customer');
+      expect(identityDetails).toHaveProperty('namaInspektor', 'Mock Inspector');
+
+      // Should NOT have these fields
+      expect(identityDetails).not.toHaveProperty('cabangInspeksi');
+      expect(identityDetails).not.toHaveProperty('alamatCustomer');
+      expect(identityDetails).not.toHaveProperty('nomorTelepon');
+      expect(identityDetails).not.toHaveProperty('email');
+      expect(identityDetails).not.toHaveProperty('nik');
+    });
+
+    it('should filter vehicleData to only include merekKendaraan and tipeKendaraan', async () => {
+      const inspectionWithFullVehicle = {
+        ...mockInspection,
+        vehicleData: {
+          merekKendaraan: 'Toyota',
+          tipeKendaraan: 'Avanza',
+          tahunPembuatan: 2020, // Should be removed
+          warna: 'Silver', // Should be removed
+          nomorRangka: 'MH123456', // Should be removed
+          nomorMesin: 'ABC123', // Should be removed
+          kapasitasMesin: 1500, // Should be removed
+          bahanBakar: 'Bensin', // Should be removed
+        } as Prisma.JsonObject,
+      };
+
+      mockPrismaService.inspection.count.mockResolvedValue(1);
+      mockPrismaService.inspection.findMany.mockResolvedValue([
+        inspectionWithFullVehicle,
+      ]);
+
+      const result = await service.findAll(Role.ADMIN, undefined, 1, 10);
+      const vehicleData = result.data[0].vehicleData;
+
+      // Should only have these 2 fields
+      expect(Object.keys(vehicleData)).toHaveLength(2);
+      expect(vehicleData).toHaveProperty('merekKendaraan', 'Toyota');
+      expect(vehicleData).toHaveProperty('tipeKendaraan', 'Avanza');
+
+      // Should NOT have these fields
+      expect(vehicleData).not.toHaveProperty('tahunPembuatan');
+      expect(vehicleData).not.toHaveProperty('warna');
+      expect(vehicleData).not.toHaveProperty('nomorRangka');
+      expect(vehicleData).not.toHaveProperty('nomorMesin');
+      expect(vehicleData).not.toHaveProperty('kapasitasMesin');
+      expect(vehicleData).not.toHaveProperty('bahanBakar');
+    });
+
+    it('should handle null identityDetails gracefully', async () => {
+      const inspectionWithNullIdentity = {
+        ...mockInspection,
+        identityDetails: null,
+      };
+
+      mockPrismaService.inspection.count.mockResolvedValue(1);
+      mockPrismaService.inspection.findMany.mockResolvedValue([
+        inspectionWithNullIdentity,
+      ]);
+
+      const result = await service.findAll(Role.ADMIN, undefined, 1, 10);
+      expect(result.data[0].identityDetails).toBeNull();
+    });
+
+    it('should handle null vehicleData gracefully', async () => {
+      const inspectionWithNullVehicle = {
+        ...mockInspection,
+        vehicleData: null,
+      };
+
+      mockPrismaService.inspection.count.mockResolvedValue(1);
+      mockPrismaService.inspection.findMany.mockResolvedValue([
+        inspectionWithNullVehicle,
+      ]);
+
+      const result = await service.findAll(Role.ADMIN, undefined, 1, 10);
+      expect(result.data[0].vehicleData).toBeNull();
+    });
+
+    it('should handle missing fields in identityDetails (use null as default)', async () => {
+      const inspectionWithPartialIdentity = {
+        ...mockInspection,
+        identityDetails: {
+          namaCustomer: 'John Doe',
+          // namaInspektor is missing
+        } as Prisma.JsonObject,
+      };
+
+      mockPrismaService.inspection.count.mockResolvedValue(1);
+      mockPrismaService.inspection.findMany.mockResolvedValue([
+        inspectionWithPartialIdentity,
+      ]);
+
+      const result = await service.findAll(Role.ADMIN, undefined, 1, 10);
+      const identityDetails = result.data[0].identityDetails;
+
+      expect(identityDetails.namaCustomer).toBe('John Doe');
+      expect(identityDetails.namaInspektor).toBeNull();
+    });
+
+    it('should handle missing fields in vehicleData (use null as default)', async () => {
+      const inspectionWithPartialVehicle = {
+        ...mockInspection,
+        vehicleData: {
+          merekKendaraan: 'Honda',
+          // tipeKendaraan is missing
+        } as Prisma.JsonObject,
+      };
+
+      mockPrismaService.inspection.count.mockResolvedValue(1);
+      mockPrismaService.inspection.findMany.mockResolvedValue([
+        inspectionWithPartialVehicle,
+      ]);
+
+      const result = await service.findAll(Role.ADMIN, undefined, 1, 10);
+      const vehicleData = result.data[0].vehicleData;
+
+      expect(vehicleData.merekKendaraan).toBe('Honda');
+      expect(vehicleData.tipeKendaraan).toBeNull();
+    });
+
+    it('should apply optimization to multiple inspections', async () => {
+      const multipleInspections = [
+        mockInspection,
+        { ...mockInspection, id: 'id-2', vehiclePlateNumber: 'XY 9999 ZZ' },
+        { ...mockInspection, id: 'id-3', vehiclePlateNumber: 'AB 5555 CD' },
+      ];
+
+      mockPrismaService.inspection.count.mockResolvedValue(3);
+      mockPrismaService.inspection.findMany.mockResolvedValue(
+        multipleInspections,
+      );
+
+      const result = await service.findAll(Role.ADMIN, undefined, 1, 10);
+
+      expect(result.data).toHaveLength(3);
+      result.data.forEach((inspection) => {
+        // All should be optimized
+        expect(inspection).not.toHaveProperty('pretty_id');
+        expect(inspection).not.toHaveProperty('createdAt');
+        expect(inspection).not.toHaveProperty('updatedAt');
+        expect(inspection).not.toHaveProperty('blockchainTxHash');
+        expect(Object.keys(inspection.identityDetails)).toHaveLength(2);
+        expect(Object.keys(inspection.vehicleData)).toHaveLength(2);
+      });
+    });
+
+    it('should apply optimization in searchByKeyword method', async () => {
+      mockPrismaService.$queryRawUnsafe
+        .mockResolvedValueOnce([{ total: BigInt(1) }])
+        .mockResolvedValueOnce([mockInspection]);
+
+      const result = await service.searchByKeyword('Toyota');
+      const inspection = result.data[0];
+
+      // Should be optimized
+      expect(inspection).not.toHaveProperty('pretty_id');
+      expect(inspection).not.toHaveProperty('createdAt');
+      expect(Object.keys(inspection.identityDetails)).toHaveLength(2);
+      expect(Object.keys(inspection.vehicleData)).toHaveLength(2);
+    });
+
+    it('should apply optimization in findByVehiclePlateNumber method', async () => {
+      mockRedisService.get
+        .mockResolvedValueOnce('0')
+        .mockResolvedValueOnce(null);
+
+      mockPrismaService.$queryRaw.mockResolvedValue([mockInspection]);
+
+      const result = await service.findByVehiclePlateNumber('AB 1234 CD');
+
+      // Should be optimized
+      expect(result).not.toHaveProperty('pretty_id');
+      expect(result).not.toHaveProperty('createdAt');
+      expect(Object.keys(result.identityDetails)).toHaveLength(2);
+      expect(Object.keys(result.vehicleData)).toHaveLength(2);
+    });
+
+    it('should maintain backward compatibility - nested structure unchanged', async () => {
+      mockPrismaService.inspection.count.mockResolvedValue(1);
+      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
+
+      const result = await service.findAll(Role.ADMIN, undefined, 1, 10);
+      const inspection = result.data[0];
+
+      // Structure should still be nested (not flattened)
+      expect(typeof inspection.identityDetails).toBe('object');
+      expect(typeof inspection.vehicleData).toBe('object');
+      expect(inspection.identityDetails).toHaveProperty('namaCustomer');
+      expect(inspection.identityDetails).toHaveProperty('namaInspektor');
+      expect(inspection.vehicleData).toHaveProperty('merekKendaraan');
+      expect(inspection.vehicleData).toHaveProperty('tipeKendaraan');
+    });
+
+    it('should reduce payload size significantly (integration verification)', async () => {
+      const fullInspection = {
+        ...mockInspection,
+        identityDetails: {
+          namaInspektor: 'Mock Inspector',
+          namaCustomer: 'Mock Customer',
+          cabangInspeksi: 'Yogyakarta',
+          alamatCustomer: 'Jl. Long Street Name Number 123',
+          nomorTelepon: '08123456789',
+          email: 'customer@example.com',
+          nik: '1234567890123456',
+          pekerjaan: 'Software Engineer',
+          tanggalLahir: '1990-01-01',
+          jenisKelamin: 'Laki-laki',
+        } as Prisma.JsonObject,
+        vehicleData: {
+          merekKendaraan: 'Toyota',
+          tipeKendaraan: 'Avanza',
+          tahunPembuatan: 2020,
+          warna: 'Silver Metallic',
+          nomorRangka: 'MH123456789ABCDEFG',
+          nomorMesin: 'ABC123XYZ789',
+          kapasitasMesin: 1500,
+          bahanBakar: 'Bensin',
+          transmisi: 'Manual',
+          jumlahPenumpang: 7,
+        } as Prisma.JsonObject,
+      };
+
+      mockPrismaService.inspection.count.mockResolvedValue(1);
+      mockPrismaService.inspection.findMany.mockResolvedValue([fullInspection]);
+
+      const result = await service.findAll(Role.ADMIN, undefined, 1, 10);
+      const optimized = result.data[0];
+
+      // Calculate approximate payload sizes (rough estimate)
+      const originalSize = JSON.stringify(fullInspection).length;
+      const optimizedSize = JSON.stringify(optimized).length;
+      const reduction = ((originalSize - optimizedSize) / originalSize) * 100;
+
+      // Should reduce by at least 40% (target is ~62%, but allows for variation)
+      expect(reduction).toBeGreaterThan(40);
     });
   });
 });
