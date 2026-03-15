@@ -647,8 +647,8 @@ export class InspectionQueryService {
           i."vehicleData" as "vehicleData",
           i."createdAt" as "createdAt",
           i."updatedAt" as "updatedAt",
-          i."urlPdf" as "urlPdf",
-          i."blockchainTxHash" as "blockchainTxHash"
+          i."url_pdf" as "urlPdf",
+          i."blockchain_tx_hash" as "blockchainTxHash"
         FROM inspections i
         WHERE
           i."pretty_id" % $1
