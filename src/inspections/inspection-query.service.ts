@@ -77,7 +77,8 @@ export class InspectionQueryService {
     meta: { total: number; page: number; pageSize: number; totalPages: number };
   }> {
     this.logger.log(
-      `Retrieving inspections for user role: ${userRole ?? 'N/A'}, status: ${Array.isArray(status) ? status.join(',') : (status ?? 'ALL (default)')
+      `Retrieving inspections for user role: ${userRole ?? 'N/A'}, status: ${
+        Array.isArray(status) ? status.join(',') : (status ?? 'ALL (default)')
       }, page: ${page}, pageSize: ${pageSize}`,
     );
 
@@ -210,7 +211,8 @@ export class InspectionQueryService {
       });
 
       this.logger.log(
-        `Retrieved ${inspections.length
+        `Retrieved ${
+          inspections.length
         } inspections of ${total} total for role ${userRole ?? 'N/A'}.`,
       );
 
@@ -229,7 +231,9 @@ export class InspectionQueryService {
       try {
         await this.redisService.set(cacheKey, JSON.stringify(result), 300); // 5 min TTL
       } catch (error) {
-        this.logger.warn(`[findAll] Failed to cache result: ${error instanceof Error ? error.message : String(error)}`);
+        this.logger.warn(
+          `[findAll] Failed to cache result: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
 
       return result;
@@ -239,7 +243,8 @@ export class InspectionQueryService {
       const errorStack =
         error instanceof Error ? error.stack : 'No stack trace available';
       this.logger.error(
-        `Failed to retrieve inspections for role ${userRole ?? 'N/A'
+        `Failed to retrieve inspections for role ${
+          userRole ?? 'N/A'
         }: ${errorMessage}`,
         errorStack,
       );
@@ -350,10 +355,16 @@ export class InspectionQueryService {
       // --- CACHE THE RESULT ---
       try {
         if (await this.redisService.isHealthy()) {
-          await this.redisService.set(cacheKey, JSON.stringify(inspection), 300); // 5 min TTL
+          await this.redisService.set(
+            cacheKey,
+            JSON.stringify(inspection),
+            300,
+          ); // 5 min TTL
         }
       } catch (error) {
-        this.logger.warn(`[findOne] Failed to cache result: ${error instanceof Error ? error.message : String(error)}`);
+        this.logger.warn(
+          `[findOne] Failed to cache result: ${error instanceof Error ? error.message : String(error)}`,
+        );
       }
 
       return inspection as Inspection;
@@ -463,7 +474,9 @@ export class InspectionQueryService {
         return null;
       }
 
-      const inspection = rows[0] as typeof rows[0] & { status: import('@prisma/client').InspectionStatus };
+      const inspection = rows[0] as (typeof rows)[0] & {
+        status: import('@prisma/client').InspectionStatus;
+      };
 
       this.logger.log(
         `Found inspection ID: ${inspection?.id} for plate number: ${vehiclePlateNumber}`,
@@ -472,7 +485,11 @@ export class InspectionQueryService {
       // --- CACHE THE RESULT ---
       if (inspection) {
         try {
-          await this.redisService.set(cacheKey, JSON.stringify(inspection), 300);
+          await this.redisService.set(
+            cacheKey,
+            JSON.stringify(inspection),
+            300,
+          );
         } catch (error) {
           this.logger.warn(
             `[findByVehiclePlateNumber] Failed to cache result: ${error instanceof Error ? error.message : String(error)}`,
@@ -497,7 +514,35 @@ export class InspectionQueryService {
   }
 
   /**
-   * Finds inspections matching a keyword across multiple fields.
+   * Sanitizes a keyword for use with PostgreSQL to_tsquery.
+   * Converts multi-word input to AND logic (e.g., "Toyota Avanza" -> "Toyota & Avanza")
+   * and handles special characters.
+   *
+   * @param {string} keyword - Raw user input keyword.
+   * @returns {string} Sanitized keyword suitable for to_tsquery.
+   */
+  private sanitizeForTsquery(keyword: string): string {
+    const cleaned = keyword
+      .toLowerCase()
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .trim()
+      .replace(/\s+/g, ' ');
+
+    if (!cleaned) {
+      return '';
+    }
+
+    const words = cleaned.split(' ');
+    if (words.length === 1) {
+      return words[0];
+    }
+
+    return words.join(' & ');
+  }
+
+  /**
+   * Finds inspections matching a keyword across multiple fields using PostgreSQL
+   * full-text search (tsvector/tsquery) and trigram similarity.
    *
    * @param {string} keyword - The keyword to search for.
    * @param {number} page - The page number (1-based).
@@ -551,70 +596,80 @@ export class InspectionQueryService {
     // --- CACHING LOGIC END ---
 
     try {
-      const whereClause: Prisma.InspectionWhereInput = {
-        OR: [
-          { pretty_id: { contains: keyword, mode: 'insensitive' } },
-          { vehiclePlateNumber: { contains: keyword, mode: 'insensitive' } },
-          {
-            vehicleData: {
-              path: ['merekKendaraan'],
-              string_contains: keyword,
-              mode: 'insensitive',
-            },
-          },
-          {
-            vehicleData: {
-              path: ['tipeKendaraan'],
-              string_contains: keyword,
-              mode: 'insensitive',
-            },
-          },
-          {
-            identityDetails: {
-              path: ['namaCustomer'],
-              string_contains: keyword,
-              mode: 'insensitive',
-            },
-          },
-          {
-            identityDetails: {
-              path: ['namaInspektor'],
-              string_contains: keyword,
-              mode: 'insensitive',
-            },
-          },
-          {
-            identityDetails: {
-              path: ['cabangInspeksi'],
-              string_contains: keyword,
-              mode: 'insensitive',
-            },
-          },
-        ],
-      };
+      const sanitizedKeyword = this.sanitizeForTsquery(keyword);
 
-      const total = await this.prisma.inspection.count({ where: whereClause });
-      const inspections = await this.prisma.inspection.findMany({
-        where: whereClause,
-        select: {
-          id: true,
-          pretty_id: true,
-          vehiclePlateNumber: true,
-          inspectionDate: true,
-          status: true,
-          identityDetails: true,
-          vehicleData: true,
-          createdAt: true,
-          updatedAt: true,
-          urlPdf: true,
-          blockchainTxHash: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
+      const countQuery = `
+        SELECT COUNT(*) as total
+        FROM inspections i
+        WHERE
+          i."pretty_id" % $1
+          OR to_tsvector('english',
+            COALESCE(i."vehiclePlateNumber", '') || ' ' ||
+            COALESCE(i."vehicleData"->>'merekKendaraan', '') || ' ' ||
+            COALESCE(i."vehicleData"->>'tipeKendaraan', '') || ' ' ||
+            COALESCE(i."identityDetails"->>'namaCustomer', '') || ' ' ||
+            COALESCE(i."identityDetails"->>'namaInspektor', '')
+          ) @@ to_tsquery('english', $2)
+      `;
+
+      const countResult = await this.prisma.$queryRawUnsafe<{ total: bigint }[]>(
+        countQuery,
+        keyword,
+        sanitizedKeyword,
+      );
+      const total = Number(countResult[0]?.total || 0);
+
+      if (total === 0) {
+        const result = {
+          data: [],
+          meta: { total: 0, page, pageSize, totalPages: 0 },
+        };
+
+        try {
+          await this.redisService.set(cacheKey, JSON.stringify(result), 300);
+        } catch (error) {
+          this.logger.warn(
+            `[searchByKeyword] Failed to cache empty result: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
+
+        return result;
+      }
+
+      const dataQuery = `
+        SELECT 
+          i.id,
+          i.pretty_id as "pretty_id",
+          i."vehiclePlateNumber" as "vehiclePlateNumber",
+          i."inspectionDate" as "inspectionDate",
+          i.status,
+          i."identityDetails" as "identityDetails",
+          i."vehicleData" as "vehicleData",
+          i."createdAt" as "createdAt",
+          i."updatedAt" as "updatedAt",
+          i."urlPdf" as "urlPdf",
+          i."blockchainTxHash" as "blockchainTxHash"
+        FROM inspections i
+        WHERE
+          i."pretty_id" % $1
+          OR to_tsvector('english',
+            COALESCE(i."vehiclePlateNumber", '') || ' ' ||
+            COALESCE(i."vehicleData"->>'merekKendaraan', '') || ' ' ||
+            COALESCE(i."vehicleData"->>'tipeKendaraan', '') || ' ' ||
+            COALESCE(i."identityDetails"->>'namaCustomer', '') || ' ' ||
+            COALESCE(i."identityDetails"->>'namaInspektor', '')
+          ) @@ to_tsquery('english', $2)
+        ORDER BY i."createdAt" DESC
+        LIMIT $3 OFFSET $4
+      `;
+
+      const inspections = await this.prisma.$queryRawUnsafe<any[]>(
+        dataQuery,
+        keyword,
+        sanitizedKeyword,
+        pageSize,
         skip,
-        take: pageSize,
-      });
+      );
 
       const totalPages = Math.ceil(total / pageSize);
       const result = {

@@ -60,6 +60,7 @@ const mockPrismaService = {
     count: jest.fn(),
   },
   $queryRaw: jest.fn(),
+  $queryRawUnsafe: jest.fn(),
 };
 
 const mockRedisService = {
@@ -579,7 +580,7 @@ describe('InspectionQueryService', () => {
 
       expect(result.data).toEqual([]);
       expect(result.meta.total).toBe(0);
-      expect(mockPrismaService.inspection.findMany).not.toHaveBeenCalled();
+      expect(mockPrismaService.$queryRawUnsafe).not.toHaveBeenCalled();
     });
 
     it('should return empty data for whitespace-only keyword', async () => {
@@ -587,139 +588,60 @@ describe('InspectionQueryService', () => {
 
       expect(result.data).toEqual([]);
       expect(result.meta.total).toBe(0);
-      expect(mockPrismaService.inspection.findMany).not.toHaveBeenCalled();
+      expect(mockPrismaService.$queryRawUnsafe).not.toHaveBeenCalled();
     });
 
-    it('should call findMany with OR conditions for keyword search', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(1);
-      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
-
-      const result = await service.searchByKeyword('Toyota');
-
-      expect(mockPrismaService.inspection.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: expect.objectContaining({ OR: expect.any(Array) }),
-        }),
-      );
-      expect(result.data).toHaveLength(1);
-    });
-
-    it('should search by pretty_id', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(1);
-      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
-
-      await service.searchByKeyword('YOG');
-
-      const callArgs =
-        mockPrismaService.inspection.findMany.mock.calls[0][0];
-      const orConditions = callArgs.where.OR;
-      expect(orConditions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ pretty_id: expect.any(Object) }),
-        ]),
-      );
-    });
-
-    it('should search by vehiclePlateNumber (case-insensitive)', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(1);
-      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
-
-      await service.searchByKeyword('ab 1234');
-
-      const callArgs =
-        mockPrismaService.inspection.findMany.mock.calls[0][0];
-      const orConditions = callArgs.where.OR;
-      expect(orConditions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            vehiclePlateNumber: expect.objectContaining({
-              mode: 'insensitive',
-            }),
-          }),
-        ]),
-      );
-    });
-
-    it('should search by vehicleData.merekKendaraan (JSONB path)', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(1);
-      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
+    it('should use $queryRawUnsafe for FTS search instead of findMany', async () => {
+      mockPrismaService.$queryRawUnsafe
+        .mockResolvedValueOnce([{ total: BigInt(1) }])
+        .mockResolvedValueOnce([mockInspection]);
 
       await service.searchByKeyword('Toyota');
 
-      const callArgs =
-        mockPrismaService.inspection.findMany.mock.calls[0][0];
-      const orConditions = callArgs.where.OR;
-      expect(orConditions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            vehicleData: expect.objectContaining({
-              path: ['merekKendaraan'],
-            }),
-          }),
-        ]),
-      );
+      expect(mockPrismaService.$queryRawUnsafe).toHaveBeenCalled();
+      expect(mockPrismaService.inspection.findMany).not.toHaveBeenCalled();
     });
 
-    it('should search by identityDetails.namaCustomer (JSONB path)', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(1);
-      mockPrismaService.inspection.findMany.mockResolvedValue([mockInspection]);
-
-      await service.searchByKeyword('Mock Customer');
-
-      const callArgs =
-        mockPrismaService.inspection.findMany.mock.calls[0][0];
-      const orConditions = callArgs.where.OR;
-      expect(orConditions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            identityDetails: expect.objectContaining({
-              path: ['namaCustomer'],
-            }),
-          }),
-        ]),
-      );
-    });
-
-    it('should limit results to pageSize records', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(0);
-      mockPrismaService.inspection.findMany.mockResolvedValue([]);
-
-      await service.searchByKeyword('test', 1, 10);
-
-      expect(mockPrismaService.inspection.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ take: 10 }),
-      );
-    });
-
-    it('should order results by createdAt desc', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(0);
-      mockPrismaService.inspection.findMany.mockResolvedValue([]);
-
-      await service.searchByKeyword('test');
-
-      expect(mockPrismaService.inspection.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          orderBy: { createdAt: 'desc' },
-        }),
-      );
-    });
-
-    it('should return correct pagination meta', async () => {
-      mockPrismaService.inspection.count.mockResolvedValue(25);
-      mockPrismaService.inspection.findMany.mockResolvedValue([]);
+    it('should return search results with correct pagination', async () => {
+      mockPrismaService.$queryRawUnsafe
+        .mockResolvedValueOnce([{ total: BigInt(25) }])
+        .mockResolvedValueOnce([mockInspection]);
 
       const result = await service.searchByKeyword('test', 2, 10);
 
+      expect(result.data).toHaveLength(1);
       expect(result.meta.total).toBe(25);
       expect(result.meta.page).toBe(2);
       expect(result.meta.pageSize).toBe(10);
       expect(result.meta.totalPages).toBe(3);
     });
 
+    it('should return empty result when no matches found', async () => {
+      mockPrismaService.$queryRawUnsafe
+        .mockResolvedValueOnce([{ total: BigInt(0) }])
+        .mockResolvedValueOnce([]);
+
+      const result = await service.searchByKeyword('nonexistent');
+
+      expect(result.data).toEqual([]);
+      expect(result.meta.total).toBe(0);
+      expect(result.meta.totalPages).toBe(0);
+      expect(mockPrismaService.$queryRawUnsafe).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return empty data when count is 0 (skip data query)', async () => {
+      mockPrismaService.$queryRawUnsafe.mockResolvedValueOnce([{ total: BigInt(0) }]);
+
+      const result = await service.searchByKeyword('nonexistent');
+
+      expect(result.data).toEqual([]);
+      expect(result.meta.total).toBe(0);
+      expect(mockPrismaService.$queryRawUnsafe).toHaveBeenCalledTimes(1);
+    });
+
     it('should throw InternalServerErrorException on DB error', async () => {
-      mockPrismaService.inspection.findMany.mockRejectedValue(
-        new Error('DB error'),
-      );
+      mockPrismaService.$queryRawUnsafe.mockReset();
+      mockPrismaService.$queryRawUnsafe.mockRejectedValue(new Error('DB error'));
 
       await expect(service.searchByKeyword('test')).rejects.toThrow(
         InternalServerErrorException,
@@ -733,14 +655,13 @@ describe('InspectionQueryService', () => {
       };
       const serialized = JSON.stringify(cachedResult);
       mockRedisService.get
-        .mockResolvedValueOnce('0') // version
-        .mockResolvedValueOnce(serialized); // cache hit
+        .mockResolvedValueOnce('0')
+        .mockResolvedValueOnce(serialized);
 
       const result = await service.searchByKeyword('Toyota', 1, 10);
 
-      // Cache returns JSON-parsed data (dates become strings), so compare with parsed version
       expect(result).toEqual(JSON.parse(serialized));
-      expect(mockPrismaService.inspection.findMany).not.toHaveBeenCalled();
+      expect(mockPrismaService.$queryRawUnsafe).not.toHaveBeenCalled();
     });
   });
 
