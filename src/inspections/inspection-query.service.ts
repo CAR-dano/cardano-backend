@@ -275,7 +275,9 @@ export class InspectionQueryService {
 
       // --- CACHE THE RESULT ---
       try {
-        await this.redisService.set(cacheKey, JSON.stringify(result), 300); // 5 min TTL
+        // Reduced from 300s (5 min) to 60s (1 min) for defense in depth
+        // If cache invalidation fails (Redis down), data will still appear within 60 seconds
+        await this.redisService.set(cacheKey, JSON.stringify(result), 60); // 1 min TTL
       } catch (error) {
         this.logger.warn(
           `[findAll] Failed to cache result: ${error instanceof Error ? error.message : String(error)}`,
@@ -677,7 +679,8 @@ export class InspectionQueryService {
         };
 
         try {
-          await this.redisService.set(cacheKey, JSON.stringify(result), 300);
+          // Reduced from 300s (5 min) to 60s (1 min) for consistency
+          await this.redisService.set(cacheKey, JSON.stringify(result), 60);
         } catch (error) {
           this.logger.warn(
             `[searchByKeyword] Failed to cache empty result: ${error instanceof Error ? error.message : String(error)}`,
@@ -738,7 +741,8 @@ export class InspectionQueryService {
 
       // --- CACHE THE RESULT ---
       try {
-        await this.redisService.set(cacheKey, JSON.stringify(result), 300);
+        // Reduced from 300s (5 min) to 60s (1 min) for consistency
+        await this.redisService.set(cacheKey, JSON.stringify(result), 60);
       } catch (error) {
         this.logger.warn(
           `[searchByKeyword] Failed to cache result: ${error instanceof Error ? error.message : String(error)}`,

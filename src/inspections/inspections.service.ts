@@ -549,7 +549,8 @@ export class InspectionsService {
       throw new BadRequestException('Invalid inspectionDate format provided.');
     }
 
-    return this.prisma.$transaction(
+    // Step 1: Run transaction WITHOUT cache invalidation to avoid race condition
+    const result = await this.prisma.$transaction(
       async (tx) => {
         const customId = await this.generateNextInspectionId(
           branchCode,
@@ -613,8 +614,7 @@ export class InspectionsService {
             `Inspection created successfully with ID: ${newInspection.id} (pretty_id: ${newInspection.pretty_id})`,
           );
 
-          // Invalidate list cache after creation
-          await this.queryService.invalidateListCache();
+          // ✅ REMOVED: Cache invalidation from inside transaction to eliminate race condition
 
           return { id: newInspection.id };
         } catch (error: unknown) {
@@ -652,6 +652,29 @@ export class InspectionsService {
         timeout: 10000,
       },
     );
+
+    // ← Transaction COMMITTED here! Inspection is now visible in database
+
+    // Step 2: ✅ Invalidate cache AFTER transaction commit to prevent race condition
+    // This ensures concurrent queries will always get fresh data from database
+    try {
+      await this.queryService.invalidateListCache();
+      this.logger.log(
+        `Cache invalidated successfully after creating inspection ${result.id}`,
+      );
+    } catch (cacheError: unknown) {
+      // Cache invalidation failure is non-critical - inspection already created successfully
+      // Cache will naturally expire after TTL (60 seconds)
+      const errorMessage =
+        cacheError instanceof Error
+          ? cacheError.message
+          : 'Unknown cache error';
+      this.logger.warn(
+        `Failed to invalidate cache after inspection creation (non-critical): ${errorMessage}`,
+      );
+    }
+
+    return result;
   }
 
   /**
