@@ -31,7 +31,9 @@ export class VehicleDataDto {
   @IsNumber()
   @IsNotEmpty()
   @Min(1900, { message: 'tahun must be 1900 or later' })
-  @Max(new Date().getFullYear() + 1, { message: 'tahun cannot be in the future' })
+  @Max(new Date().getFullYear() + 1, {
+    message: 'tahun cannot be in the future',
+  })
   tahun!: number;
 
   @ApiProperty()

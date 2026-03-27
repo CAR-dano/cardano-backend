@@ -42,7 +42,7 @@ import { InspectionChangeLogResponseDto } from 'src/inspection-change-log/dto/in
 
 // Prisma types
 import { InspectionChangeLog } from '@prisma/client';
-import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { Throttle } from '@nestjs/throttler';
 
 /**
  * @class PublicApiController
@@ -93,8 +93,9 @@ export class PublicApiController {
   })
   async dbHealthCheck(): Promise<{ status: 'ok' }> {
     try {
-      await this.prisma.executeWithReconnect('publicDbHealthCheck', () =>
-        this.prisma.$queryRaw`SELECT 1`,
+      await this.prisma.executeWithReconnect(
+        'publicDbHealthCheck',
+        () => this.prisma.$queryRaw`SELECT 1`,
       );
       return { status: 'ok' };
     } catch (error) {

@@ -66,7 +66,7 @@ export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redisService: RedisService,
-  ) { }
+  ) {}
 
   /**
    * Calculates the percentage change between a current and previous value.
@@ -169,10 +169,13 @@ export class DashboardService {
     });
 
     // Format the results from groupBy into an easy-to-use object
-    const statusCounts = countsByStatus.reduce((acc: Record<string, number>, current) => {
-      acc[current.status] = current._count.status;
-      return acc;
-    }, {});
+    const statusCounts = countsByStatus.reduce(
+      (acc: Record<string, number>, current) => {
+        acc[current.status] = current._count.status;
+        return acc;
+      },
+      {},
+    );
 
     // Calculate total from individual status counts
     const total = Object.values(statusCounts).reduce(
@@ -215,7 +218,9 @@ export class DashboardService {
         return JSON.parse(cachedData);
       }
     } catch (error) {
-      this.logger.warn(`Redis error while fetching cache: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Redis error while fetching cache: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     // --- Caching Logic End ---
 
@@ -260,7 +265,9 @@ export class DashboardService {
         3600 * 24, // Cache for 24 hours (invalidated by version increment)
       );
     } catch (error) {
-      this.logger.warn(`Redis error while setting cache: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Redis error while setting cache: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     return response;
@@ -486,7 +493,9 @@ export class DashboardService {
         return JSON.parse(cachedData);
       }
     } catch (error) {
-      this.logger.warn(`Redis error while fetching cache: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Redis error while fetching cache: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     // --- Caching Logic End ---
 
@@ -574,7 +583,9 @@ export class DashboardService {
         3600 * 24, // Cache for 24 hours
       );
     } catch (error) {
-      this.logger.warn(`Redis error while setting cache: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Redis error while setting cache: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     return response;
@@ -611,7 +622,9 @@ export class DashboardService {
         return JSON.parse(cachedData);
       }
     } catch (error) {
-      this.logger.warn(`Redis error while fetching cache: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Redis error while fetching cache: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     // --- Caching Logic End ---
 
@@ -631,8 +644,6 @@ export class DashboardService {
         isActive: true,
       },
     });
-
-    const branchMap = new Map(branchCities.map((b) => [b.id, b.city]));
 
     // 2 & 3. Run both period groupBy queries in parallel — independent queries
     const [currentCounts, previousCounts] = await Promise.all([
@@ -688,8 +699,8 @@ export class DashboardService {
         const percentage =
           totalInspectionsCurrentPeriod > 0
             ? ((currentCount / totalInspectionsCurrentPeriod) * 100).toFixed(
-              1,
-            ) + '%'
+                1,
+              ) + '%'
             : '0.0%';
 
         return {
@@ -718,7 +729,9 @@ export class DashboardService {
         3600 * 24, // Cache for 24 hours
       );
     } catch (error) {
-      this.logger.warn(`Redis error while setting cache: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Redis error while setting cache: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     return response;
@@ -748,7 +761,9 @@ export class DashboardService {
         return JSON.parse(cachedData);
       }
     } catch (error) {
-      this.logger.warn(`Redis error while fetching cache: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Redis error while fetching cache: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
     // --- Caching Logic End ---
 
@@ -808,7 +823,9 @@ export class DashboardService {
         3600 * 24, // Cache for 24 hours
       );
     } catch (error) {
-      this.logger.warn(`Redis error while setting cache: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.warn(
+        `Redis error while setting cache: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
 
     return response;

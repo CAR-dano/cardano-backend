@@ -73,7 +73,9 @@ export class UpdateUserDto {
     required: false,
   })
   @IsOptional()
-  @Transform(({ value }: { value: unknown }) => sanitizeString(value) || undefined)
+  @Transform(
+    ({ value }: { value: unknown }) => sanitizeString(value) || undefined,
+  )
   @IsString()
   @MaxLength(255)
   name?: string;

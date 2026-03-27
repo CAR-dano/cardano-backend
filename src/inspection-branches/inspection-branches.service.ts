@@ -27,7 +27,7 @@ export class InspectionBranchesService {
   constructor(
     private prisma: PrismaService,
     private readonly redisService: RedisService,
-  ) { }
+  ) {}
 
   private async invalidateCache(id?: string) {
     await this.redisService.delete(this.CACHE_KEY_ALL);
@@ -73,7 +73,9 @@ export class InspectionBranchesService {
         this.logger.verbose('Branch list cache hit');
         return JSON.parse(cached) as InspectionBranchCity[];
       }
-    } catch (e) { /* ignore cache error, fall through to DB */ }
+    } catch (_e) {
+      /* ignore cache error, fall through to DB */
+    }
 
     // 2. Database fallback
     const branches = await this.prisma.executeWithReconnect(
@@ -88,7 +90,9 @@ export class InspectionBranchesService {
         JSON.stringify(branches),
         this.BRANCH_CACHE_TTL,
       );
-    } catch (e) { /* ignore cache write error */ }
+    } catch (_e) {
+      /* ignore cache write error */
+    }
 
     return branches;
   }
@@ -106,7 +110,9 @@ export class InspectionBranchesService {
     try {
       const cached = await this.redisService.get(cacheKey);
       if (cached) return JSON.parse(cached);
-    } catch (e) { }
+    } catch (_e) {
+      /* ignore cache miss */
+    }
 
     const inspectionBranchCity =
       await this.prisma.inspectionBranchCity.findUnique({
@@ -118,7 +124,11 @@ export class InspectionBranchesService {
       );
     }
 
-    await this.redisService.set(cacheKey, JSON.stringify(inspectionBranchCity), this.BRANCH_CACHE_TTL);
+    await this.redisService.set(
+      cacheKey,
+      JSON.stringify(inspectionBranchCity),
+      this.BRANCH_CACHE_TTL,
+    );
 
     return inspectionBranchCity;
   }

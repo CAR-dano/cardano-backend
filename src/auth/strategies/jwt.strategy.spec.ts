@@ -167,7 +167,7 @@ describe('JwtStrategy', () => {
       expect(usersService.findById).toHaveBeenCalledTimes(1);
 
       // Assert: Verify the returned result contains the user data excluding password and googleId
-      const { password, googleId, ...expectedResult } = mockUser;
+      const { password: _p, googleId: _g, ...expectedResult } = mockUser;
       expect(result).toEqual(expectedResult);
     });
 
@@ -185,9 +185,9 @@ describe('JwtStrategy', () => {
       mockUsersService.findById.mockResolvedValue(null);
 
       // Act & Assert: Expect the call to validate to reject with UnauthorizedException
-      await expect(strategy.validate(mockRequest, mockJwtPayload)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        strategy.validate(mockRequest, mockJwtPayload),
+      ).rejects.toThrow(UnauthorizedException);
 
       // Assert: Verify usersService.findById was still called
       expect(usersService.findById).toHaveBeenCalledWith(mockJwtPayload.sub);
@@ -210,7 +210,9 @@ describe('JwtStrategy', () => {
       mockUsersService.findById.mockRejectedValue(dbError);
 
       // Act & Assert: Expect the call to validate to reject with the specific dbError
-      await expect(strategy.validate(mockRequest, mockJwtPayload)).rejects.toThrow(dbError);
+      await expect(
+        strategy.validate(mockRequest, mockJwtPayload),
+      ).rejects.toThrow(dbError);
 
       // Assert: Verify usersService.findById was still called
       expect(usersService.findById).toHaveBeenCalledWith(mockJwtPayload.sub);
@@ -222,9 +224,9 @@ describe('JwtStrategy', () => {
       const requestWithoutToken = { headers: {} } as unknown as Request;
 
       // Act & Assert
-      await expect(strategy.validate(requestWithoutToken, mockJwtPayload)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        strategy.validate(requestWithoutToken, mockJwtPayload),
+      ).rejects.toThrow(UnauthorizedException);
 
       expect(mockUsersService.findById).not.toHaveBeenCalled();
     });
@@ -234,7 +236,9 @@ describe('JwtStrategy', () => {
       mockAuthService.isTokenBlacklisted.mockResolvedValue(true);
 
       // Act & Assert
-      await expect(strategy.validate(mockRequest, mockJwtPayload)).rejects.toThrow();
+      await expect(
+        strategy.validate(mockRequest, mockJwtPayload),
+      ).rejects.toThrow();
       expect(mockUsersService.findById).not.toHaveBeenCalled();
     });
 
@@ -247,14 +251,17 @@ describe('JwtStrategy', () => {
       mockUsersService.findById.mockResolvedValue(userWithNewerVersion);
 
       // Act & Assert
-      await expect(strategy.validate(mockRequest, stalePayload)).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        strategy.validate(mockRequest, stalePayload),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should succeed when token sessionVersion matches the DB user sessionVersion', async () => {
       // Arrange: token and DB user share the same sessionVersion
-      const payloadWithVersion: JwtPayload = { ...mockJwtPayload, sessionVersion: 3 };
+      const payloadWithVersion: JwtPayload = {
+        ...mockJwtPayload,
+        sessionVersion: 3,
+      };
       const userWithSameVersion: User = { ...mockUser, sessionVersion: 3 };
 
       mockAuthService.isTokenBlacklisted.mockResolvedValue(false);
@@ -264,7 +271,11 @@ describe('JwtStrategy', () => {
       const result = await strategy.validate(mockRequest, payloadWithVersion);
 
       // Assert: validation should pass and return user without password/googleId
-      const { password, googleId, ...expectedResult } = userWithSameVersion;
+      const {
+        password: _p,
+        googleId: _g,
+        ...expectedResult
+      } = userWithSameVersion;
       expect(result).toEqual(expectedResult);
     });
   });

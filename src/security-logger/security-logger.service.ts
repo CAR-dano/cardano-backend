@@ -84,7 +84,9 @@ export class SecurityLoggerService {
     const ip =
       req.ip ??
       req.socket?.remoteAddress ??
-      (req.headers?.['x-forwarded-for'] as string | undefined)?.split(',')[0]?.trim();
+      (req.headers?.['x-forwarded-for'] as string | undefined)
+        ?.split(',')[0]
+        ?.trim();
 
     const userAgent = req.headers?.['user-agent'] as string | undefined;
 

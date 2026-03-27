@@ -7,43 +7,49 @@ import { Agent } from 'https';
 import { VaultConfigService } from '../../config/vault-config.service';
 
 export const s3StorageConfig = async (
-    configService: ConfigService,
-    vaultConfigService: VaultConfigService,
+  configService: ConfigService,
+  vaultConfigService: VaultConfigService,
 ) => {
-    // Resolve B2 credentials from Vault (preferred) or env fallback
-    const secrets = await vaultConfigService.getSecrets();
+  // Resolve B2 credentials from Vault (preferred) or env fallback
+  const secrets = await vaultConfigService.getSecrets();
 
-    // Force IPv4 to avoid ETIMEDOUT on networks with poor IPv6 support (fixes Backblaze B2 connection issues)
-    const agent = new Agent({
-        keepAlive: true,
-        family: 4,
-    });
+  // Force IPv4 to avoid ETIMEDOUT on networks with poor IPv6 support (fixes Backblaze B2 connection issues)
+  const agent = new Agent({
+    keepAlive: true,
+    family: 4,
+  });
 
-    const s3 = new S3Client({
-        endpoint: configService.get<string>('B2_ENDPOINT'),
-        region: configService.get<string>('B2_REGION'),
-        credentials: {
-            accessKeyId: secrets.B2_KEY_ID || configService.get<string>('B2_KEY_ID') || '',
-            secretAccessKey: secrets.B2_APP_KEY || configService.get<string>('B2_APP_KEY') || '',
-        },
-        maxAttempts: 3,
-        requestHandler: new NodeHttpHandler({
-            httpsAgent: agent,
-            connectionTimeout: 10000,
-        }),
-    });
+  const s3 = new S3Client({
+    endpoint: configService.get<string>('B2_ENDPOINT'),
+    region: configService.get<string>('B2_REGION'),
+    credentials: {
+      accessKeyId:
+        secrets.B2_KEY_ID || configService.get<string>('B2_KEY_ID') || '',
+      secretAccessKey:
+        secrets.B2_APP_KEY || configService.get<string>('B2_APP_KEY') || '',
+    },
+    maxAttempts: 3,
+    requestHandler: new NodeHttpHandler({
+      httpsAgent: agent,
+      connectionTimeout: 10000,
+    }),
+  });
 
-    return multerS3({
-        s3: s3,
-        bucket: configService.get<string>('B2_BUCKET_NAME') || '',
-        acl: 'public-read',
-        contentType: multerS3.AUTO_CONTENT_TYPE,
-        key: (req, file, cb) => {
-            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-            const extension = extname(file.originalname);
-            const safeOriginalName = file.originalname.split('.')[0].replace(/[^a-z0-9]/gi, '-').toLowerCase();
-            const fileName = `${safeOriginalName}-${uniqueSuffix}${extension}`;
-            cb(null, `inspection-photos/${fileName}`);
-        },
-    });
+  return multerS3({
+    s3: s3,
+    bucket: configService.get<string>('B2_BUCKET_NAME') || '',
+    acl: 'public-read',
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    contentType: multerS3.AUTO_CONTENT_TYPE,
+    key: (req, file, cb) => {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      const extension = extname(file.originalname);
+      const safeOriginalName = file.originalname
+        .split('.')[0]
+        .replace(/[^a-z0-9]/gi, '-')
+        .toLowerCase();
+      const fileName = `${safeOriginalName}-${uniqueSuffix}${extension}`;
+      cb(null, `inspection-photos/${fileName}`);
+    },
+  });
 };

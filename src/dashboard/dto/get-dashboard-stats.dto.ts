@@ -6,12 +6,18 @@
  * --------------------------------------------------------------------------
  */
 import { Transform } from 'class-transformer';
-import { IsString, IsOptional, IsDateString, Matches, MaxLength } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsDateString,
+  Matches,
+  MaxLength,
+} from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 // IANA timezone format: Region/City or abbreviations like UTC, EST, etc.
 // This regex covers the vast majority of valid IANA tz names.
-const IANA_TZ_REGEX = /^[A-Za-z]+([/+\-][A-Za-z0-9_]+)*$/;
+const IANA_TZ_REGEX = /^[A-Za-z]+([/+S-][A-Za-z0-9_]+)*$/;
 
 export class GetDashboardStatsDto {
   @ApiProperty({

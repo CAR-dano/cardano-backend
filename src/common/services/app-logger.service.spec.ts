@@ -8,7 +8,7 @@
  * --------------------------------------------------------------------------
  */
 
-import { Test, TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { AppLoggerService } from './app-logger.service';
 import { ConfigService } from '@nestjs/config';
 
@@ -118,7 +118,9 @@ describe('AppLoggerService', () => {
     it('should call super.log when "log" level is enabled', async () => {
       const module = await buildModule('info');
       const s = await module.resolve(AppLoggerService);
-      const spy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'log').mockImplementation(() => {});
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'log')
+        .mockImplementation(() => {});
       s.log('test message');
       expect(spy).toHaveBeenCalledWith('test message', undefined);
       spy.mockRestore();
@@ -127,7 +129,9 @@ describe('AppLoggerService', () => {
     it('should NOT call super.log when "log" level is disabled', async () => {
       const module = await buildModule('error');
       const s = await module.resolve(AppLoggerService);
-      const spy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'log').mockImplementation(() => {});
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'log')
+        .mockImplementation(() => {});
       s.log('silent message');
       expect(spy).not.toHaveBeenCalled();
       spy.mockRestore();
@@ -136,7 +140,9 @@ describe('AppLoggerService', () => {
     it('should pass context when provided', async () => {
       const module = await buildModule('info');
       const s = await module.resolve(AppLoggerService);
-      const spy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'log').mockImplementation(() => {});
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'log')
+        .mockImplementation(() => {});
       s.log('msg', 'MyContext');
       expect(spy).toHaveBeenCalledWith('msg', 'MyContext');
       spy.mockRestore();
@@ -148,7 +154,9 @@ describe('AppLoggerService', () => {
     it('should call super.error when "error" level is enabled', async () => {
       const module = await buildModule('error');
       const s = await module.resolve(AppLoggerService);
-      const spy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'error').mockImplementation(() => {});
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'error')
+        .mockImplementation(() => {});
       s.error('something broke', 'stack trace');
       expect(spy).toHaveBeenCalled();
       spy.mockRestore();
@@ -159,7 +167,9 @@ describe('AppLoggerService', () => {
       const s = await module.resolve(AppLoggerService);
       // Manually empty enabledLevels to simulate disabled error
       (s as any).enabledLevels = new Set<string>();
-      const spy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'error').mockImplementation(() => {});
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'error')
+        .mockImplementation(() => {});
       s.error('silent error');
       expect(spy).not.toHaveBeenCalled();
       spy.mockRestore();
@@ -171,7 +181,9 @@ describe('AppLoggerService', () => {
     it('should call super.warn when level is enabled', async () => {
       const module = await buildModule('warn');
       const s = await module.resolve(AppLoggerService);
-      const spy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'warn').mockImplementation(() => {});
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'warn')
+        .mockImplementation(() => {});
       s.warn('warning msg');
       expect(spy).toHaveBeenCalledWith('warning msg', undefined);
       spy.mockRestore();
@@ -180,7 +192,9 @@ describe('AppLoggerService', () => {
     it('should NOT call super.warn when disabled', async () => {
       const module = await buildModule('error');
       const s = await module.resolve(AppLoggerService);
-      const spy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'warn').mockImplementation(() => {});
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'warn')
+        .mockImplementation(() => {});
       s.warn('suppressed warning');
       expect(spy).not.toHaveBeenCalled();
       spy.mockRestore();
@@ -192,7 +206,9 @@ describe('AppLoggerService', () => {
     it('should call super.debug when level is enabled', async () => {
       const module = await buildModule('debug');
       const s = await module.resolve(AppLoggerService);
-      const spy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'debug').mockImplementation(() => {});
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'debug')
+        .mockImplementation(() => {});
       s.debug('debug msg');
       expect(spy).toHaveBeenCalledWith('debug msg', undefined);
       spy.mockRestore();
@@ -201,7 +217,9 @@ describe('AppLoggerService', () => {
     it('should NOT call super.debug when level is info', async () => {
       const module = await buildModule('info');
       const s = await module.resolve(AppLoggerService);
-      const spy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'debug').mockImplementation(() => {});
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'debug')
+        .mockImplementation(() => {});
       s.debug('suppressed debug');
       expect(spy).not.toHaveBeenCalled();
       spy.mockRestore();
@@ -213,7 +231,9 @@ describe('AppLoggerService', () => {
     it('should call super.verbose when level is enabled', async () => {
       const module = await buildModule('verbose');
       const s = await module.resolve(AppLoggerService);
-      const spy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'verbose').mockImplementation(() => {});
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'verbose')
+        .mockImplementation(() => {});
       s.verbose('verbose msg');
       expect(spy).toHaveBeenCalledWith('verbose msg', undefined);
       spy.mockRestore();
@@ -222,7 +242,9 @@ describe('AppLoggerService', () => {
     it('should NOT call super.verbose when level is debug', async () => {
       const module = await buildModule('debug');
       const s = await module.resolve(AppLoggerService);
-      const spy = jest.spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'verbose').mockImplementation(() => {});
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'verbose')
+        .mockImplementation(() => {});
       s.verbose('suppressed verbose');
       expect(spy).not.toHaveBeenCalled();
       spy.mockRestore();
@@ -268,7 +290,10 @@ describe('AppLoggerService', () => {
       const s = await module.resolve(AppLoggerService);
       const errorSpy = jest.spyOn(s, 'error').mockImplementation(() => {});
       s.logWithMetadata('error', 'error msg', { code: 500 });
-      expect(errorSpy).toHaveBeenCalledWith('error msg {"code":500}', undefined);
+      expect(errorSpy).toHaveBeenCalledWith(
+        'error msg {"code":500}',
+        undefined,
+      );
     });
   });
 
@@ -295,7 +320,10 @@ describe('AppLoggerService', () => {
       const s = await module.resolve(AppLoggerService);
       const warnSpy = jest.spyOn(s, 'warn').mockImplementation(() => {});
       s.logHttpRequest('DELETE', '/api/item/1', 500, 5);
-      expect(warnSpy).toHaveBeenCalledWith('DELETE /api/item/1 500 - 5ms', 'HTTP');
+      expect(warnSpy).toHaveBeenCalledWith(
+        'DELETE /api/item/1 500 - 5ms',
+        'HTTP',
+      );
     });
 
     it('should use provided context instead of default HTTP', async () => {
@@ -303,7 +331,10 @@ describe('AppLoggerService', () => {
       const s = await module.resolve(AppLoggerService);
       const logSpy = jest.spyOn(s, 'log').mockImplementation(() => {});
       s.logHttpRequest('GET', '/health', 200, 2, 'HealthContext');
-      expect(logSpy).toHaveBeenCalledWith('GET /health 200 - 2ms', 'HealthContext');
+      expect(logSpy).toHaveBeenCalledWith(
+        'GET /health 200 - 2ms',
+        'HealthContext',
+      );
     });
   });
 
@@ -314,7 +345,10 @@ describe('AppLoggerService', () => {
       const s = await module.resolve(AppLoggerService);
       const debugSpy = jest.spyOn(s, 'debug').mockImplementation(() => {});
       s.logDatabaseOperation('SELECT', 'users', 12);
-      expect(debugSpy).toHaveBeenCalledWith('DB SELECT on users - 12ms', 'Database');
+      expect(debugSpy).toHaveBeenCalledWith(
+        'DB SELECT on users - 12ms',
+        'Database',
+      );
     });
 
     it('should use custom context when provided', async () => {
@@ -322,13 +356,16 @@ describe('AppLoggerService', () => {
       const s = await module.resolve(AppLoggerService);
       const debugSpy = jest.spyOn(s, 'debug').mockImplementation(() => {});
       s.logDatabaseOperation('INSERT', 'inspection', 45, 'InspectionRepo');
-      expect(debugSpy).toHaveBeenCalledWith('DB INSERT on inspection - 45ms', 'InspectionRepo');
+      expect(debugSpy).toHaveBeenCalledWith(
+        'DB INSERT on inspection - 45ms',
+        'InspectionRepo',
+      );
     });
 
     it('should not call debug when level is info (debug disabled)', async () => {
       const module = await buildModule('info');
       const s = await module.resolve(AppLoggerService);
-      const debugSpy = jest.spyOn(s, 'debug').mockImplementation(() => {});
+      jest.spyOn(s, 'debug').mockImplementation(() => {});
       s.logDatabaseOperation('UPDATE', 'photo', 20);
       // debug spy is on the service-level debug method which checks enabledLevels
       // Since info doesn't include debug, the underlying super.debug won't be called

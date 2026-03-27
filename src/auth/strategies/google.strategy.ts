@@ -76,13 +76,11 @@ export class GoogleStrategy
 
       if (clientId && clientSecret) {
         // Patch the OAuth2 client credentials on the underlying strategy instance
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         (this as any)._oauth2._clientId = clientId;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         (this as any)._oauth2._clientSecret = clientSecret;
-        this.logger.log(
-          'Google Strategy credentials updated from Vault.',
-        );
+        this.logger.log('Google Strategy credentials updated from Vault.');
       }
     } catch (error) {
       this.logger.warn(
@@ -120,7 +118,7 @@ export class GoogleStrategy
         );
       } else {
         this.logger.error(
-          `GoogleStrategy validation failed for profile ID ${profile.id}: ${error}`,
+          `GoogleStrategy validation failed for profile ID ${profile.id}: ${String(error)}`,
         );
       }
       done(error, false);

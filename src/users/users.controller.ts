@@ -51,7 +51,7 @@ import { UpdateUserDto } from './dto/update-user.dto'; // Import UpdateUserDto
 import { UpdateInspectorDto } from './dto/update-inspector.dto';
 
 import { CreateAdminDto } from './dto/create-admin.dto'; // Import CreateAdminDto
-import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 @ApiTags('User Management (Admin)') // Tag for documentation
 @ApiBearerAuth('JwtAuthGuard') // Indicate JWT is needed for all endpoints here
@@ -439,7 +439,9 @@ export class UsersController {
     @Body() updateUserDto: UpdateUserDto,
     @GetUser('role') actingUserRole: Role,
   ): Promise<UserResponseDto> {
-    this.logger.log(`Admin request: updateUser ID: ${id} by role: ${actingUserRole}`);
+    this.logger.log(
+      `Admin request: updateUser ID: ${id} by role: ${actingUserRole}`,
+    );
     const updatedUser = await this.usersService.updateUser(
       id,
       updateUserDto,
@@ -608,7 +610,9 @@ export class UsersController {
     @Param('id', ParseUUIDPipe) id: string,
     @GetUser('role') actingUserRole: Role,
   ): Promise<void> {
-    this.logger.warn(`Admin request: DELETE user ${id} by role: ${actingUserRole}`);
+    this.logger.warn(
+      `Admin request: DELETE user ${id} by role: ${actingUserRole}`,
+    );
     await this.usersService.deleteUser(id, actingUserRole);
   }
 }

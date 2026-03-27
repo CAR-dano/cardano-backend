@@ -28,7 +28,10 @@ import * as bcrypt from 'bcrypt'; // For password comparison
 import { PrismaService } from '../prisma/prisma.service'; // Import PrismaService
 import { RedisService } from '../redis/redis.service'; // Import RedisService
 import { SecurityLoggerService } from '../security-logger/security-logger.service';
-import { SecurityEventType, SecurityEventSeverity } from '../security-logger/security-event.enum';
+import {
+  SecurityEventType,
+  SecurityEventSeverity,
+} from '../security-logger/security-event.enum';
 import { checkSignature } from '@meshsdk/core-cst'; // CIP-0030 signature verification
 
 /** Shape of the CIP-0030 DataSignature provided by the frontend */
@@ -53,7 +56,7 @@ export class AuthService {
     private readonly prisma: PrismaService, // Inject PrismaService
     private readonly redisService: RedisService, // Inject RedisService for caching
     private readonly securityLogger: SecurityLoggerService, // Inject SecurityLoggerService
-  ) { }
+  ) {}
 
   /**
    * Validates a user based on local credentials (email/username and password).
@@ -184,7 +187,9 @@ export class AuthService {
 
     // 2. Replay-attack protection — the frontend must embed an ISO timestamp in the payload.
     //    We extract the last ISO-8601 date-time substring and check it is recent.
-    const isoMatch = payload.match(/(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)/);
+    const isoMatch = payload.match(
+      /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)/,
+    );
     if (!isoMatch) {
       this.logger.warn(
         `Wallet validation failed: payload does not contain a timestamp for ${walletAddress}`,
@@ -192,7 +197,10 @@ export class AuthService {
       return null;
     }
     const payloadTime = new Date(isoMatch[1]).getTime();
-    if (isNaN(payloadTime) || Date.now() - payloadTime > WALLET_PAYLOAD_MAX_AGE_MS) {
+    if (
+      isNaN(payloadTime) ||
+      Date.now() - payloadTime > WALLET_PAYLOAD_MAX_AGE_MS
+    ) {
       this.logger.warn(
         `Wallet validation failed: payload timestamp expired or invalid for ${walletAddress}`,
       );
@@ -294,24 +302,24 @@ export class AuthService {
 
     try {
       const secret = this.configService.getOrThrow<string>('JWT_SECRET');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const expiresIn = this.configService.getOrThrow<string>(
         'JWT_EXPIRATION_TIME',
       ) as any;
       const refreshTokenSecret =
         this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       const refreshTokenExpiresIn = this.configService.getOrThrow<string>(
         'JWT_REFRESH_EXPIRATION_TIME',
       ) as any;
 
       const accessToken = this.jwtService.sign(payload, {
         secret,
-        expiresIn: expiresIn as any,
+        expiresIn: expiresIn,
       });
       const refreshToken = this.jwtService.sign(payload, {
         secret: refreshTokenSecret,
-        expiresIn: refreshTokenExpiresIn as any,
+        expiresIn: refreshTokenExpiresIn,
       });
 
       // Hash and persist the new refresh token (system-level DB write, bypass DTO layer)
@@ -523,7 +531,9 @@ export class AuthService {
    * @returns A promise resolving to an object with the new accessToken and refreshToken.
    * @throws UnauthorizedException if no user is found with the given ID.
    */
-  async refreshTokens(userId: string): Promise<{ accessToken: string; refreshToken: string }> {
+  async refreshTokens(
+    userId: string,
+  ): Promise<{ accessToken: string; refreshToken: string }> {
     const user = await this.usersService.findById(userId);
     if (!user) {
       throw new UnauthorizedException('Access Denied');

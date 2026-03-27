@@ -1,4 +1,7 @@
-import { SecurityEventSeverity, SecurityEventType } from './security-event.enum';
+import {
+  SecurityEventSeverity,
+  SecurityEventType,
+} from './security-event.enum';
 
 /**
  * Describes a single security event to be logged.

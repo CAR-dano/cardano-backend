@@ -91,7 +91,9 @@ const mockRedisService = {
  */
 const mockSecurityLoggerService = {
   log: jest.fn().mockResolvedValue(undefined),
-  extractRequestMeta: jest.fn().mockReturnValue({ ip: undefined, userAgent: undefined }),
+  extractRequestMeta: jest
+    .fn()
+    .mockReturnValue({ ip: undefined, userAgent: undefined }),
 };
 
 // Shared mock user used across multiple test suites
@@ -286,7 +288,9 @@ describe('AuthService', () => {
       expect(configService.getOrThrow).toHaveBeenCalledWith(
         'JWT_EXPIRATION_TIME',
       );
-      expect(configService.getOrThrow).toHaveBeenCalledWith('JWT_REFRESH_SECRET');
+      expect(configService.getOrThrow).toHaveBeenCalledWith(
+        'JWT_REFRESH_SECRET',
+      );
       expect(configService.getOrThrow).toHaveBeenCalledWith(
         'JWT_REFRESH_EXPIRATION_TIME',
       );
@@ -540,7 +544,9 @@ describe('AuthService', () => {
       mockUsersService.findById.mockResolvedValue(mockUser);
       mockPrismaService.user.update.mockResolvedValue({});
 
-      await expect(service.revokeAllSessions(mockUser.id)).resolves.toBeUndefined();
+      await expect(
+        service.revokeAllSessions(mockUser.id),
+      ).resolves.toBeUndefined();
     });
   });
 
@@ -552,10 +558,16 @@ describe('AuthService', () => {
 
     it('should return user (without password/googleId) when email + password are valid', async () => {
       const hashed = await bcryptModule.hash('correctpass', 10);
-      const mockUser = buildMockUser({ email: 'u@example.com', password: hashed });
+      const mockUser = buildMockUser({
+        email: 'u@example.com',
+        password: hashed,
+      });
       mockUsersService.findByEmail.mockResolvedValue(mockUser);
 
-      const result = await service.validateLocalUser('u@example.com', 'correctpass');
+      const result = await service.validateLocalUser(
+        'u@example.com',
+        'correctpass',
+      );
 
       expect(result).not.toBeNull();
       expect((result as any).password).toBeUndefined();
@@ -564,17 +576,26 @@ describe('AuthService', () => {
 
     it('should return null when password does not match', async () => {
       const hashed = await bcryptModule.hash('correctpass', 10);
-      const mockUser = buildMockUser({ email: 'u@example.com', password: hashed });
+      const mockUser = buildMockUser({
+        email: 'u@example.com',
+        password: hashed,
+      });
       mockUsersService.findByEmail.mockResolvedValue(mockUser);
 
-      const result = await service.validateLocalUser('u@example.com', 'wrongpass');
+      const result = await service.validateLocalUser(
+        'u@example.com',
+        'wrongpass',
+      );
       expect(result).toBeNull();
     });
 
     it('should return null when user not found by email', async () => {
       mockUsersService.findByEmail.mockResolvedValue(null);
 
-      const result = await service.validateLocalUser('noone@example.com', 'pass');
+      const result = await service.validateLocalUser(
+        'noone@example.com',
+        'pass',
+      );
       expect(result).toBeNull();
     });
 
@@ -582,7 +603,10 @@ describe('AuthService', () => {
       const mockUser = buildMockUser({ password: null });
       mockUsersService.findByEmail.mockResolvedValue(mockUser);
 
-      const result = await service.validateLocalUser('u@example.com', 'anypass');
+      const result = await service.validateLocalUser(
+        'u@example.com',
+        'anypass',
+      );
       expect(result).toBeNull();
     });
 
@@ -635,7 +659,10 @@ describe('AuthService', () => {
     it('should return null when user not found', async () => {
       mockUsersService.findByEmail.mockResolvedValue(null);
 
-      const result = await service.validateInspector('123456', 'nobody@example.com');
+      const result = await service.validateInspector(
+        '123456',
+        'nobody@example.com',
+      );
       expect(result).toBeNull();
     });
 
@@ -667,7 +694,9 @@ describe('AuthService', () => {
 
       const result = await service.isTokenBlacklisted(token);
       expect(result).toBe(true);
-      expect(mockPrismaService.blacklistedToken.findUnique).not.toHaveBeenCalled();
+      expect(
+        mockPrismaService.blacklistedToken.findUnique,
+      ).not.toHaveBeenCalled();
     });
 
     it('should return false when Redis returns "false"', async () => {
@@ -699,7 +728,10 @@ describe('AuthService', () => {
 
     it('should fallback to DB when Redis.get throws', async () => {
       mockRedisService.get.mockRejectedValue(new Error('Redis down'));
-      mockPrismaService.blacklistedToken.findUnique.mockResolvedValue({ token, expiresAt: new Date(Date.now() + 1000) });
+      mockPrismaService.blacklistedToken.findUnique.mockResolvedValue({
+        token,
+        expiresAt: new Date(Date.now() + 1000),
+      });
 
       const result = await service.isTokenBlacklisted(token);
       expect(result).toBe(true);
@@ -707,7 +739,9 @@ describe('AuthService', () => {
 
     it('should throw InternalServerErrorException when both Redis and DB fail', async () => {
       mockRedisService.get.mockRejectedValue(new Error('Redis down'));
-      mockPrismaService.blacklistedToken.findUnique.mockRejectedValue(new Error('DB down'));
+      mockPrismaService.blacklistedToken.findUnique.mockRejectedValue(
+        new Error('DB down'),
+      );
 
       await expect(service.isTokenBlacklisted(token)).rejects.toThrow(
         InternalServerErrorException,
@@ -724,7 +758,10 @@ describe('AuthService', () => {
 
     it('should write to both Redis and DB', async () => {
       mockRedisService.set.mockResolvedValue(undefined);
-      mockPrismaService.blacklistedToken.create.mockResolvedValue({ token, expiresAt });
+      mockPrismaService.blacklistedToken.create.mockResolvedValue({
+        token,
+        expiresAt,
+      });
 
       await service.blacklistToken(token, expiresAt);
 
@@ -736,21 +773,32 @@ describe('AuthService', () => {
 
     it('should succeed when only Redis write fails (DB succeeds)', async () => {
       mockRedisService.set.mockRejectedValue(new Error('Redis down'));
-      mockPrismaService.blacklistedToken.create.mockResolvedValue({ token, expiresAt });
+      mockPrismaService.blacklistedToken.create.mockResolvedValue({
+        token,
+        expiresAt,
+      });
 
-      await expect(service.blacklistToken(token, expiresAt)).resolves.toBeUndefined();
+      await expect(
+        service.blacklistToken(token, expiresAt),
+      ).resolves.toBeUndefined();
     });
 
     it('should succeed when only DB write fails (Redis succeeds)', async () => {
       mockRedisService.set.mockResolvedValue(undefined);
-      mockPrismaService.blacklistedToken.create.mockRejectedValue(new Error('DB down'));
+      mockPrismaService.blacklistedToken.create.mockRejectedValue(
+        new Error('DB down'),
+      );
 
-      await expect(service.blacklistToken(token, expiresAt)).resolves.toBeUndefined();
+      await expect(
+        service.blacklistToken(token, expiresAt),
+      ).resolves.toBeUndefined();
     });
 
     it('should throw InternalServerErrorException when both writes fail', async () => {
       mockRedisService.set.mockRejectedValue(new Error('Redis down'));
-      mockPrismaService.blacklistedToken.create.mockRejectedValue(new Error('DB down'));
+      mockPrismaService.blacklistedToken.create.mockRejectedValue(
+        new Error('DB down'),
+      );
 
       await expect(service.blacklistToken(token, expiresAt)).rejects.toThrow(
         InternalServerErrorException,
@@ -775,9 +823,11 @@ describe('AuthService', () => {
 
     beforeEach(() => {
       // Replace the module-level checkSignature with a jest mock
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const meshModule = require('@meshsdk/core-cst') as { checkSignature: jest.Mock };
-      checkSignatureMock = meshModule.checkSignature as jest.Mock;
+
+      const meshModule = require('@meshsdk/core-cst') as {
+        checkSignature: jest.Mock;
+      };
+      checkSignatureMock = meshModule.checkSignature;
       jest.clearAllMocks();
     });
 
@@ -870,17 +920,26 @@ describe('AuthService', () => {
       checkSignatureMock.mockResolvedValue(true);
       mockUsersService.findByWalletAddress.mockResolvedValue(mockUser);
 
-      await service.validateWalletUser(walletAddress, validPayload, validSignatureData);
+      await service.validateWalletUser(
+        walletAddress,
+        validPayload,
+        validSignatureData,
+      );
 
       expect(checkSignatureMock).toHaveBeenCalledWith(
         validPayload,
-        { key: validSignatureData.key, signature: validSignatureData.signature },
+        {
+          key: validSignatureData.key,
+          signature: validSignatureData.signature,
+        },
         walletAddress,
       );
     });
 
     it('should accept a payload timestamp that is just within the 5-minute window', async () => {
-      const nearlyStaleTimestamp = new Date(Date.now() - 4 * 60 * 1000 - 50_000).toISOString(); // ~4m50s ago
+      const nearlyStaleTimestamp = new Date(
+        Date.now() - 4 * 60 * 1000 - 50_000,
+      ).toISOString(); // ~4m50s ago
       const nearlyStalePayload = `Login to CAR-dano: ${walletAddress} at ${nearlyStaleTimestamp}`;
       const mockUser = buildMockUser({ walletAddress });
       checkSignatureMock.mockResolvedValue(true);
@@ -895,5 +954,4 @@ describe('AuthService', () => {
       expect(result).not.toBeNull();
     });
   });
-
 });

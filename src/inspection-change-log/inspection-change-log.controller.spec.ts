@@ -18,7 +18,9 @@ import { InspectionChangeLog } from '@prisma/client';
 // Helpers
 // ---------------------------------------------------------------------------
 
-const makeLog = (overrides: Partial<InspectionChangeLog> = {}): InspectionChangeLog => ({
+const makeLog = (
+  overrides: Partial<InspectionChangeLog> = {},
+): InspectionChangeLog => ({
   id: 'log-001',
   inspectionId: 'insp-001',
   changedByUserId: 'user-001',
@@ -54,7 +56,9 @@ describe('InspectionChangeLogController', () => {
       ],
     }).compile();
 
-    controller = module.get<InspectionChangeLogController>(InspectionChangeLogController);
+    controller = module.get<InspectionChangeLogController>(
+      InspectionChangeLogController,
+    );
     jest.clearAllMocks();
   });
 
@@ -65,12 +69,17 @@ describe('InspectionChangeLogController', () => {
   // -------------------------------------------------------------------------
   describe('findByInspectionId', () => {
     it('should return change logs for a given inspection', async () => {
-      const logs = [makeLog(), makeLog({ id: 'log-002', fieldName: 'overallRating' })];
+      const logs = [
+        makeLog(),
+        makeLog({ id: 'log-002', fieldName: 'overallRating' }),
+      ];
       mockInspectionChangeLogService.findByInspectionId.mockResolvedValue(logs);
 
       const result = await controller.findByInspectionId('insp-001');
 
-      expect(mockInspectionChangeLogService.findByInspectionId).toHaveBeenCalledWith('insp-001');
+      expect(
+        mockInspectionChangeLogService.findByInspectionId,
+      ).toHaveBeenCalledWith('insp-001');
       expect(result).toEqual(logs);
     });
 
@@ -87,7 +96,9 @@ describe('InspectionChangeLogController', () => {
         new NotFoundException('Inspection not found'),
       );
 
-      await expect(controller.findByInspectionId('missing-id')).rejects.toThrow(NotFoundException);
+      await expect(controller.findByInspectionId('missing-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should pass the inspectionId directly to the service', async () => {
@@ -95,7 +106,9 @@ describe('InspectionChangeLogController', () => {
 
       await controller.findByInspectionId('test-insp-id');
 
-      expect(mockInspectionChangeLogService.findByInspectionId).toHaveBeenCalledWith('test-insp-id');
+      expect(
+        mockInspectionChangeLogService.findByInspectionId,
+      ).toHaveBeenCalledWith('test-insp-id');
     });
   });
 
@@ -107,7 +120,10 @@ describe('InspectionChangeLogController', () => {
 
       await controller.remove('insp-001', 'log-001');
 
-      expect(mockInspectionChangeLogService.remove).toHaveBeenCalledWith('insp-001', 'log-001');
+      expect(mockInspectionChangeLogService.remove).toHaveBeenCalledWith(
+        'insp-001',
+        'log-001',
+      );
     });
 
     it('should throw NotFoundException when change log not found', async () => {
@@ -115,7 +131,9 @@ describe('InspectionChangeLogController', () => {
         new NotFoundException('Change log not found'),
       );
 
-      await expect(controller.remove('insp-001', 'missing-log')).rejects.toThrow(NotFoundException);
+      await expect(
+        controller.remove('insp-001', 'missing-log'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should pass both inspectionId and changeLogId to service', async () => {
@@ -123,7 +141,10 @@ describe('InspectionChangeLogController', () => {
 
       await controller.remove('insp-xyz', 'log-xyz');
 
-      expect(mockInspectionChangeLogService.remove).toHaveBeenCalledWith('insp-xyz', 'log-xyz');
+      expect(mockInspectionChangeLogService.remove).toHaveBeenCalledWith(
+        'insp-xyz',
+        'log-xyz',
+      );
     });
 
     it('should return undefined (void) on successful delete', async () => {

@@ -81,9 +81,7 @@ export class InspectionsService {
    * Finds a single inspection by vehicle plate number (case-insensitive, space-agnostic).
    * Delegates to InspectionQueryService.
    */
-  async findByVehiclePlateNumber(
-    vehiclePlateNumber: string,
-  ): Promise<any | null> {
+  async findByVehiclePlateNumber(vehiclePlateNumber: string): Promise<any> {
     return this.queryService.findByVehiclePlateNumber(vehiclePlateNumber);
   }
 
@@ -132,10 +130,7 @@ export class InspectionsService {
     inspectionId: string,
     superAdminId: string,
   ): Promise<Inspection> {
-    return this.blockchainService.deactivateArchive(
-      inspectionId,
-      superAdminId,
-    );
+    return this.blockchainService.deactivateArchive(inspectionId, superAdminId);
   }
 
   /**
@@ -146,10 +141,7 @@ export class InspectionsService {
     inspectionId: string,
     superAdminId: string,
   ): Promise<Inspection> {
-    return this.blockchainService.activateArchive(
-      inspectionId,
-      superAdminId,
-    );
+    return this.blockchainService.activateArchive(inspectionId, superAdminId);
   }
 
   /**
@@ -157,7 +149,10 @@ export class InspectionsService {
    * Delegates to InspectionBlockchainService.
    */
   async buildArchiveTransaction(inspectionId: string, adminAddress: string) {
-    return this.blockchainService.buildArchiveTransaction(inspectionId, adminAddress);
+    return this.blockchainService.buildArchiveTransaction(
+      inspectionId,
+      adminAddress,
+    );
   }
 
   /**
@@ -324,9 +319,10 @@ export class InspectionsService {
       );
     } catch (rollbackError: unknown) {
       this.logger.error(
-        `Failed to rollback inspection ${inspectionId} status after approval error: ${rollbackError instanceof Error
-          ? rollbackError.message
-          : 'Unknown rollback error'
+        `Failed to rollback inspection ${inspectionId} status after approval error: ${
+          rollbackError instanceof Error
+            ? rollbackError.message
+            : 'Unknown rollback error'
         }`,
         rollbackError instanceof Error ? rollbackError.stack : 'No stack trace',
       );
@@ -365,17 +361,23 @@ export class InspectionsService {
         if (incremented !== null) {
           nextSequence = incremented;
           usedRedis = true;
-          this.logger.verbose(`Generated sequence via Redis for ${redisKey}: ${nextSequence}`);
+          this.logger.verbose(
+            `Generated sequence via Redis for ${redisKey}: ${nextSequence}`,
+          );
         }
       }
     } catch (error) {
-      this.logger.warn(`Redis sequence generation failed, falling back to DB: ${(error as Error).message}`);
+      this.logger.warn(
+        `Redis sequence generation failed, falling back to DB: ${(error as Error).message}`,
+      );
     }
 
     // 2. Fallback to Database if Redis failed or wasn't initialized
     if (nextSequence === null || nextSequence === 1) {
       try {
-        this.logger.log(`Using Database for sequence generation (Fallback/Init) for ${idPrefix}`);
+        this.logger.log(
+          `Using Database for sequence generation (Fallback/Init) for ${idPrefix}`,
+        );
         const sequenceRecord = await tx.inspectionSequence.upsert({
           where: {
             branchCode_datePrefix: {
@@ -401,26 +403,38 @@ export class InspectionsService {
         const dbSequence = sequenceRecord.nextSequence;
 
         if (usedRedis && nextSequence === 1 && dbSequence > 1) {
-          this.logger.warn(`Redis counter desync detected (Redis: 1, DB: ${dbSequence}). Correcting Redis.`);
-          await this.redisService.set(redisKey, dbSequence.toString(), REDIS_TTL);
+          this.logger.warn(
+            `Redis counter desync detected (Redis: 1, DB: ${dbSequence}). Correcting Redis.`,
+          );
+          await this.redisService.set(
+            redisKey,
+            dbSequence.toString(),
+            REDIS_TTL,
+          );
           nextSequence = dbSequence;
-        }
-        else if (!usedRedis) {
+        } else if (!usedRedis) {
           nextSequence = dbSequence;
-          this.redisService.set(redisKey, dbSequence.toString(), REDIS_TTL).catch(() => { });
-        }
-        else {
+          this.redisService
+            .set(redisKey, dbSequence.toString(), REDIS_TTL)
+            .catch(() => {});
+        } else {
           nextSequence = 1;
         }
-
       } catch (dbError) {
-        this.logger.error(`Database sequence generation failed: ${(dbError as Error).message}`);
+        this.logger.error(
+          `Database sequence generation failed: ${(dbError as Error).message}`,
+        );
         throw dbError;
       }
     }
 
     // 3. Periodic sync to DB every 10 sequences for disaster recovery
-    if (usedRedis && nextSequence !== null && nextSequence > 1 && nextSequence % 10 === 0) {
+    if (
+      usedRedis &&
+      nextSequence !== null &&
+      nextSequence > 1 &&
+      nextSequence % 10 === 0
+    ) {
       try {
         await tx.inspectionSequence.upsert({
           where: {
@@ -434,10 +448,12 @@ export class InspectionsService {
             branchCode: branchCode.toUpperCase(),
             datePrefix: datePrefix,
             nextSequence: nextSequence,
-          }
+          },
         });
       } catch (e) {
-        this.logger.warn(`Failed to background sync sequence to DB: ${(e as Error).message}`);
+        this.logger.warn(
+          `Failed to background sync sequence to DB: ${(e as Error).message}`,
+        );
       }
     }
 
@@ -455,7 +471,8 @@ export class InspectionsService {
     inspectorId: string,
   ): Promise<{ id: string }> {
     this.logger.log(
-      `Creating inspection for plate: ${createInspectionDto.vehiclePlateNumber ?? 'N/A'
+      `Creating inspection for plate: ${
+        createInspectionDto.vehiclePlateNumber ?? 'N/A'
       } by inspector ${inspectorId}`,
     );
 
@@ -567,7 +584,10 @@ export class InspectionsService {
 
           vehiclePlateNumber: createInspectionDto.vehiclePlateNumber,
           inspectionDate: inspectionDateObj,
-          overallRating: createInspectionDto.overallRating != null ? String(createInspectionDto.overallRating) : undefined,
+          overallRating:
+            createInspectionDto.overallRating != null
+              ? String(createInspectionDto.overallRating)
+              : undefined,
 
           identityDetails: {
             namaInspektor: inspectorName,
@@ -720,8 +740,8 @@ export class InspectionsService {
       return;
     }
 
-    const oldObj = oldJsonValue as Record<string, Prisma.JsonValue>;
-    const newObj = newJsonValue as Record<string, Prisma.JsonValue>;
+    const oldObj = oldJsonValue;
+    const newObj = newJsonValue;
 
     for (const key of Object.keys(newObj)) {
       const newValue = newObj[key];
@@ -880,7 +900,7 @@ export class InspectionsService {
     if (
       updateInspectionDto.identityDetails?.namaCustomer !== undefined &&
       updateInspectionDto.identityDetails.namaCustomer !==
-      currentIdentityDetails?.namaCustomer
+        currentIdentityDetails?.namaCustomer
     ) {
       const newCustomerName = updateInspectionDto.identityDetails.namaCustomer;
       changesToLog.push({
@@ -900,20 +920,18 @@ export class InspectionsService {
     const jsonFieldsInInspectionModel: Array<
       keyof UpdateInspectionDto & keyof Inspection
     > = [
-        'vehicleData',
-        'equipmentChecklist',
-        'inspectionSummary',
-        'detailedAssessment',
-        'bodyPaintThickness',
-        'notesFontSizes',
-      ];
+      'vehicleData',
+      'equipmentChecklist',
+      'inspectionSummary',
+      'detailedAssessment',
+      'bodyPaintThickness',
+      'notesFontSizes',
+    ];
 
     for (const key of Object.keys(updateInspectionDto)) {
       const dtoKey = key;
       const newValue = (updateInspectionDto as Record<string, unknown>)[dtoKey];
-      const oldValue = (existingInspection as Inspection)[
-        dtoKey as keyof Inspection
-      ];
+      const oldValue = existingInspection[dtoKey as keyof Inspection];
 
       if (newValue === undefined) continue;
       if (
@@ -1165,11 +1183,11 @@ export class InspectionsService {
               ) {
                 updateDataAny[fieldName] = inspection[fieldName]
                   ? {
-                    ...(inspection[fieldName] as Record<
-                      string,
-                      Prisma.JsonValue
-                    >),
-                  }
+                      ...(inspection[fieldName] as Record<
+                        string,
+                        Prisma.JsonValue
+                      >),
+                    }
                   : {};
               }
 
@@ -1196,7 +1214,7 @@ export class InspectionsService {
               ) {
                 if (typeof value === 'string') {
                   try {
-                    current[lastPart] = JSON.parse(value as string);
+                    current[lastPart] = JSON.parse(value);
                     this.logger.log(
                       `Parsed inspectionSummary.estimasiPerbaikan as JSON for inspection ${inspectionId}`,
                     );
@@ -1268,8 +1286,16 @@ export class InspectionsService {
         );
 
         const [fullPdfResult, noDocsPdfResult] = await Promise.all([
-          this.pdfService.generateAndSavePdf(fullPdfUrl, fullPdfFileName, token),
-          this.pdfService.generateAndSavePdf(noDocsPdfUrl, noDocsPdfFileName, token),
+          this.pdfService.generateAndSavePdf(
+            fullPdfUrl,
+            fullPdfFileName,
+            token,
+          ),
+          this.pdfService.generateAndSavePdf(
+            noDocsPdfUrl,
+            noDocsPdfFileName,
+            token,
+          ),
         ]);
 
         // --- Final Database Update with PDF info and Final Status ---

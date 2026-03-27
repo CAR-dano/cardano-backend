@@ -31,8 +31,8 @@ const STRIP_ALL: sanitizeHtml.IOptions = {
  * Returns an empty string for null / undefined inputs.
  */
 export function sanitizeString(value: unknown): string {
-  if (value === null || value === undefined) return '';
-  return sanitizeHtml(String(value), STRIP_ALL).trim();
+  if (typeof value !== 'string') return '';
+  return sanitizeHtml(value, STRIP_ALL).trim();
 }
 
 /**

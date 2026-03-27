@@ -14,13 +14,43 @@ import {
 import { sanitizeStringArray } from '../../../common/sanitize.helper';
 
 export class ToolsTestDto {
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) tebalCatBodyDepan!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) tebalCatBodyKiri!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) temperatureAC!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) tebalCatBodyKanan!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) tebalCatBodyBelakang!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  tebalCatBodyDepan!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  tebalCatBodyKiri!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  temperatureAC!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  tebalCatBodyKanan!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  tebalCatBodyBelakang!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) obdScanner!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) tebalCatBodyAtap!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  tebalCatBodyAtap!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) testAccu!: number;
 
   @ApiProperty({ required: false })

@@ -34,7 +34,11 @@ describe('LocalAuthGuard', () => {
   });
 
   it('should call super.canActivate and delegate to passport local strategy', () => {
-    const mockRequest = { method: 'POST', url: '/auth/login', body: { email: 'a@b.com', password: 'secret' } };
+    const mockRequest = {
+      method: 'POST',
+      url: '/auth/login',
+      body: { email: 'a@b.com', password: 'secret' },
+    };
     const mockContext = {
       switchToHttp: jest.fn().mockReturnValue({
         getRequest: jest.fn().mockReturnValue(mockRequest),
@@ -63,7 +67,7 @@ describe('LocalAuthGuard', () => {
       .spyOn(Object.getPrototypeOf(LocalAuthGuard.prototype), 'canActivate')
       .mockReturnValue(true);
 
-    guard.canActivate(mockContext);
+    void guard.canActivate(mockContext);
 
     expect(switchToHttp).toHaveBeenCalled();
     expect(getRequest).toHaveBeenCalled();

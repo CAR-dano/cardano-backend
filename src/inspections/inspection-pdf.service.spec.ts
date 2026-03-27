@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Test, TestingModule } from '@nestjs/testing';
 import { InspectionPdfService } from './inspection-pdf.service';
 import { ConfigService } from '@nestjs/config';
@@ -153,7 +152,9 @@ describe('InspectionPdfService', () => {
     });
 
     it('should throw after exhausting all retries', async () => {
-      const operation = jest.fn().mockRejectedValue(new Error('Persistent error'));
+      const operation = jest
+        .fn()
+        .mockRejectedValue(new Error('Persistent error'));
 
       await expect(
         service.retryWithBackoff(operation, 3, 10, 'test-fail'),
@@ -186,7 +187,9 @@ describe('InspectionPdfService', () => {
     });
 
     it('should handle maxRetries of 1 (no retries)', async () => {
-      const operation = jest.fn().mockRejectedValue(new Error('Single failure'));
+      const operation = jest
+        .fn()
+        .mockRejectedValue(new Error('Single failure'));
 
       await expect(
         service.retryWithBackoff(operation, 1, 10, 'no-retry'),
@@ -313,9 +316,7 @@ describe('InspectionPdfService', () => {
       const pdfBuffer = Buffer.from('mock-pdf-content');
 
       // Mock generatePdfFromUrl via spy
-      jest
-        .spyOn(service, 'generatePdfFromUrl')
-        .mockResolvedValue(pdfBuffer);
+      jest.spyOn(service, 'generatePdfFromUrl').mockResolvedValue(pdfBuffer);
       mockIpfsService.add.mockResolvedValue('QmTestCid');
       mockFs.writeFile.mockResolvedValue(undefined);
       mockConfigService.get.mockReturnValue('/pdfarchived');
@@ -353,9 +354,7 @@ describe('InspectionPdfService', () => {
 
     it('should throw when IPFS upload fails', async () => {
       const pdfBuffer = Buffer.from('mock-pdf-content');
-      jest
-        .spyOn(service, 'generatePdfFromUrl')
-        .mockResolvedValue(pdfBuffer);
+      jest.spyOn(service, 'generatePdfFromUrl').mockResolvedValue(pdfBuffer);
       mockIpfsService.add.mockRejectedValue(new Error('IPFS upload failed'));
       // Mock sleep to avoid real delays in retryWithBackoff
       jest.spyOn(service as any, 'sleep').mockResolvedValue(undefined);

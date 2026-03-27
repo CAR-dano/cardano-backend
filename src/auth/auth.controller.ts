@@ -42,7 +42,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard'; // Protects profile & lo
 import { LocalAuthGuard } from './guards/local-auth.guard'; // Triggers local strategy for login
 import { WalletAuthGuard } from './guards/wallet-auth.guard'; // Triggers wallet strategy for login
 import { LoginWalletDto } from './dto/login-wallet.dto'; // DTO for wallet login input
-import { Role, User } from '@prisma/client'; // Import Role for interface
+import { User } from '@prisma/client';
 import { RegisterUserDto } from './dto/register-user.dto'; // DTO for local registration
 import { LoginUserDto } from './dto/login-user.dto'; // DTO for local login input
 import { LoginResponseDto } from './dto/login-response.dto'; // DTO for successful login response
@@ -53,9 +53,12 @@ import { ExtractJwt } from 'passport-jwt'; // Import ExtractJwt
 import { InspectorGuard } from './guards/inspector.guard';
 import { LoginInspectorDto } from './dto/login-inspector.dto';
 import { JwtRefreshGuard } from './guards/jwt-refresh.guard';
-import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
 import { SecurityLoggerService } from '../security-logger/security-logger.service';
-import { SecurityEventType, SecurityEventSeverity } from '../security-logger/security-event.enum';
+import {
+  SecurityEventType,
+  SecurityEventSeverity,
+} from '../security-logger/security-event.enum';
 
 // Define interface for request object after JWT or Local auth guard runs
 interface AuthenticatedRequest extends Request {
@@ -305,7 +308,7 @@ export class AuthController {
   @UseGuards(AuthGuard('google')) // Trigger GoogleStrategy
   @ApiOperation({ summary: 'Initiate Google OAuth login' })
   @ApiResponse({ status: 302, description: 'Redirecting to Google.' })
-  async googleAuth(@Req() req: Request) {
+  googleAuth(@Req() _req: Request) {
     this.logger.log('Initiating Google OAuth flow.');
     // Passport's Google strategy handles the redirect automatically
   }
@@ -387,7 +390,7 @@ export class AuthController {
 
     try {
       // Decode the token to get its expiration time
-      const decodedToken = this.jwtService.decode(token) as { exp: number };
+      const decodedToken = this.jwtService.decode(token);
       if (!decodedToken || !decodedToken.exp) {
         this.logger.warn(
           'Logout failed: Invalid token format (missing expiration).',
@@ -482,7 +485,7 @@ export class AuthController {
       // Also blacklist the current access token so it cannot be reused
       const token = ExtractJwt.fromAuthHeaderAsBearerToken()(req);
       if (token) {
-        const decodedToken = this.jwtService.decode(token) as { exp: number };
+        const decodedToken = this.jwtService.decode(token);
         if (decodedToken?.exp) {
           const expiresAt = new Date(decodedToken.exp * 1000);
           await this.authService.blacklistToken(token, expiresAt);
@@ -582,7 +585,9 @@ export class AuthController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Missing or malformed wallet authentication fields.',
   })
-  async loginWallet(@Req() req: AuthenticatedRequest): Promise<LoginResponseDto> {
+  async loginWallet(
+    @Req() req: AuthenticatedRequest,
+  ): Promise<LoginResponseDto> {
     if (!req.user) {
       this.logger.error('WalletAuthGuard succeeded but req.user is missing!');
       throw new InternalServerErrorException('Authentication flow error.');
@@ -601,7 +606,9 @@ export class AuthController {
       details: { method: 'wallet' },
     });
 
-    const { accessToken, refreshToken } = await this.authService.login(req.user as any);
+    const { accessToken, refreshToken } = await this.authService.login(
+      req.user as any,
+    );
     return {
       accessToken,
       refreshToken,

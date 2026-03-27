@@ -13,7 +13,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BlockchainController } from './blockchain.controller';
 import { BlockchainService } from './blockchain.service';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { NotFoundException, InternalServerErrorException } from '@nestjs/common';
+import {
+  NotFoundException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 
 const mockBlockchainService = {
   getTransactionMetadata: jest.fn(),
@@ -49,12 +52,18 @@ describe('BlockchainController', () => {
   describe('getTransactionMetadata', () => {
     it('should return transaction metadata for a valid txHash', async () => {
       const txHash = 'abc123hash';
-      const mockMetadata = [{ label: '674', json_metadata: { msg: ['Test NFT'] } }];
-      mockBlockchainService.getTransactionMetadata.mockResolvedValue(mockMetadata);
+      const mockMetadata = [
+        { label: '674', json_metadata: { msg: ['Test NFT'] } },
+      ];
+      mockBlockchainService.getTransactionMetadata.mockResolvedValue(
+        mockMetadata,
+      );
 
       const result = await controller.getTransactionMetadata(txHash);
 
-      expect(mockBlockchainService.getTransactionMetadata).toHaveBeenCalledWith(txHash);
+      expect(mockBlockchainService.getTransactionMetadata).toHaveBeenCalledWith(
+        txHash,
+      );
       expect(result).toEqual(mockMetadata);
     });
 
@@ -63,7 +72,9 @@ describe('BlockchainController', () => {
         new NotFoundException('Transaction not found'),
       );
 
-      await expect(controller.getTransactionMetadata('bad-hash')).rejects.toThrow(NotFoundException);
+      await expect(
+        controller.getTransactionMetadata('bad-hash'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw InternalServerErrorException on Blockfrost API error', async () => {
@@ -71,9 +82,9 @@ describe('BlockchainController', () => {
         new InternalServerErrorException('Blockfrost API error'),
       );
 
-      await expect(controller.getTransactionMetadata('some-hash')).rejects.toThrow(
-        InternalServerErrorException,
-      );
+      await expect(
+        controller.getTransactionMetadata('some-hash'),
+      ).rejects.toThrow(InternalServerErrorException);
     });
 
     it('should return empty array when no metadata exists', async () => {
@@ -110,7 +121,9 @@ describe('BlockchainController', () => {
         new NotFoundException('Asset not found'),
       );
 
-      await expect(controller.getNftData('invalid-asset')).rejects.toThrow(NotFoundException);
+      await expect(controller.getNftData('invalid-asset')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw InternalServerErrorException on API failure', async () => {
@@ -118,7 +131,9 @@ describe('BlockchainController', () => {
         new InternalServerErrorException('API failure'),
       );
 
-      await expect(controller.getNftData('asset-id')).rejects.toThrow(InternalServerErrorException);
+      await expect(controller.getNftData('asset-id')).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 });

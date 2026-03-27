@@ -5,11 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { BlockchainService } from '../blockchain/blockchain.service';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../redis/redis.service';
-import {
-  Inspection,
-  InspectionStatus,
-  Prisma,
-} from '@prisma/client';
+import { Inspection, InspectionStatus, Prisma } from '@prisma/client';
 import {
   BadRequestException,
   InternalServerErrorException,
@@ -724,9 +720,7 @@ describe('InspectionBlockchainService', () => {
       mockPrismaService.$transaction.mockImplementation(async (cb) => {
         const tx = {
           inspection: {
-            findUnique: jest
-              .fn()
-              .mockResolvedValue(mockArchivedInspection),
+            findUnique: jest.fn().mockResolvedValue(mockArchivedInspection),
             update: jest.fn().mockResolvedValue(reverted),
           },
           inspectionChangeLog: {
@@ -756,9 +750,7 @@ describe('InspectionBlockchainService', () => {
       mockPrismaService.$transaction.mockImplementation(async (cb) => {
         const tx = {
           inspection: {
-            findUnique: jest
-              .fn()
-              .mockResolvedValue(failArchiveInspection),
+            findUnique: jest.fn().mockResolvedValue(failArchiveInspection),
             update: jest.fn().mockResolvedValue(reverted),
           },
           inspectionChangeLog: {
@@ -799,19 +791,14 @@ describe('InspectionBlockchainService', () => {
       mockPrismaService.$transaction.mockImplementation(async (cb) => {
         const tx = {
           inspection: {
-            findUnique: jest
-              .fn()
-              .mockResolvedValue(needReviewInspection),
+            findUnique: jest.fn().mockResolvedValue(needReviewInspection),
           },
         };
         return cb(tx);
       });
 
       await expect(
-        service.revertInspectionToApproved(
-          mockInspectionId,
-          mockSuperAdminId,
-        ),
+        service.revertInspectionToApproved(mockInspectionId, mockSuperAdminId),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -819,19 +806,14 @@ describe('InspectionBlockchainService', () => {
       mockPrismaService.$transaction.mockImplementation(async (cb) => {
         const tx = {
           inspection: {
-            findUnique: jest
-              .fn()
-              .mockResolvedValue(mockApprovedInspection),
+            findUnique: jest.fn().mockResolvedValue(mockApprovedInspection),
           },
         };
         return cb(tx);
       });
 
       await expect(
-        service.revertInspectionToApproved(
-          mockInspectionId,
-          mockSuperAdminId,
-        ),
+        service.revertInspectionToApproved(mockInspectionId, mockSuperAdminId),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -840,9 +822,7 @@ describe('InspectionBlockchainService', () => {
       mockPrismaService.$transaction.mockImplementation(async (cb) => {
         const tx = {
           inspection: {
-            findUnique: jest
-              .fn()
-              .mockResolvedValue(mockArchivedInspection),
+            findUnique: jest.fn().mockResolvedValue(mockArchivedInspection),
             update: jest.fn().mockImplementation((args) => {
               capturedUpdateData = args.data;
               return {
@@ -876,9 +856,7 @@ describe('InspectionBlockchainService', () => {
       mockPrismaService.$transaction.mockImplementation(async (cb) => {
         const tx = {
           inspection: {
-            findUnique: jest
-              .fn()
-              .mockResolvedValue(mockArchivedInspection),
+            findUnique: jest.fn().mockResolvedValue(mockArchivedInspection),
             update: jest.fn().mockResolvedValue({
               ...mockArchivedInspection,
               status: InspectionStatus.APPROVED,
@@ -910,9 +888,7 @@ describe('InspectionBlockchainService', () => {
       mockPrismaService.$transaction.mockImplementation(async (cb) => {
         const tx = {
           inspection: {
-            findUnique: jest
-              .fn()
-              .mockResolvedValue(mockArchivedInspection),
+            findUnique: jest.fn().mockResolvedValue(mockArchivedInspection),
             update: jest.fn().mockResolvedValue({
               ...mockArchivedInspection,
               status: InspectionStatus.APPROVED,
@@ -941,10 +917,7 @@ describe('InspectionBlockchainService', () => {
       );
 
       await expect(
-        service.revertInspectionToApproved(
-          mockInspectionId,
-          mockSuperAdminId,
-        ),
+        service.revertInspectionToApproved(mockInspectionId, mockSuperAdminId),
       ).rejects.toThrow(InternalServerErrorException);
     });
   });

@@ -13,14 +13,42 @@ import {
   Max,
 } from 'class-validator';
 import { UpdateEstimasiPerbaikanDto } from './update-estimasi-perbaikan.dto';
-import { sanitizeString, sanitizeStringArray } from '../../../common/sanitize.helper';
+import {
+  sanitizeString,
+  sanitizeStringArray,
+} from '../../../common/sanitize.helper';
 
 export class UpdateInspectionSummaryDto {
-  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(100) interiorScore?: number;
-  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(100) eksteriorScore?: number;
-  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(100) kakiKakiScore?: number;
-  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(100) mesinScore?: number;
-  @ApiPropertyOptional() @IsOptional() @IsNumber() @Min(0) @Max(100) penilaianKeseluruhanScore?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  interiorScore?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  eksteriorScore?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  kakiKakiScore?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  mesinScore?: number;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  penilaianKeseluruhanScore?: number;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -69,32 +97,43 @@ export class UpdateInspectionSummaryDto {
 
   @ApiPropertyOptional() @IsOptional() @IsBoolean() indikasiTabrakan?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() indikasiBanjir?: boolean;
-  @ApiPropertyOptional() @IsOptional() @IsBoolean() indikasiOdometerReset?: boolean;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  indikasiOdometerReset?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Transform(({ value }: { value: unknown }) => sanitizeString(value) || undefined)
+  @Transform(
+    ({ value }: { value: unknown }) => sanitizeString(value) || undefined,
+  )
   @IsString()
   @MaxLength(255)
   posisiBan?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Transform(({ value }: { value: unknown }) => sanitizeString(value) || undefined)
+  @Transform(
+    ({ value }: { value: unknown }) => sanitizeString(value) || undefined,
+  )
   @IsString()
   @MaxLength(255)
   merkban?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Transform(({ value }: { value: unknown }) => sanitizeString(value) || undefined)
+  @Transform(
+    ({ value }: { value: unknown }) => sanitizeString(value) || undefined,
+  )
   @IsString()
   @MaxLength(255)
   tipeVelg?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Transform(({ value }: { value: unknown }) => sanitizeString(value) || undefined)
+  @Transform(
+    ({ value }: { value: unknown }) => sanitizeString(value) || undefined,
+  )
   @IsString()
   @MaxLength(255)
   ketebalanBan?: string;

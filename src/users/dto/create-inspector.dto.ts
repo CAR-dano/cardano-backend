@@ -46,7 +46,8 @@ export class CreateInspectorDto {
    * @example 'inspector_johndoe'
    */
   @ApiProperty({
-    description: 'Username for the inspector (must be unique, alphanumeric + underscores, 3-50 chars)',
+    description:
+      'Username for the inspector (must be unique, alphanumeric + underscores, 3-50 chars)',
     example: 'inspector_johndoe',
   })
   @Transform(({ value }: { value: unknown }) =>
@@ -57,7 +58,8 @@ export class CreateInspectorDto {
   @MinLength(3)
   @MaxLength(50)
   @Matches(/^[a-zA-Z0-9_]+$/, {
-    message: 'username can only contain alphanumeric characters and underscores.',
+    message:
+      'username can only contain alphanumeric characters and underscores.',
   })
   username!: string;
 

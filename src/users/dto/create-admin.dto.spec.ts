@@ -35,13 +35,19 @@ describe('CreateAdminDto – password policy', () => {
   // ─── Valid passwords ──────────────────────────────────────────────────────
 
   it('should pass with a 12-char complex password', async () => {
-    const errors = await validateDto({ ...validBase, password: 'P@ssw0rd!123' });
+    const errors = await validateDto({
+      ...validBase,
+      password: 'P@ssw0rd!123',
+    });
     const pwdErrors = errors.filter((e) => e.property === 'password');
     expect(pwdErrors).toHaveLength(0);
   });
 
   it('should pass with a longer complex password', async () => {
-    const errors = await validateDto({ ...validBase, password: 'MyStr0ng!Password#2025' });
+    const errors = await validateDto({
+      ...validBase,
+      password: 'MyStr0ng!Password#2025',
+    });
     const pwdErrors = errors.filter((e) => e.property === 'password');
     expect(pwdErrors).toHaveLength(0);
   });
@@ -79,25 +85,37 @@ describe('CreateAdminDto – password policy', () => {
   // ─── Missing complexity requirements ─────────────────────────────────────
 
   it('should fail when password has no uppercase letter', async () => {
-    const errors = await validateDto({ ...validBase, password: 'p@ssw0rd!123' });
+    const errors = await validateDto({
+      ...validBase,
+      password: 'p@ssw0rd!123',
+    });
     const pwdErrors = errors.filter((e) => e.property === 'password');
     expect(pwdErrors.length).toBeGreaterThan(0);
   });
 
   it('should fail when password has no lowercase letter', async () => {
-    const errors = await validateDto({ ...validBase, password: 'P@SSW0RD!123' });
+    const errors = await validateDto({
+      ...validBase,
+      password: 'P@SSW0RD!123',
+    });
     const pwdErrors = errors.filter((e) => e.property === 'password');
     expect(pwdErrors.length).toBeGreaterThan(0);
   });
 
   it('should fail when password has no digit', async () => {
-    const errors = await validateDto({ ...validBase, password: 'P@ssword!abc' });
+    const errors = await validateDto({
+      ...validBase,
+      password: 'P@ssword!abc',
+    });
     const pwdErrors = errors.filter((e) => e.property === 'password');
     expect(pwdErrors.length).toBeGreaterThan(0);
   });
 
   it('should fail when password has no special character', async () => {
-    const errors = await validateDto({ ...validBase, password: 'Passw0rdAbcd' });
+    const errors = await validateDto({
+      ...validBase,
+      password: 'Passw0rdAbcd',
+    });
     const pwdErrors = errors.filter((e) => e.property === 'password');
     expect(pwdErrors.length).toBeGreaterThan(0);
   });
@@ -120,16 +138,23 @@ describe('CreateAdminDto – password policy', () => {
   // ─── Error message content ────────────────────────────────────────────────
 
   it('should include the correct message when complexity is not met', async () => {
-    const errors = await validateDto({ ...validBase, password: 'allowercase123!' });
+    const errors = await validateDto({
+      ...validBase,
+      password: 'allowercase123!',
+    });
     const pwdErrors = errors.filter((e) => e.property === 'password');
-    const messages = pwdErrors.flatMap((e) => Object.values(e.constraints ?? {}));
+    const messages = pwdErrors.flatMap((e) =>
+      Object.values(e.constraints ?? {}),
+    );
     expect(messages.some((m) => /uppercase/i.test(m))).toBe(true);
   });
 
   it('should include the minimum length message when too short', async () => {
     const errors = await validateDto({ ...validBase, password: 'P@s1' }); // 4 chars
     const pwdErrors = errors.filter((e) => e.property === 'password');
-    const messages = pwdErrors.flatMap((e) => Object.values(e.constraints ?? {}));
+    const messages = pwdErrors.flatMap((e) =>
+      Object.values(e.constraints ?? {}),
+    );
     expect(messages.some((m) => /12/.test(m))).toBe(true);
   });
 });

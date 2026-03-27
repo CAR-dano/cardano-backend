@@ -33,7 +33,10 @@ export class HttpErrorResponseDto {
   })
   errorCode!: string;
 
-  @ApiProperty({ example: '/api/v1/inspections', description: 'Request path that triggered the error.' })
+  @ApiProperty({
+    example: '/api/v1/inspections',
+    description: 'Request path that triggered the error.',
+  })
   path!: string;
 
   @ApiProperty({
@@ -42,4 +45,3 @@ export class HttpErrorResponseDto {
   })
   timestamp!: string;
 }
-

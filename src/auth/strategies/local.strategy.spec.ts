@@ -66,9 +66,9 @@ describe('LocalStrategy', () => {
     it('should throw UnauthorizedException when validateLocalUser returns null', async () => {
       mockAuthService.validateLocalUser.mockResolvedValue(null);
 
-      await expect(strategy.validate('invalid@test.com', 'wrong')).rejects.toThrow(
-        UnauthorizedException,
-      );
+      await expect(
+        strategy.validate('invalid@test.com', 'wrong'),
+      ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException when authService throws', async () => {

@@ -68,7 +68,7 @@ describe('WalletAuthGuard', () => {
       .spyOn(Object.getPrototypeOf(WalletAuthGuard.prototype), 'canActivate')
       .mockReturnValue(true);
 
-    guard.canActivate(mockContext);
+    void guard.canActivate(mockContext);
 
     expect(switchToHttp).toHaveBeenCalled();
     expect(getRequest).toHaveBeenCalled();

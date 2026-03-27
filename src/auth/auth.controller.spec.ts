@@ -52,7 +52,9 @@ const mockUsersService = {
 const mockJwtService = {
   sign: jest.fn(),
   verify: jest.fn(),
-  decode: jest.fn().mockReturnValue({ exp: Math.floor(Date.now() / 1000) + 3600 }),
+  decode: jest
+    .fn()
+    .mockReturnValue({ exp: Math.floor(Date.now() / 1000) + 3600 }),
 };
 
 const mockConfigService = {
@@ -70,7 +72,9 @@ const mockResponse = {
 
 const mockSecurityLoggerService = {
   log: jest.fn().mockResolvedValue(undefined),
-  extractRequestMeta: jest.fn().mockReturnValue({ ip: '127.0.0.1', userAgent: 'test-agent' }),
+  extractRequestMeta: jest
+    .fn()
+    .mockReturnValue({ ip: '127.0.0.1', userAgent: 'test-agent' }),
 };
 
 // Base mock user for tests
@@ -96,7 +100,9 @@ const mockUserEntity = {
 
 const mockUserResponseDto = new UserResponseDto(mockUserEntity as any);
 
-const createMockRequest = (overrides: Partial<AuthenticatedRequest> = {}): AuthenticatedRequest =>
+const createMockRequest = (
+  overrides: Partial<AuthenticatedRequest> = {},
+): AuthenticatedRequest =>
   ({
     headers: { authorization: 'Bearer mock-jwt-token' },
     ip: '127.0.0.1',
@@ -131,8 +137,13 @@ describe('AuthController', () => {
     controller = module.get<AuthController>(AuthController);
     jest.clearAllMocks();
     // restore default mock after clearAllMocks
-    mockJwtService.decode.mockReturnValue({ exp: Math.floor(Date.now() / 1000) + 3600 });
-    mockSecurityLoggerService.extractRequestMeta.mockReturnValue({ ip: '127.0.0.1', userAgent: 'test-agent' });
+    mockJwtService.decode.mockReturnValue({
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    });
+    mockSecurityLoggerService.extractRequestMeta.mockReturnValue({
+      ip: '127.0.0.1',
+      userAgent: 'test-agent',
+    });
     mockAuthService.blacklistToken.mockResolvedValue(undefined);
   });
 
@@ -155,7 +166,9 @@ describe('AuthController', () => {
 
       const result = await controller.registerLocal(registerDto as any);
 
-      expect(mockUsersService.createLocalUser).toHaveBeenCalledWith(registerDto);
+      expect(mockUsersService.createLocalUser).toHaveBeenCalledWith(
+        registerDto,
+      );
       expect(result).toBeInstanceOf(UserResponseDto);
       expect(result.email).toBe(mockUserEntity.email);
     });
@@ -163,7 +176,9 @@ describe('AuthController', () => {
     it('should propagate errors from usersService.createLocalUser', async () => {
       mockUsersService.createLocalUser.mockRejectedValue(new Error('Conflict'));
 
-      await expect(controller.registerLocal(registerDto as any)).rejects.toThrow('Conflict');
+      await expect(
+        controller.registerLocal(registerDto as any),
+      ).rejects.toThrow('Conflict');
     });
   });
 
@@ -361,7 +376,9 @@ describe('AuthController', () => {
     });
 
     it('should throw InternalServerErrorException when blacklistToken throws', async () => {
-      mockAuthService.blacklistToken.mockRejectedValue(new Error('Redis error'));
+      mockAuthService.blacklistToken.mockRejectedValue(
+        new Error('Redis error'),
+      );
       const req = createMockRequest({ user: mockUserResponseDto as any });
 
       await expect(controller.logout(req, mockResponse)).rejects.toThrow(
@@ -391,9 +408,12 @@ describe('AuthController', () => {
       await controller.logoutAll(req, mockResponse);
 
       expect(mockAuthService.blacklistToken).toHaveBeenCalled();
-      expect(mockAuthService.revokeAllSessions).toHaveBeenCalledWith('user-123');
+      expect(mockAuthService.revokeAllSessions).toHaveBeenCalledWith(
+        'user-123',
+      );
       expect(mockResponse.json).toHaveBeenCalledWith({
-        message: 'All sessions revoked. You have been logged out from all devices.',
+        message:
+          'All sessions revoked. You have been logged out from all devices.',
       });
     });
 
@@ -407,7 +427,9 @@ describe('AuthController', () => {
 
     it('should throw InternalServerErrorException when revokeAllSessions throws', async () => {
       const req = createMockRequest({ user: mockUserResponseDto as any });
-      mockAuthService.revokeAllSessions.mockRejectedValue(new Error('DB error'));
+      mockAuthService.revokeAllSessions.mockRejectedValue(
+        new Error('DB error'),
+      );
 
       await expect(controller.logoutAll(req, mockResponse)).rejects.toThrow(
         InternalServerErrorException,
@@ -425,7 +447,9 @@ describe('AuthController', () => {
 
       // blacklistToken should NOT be called since there's no token
       expect(mockAuthService.blacklistToken).not.toHaveBeenCalled();
-      expect(mockAuthService.revokeAllSessions).toHaveBeenCalledWith('user-123');
+      expect(mockAuthService.revokeAllSessions).toHaveBeenCalledWith(
+        'user-123',
+      );
     });
   });
 
@@ -496,7 +520,9 @@ describe('AuthController', () => {
       await controller.loginWallet(req);
 
       expect(mockSecurityLoggerService.log).toHaveBeenCalledWith(
-        expect.objectContaining({ details: expect.objectContaining({ method: 'wallet' }) }),
+        expect.objectContaining({
+          details: expect.objectContaining({ method: 'wallet' }),
+        }),
       );
     });
   });

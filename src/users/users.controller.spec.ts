@@ -78,9 +78,7 @@ describe('UsersController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
-      providers: [
-        { provide: UsersService, useValue: mockUsersService },
-      ],
+      providers: [{ provide: UsersService, useValue: mockUsersService }],
     })
       .overrideGuard(JwtAuthGuard)
       .useValue(mockJwtAuthGuard)
@@ -123,7 +121,9 @@ describe('UsersController', () => {
     });
 
     it('should propagate errors from usersService.findAll', async () => {
-      mockUsersService.findAll.mockRejectedValue(new InternalServerErrorException('DB Error'));
+      mockUsersService.findAll.mockRejectedValue(
+        new InternalServerErrorException('DB Error'),
+      );
 
       await expect(controller.findAll(Role.ADMIN)).rejects.toThrow(
         InternalServerErrorException,
@@ -159,10 +159,17 @@ describe('UsersController', () => {
   // findAllAdminsAndSuperAdmins
   // ---------------------------------------------------------------------------
   describe('findAllAdminsAndSuperAdmins', () => {
-    const superAdmin = { ...baseUser, id: 'super-uuid', role: Role.SUPERADMIN } as any;
+    const superAdmin = {
+      ...baseUser,
+      id: 'super-uuid',
+      role: Role.SUPERADMIN,
+    } as any;
 
     it('should return array of admin and superadmin users', async () => {
-      mockUsersService.findAllAdminsAndSuperAdmins.mockResolvedValue([baseUser, superAdmin]);
+      mockUsersService.findAllAdminsAndSuperAdmins.mockResolvedValue([
+        baseUser,
+        superAdmin,
+      ]);
 
       const result = await controller.findAllAdminsAndSuperAdmins();
 
@@ -196,9 +203,9 @@ describe('UsersController', () => {
     it('should throw NotFoundException when user not found', async () => {
       mockUsersService.findById.mockResolvedValue(null);
 
-      await expect(controller.findOne('non-existent', Role.ADMIN)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        controller.findOne('non-existent', Role.ADMIN),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw NotFoundException when ADMIN tries to view a SUPERADMIN', async () => {
@@ -220,7 +227,9 @@ describe('UsersController', () => {
     });
 
     it('should propagate errors from usersService.findById', async () => {
-      mockUsersService.findById.mockRejectedValue(new InternalServerErrorException('DB Error'));
+      mockUsersService.findById.mockRejectedValue(
+        new InternalServerErrorException('DB Error'),
+      );
 
       await expect(controller.findOne(baseUser.id, Role.ADMIN)).rejects.toThrow(
         InternalServerErrorException,
@@ -243,9 +252,13 @@ describe('UsersController', () => {
       const createdUser = { ...baseUser, email: createAdminDto.email };
       mockUsersService.createAdminOrSuperAdmin.mockResolvedValue(createdUser);
 
-      const result = await controller.createAdminOrSuperAdmin(createAdminDto as any);
+      const result = await controller.createAdminOrSuperAdmin(
+        createAdminDto as any,
+      );
 
-      expect(usersService.createAdminOrSuperAdmin).toHaveBeenCalledWith(createAdminDto);
+      expect(usersService.createAdminOrSuperAdmin).toHaveBeenCalledWith(
+        createAdminDto,
+      );
       expect(result).toBeInstanceOf(UserResponseDto);
     });
 
@@ -289,10 +302,17 @@ describe('UsersController', () => {
     });
 
     it('should propagate NotFoundException from usersService.updateRole', async () => {
-      mockUsersService.updateRole.mockRejectedValue(new NotFoundException('User not found'));
+      mockUsersService.updateRole.mockRejectedValue(
+        new NotFoundException('User not found'),
+      );
 
       await expect(
-        controller.updateUserRole(baseUser.id, updateRoleDto as any, actingUserId, Role.ADMIN),
+        controller.updateUserRole(
+          baseUser.id,
+          updateRoleDto as any,
+          actingUserId,
+          Role.ADMIN,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -311,9 +331,13 @@ describe('UsersController', () => {
       const returnVal = { ...baseInspector, plainPin: '123456' };
       mockUsersService.createInspector.mockResolvedValue(returnVal);
 
-      const result = await controller.createInspector(createInspectorDto as any);
+      const result = await controller.createInspector(
+        createInspectorDto as any,
+      );
 
-      expect(usersService.createInspector).toHaveBeenCalledWith(createInspectorDto);
+      expect(usersService.createInspector).toHaveBeenCalledWith(
+        createInspectorDto,
+      );
       expect(result).toBeInstanceOf(InspectorResponseDto);
       expect(result.pin).toBe('123456');
     });
@@ -337,15 +361,25 @@ describe('UsersController', () => {
       const updatedUser = { ...baseUser, name: 'Updated Name' };
       mockUsersService.updateUser.mockResolvedValue(updatedUser);
 
-      const result = await controller.updateUser(baseUser.id, updateDto as any, Role.ADMIN);
+      const result = await controller.updateUser(
+        baseUser.id,
+        updateDto as any,
+        Role.ADMIN,
+      );
 
-      expect(usersService.updateUser).toHaveBeenCalledWith(baseUser.id, updateDto, Role.ADMIN);
+      expect(usersService.updateUser).toHaveBeenCalledWith(
+        baseUser.id,
+        updateDto,
+        Role.ADMIN,
+      );
       expect(result).toBeInstanceOf(UserResponseDto);
       expect(result.name).toBe('Updated Name');
     });
 
     it('should propagate errors from usersService.updateUser', async () => {
-      mockUsersService.updateUser.mockRejectedValue(new NotFoundException('Not found'));
+      mockUsersService.updateUser.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
 
       await expect(
         controller.updateUser(baseUser.id, updateDto as any, Role.ADMIN),
@@ -421,15 +455,20 @@ describe('UsersController', () => {
 
       await controller.deleteUser(baseUser.id, Role.ADMIN);
 
-      expect(usersService.deleteUser).toHaveBeenCalledWith(baseUser.id, Role.ADMIN);
+      expect(usersService.deleteUser).toHaveBeenCalledWith(
+        baseUser.id,
+        Role.ADMIN,
+      );
     });
 
     it('should propagate NotFoundException from usersService.deleteUser', async () => {
-      mockUsersService.deleteUser.mockRejectedValue(new NotFoundException('User not found'));
-
-      await expect(controller.deleteUser(baseUser.id, Role.ADMIN)).rejects.toThrow(
-        NotFoundException,
+      mockUsersService.deleteUser.mockRejectedValue(
+        new NotFoundException('User not found'),
       );
+
+      await expect(
+        controller.deleteUser(baseUser.id, Role.ADMIN),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });

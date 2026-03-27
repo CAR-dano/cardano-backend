@@ -31,7 +31,9 @@ export class AddSinglePhotoDto {
   @IsJSON() // Validates that this is a valid JSON string
   @IsNotEmpty() // Required field
   // Single photo metadata is small; 500 chars is a generous ceiling
-  @MaxLength(500, { message: 'metadata JSON string must not exceed 500 characters' })
+  @MaxLength(500, {
+    message: 'metadata JSON string must not exceed 500 characters',
+  })
   metadata!: string; // Received as a JSON string
 
   // The 'photo' file is not defined here; it is handled by an interceptor.

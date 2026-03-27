@@ -66,7 +66,8 @@ export class OptionalFileValidationPipe implements PipeTransform {
       ) as Promise<typeof import('file-type')>);
 
       const buffer =
-        (file as any).buffer || (file.path ? await fs.readFile(file.path) : undefined);
+        (file as any).buffer ||
+        (file.path ? await fs.readFile(file.path) : undefined);
       if (!buffer) {
         throw new BadRequestException('File buffer is missing');
       }
@@ -78,7 +79,10 @@ export class OptionalFileValidationPipe implements PipeTransform {
         );
       }
     } catch (error) {
-      this.logger.error(`Validation failed for ${file.originalname}:`, error as Error);
+      this.logger.error(
+        `Validation failed for ${file.originalname}:`,
+        error as Error,
+      );
       if (error instanceof BadRequestException) {
         throw error;
       }
@@ -86,4 +90,3 @@ export class OptionalFileValidationPipe implements PipeTransform {
     }
   }
 }
-

@@ -1,7 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { SecurityLoggerService } from './security-logger.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { SecurityEventType, SecurityEventSeverity } from './security-event.enum';
+import {
+  SecurityEventType,
+  SecurityEventSeverity,
+} from './security-event.enum';
 import { SecurityEvent } from './security-event.interface';
 
 const mockPrismaService = {
@@ -74,7 +77,9 @@ describe('SecurityLoggerService', () => {
 
       expect(mockPrismaService.securityLog.create).toHaveBeenCalledTimes(1);
       const createCall = mockPrismaService.securityLog.create.mock.calls[0][0];
-      expect(createCall.data.type).toBe(SecurityEventType.LOGIN_FAILURE_BAD_PASSWORD);
+      expect(createCall.data.type).toBe(
+        SecurityEventType.LOGIN_FAILURE_BAD_PASSWORD,
+      );
       expect(createCall.data.severity).toBe(SecurityEventSeverity.WARNING);
       expect(createCall.data.userId).toBe('user-456');
     });
@@ -224,21 +229,37 @@ describe('SecurityLoggerService', () => {
   describe('SecurityEventType enum', () => {
     it('should contain all expected event types', () => {
       expect(SecurityEventType.LOGIN_SUCCESS).toBe('LOGIN_SUCCESS');
-      expect(SecurityEventType.LOGIN_FAILURE_BAD_PASSWORD).toBe('LOGIN_FAILURE_BAD_PASSWORD');
-      expect(SecurityEventType.LOGIN_FAILURE_USER_NOT_FOUND).toBe('LOGIN_FAILURE_USER_NOT_FOUND');
-      expect(SecurityEventType.LOGIN_FAILURE_INACTIVE_ACCOUNT).toBe('LOGIN_FAILURE_INACTIVE_ACCOUNT');
-      expect(SecurityEventType.INSPECTOR_LOGIN_SUCCESS).toBe('INSPECTOR_LOGIN_SUCCESS');
-      expect(SecurityEventType.INSPECTOR_LOGIN_FAILURE).toBe('INSPECTOR_LOGIN_FAILURE');
-      expect(SecurityEventType.GOOGLE_LOGIN_SUCCESS).toBe('GOOGLE_LOGIN_SUCCESS');
+      expect(SecurityEventType.LOGIN_FAILURE_BAD_PASSWORD).toBe(
+        'LOGIN_FAILURE_BAD_PASSWORD',
+      );
+      expect(SecurityEventType.LOGIN_FAILURE_USER_NOT_FOUND).toBe(
+        'LOGIN_FAILURE_USER_NOT_FOUND',
+      );
+      expect(SecurityEventType.LOGIN_FAILURE_INACTIVE_ACCOUNT).toBe(
+        'LOGIN_FAILURE_INACTIVE_ACCOUNT',
+      );
+      expect(SecurityEventType.INSPECTOR_LOGIN_SUCCESS).toBe(
+        'INSPECTOR_LOGIN_SUCCESS',
+      );
+      expect(SecurityEventType.INSPECTOR_LOGIN_FAILURE).toBe(
+        'INSPECTOR_LOGIN_FAILURE',
+      );
+      expect(SecurityEventType.GOOGLE_LOGIN_SUCCESS).toBe(
+        'GOOGLE_LOGIN_SUCCESS',
+      );
       expect(SecurityEventType.LOGOUT).toBe('LOGOUT');
       expect(SecurityEventType.LOGOUT_ALL_SESSIONS).toBe('LOGOUT_ALL_SESSIONS');
       expect(SecurityEventType.TOKEN_ROTATED).toBe('TOKEN_ROTATED');
       expect(SecurityEventType.TOKEN_BLACKLISTED).toBe('TOKEN_BLACKLISTED');
-      expect(SecurityEventType.TOKEN_INVALIDATED_SESSION_VERSION).toBe('TOKEN_INVALIDATED_SESSION_VERSION');
+      expect(SecurityEventType.TOKEN_INVALIDATED_SESSION_VERSION).toBe(
+        'TOKEN_INVALIDATED_SESSION_VERSION',
+      );
       expect(SecurityEventType.USER_CREATED).toBe('USER_CREATED');
       expect(SecurityEventType.USER_DELETED).toBe('USER_DELETED');
       expect(SecurityEventType.ROLE_CHANGED).toBe('ROLE_CHANGED');
-      expect(SecurityEventType.ACCOUNT_STATUS_CHANGED).toBe('ACCOUNT_STATUS_CHANGED');
+      expect(SecurityEventType.ACCOUNT_STATUS_CHANGED).toBe(
+        'ACCOUNT_STATUS_CHANGED',
+      );
       expect(SecurityEventType.PIN_REGENERATED).toBe('PIN_REGENERATED');
     });
   });

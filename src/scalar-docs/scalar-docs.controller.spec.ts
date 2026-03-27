@@ -11,7 +11,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ScalarDocsController } from './scalar-docs.controller';
 import { ConfigService } from '@nestjs/config';
-import { NotFoundException, InternalServerErrorException } from '@nestjs/common';
+import {
+  NotFoundException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 
 // Mock path and fs modules
 jest.mock('path', () => ({
@@ -45,9 +48,7 @@ describe('ScalarDocsController', () => {
     configService = { get: jest.fn().mockReturnValue(nodeEnv) };
     return Test.createTestingModule({
       controllers: [ScalarDocsController],
-      providers: [
-        { provide: ConfigService, useValue: configService },
-      ],
+      providers: [{ provide: ConfigService, useValue: configService }],
     }).compile();
   }
 
@@ -67,7 +68,10 @@ describe('ScalarDocsController', () => {
       const module: TestingModule = await buildModule('development');
       controller = module.get<ScalarDocsController>(ScalarDocsController);
 
-      const mockDoc = { openapi: '3.0.0', info: { title: 'Test API', version: '1.0' } };
+      const mockDoc = {
+        openapi: '3.0.0',
+        info: { title: 'Test API', version: '1.0' },
+      };
       mockGetOpenApiDocument.mockReturnValue(mockDoc);
 
       const result = controller.getOpenApiSpec();
@@ -88,7 +92,9 @@ describe('ScalarDocsController', () => {
 
       mockGetOpenApiDocument.mockReturnValue(null);
 
-      expect(() => controller.getOpenApiSpec()).toThrow(InternalServerErrorException);
+      expect(() => controller.getOpenApiSpec()).toThrow(
+        InternalServerErrorException,
+      );
     });
 
     it('should throw InternalServerErrorException when document is undefined', async () => {
@@ -97,7 +103,9 @@ describe('ScalarDocsController', () => {
 
       mockGetOpenApiDocument.mockReturnValue(undefined);
 
-      expect(() => controller.getOpenApiSpec()).toThrow(InternalServerErrorException);
+      expect(() => controller.getOpenApiSpec()).toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 
@@ -123,7 +131,9 @@ describe('ScalarDocsController', () => {
       const module: TestingModule = await buildModule('production');
       controller = module.get<ScalarDocsController>(ScalarDocsController);
 
-      expect(() => controller.getScalarDocs(mockRes as any)).toThrow(NotFoundException);
+      expect(() => controller.getScalarDocs(mockRes as any)).toThrow(
+        NotFoundException,
+      );
     });
 
     it('should call res.sendFile when HTML file exists', async () => {
@@ -150,7 +160,9 @@ describe('ScalarDocsController', () => {
       controller.getScalarDocs(mockRes as any);
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.send).toHaveBeenCalledWith('Could not load API documentation.');
+      expect(mockRes.send).toHaveBeenCalledWith(
+        'Could not load API documentation.',
+      );
     });
 
     it('should not send again if headers already sent when file not found', async () => {
@@ -171,9 +183,11 @@ describe('ScalarDocsController', () => {
 
       mockFsExistsSync.mockReturnValue(true);
       // sendFile calls callback with no error (success)
-      mockRes.sendFile.mockImplementation((_path: string, cb: (err?: Error) => void) => {
-        cb(undefined);
-      });
+      mockRes.sendFile.mockImplementation(
+        (_path: string, cb: (err?: Error) => void) => {
+          cb(undefined);
+        },
+      );
 
       // Should not throw
       expect(() => controller.getScalarDocs(mockRes as any)).not.toThrow();
@@ -186,16 +200,20 @@ describe('ScalarDocsController', () => {
       mockFsExistsSync.mockReturnValue(true);
       mockRes.headersSent = false;
       const sendFileError = new Error('ENOENT: file not found');
-      mockRes.sendFile.mockImplementation((_path: string, cb: (err?: Error) => void) => {
-        cb(sendFileError);
-      });
+      mockRes.sendFile.mockImplementation(
+        (_path: string, cb: (err?: Error) => void) => {
+          cb(sendFileError);
+        },
+      );
 
       // The inner callback throws NotFoundException, which bubbles up through outer catch
       // and then sends 500 response (since headersSent is false)
       controller.getScalarDocs(mockRes as any);
 
       expect(mockRes.status).toHaveBeenCalledWith(500);
-      expect(mockRes.send).toHaveBeenCalledWith('Could not load API documentation.');
+      expect(mockRes.send).toHaveBeenCalledWith(
+        'Could not load API documentation.',
+      );
     });
 
     it('should not send response when sendFile errors but headers already sent', async () => {
@@ -206,10 +224,12 @@ describe('ScalarDocsController', () => {
       const sendFileError = new Error('send error');
 
       // headers already sent before sendFile callback fires
-      mockRes.sendFile.mockImplementation((_path: string, cb: (err?: Error) => void) => {
-        mockRes.headersSent = true;
-        cb(sendFileError);
-      });
+      mockRes.sendFile.mockImplementation(
+        (_path: string, cb: (err?: Error) => void) => {
+          mockRes.headersSent = true;
+          cb(sendFileError);
+        },
+      );
 
       controller.getScalarDocs(mockRes as any);
 

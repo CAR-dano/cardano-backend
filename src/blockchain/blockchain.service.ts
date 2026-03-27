@@ -353,7 +353,7 @@ export class BlockchainService implements OnModuleInit {
               typeof tx.output === 'function' ? tx.output() : tx.output;
             if (!output) return null;
 
-            const amt = (output as TxOutput).amount;
+            const amt = output.amount;
 
             // Case 1: amount is an array of { unit, quantity }
             if (Array.isArray(amt)) {
@@ -368,7 +368,7 @@ export class BlockchainService implements OnModuleInit {
 
             // Case 2: amount is a map/object like { lovelace: '12345', "policy...": '1' }
             if (amt && typeof amt === 'object' && !Array.isArray(amt)) {
-              const asObj = amt as Record<string, unknown>;
+              const asObj = amt;
               if (Object.prototype.hasOwnProperty.call(asObj, 'lovelace')) {
                 const v = asObj['lovelace'];
                 const n = Number(v);

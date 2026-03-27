@@ -105,7 +105,9 @@ export class PrismaService
       try {
         await this.$disconnect();
       } catch {
-        this.logger.warn('Prisma disconnect during retry flow failed. Continuing.');
+        this.logger.warn(
+          'Prisma disconnect during retry flow failed. Continuing.',
+        );
       }
 
       await this.$connect();

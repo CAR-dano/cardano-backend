@@ -31,7 +31,9 @@ export class AddMultiplePhotosDto {
   @IsNotEmpty()
   @IsJSON()
   // Generous ceiling: 20 photos × ~200 chars/entry + overhead = ~5000 chars
-  @MaxLength(5000, { message: 'metadata JSON string must not exceed 5000 characters' })
+  @MaxLength(5000, {
+    message: 'metadata JSON string must not exceed 5000 characters',
+  })
   metadata!: string;
 
   // 'photos' field (files) handled by FilesInterceptor

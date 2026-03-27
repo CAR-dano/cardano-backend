@@ -106,7 +106,7 @@ export class UsersService {
         this.logger.verbose(`User cache hit for email: ${normalizedEmail}`);
         return JSON.parse(cached);
       }
-    } catch (e) { /* ignore cache error */ }
+    } catch (_e) { /* ignore cache error */ }
 
     // 2. Database Fallback
     try {
@@ -230,7 +230,7 @@ export class UsersService {
         this.logger.verbose(`User cache hit for ID: ${id}`);
         return JSON.parse(cached);
       }
-    } catch (e) { /* ignore */ }
+    } catch (_e) { /* ignore */ }
 
     // 2. Database Fallback
     try {

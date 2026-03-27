@@ -10,11 +10,7 @@
 import request from 'supertest';
 import { HttpStatus } from '@nestjs/common';
 import { randomUUID } from 'crypto';
-import {
-  getTestApp,
-  closeTestApp,
-  TestAppContext,
-} from './helpers';
+import { getTestApp, closeTestApp, TestAppContext } from './helpers';
 
 describe('InspectionChangeLogController (e2e)', () => {
   let ctx: TestAppContext;
@@ -109,9 +105,7 @@ describe('InspectionChangeLogController (e2e)', () => {
       if (!changeLogId) return; // Skip if no changelog was generated
 
       await request(ctx.app.getHttpServer())
-        .delete(
-          `/api/v1/inspections/${inspectionId}/changelog/${changeLogId}`,
-        )
+        .delete(`/api/v1/inspections/${inspectionId}/changelog/${changeLogId}`)
         .set('Authorization', `Bearer ${ctx.tokens.customer.accessToken}`)
         .expect(HttpStatus.FORBIDDEN);
     });
@@ -120,9 +114,7 @@ describe('InspectionChangeLogController (e2e)', () => {
       if (!changeLogId) return; // Skip if no changelog was generated
 
       await request(ctx.app.getHttpServer())
-        .delete(
-          `/api/v1/inspections/${inspectionId}/changelog/${changeLogId}`,
-        )
+        .delete(`/api/v1/inspections/${inspectionId}/changelog/${changeLogId}`)
         .set('Authorization', `Bearer ${ctx.tokens.admin.accessToken}`)
         .expect(HttpStatus.NO_CONTENT);
     });

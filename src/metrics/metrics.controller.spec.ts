@@ -23,9 +23,7 @@ describe('MetricsController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [MetricsController],
-      providers: [
-        { provide: MetricsService, useValue: mockMetricsService },
-      ],
+      providers: [{ provide: MetricsService, useValue: mockMetricsService }],
     })
       .overrideGuard(ThrottlerGuard)
       .useValue({ canActivate: () => true })
@@ -53,7 +51,9 @@ process_cpu_user_seconds_total 0.5`;
     });
 
     it('should propagate errors from metricsService', async () => {
-      mockMetricsService.getMetrics.mockRejectedValue(new Error('Registry error'));
+      mockMetricsService.getMetrics.mockRejectedValue(
+        new Error('Registry error'),
+      );
 
       await expect(controller.getMetrics()).rejects.toThrow('Registry error');
     });

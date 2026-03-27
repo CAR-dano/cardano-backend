@@ -20,7 +20,6 @@ import { Role } from '@prisma/client';
  */
 function extractDecoratorFactory(): (data: any, ctx: ExecutionContext) => any {
   class TestController {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     testMethod(_user: any) {}
   }
 

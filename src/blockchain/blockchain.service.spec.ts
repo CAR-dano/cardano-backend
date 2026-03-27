@@ -55,7 +55,10 @@ describe('BlockchainService - mintInspectionNft', () => {
 
   beforeEach(() => {
     // Create real service instance with mocked config
-    service = new BlockchainService(mockConfigService as any, mockVaultConfigService as any);
+    service = new BlockchainService(
+      mockConfigService as any,
+      mockVaultConfigService as any,
+    );
   });
 
   function makeUtxo(txHash: string, idx: number, lovelace: number) {
@@ -297,7 +300,10 @@ describe('BlockchainService - getTransactionMetadata', () => {
   };
 
   beforeEach(() => {
-    service = new BlockchainService(mockConfigService as any, mockVaultConfigService as any);
+    service = new BlockchainService(
+      mockConfigService as any,
+      mockVaultConfigService as any,
+    );
   });
 
   afterEach(() => {
@@ -327,9 +333,9 @@ describe('BlockchainService - getTransactionMetadata', () => {
       status: 404,
     } as any);
 
-    await expect(
-      service.getTransactionMetadata('badhash'),
-    ).rejects.toThrow(/Transaction or metadata not found/i);
+    await expect(service.getTransactionMetadata('badhash')).rejects.toThrow(
+      /Transaction or metadata not found/i,
+    );
   });
 
   it('should throw InternalServerErrorException on non-404 bad response', async () => {
@@ -338,25 +344,29 @@ describe('BlockchainService - getTransactionMetadata', () => {
       status: 500,
     } as any);
 
-    await expect(
-      service.getTransactionMetadata('txhash'),
-    ).rejects.toThrow(/Failed to retrieve transaction metadata/);
+    await expect(service.getTransactionMetadata('txhash')).rejects.toThrow(
+      /Failed to retrieve transaction metadata/,
+    );
   });
 
   it('should throw InternalServerErrorException on fetch network error', async () => {
-    jest.spyOn(global, 'fetch').mockRejectedValueOnce(new Error('Network error'));
+    jest
+      .spyOn(global, 'fetch')
+      .mockRejectedValueOnce(new Error('Network error'));
 
-    await expect(
-      service.getTransactionMetadata('txhash'),
-    ).rejects.toThrow(/Failed to retrieve transaction metadata/);
+    await expect(service.getTransactionMetadata('txhash')).rejects.toThrow(
+      /Failed to retrieve transaction metadata/,
+    );
   });
 
   it('should throw NotFoundException when error message contains "404"', async () => {
-    jest.spyOn(global, 'fetch').mockRejectedValueOnce(new Error('Response 404: not found'));
+    jest
+      .spyOn(global, 'fetch')
+      .mockRejectedValueOnce(new Error('Response 404: not found'));
 
-    await expect(
-      service.getTransactionMetadata('txhash'),
-    ).rejects.toThrow(/Transaction or metadata not found/);
+    await expect(service.getTransactionMetadata('txhash')).rejects.toThrow(
+      /Transaction or metadata not found/,
+    );
   });
 });
 
@@ -377,7 +387,10 @@ describe('BlockchainService - getNftData', () => {
   };
 
   beforeEach(() => {
-    service = new BlockchainService(mockConfigService as any, mockVaultConfigService as any);
+    service = new BlockchainService(
+      mockConfigService as any,
+      mockVaultConfigService as any,
+    );
   });
 
   afterEach(() => {
@@ -391,7 +404,11 @@ describe('BlockchainService - getNftData', () => {
   });
 
   it('should return asset data on successful fetch', async () => {
-    const mockAsset = { asset: 'assetid123', quantity: '1', onchain_metadata: {} };
+    const mockAsset = {
+      asset: 'assetid123',
+      quantity: '1',
+      onchain_metadata: {},
+    };
     jest.spyOn(global, 'fetch').mockResolvedValueOnce({
       ok: true,
       json: jest.fn().mockResolvedValue(mockAsset),
@@ -433,9 +450,9 @@ describe('BlockchainService - getNftData', () => {
 
   it('should re-throw NotFoundException caught inside catch block', async () => {
     const { NotFoundException } = await import('@nestjs/common');
-    jest.spyOn(global, 'fetch').mockRejectedValueOnce(
-      new NotFoundException('asset not found'),
-    );
+    jest
+      .spyOn(global, 'fetch')
+      .mockRejectedValueOnce(new NotFoundException('asset not found'));
 
     await expect(service.getNftData('asset123')).rejects.toThrow(
       /asset not found/,
@@ -496,7 +513,10 @@ describe('BlockchainService - buildAikenMintTransaction', () => {
   };
 
   beforeEach(() => {
-    service = new BlockchainService(mockConfigService as any, mockVaultConfigService as any);
+    service = new BlockchainService(
+      mockConfigService as any,
+      mockVaultConfigService as any,
+    );
   });
 
   it('should throw NotFoundException when no UTXOs available', async () => {
@@ -504,25 +524,27 @@ describe('BlockchainService - buildAikenMintTransaction', () => {
       fetchAddressUTxOs: jest.fn().mockResolvedValue([]),
     };
 
-    await expect(service.buildAikenMintTransaction(buildDto as any)).rejects.toThrow(
-      /No UTXOs available/,
-    );
+    await expect(
+      service.buildAikenMintTransaction(buildDto as any),
+    ).rejects.toThrow(/No UTXOs available/);
   });
 
   it('should throw BadRequestException when only one UTXO (cannot use as both input and collateral)', async () => {
     (service as any).blockfrostProvider = {
       fetchAddressUTxOs: jest.fn().mockResolvedValue([makeUtxo('tx1', 0)]),
     };
-    (service as any).getTxBuilder = jest.fn().mockReturnValue(makeChainableBuilder());
+    (service as any).getTxBuilder = jest
+      .fn()
+      .mockReturnValue(makeChainableBuilder());
     (service as any).getParameterizedPolicy = jest.fn().mockReturnValue({
       policy: { code: 'mockcode', version: 'V3' },
       policyId: 'mockpolicyid',
     });
     (service as any).constructMintRedeemer = jest.fn().mockReturnValue({});
 
-    await expect(service.buildAikenMintTransaction(buildDto as any)).rejects.toThrow(
-      /Requires at least 2 UTXOs/,
-    );
+    await expect(
+      service.buildAikenMintTransaction(buildDto as any),
+    ).rejects.toThrow(/Requires at least 2 UTXOs/);
   });
 
   it('should return unsignedTx and nftAssetId on success', async () => {
@@ -553,7 +575,9 @@ describe('BlockchainService - buildAikenMintTransaction', () => {
         .mockResolvedValue([makeUtxo('tx1', 0), makeUtxo('tx2', 1)]),
     };
     const builder = makeChainableBuilder();
-    builder.complete = jest.fn().mockRejectedValue(new Error('builder crashed'));
+    builder.complete = jest
+      .fn()
+      .mockRejectedValue(new Error('builder crashed'));
     (service as any).getTxBuilder = jest.fn().mockReturnValue(builder);
     (service as any).getParameterizedPolicy = jest.fn().mockReturnValue({
       policy: { code: 'mockcode', version: 'V3' },
@@ -584,7 +608,10 @@ describe('BlockchainService - sanitizeMetadatumString / sanitizeMetadataObject',
   };
 
   beforeEach(() => {
-    service = new BlockchainService(mockConfigService as any, mockVaultConfigService as any);
+    service = new BlockchainService(
+      mockConfigService as any,
+      mockVaultConfigService as any,
+    );
   });
 
   it('should return string unchanged when <= 64 bytes', () => {
@@ -599,7 +626,10 @@ describe('BlockchainService - sanitizeMetadatumString / sanitizeMetadataObject',
     const expected = `ipfs://${cid}`;
     expect(Buffer.byteLength(expected, 'utf8')).toBeLessThanOrEqual(64);
 
-    const result = (service as any).sanitizeMetadatumString(gatewayUrl, 'image');
+    const result = (service as any).sanitizeMetadatumString(
+      gatewayUrl,
+      'image',
+    );
     expect(result).toBe(expected);
   });
 
@@ -621,10 +651,12 @@ describe('BlockchainService - sanitizeMetadatumString / sanitizeMetadataObject',
       desc: 'a'.repeat(100),
       nested: { key: 'b'.repeat(100) },
     };
-    const result = (service as any).sanitizeMetadataObject(obj) as any;
+    const result = (service as any).sanitizeMetadataObject(obj);
     expect(result.name).toBe('short');
     expect(Buffer.byteLength(result.desc, 'utf8')).toBeLessThanOrEqual(64);
-    expect(Buffer.byteLength(result.nested.key, 'utf8')).toBeLessThanOrEqual(64);
+    expect(Buffer.byteLength(result.nested.key, 'utf8')).toBeLessThanOrEqual(
+      64,
+    );
   });
 
   it('should recursively sanitize array values', () => {

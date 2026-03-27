@@ -37,7 +37,7 @@ const UPLOAD_PATH = './uploads/inspection-photos'; // Define consistently
 export class PhotosService {
   private readonly logger = new Logger(PhotosService.name);
 
-  constructor(private prisma: PrismaService) { }
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Ensures that an inspection with the given ID exists in the database.
@@ -92,7 +92,7 @@ export class PhotosService {
         data: {
           inspection: { connect: { id: inspectionId } },
           path: (file as any).location || file.filename,
-          // eslint-disable-next-line prettier/prettier
+
           label:
             dto.label === '' || dto.label === undefined ? undefined : dto.label,
           category: dto.category, // Add category
@@ -216,7 +216,8 @@ export class PhotosService {
         this.logger.verbose(
           `New file provided: ${newPhotoFile.filename}. Replacing old file: ${existingPhoto.path}`,
         );
-        dataToUpdate.path = (newPhotoFile as any).location || newPhotoFile.filename; // Set the new path in the update data
+        dataToUpdate.path =
+          (newPhotoFile as any).location || newPhotoFile.filename; // Set the new path in the update data
         oldFilePath = existingPhoto.path; // Mark the old file path for deletion AFTER DB update
       }
 

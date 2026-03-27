@@ -10,7 +10,16 @@
  * --------------------------------------------------------------------------
  */
 
-import { Controller, Get, Delete, Param, UseGuards, HttpStatus, HttpCode, ParseUUIDPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Delete,
+  Param,
+  UseGuards,
+  HttpStatus,
+  HttpCode,
+  ParseUUIDPipe,
+} from '@nestjs/common';
 import { InspectionChangeLogService } from './inspection-change-log.service';
 import { InspectionChangeLog, Role } from '@prisma/client';
 import {

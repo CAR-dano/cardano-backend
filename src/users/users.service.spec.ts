@@ -37,7 +37,9 @@ const mockPrismaService = {
   inspectionBranchCity: {
     findUnique: jest.fn(),
   },
-  executeWithReconnect: jest.fn().mockImplementation((_label: string, fn: () => unknown) => fn()),
+  executeWithReconnect: jest
+    .fn()
+    .mockImplementation((_label: string, fn: () => unknown) => fn()),
 };
 
 const mockRedisService = {
@@ -48,7 +50,9 @@ const mockRedisService = {
 
 const mockSecurityLoggerService = {
   log: jest.fn().mockResolvedValue(undefined),
-  extractRequestMeta: jest.fn().mockReturnValue({ ip: undefined, userAgent: undefined }),
+  extractRequestMeta: jest
+    .fn()
+    .mockReturnValue({ ip: undefined, userAgent: undefined }),
 };
 
 /**
@@ -152,7 +156,9 @@ describe('UsersService', () => {
 
       // Act & Assert: Expect the service call to reject with InternalServerErrorException
       await expect(service.findByEmail(testEmail)).rejects.toThrow(
-        new InternalServerErrorException('Database error while finding user by email.'),
+        new InternalServerErrorException(
+          'Database error while finding user by email.',
+        ),
       );
     });
   });
@@ -224,7 +230,9 @@ describe('UsersService', () => {
 
       // Act & Assert: Expect the service call to reject with InternalServerErrorException
       await expect(service.findById(testId)).rejects.toThrow(
-        new InternalServerErrorException('Database error while finding user by ID.'),
+        new InternalServerErrorException(
+          'Database error while finding user by ID.',
+        ),
       );
     });
   });
@@ -399,11 +407,22 @@ describe('UsersService', () => {
     });
 
     it('should allow a SUPERADMIN to update another SUPERADMIN', async () => {
-      const targetUser = { id: targetId, role: Role.SUPERADMIN, email: 'sa@test.com' };
+      const targetUser = {
+        id: targetId,
+        role: Role.SUPERADMIN,
+        email: 'sa@test.com',
+      };
       mockPrismaService.user.findUnique.mockResolvedValue(targetUser);
-      mockPrismaService.user.update.mockResolvedValue({ ...targetUser, ...updateDto });
+      mockPrismaService.user.update.mockResolvedValue({
+        ...targetUser,
+        ...updateDto,
+      });
 
-      const result = await service.updateUser(targetId, updateDto as any, Role.SUPERADMIN);
+      const result = await service.updateUser(
+        targetId,
+        updateDto as any,
+        Role.SUPERADMIN,
+      );
 
       expect(result.name).toBe('Updated Name');
       expect(prisma.user.update).toHaveBeenCalled();
@@ -422,13 +441,17 @@ describe('UsersService', () => {
         role: Role.SUPERADMIN,
       });
 
-      await expect(
-        service.deleteUser(targetId, Role.ADMIN),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.deleteUser(targetId, Role.ADMIN)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('should allow a SUPERADMIN to delete another SUPERADMIN', async () => {
-      const targetUser = { id: targetId, role: Role.SUPERADMIN, email: 'sa@test.com' };
+      const targetUser = {
+        id: targetId,
+        role: Role.SUPERADMIN,
+        email: 'sa@test.com',
+      };
       mockPrismaService.user.findUnique.mockResolvedValue(targetUser);
       mockPrismaService.user.delete.mockResolvedValue(targetUser);
 
@@ -451,7 +474,12 @@ describe('UsersService', () => {
       inspectionBranchCityId: 'branch-uuid',
     };
 
-    const branchCity = { id: 'branch-uuid', city: 'Yogyakarta', code: 'YOG', isActive: true };
+    const branchCity = {
+      id: 'branch-uuid',
+      city: 'Yogyakarta',
+      code: 'YOG',
+      isActive: true,
+    };
     const createdUser = {
       id: 'new-user-id',
       email: 'inspector@example.com',
@@ -465,7 +493,9 @@ describe('UsersService', () => {
     it('should create inspector and return user with plainPin', async () => {
       // No conflicts
       mockPrismaService.user.findUnique.mockResolvedValue(null);
-      mockPrismaService.inspectionBranchCity.findUnique.mockResolvedValue(branchCity);
+      mockPrismaService.inspectionBranchCity.findUnique.mockResolvedValue(
+        branchCity,
+      );
       mockPrismaService.user.create.mockResolvedValue(createdUser);
 
       const result = await service.createInspector(dto as any);
@@ -481,7 +511,9 @@ describe('UsersService', () => {
       mockPrismaService.user.findUnique
         .mockResolvedValueOnce({ id: 'existing', email: dto.email }) // by email (findByEmail)
         .mockResolvedValue(null);
-      mockPrismaService.inspectionBranchCity.findUnique.mockResolvedValue(branchCity);
+      mockPrismaService.inspectionBranchCity.findUnique.mockResolvedValue(
+        branchCity,
+      );
 
       await expect(service.createInspector(dto as any)).rejects.toThrow(
         ConflictException,
@@ -491,10 +523,12 @@ describe('UsersService', () => {
     it('should throw ConflictException when username already exists', async () => {
       mockRedisService.get.mockResolvedValue(null);
       mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(null)  // email check
+        .mockResolvedValueOnce(null) // email check
         .mockResolvedValueOnce({ id: 'existing', username: dto.username }) // username check
         .mockResolvedValue(null);
-      mockPrismaService.inspectionBranchCity.findUnique.mockResolvedValue(branchCity);
+      mockPrismaService.inspectionBranchCity.findUnique.mockResolvedValue(
+        branchCity,
+      );
 
       await expect(service.createInspector(dto as any)).rejects.toThrow(
         ConflictException,
@@ -514,14 +548,19 @@ describe('UsersService', () => {
     it('should throw InternalServerErrorException after exhausting PIN retry attempts', async () => {
       mockRedisService.get.mockResolvedValue(null);
       mockPrismaService.user.findUnique.mockResolvedValue(null);
-      mockPrismaService.inspectionBranchCity.findUnique.mockResolvedValue(branchCity);
+      mockPrismaService.inspectionBranchCity.findUnique.mockResolvedValue(
+        branchCity,
+      );
 
       // All create attempts fail with pin collision
-      const pinConflict = new Prisma.PrismaClientKnownRequestError('pin collision', {
-        code: 'P2002',
-        clientVersion: '0.0.0',
-        meta: { target: ['pin'] },
-      });
+      const pinConflict = new Prisma.PrismaClientKnownRequestError(
+        'pin collision',
+        {
+          code: 'P2002',
+          clientVersion: '0.0.0',
+          meta: { target: ['pin'] },
+        },
+      );
       mockPrismaService.user.create.mockRejectedValue(pinConflict);
 
       await expect(service.createInspector(dto as any)).rejects.toThrow(
@@ -591,7 +630,9 @@ describe('UsersService', () => {
       mockPrismaService.user.findUnique.mockResolvedValue(inspector);
       mockPrismaService.user.update.mockResolvedValue(updated);
 
-      const result = await service.updateInspector(inspectorId, { name: 'New Name' } as any);
+      const result = await service.updateInspector(inspectorId, {
+        name: 'New Name',
+      } as any);
 
       expect(result.name).toBe('New Name');
       expect(mockPrismaService.user.update).toHaveBeenCalled();
@@ -619,7 +660,9 @@ describe('UsersService', () => {
       mockPrismaService.user.update.mockRejectedValue(conflict);
 
       await expect(
-        service.updateInspector(inspectorId, { email: 'taken@example.com' } as any),
+        service.updateInspector(inspectorId, {
+          email: 'taken@example.com',
+        } as any),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -680,14 +723,17 @@ describe('UsersService', () => {
       const updated = { ...inspector, pin: 'newHashedPin' };
       mockPrismaService.user.findUnique.mockResolvedValue(inspector);
 
-      const pinConflict = new Prisma.PrismaClientKnownRequestError('pin collision', {
-        code: 'P2002',
-        clientVersion: '0.0.0',
-        meta: { target: ['pin'] },
-      });
+      const pinConflict = new Prisma.PrismaClientKnownRequestError(
+        'pin collision',
+        {
+          code: 'P2002',
+          clientVersion: '0.0.0',
+          meta: { target: ['pin'] },
+        },
+      );
       mockPrismaService.user.update
         .mockRejectedValueOnce(pinConflict) // first attempt fails
-        .mockResolvedValue(updated);       // second attempt succeeds
+        .mockResolvedValue(updated); // second attempt succeeds
 
       const result = await service.generatePin(inspectorId);
 
@@ -697,11 +743,14 @@ describe('UsersService', () => {
 
     it('should throw InternalServerErrorException after exhausting PIN retries', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(inspector);
-      const pinConflict = new Prisma.PrismaClientKnownRequestError('pin collision', {
-        code: 'P2002',
-        clientVersion: '0.0.0',
-        meta: { target: ['pin'] },
-      });
+      const pinConflict = new Prisma.PrismaClientKnownRequestError(
+        'pin collision',
+        {
+          code: 'P2002',
+          clientVersion: '0.0.0',
+          meta: { target: ['pin'] },
+        },
+      );
       mockPrismaService.user.update.mockRejectedValue(pinConflict);
 
       await expect(service.generatePin(inspectorId)).rejects.toThrow(
@@ -713,7 +762,11 @@ describe('UsersService', () => {
   // ---------------------------------------------------------------------------
   describe('findByEmail — cache paths', () => {
     const testEmail = 'cache@example.com';
-    const mockUser = { id: 'cached-id', email: 'cacheexample@example.com', role: Role.ADMIN } as User;
+    const mockUser = {
+      id: 'cached-id',
+      email: 'cacheexample@example.com',
+      role: Role.ADMIN,
+    } as User;
 
     it('should return cached user from Redis when cache hit', async () => {
       mockRedisService.get.mockResolvedValue(JSON.stringify(mockUser));
@@ -761,7 +814,11 @@ describe('UsersService', () => {
   // ---------------------------------------------------------------------------
   describe('findById — cache paths', () => {
     const testId = 'cached-user-id';
-    const mockUser = { id: testId, email: 'byid@example.com', role: Role.ADMIN } as User;
+    const mockUser = {
+      id: testId,
+      email: 'byid@example.com',
+      role: Role.ADMIN,
+    } as User;
 
     it('should return null for empty id', async () => {
       const result = await service.findById('');
@@ -847,7 +904,11 @@ describe('UsersService', () => {
       // No existing email or username
       mockRedisService.get.mockResolvedValue(null);
       mockPrismaService.user.findUnique.mockResolvedValue(null);
-      const created = { id: 'new-id', email: 'newexample@example.com', username: 'newuser' };
+      const created = {
+        id: 'new-id',
+        email: 'newexample@example.com',
+        username: 'newuser',
+      };
       mockPrismaService.user.create.mockResolvedValue(created);
 
       const result = await service.createLocalUser(registerDto as any);
@@ -858,7 +919,9 @@ describe('UsersService', () => {
 
     it('should throw ConflictException when email is taken', async () => {
       mockRedisService.get.mockResolvedValue(null);
-      mockPrismaService.user.findUnique.mockResolvedValueOnce({ id: 'existing' }); // email check
+      mockPrismaService.user.findUnique.mockResolvedValueOnce({
+        id: 'existing',
+      }); // email check
 
       await expect(service.createLocalUser(registerDto as any)).rejects.toThrow(
         ConflictException,
@@ -936,7 +999,11 @@ describe('UsersService', () => {
   describe('updateRole', () => {
     const actingId = 'admin-id';
     const targetId = 'target-id';
-    const targetUser = { id: targetId, role: Role.CUSTOMER, email: 'c@example.com' };
+    const targetUser = {
+      id: targetId,
+      role: Role.CUSTOMER,
+      email: 'c@example.com',
+    };
 
     it('should throw BadRequestException if acting user tries to change own role', async () => {
       await expect(
@@ -953,7 +1020,10 @@ describe('UsersService', () => {
     });
 
     it('should throw ForbiddenException when ADMIN tries to change SUPERADMIN role', async () => {
-      mockPrismaService.user.findUnique.mockResolvedValue({ ...targetUser, role: Role.SUPERADMIN });
+      mockPrismaService.user.findUnique.mockResolvedValue({
+        ...targetUser,
+        role: Role.SUPERADMIN,
+      });
 
       await expect(
         service.updateRole(targetId, Role.ADMIN, actingId, Role.ADMIN),
@@ -966,7 +1036,12 @@ describe('UsersService', () => {
       const updatedUser = { ...targetUser, role: Role.ADMIN };
       mockPrismaService.user.update.mockResolvedValue(updatedUser);
 
-      const result = await service.updateRole(targetId, Role.ADMIN, actingId, Role.SUPERADMIN);
+      const result = await service.updateRole(
+        targetId,
+        Role.ADMIN,
+        actingId,
+        Role.SUPERADMIN,
+      );
 
       expect(result.role).toBe(Role.ADMIN);
       expect(mockPrismaService.user.update).toHaveBeenCalledWith({
@@ -991,12 +1066,18 @@ describe('UsersService', () => {
     const userId = 'user-id';
     const googleId = 'google-id-123';
     const googleEmail = 'user@gmail.com';
-    const existingUser = { id: userId, email: 'user@gmail.com', googleId: null, walletAddress: null } as User;
+    const existingUser = {
+      id: userId,
+      email: 'user@gmail.com',
+      googleId: null,
+      walletAddress: null,
+    } as User;
 
     it('should throw ConflictException if googleId is already linked to another user', async () => {
       // findByGoogleId — another user has this googleId
-      mockPrismaService.user.findUnique
-        .mockResolvedValueOnce({ id: 'other-user' }); // googleId lookup
+      mockPrismaService.user.findUnique.mockResolvedValueOnce({
+        id: 'other-user',
+      }); // googleId lookup
 
       await expect(
         service.linkGoogleAccount(userId, googleId, googleEmail),
@@ -1006,7 +1087,7 @@ describe('UsersService', () => {
     it('should throw NotFoundException if user to link is not found', async () => {
       mockRedisService.get.mockResolvedValue(null);
       mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(null)  // googleId not linked
+        .mockResolvedValueOnce(null) // googleId not linked
         .mockResolvedValueOnce(null); // findById returns null
 
       await expect(
@@ -1032,7 +1113,11 @@ describe('UsersService', () => {
         .mockResolvedValueOnce(null) // googleId not taken by other user
         .mockResolvedValueOnce(alreadyLinked); // findById
 
-      const result = await service.linkGoogleAccount(userId, googleId, googleEmail);
+      const result = await service.linkGoogleAccount(
+        userId,
+        googleId,
+        googleEmail,
+      );
 
       expect(result.googleId).toBe(googleId);
       expect(mockPrismaService.user.update).not.toHaveBeenCalled();
@@ -1046,7 +1131,11 @@ describe('UsersService', () => {
       const updated = { ...existingUser, googleId };
       mockPrismaService.user.update.mockResolvedValue(updated);
 
-      const result = await service.linkGoogleAccount(userId, googleId, googleEmail);
+      const result = await service.linkGoogleAccount(
+        userId,
+        googleId,
+        googleEmail,
+      );
 
       expect(result.googleId).toBe(googleId);
     });
@@ -1073,25 +1162,29 @@ describe('UsersService', () => {
   describe('linkWalletAddress', () => {
     const userId = 'user-id';
     const wallet = 'addr1qxyz';
-    const existingUser = { id: userId, email: 'u@example.com', walletAddress: null } as User;
+    const existingUser = {
+      id: userId,
+      email: 'u@example.com',
+      walletAddress: null,
+    } as User;
 
     it('should throw ConflictException if wallet is already linked to another user', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue({ id: 'other-user' }); // wallet lookup
 
-      await expect(
-        service.linkWalletAddress(userId, wallet),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.linkWalletAddress(userId, wallet)).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('should throw NotFoundException if user not found', async () => {
       mockRedisService.get.mockResolvedValue(null);
       mockPrismaService.user.findUnique
-        .mockResolvedValueOnce(null)  // wallet not taken
+        .mockResolvedValueOnce(null) // wallet not taken
         .mockResolvedValueOnce(null); // findById
 
-      await expect(
-        service.linkWalletAddress(userId, wallet),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.linkWalletAddress(userId, wallet)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should return user unchanged if wallet already linked', async () => {
@@ -1132,9 +1225,9 @@ describe('UsersService', () => {
       });
       mockPrismaService.user.update.mockRejectedValue(conflict);
 
-      await expect(
-        service.linkWalletAddress(userId, wallet),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.linkWalletAddress(userId, wallet)).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 
@@ -1144,7 +1237,12 @@ describe('UsersService', () => {
       const bcrypt = await import('bcrypt');
       const plainPin = '123456';
       const hashedPin = await bcrypt.hash(plainPin, 10);
-      const inspector = { id: 'insp1', role: Role.INSPECTOR, username: 'insp01', pin: hashedPin } as User;
+      const inspector = {
+        id: 'insp1',
+        role: Role.INSPECTOR,
+        username: 'insp01',
+        pin: hashedPin,
+      } as User;
 
       mockPrismaService.user.findMany.mockResolvedValue([inspector]);
 
@@ -1157,7 +1255,12 @@ describe('UsersService', () => {
     it('should return null when no inspector PIN matches', async () => {
       const bcrypt = await import('bcrypt');
       const hashedPin = await bcrypt.hash('654321', 10);
-      const inspector = { id: 'insp1', role: Role.INSPECTOR, username: 'insp01', pin: hashedPin } as User;
+      const inspector = {
+        id: 'insp1',
+        role: Role.INSPECTOR,
+        username: 'insp01',
+        pin: hashedPin,
+      } as User;
 
       mockPrismaService.user.findMany.mockResolvedValue([inspector]);
 
@@ -1166,7 +1269,12 @@ describe('UsersService', () => {
     });
 
     it('should return null when inspectors have no PIN', async () => {
-      const inspector = { id: 'insp1', role: Role.INSPECTOR, username: 'insp01', pin: null } as User;
+      const inspector = {
+        id: 'insp1',
+        role: Role.INSPECTOR,
+        username: 'insp01',
+        pin: null,
+      } as User;
       mockPrismaService.user.findMany.mockResolvedValue([inspector]);
 
       const result = await service.findByPin('123456');
@@ -1193,7 +1301,11 @@ describe('UsersService', () => {
     it('should create admin and return user', async () => {
       mockRedisService.get.mockResolvedValue(null);
       mockPrismaService.user.findUnique.mockResolvedValue(null);
-      const created = { id: 'admin-id', email: 'adminexample@example.com', role: Role.ADMIN };
+      const created = {
+        id: 'admin-id',
+        email: 'adminexample@example.com',
+        role: Role.ADMIN,
+      };
       mockPrismaService.user.create.mockResolvedValue(created);
 
       const result = await service.createAdminOrSuperAdmin(adminDto as any);
@@ -1203,7 +1315,9 @@ describe('UsersService', () => {
 
     it('should throw ConflictException when email already taken', async () => {
       mockRedisService.get.mockResolvedValue(null);
-      mockPrismaService.user.findUnique.mockResolvedValueOnce({ id: 'existing' });
+      mockPrismaService.user.findUnique.mockResolvedValueOnce({
+        id: 'existing',
+      });
 
       await expect(
         service.createAdminOrSuperAdmin(adminDto as any),
@@ -1298,7 +1412,11 @@ describe('UsersService', () => {
       mockPrismaService.user.update.mockRejectedValue(conflict);
 
       await expect(
-        service.updateUser(id, { email: 'taken@example.com' } as any, Role.ADMIN),
+        service.updateUser(
+          id,
+          { email: 'taken@example.com' } as any,
+          Role.ADMIN,
+        ),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -1364,7 +1482,9 @@ describe('UsersService', () => {
     it('should throw NotFoundException when user is not found', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
 
-      await expect(service.deleteUser(id, Role.ADMIN)).rejects.toThrow(NotFoundException);
+      await expect(service.deleteUser(id, Role.ADMIN)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw InternalServerErrorException on P2025 during delete', async () => {
@@ -1376,7 +1496,9 @@ describe('UsersService', () => {
       });
       mockPrismaService.user.delete.mockRejectedValue(notFound);
 
-      await expect(service.deleteUser(id, Role.ADMIN)).rejects.toThrow(NotFoundException);
+      await expect(service.deleteUser(id, Role.ADMIN)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should throw InternalServerErrorException on general DB error', async () => {
