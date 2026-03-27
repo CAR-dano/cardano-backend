@@ -61,7 +61,10 @@ export class MintRequestDto {
     description: 'Inspection Date (ISO String)',
     example: '2025-05-01T14:30:00Z',
   })
-  @IsDateString({}, { message: 'inspectionDate must be a valid ISO date string' })
+  @IsDateString(
+    {},
+    { message: 'inspectionDate must be a valid ISO date string' },
+  )
   @IsNotEmpty()
   inspectionDate!: string; // Inspection date in ISO string format
 
@@ -118,8 +121,12 @@ export class MintRequestDto {
   })
   @IsString()
   @IsNotEmpty()
-  @Length(64, 64, { message: 'pdfHash must be exactly 64 characters (SHA-256 hex)' })
-  @Matches(/^[a-f0-9]+$/, { message: 'pdfHash must contain only lowercase hex characters' })
+  @Length(64, 64, {
+    message: 'pdfHash must be exactly 64 characters (SHA-256 hex)',
+  })
+  @Matches(/^[a-f0-9]+$/, {
+    message: 'pdfHash must contain only lowercase hex characters',
+  })
   pdfHash!: string; // SHA-256 hash of the PDF report
 
   @ApiProperty({

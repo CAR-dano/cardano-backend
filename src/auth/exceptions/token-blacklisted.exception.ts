@@ -13,8 +13,8 @@
 import { UnauthorizedException } from '@nestjs/common';
 
 export class TokenBlacklistedException extends UnauthorizedException {
-    constructor(message = 'Token has been invalidated') {
-        super(message);
-        this.name = 'TokenBlacklistedException';
-    }
+  constructor(message = 'Token has been invalidated') {
+    super(message);
+    this.name = 'TokenBlacklistedException';
+  }
 }

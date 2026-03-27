@@ -10,7 +10,11 @@
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy, StrategyOptionsWithRequest } from 'passport-jwt';
 import { Request } from 'express';
-import { Injectable, OnModuleInit, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../../users/users.service';
 import { JwtPayload } from '../interfaces/jwt-payload.interface';
@@ -48,7 +52,7 @@ export class JwtRefreshStrategy
         this.configService.get<string>('JWT_REFRESH_SECRET');
       if (refreshSecret) {
         // Patch the internal secret used by passport-jwt's jsonwebtoken
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         (this as any)._secretOrKey = refreshSecret;
       }
     } catch {

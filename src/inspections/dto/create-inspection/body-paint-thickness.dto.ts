@@ -1,5 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ValidateNested, IsNotEmpty, IsNumber, Min, Max } from 'class-validator';
+import {
+  ValidateNested,
+  IsNotEmpty,
+  IsNumber,
+  Min,
+  Max,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { BodyPaintThicknessSideDto } from './body-paint-thickness-side.dto';
 import { BodyPaintThicknessRearDto } from './body-paint-thickness-rear.dto';

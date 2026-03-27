@@ -253,7 +253,10 @@ export class InspectionPdfService {
       });
 
       // Get compression level from environment
-      const compressionLevel = this.config.get<string>('PDF_COMPRESSION_LEVEL', 'low');
+      const compressionLevel = this.config.get<string>(
+        'PDF_COMPRESSION_LEVEL',
+        'low',
+      );
       const enableOptimization = compressionLevel !== 'none';
 
       // Only apply optimizations if compression is enabled
@@ -492,7 +495,10 @@ export class InspectionPdfService {
         `PDF hash calculated for ${baseFileName}: ${pdfHashString}`,
       );
 
-      const pdfBaseUrl = this.config.get<string>('PDF_PUBLIC_BASE_URL', '/pdfarchived');
+      const pdfBaseUrl = this.config.get<string>(
+        'PDF_PUBLIC_BASE_URL',
+        '/pdfarchived',
+      );
       const pdfPublicUrl = `${pdfBaseUrl}/${baseFileName}`;
 
       const finalStats = this.pdfQueue.stats;

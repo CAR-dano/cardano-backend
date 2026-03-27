@@ -56,4 +56,4 @@ import { VaultConfigService } from '../config/vault-config.service';
   ],
   exports: [InspectionsService],
 })
-export class InspectionsModule { }
+export class InspectionsModule {}

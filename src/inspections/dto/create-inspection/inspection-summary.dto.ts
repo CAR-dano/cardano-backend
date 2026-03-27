@@ -21,7 +21,10 @@ import {
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { EstimasiPerbaikanDto } from './estimasi-perbaikan.dto';
-import { sanitizeString, sanitizeStringArray } from '../../../common/sanitize.helper';
+import {
+  sanitizeString,
+  sanitizeStringArray,
+} from '../../../common/sanitize.helper';
 
 export class InspectionSummaryDto {
   @ApiProperty()

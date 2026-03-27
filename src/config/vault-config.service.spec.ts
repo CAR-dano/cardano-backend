@@ -22,10 +22,7 @@ jest.mock('node-vault', () => {
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
-import {
-  VaultConfigService,
-  ResolvedSecrets,
-} from './vault-config.service';
+import { VaultConfigService, ResolvedSecrets } from './vault-config.service';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -114,7 +111,10 @@ describe('VaultConfigService', () => {
 
   describe('cacheTtlMs', () => {
     it('defaults to 300000 when VAULT_CACHE_TTL_MS is not set', async () => {
-      await buildService({ VAULT_ADDR: 'http://vault:8200', VAULT_TOKEN: 'tok' });
+      await buildService({
+        VAULT_ADDR: 'http://vault:8200',
+        VAULT_TOKEN: 'tok',
+      });
       expect((service as unknown as { cacheTtlMs: number }).cacheTtlMs).toBe(
         300000,
       );
@@ -281,15 +281,27 @@ describe('VaultConfigService', () => {
     it('returns all 21 expected keys with non-empty values', async () => {
       const secrets = await service.getSecrets();
       const keys: (keyof ResolvedSecrets)[] = [
-        'DATABASE_URL', 'DIRECT_DB_URL', 'REDIS_URL',
-        'JWT_SECRET', 'JWT_REFRESH_SECRET',
-        'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET',
-        'BLOCKFROST_API_KEY_PREVIEW', 'BLOCKFROST_API_KEY_PREPROD', 'BLOCKFROST_API_KEY_MAINNET',
-        'WALLET_SECRET_KEY_PREVIEW', 'WALLET_SECRET_KEY_PREPROD', 'WALLET_SECRET_KEY_MAINNET',
-        'B2_KEY_ID', 'B2_APP_KEY',
-        'XENDIT_API_KEY', 'XENDIT_CALLBACK_TOKEN',
-        'GEMINI_API_KEY', 'NEW_RELIC_LICENSE_KEY',
-        'REPORT_DOWNLOAD_SECRET', 'GRAFANA_ADMIN_PASSWORD',
+        'DATABASE_URL',
+        'DIRECT_DB_URL',
+        'REDIS_URL',
+        'JWT_SECRET',
+        'JWT_REFRESH_SECRET',
+        'GOOGLE_CLIENT_ID',
+        'GOOGLE_CLIENT_SECRET',
+        'BLOCKFROST_API_KEY_PREVIEW',
+        'BLOCKFROST_API_KEY_PREPROD',
+        'BLOCKFROST_API_KEY_MAINNET',
+        'WALLET_SECRET_KEY_PREVIEW',
+        'WALLET_SECRET_KEY_PREPROD',
+        'WALLET_SECRET_KEY_MAINNET',
+        'B2_KEY_ID',
+        'B2_APP_KEY',
+        'XENDIT_API_KEY',
+        'XENDIT_CALLBACK_TOKEN',
+        'GEMINI_API_KEY',
+        'NEW_RELIC_LICENSE_KEY',
+        'REPORT_DOWNLOAD_SECRET',
+        'GRAFANA_ADMIN_PASSWORD',
       ];
       for (const key of keys) {
         expect(secrets[key]).toBeTruthy();
@@ -369,27 +381,27 @@ describe('VaultConfigService', () => {
 
     it('serves subsequent calls from cache without re-fetching Vault', async () => {
       await service.getSecrets(); // first call — already warmed by onModuleInit
-      const callCountAfterFirst = (mockVaultClientInstance!.read as jest.Mock).mock.calls.length;
+      const callCountAfterFirst =
+        mockVaultClientInstance!.read.mock.calls.length;
       await service.getSecrets(); // second call — should hit cache
-      const callCountAfterSecond = (mockVaultClientInstance!.read as jest.Mock).mock.calls.length;
+      const callCountAfterSecond =
+        mockVaultClientInstance!.read.mock.calls.length;
       expect(callCountAfterSecond).toBe(callCountAfterFirst);
     });
 
     it('re-fetches after invalidateCache()', async () => {
       await service.getSecrets(); // prime cache
-      const callsBefore = (mockVaultClientInstance!.read as jest.Mock).mock.calls.length;
+      const callsBefore = mockVaultClientInstance!.read.mock.calls.length;
 
       service.invalidateCache();
       await service.getSecrets(); // should fetch again
-      const callsAfter = (mockVaultClientInstance!.read as jest.Mock).mock.calls.length;
+      const callsAfter = mockVaultClientInstance!.read.mock.calls.length;
       expect(callsAfter).toBeGreaterThan(callsBefore);
     });
 
     it('invalidateCache() sets cache to null', () => {
       service.invalidateCache();
-      expect(
-        (service as unknown as { cache: unknown }).cache,
-      ).toBeNull();
+      expect((service as unknown as { cache: unknown }).cache).toBeNull();
     });
   });
 

@@ -93,7 +93,10 @@ describe('JwtRefreshStrategy', () => {
       const result = await strategy.validate(req, mockPayload);
 
       expect(mockUsersService.findById).toHaveBeenCalledWith('user-123');
-      expect(bcrypt.compare).toHaveBeenCalledWith('valid-refresh-token', 'hashed-refresh-token');
+      expect(bcrypt.compare).toHaveBeenCalledWith(
+        'valid-refresh-token',
+        'hashed-refresh-token',
+      );
       expect(result).toEqual(mockUser);
     });
 
@@ -116,7 +119,10 @@ describe('JwtRefreshStrategy', () => {
 
     it('should throw UnauthorizedException when user has no stored refresh token', async () => {
       const req = createMockRequest('Bearer valid-token');
-      mockUsersService.findById.mockResolvedValue({ ...mockUser, refreshToken: null });
+      mockUsersService.findById.mockResolvedValue({
+        ...mockUser,
+        refreshToken: null,
+      });
 
       await expect(strategy.validate(req, mockPayload)).rejects.toThrow(
         UnauthorizedException,

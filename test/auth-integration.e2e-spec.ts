@@ -370,7 +370,8 @@ describe('AuthController (e2e) - Integration Tests', () => {
     const checkSignatureMock = checkSignature as jest.Mock;
 
     /** Bech32 wallet address used for all wallet login tests */
-    const WALLET_ADDRESS = 'addr1qx2k8walletintegrationtest000000000000000000000000000';
+    const WALLET_ADDRESS =
+      'addr1qx2k8walletintegrationtest000000000000000000000000000';
 
     /** A timestamp that is 1 minute in the future — always within the 5-minute window */
     const freshTimestamp = () => new Date(Date.now() + 60_000).toISOString();

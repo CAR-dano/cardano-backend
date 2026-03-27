@@ -17,7 +17,9 @@ export class BuildMintRequestDto {
   )
   @IsString({ message: 'adminAddress harus berupa string.' })
   @IsNotEmpty({ message: 'adminAddress tidak boleh kosong.' })
-  @MaxLength(255, { message: 'adminAddress tidak boleh melebihi 255 karakter.' })
+  @MaxLength(255, {
+    message: 'adminAddress tidak boleh melebihi 255 karakter.',
+  })
   @Matches(/^(addr1|addr_test1|stake1|stake_test1)[a-z0-9]+$/, {
     message:
       'adminAddress harus berupa alamat Cardano bech32 yang valid (addr1…, addr_test1…, stake1…, atau stake_test1…)',

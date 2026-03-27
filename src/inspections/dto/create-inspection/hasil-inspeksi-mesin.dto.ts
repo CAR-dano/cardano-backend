@@ -14,14 +14,39 @@ import {
 import { sanitizeStringArray } from '../../../common/sanitize.helper';
 
 export class HasilInspeksiMesinDto {
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) getaranMesin!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  getaranMesin!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) suaraMesin!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) transmisi!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) pompaPowerSteering!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) coverTimingChain!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) oliPowerSteering!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  pompaPowerSteering!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  coverTimingChain!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  oliPowerSteering!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) accu!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) kompressorAC!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  kompressorAC!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) fan!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) selang!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) karterOli!: number;
@@ -29,18 +54,53 @@ export class HasilInspeksiMesinDto {
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) kabel!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) kondensor!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) radiator!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) cylinderHead!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  cylinderHead!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) oliMesin!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) airRadiator!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  airRadiator!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) coverKlep!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) alternator!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) waterPump!: number;
   @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) belt!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) oliTransmisi!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) cylinderBlock!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) bushingBesar!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) bushingKecil!: number;
-  @ApiProperty() @IsNumber() @IsNotEmpty() @Min(0) @Max(10) tutupRadiator!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  oliTransmisi!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  cylinderBlock!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  bushingBesar!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  bushingKecil!: number;
+  @ApiProperty()
+  @IsNumber()
+  @IsNotEmpty()
+  @Min(0)
+  @Max(10)
+  tutupRadiator!: number;
 
   @ApiProperty({ required: false })
   @IsArray()

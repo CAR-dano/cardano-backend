@@ -40,7 +40,8 @@ const validSignatureObj = { signature: 'cbor-sig-hex', key: 'cbor-key-hex' };
 /** Valid request body matching LoginWalletDto */
 const validBody = {
   walletAddress: 'addr1qx2k8testwalletaddress',
-  payload: 'Login to CAR-dano: addr1qx2k8testwalletaddress at 2026-03-14T10:00:00.000Z',
+  payload:
+    'Login to CAR-dano: addr1qx2k8testwalletaddress at 2026-03-14T10:00:00.000Z',
   signature: JSON.stringify(validSignatureObj),
 };
 
@@ -148,7 +149,9 @@ describe('WalletStrategy', () => {
       const req = createMockRequest(validBody);
       mockAuthService.validateWalletUser.mockResolvedValue(null);
 
-      await expect(strategy.validate(req)).rejects.toThrow(UnauthorizedException);
+      await expect(strategy.validate(req)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('should propagate UnauthorizedException thrown by validateWalletUser', async () => {
@@ -157,7 +160,9 @@ describe('WalletStrategy', () => {
         new UnauthorizedException('Invalid signature'),
       );
 
-      await expect(strategy.validate(req)).rejects.toThrow(UnauthorizedException);
+      await expect(strategy.validate(req)).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 });

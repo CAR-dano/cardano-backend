@@ -197,7 +197,10 @@ describe('InspectionsService', () => {
         { provide: RedisService, useValue: mockRedisService },
         { provide: InspectionQueryService, useValue: mockQueryService },
         { provide: InspectionPdfService, useValue: mockPdfService },
-        { provide: InspectionBlockchainService, useValue: mockBlockchainService },
+        {
+          provide: InspectionBlockchainService,
+          useValue: mockBlockchainService,
+        },
       ],
     }).compile();
 
@@ -219,12 +222,20 @@ describe('InspectionsService', () => {
 
   describe('findAll (delegated)', () => {
     it('should delegate to queryService.findAll with all arguments', async () => {
-      const expected = { data: [mockInspection], meta: { total: 1, page: 1, pageSize: 10, totalPages: 1 } };
+      const expected = {
+        data: [mockInspection],
+        meta: { total: 1, page: 1, pageSize: 10, totalPages: 1 },
+      };
       mockQueryService.findAll.mockResolvedValue(expected);
 
       const result = await service.findAll(Role.ADMIN, undefined, 1, 10);
 
-      expect(mockQueryService.findAll).toHaveBeenCalledWith(Role.ADMIN, undefined, 1, 10);
+      expect(mockQueryService.findAll).toHaveBeenCalledWith(
+        Role.ADMIN,
+        undefined,
+        1,
+        10,
+      );
       expect(result).toBe(expected);
     });
 
@@ -233,13 +244,22 @@ describe('InspectionsService', () => {
 
       await service.findAll(Role.CUSTOMER, 'ARCHIVED', 2, 5);
 
-      expect(mockQueryService.findAll).toHaveBeenCalledWith(Role.CUSTOMER, 'ARCHIVED', 2, 5);
+      expect(mockQueryService.findAll).toHaveBeenCalledWith(
+        Role.CUSTOMER,
+        'ARCHIVED',
+        2,
+        5,
+      );
     });
 
     it('should propagate errors from queryService', async () => {
-      mockQueryService.findAll.mockRejectedValue(new BadRequestException('Invalid status'));
+      mockQueryService.findAll.mockRejectedValue(
+        new BadRequestException('Invalid status'),
+      );
 
-      await expect(service.findAll(Role.ADMIN, 'INVALID', 1, 10)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.findAll(Role.ADMIN, 'INVALID', 1, 10),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -249,20 +269,31 @@ describe('InspectionsService', () => {
 
       const result = await service.findOne(mockInspectionId, Role.ADMIN);
 
-      expect(mockQueryService.findOne).toHaveBeenCalledWith(mockInspectionId, Role.ADMIN);
+      expect(mockQueryService.findOne).toHaveBeenCalledWith(
+        mockInspectionId,
+        Role.ADMIN,
+      );
       expect(result).toBe(mockInspection);
     });
 
     it('should propagate NotFoundException from queryService', async () => {
-      mockQueryService.findOne.mockRejectedValue(new NotFoundException('Not found'));
+      mockQueryService.findOne.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
 
-      await expect(service.findOne('nonexistent', Role.ADMIN)).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('nonexistent', Role.ADMIN)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should propagate ForbiddenException from queryService', async () => {
-      mockQueryService.findOne.mockRejectedValue(new ForbiddenException('Access denied'));
+      mockQueryService.findOne.mockRejectedValue(
+        new ForbiddenException('Access denied'),
+      );
 
-      await expect(service.findOne(mockInspectionId, Role.CUSTOMER)).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.findOne(mockInspectionId, Role.CUSTOMER),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
@@ -273,14 +304,22 @@ describe('InspectionsService', () => {
 
       const result = await service.searchByKeyword('Toyota', 1, 10);
 
-      expect(mockQueryService.searchByKeyword).toHaveBeenCalledWith('Toyota', 1, 10);
+      expect(mockQueryService.searchByKeyword).toHaveBeenCalledWith(
+        'Toyota',
+        1,
+        10,
+      );
       expect(result).toBe(expected);
     });
 
     it('should propagate errors from queryService', async () => {
-      mockQueryService.searchByKeyword.mockRejectedValue(new InternalServerErrorException('DB error'));
+      mockQueryService.searchByKeyword.mockRejectedValue(
+        new InternalServerErrorException('DB error'),
+      );
 
-      await expect(service.searchByKeyword('test')).rejects.toThrow(InternalServerErrorException);
+      await expect(service.searchByKeyword('test')).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 
@@ -291,7 +330,9 @@ describe('InspectionsService', () => {
 
       const result = await service.findByVehiclePlateNumber('AB 1234 CD');
 
-      expect(mockQueryService.findByVehiclePlateNumber).toHaveBeenCalledWith('AB 1234 CD');
+      expect(mockQueryService.findByVehiclePlateNumber).toHaveBeenCalledWith(
+        'AB 1234 CD',
+      );
       expect(result).toBe(expected);
     });
 
@@ -305,8 +346,15 @@ describe('InspectionsService', () => {
 
   describe('findLatestArchivedInspections (delegated)', () => {
     it('should delegate to queryService.findLatestArchivedInspections', async () => {
-      const expected = [{ ...mockArchivedInspection, photos: [{ id: 'p1', label: 'Tampak Depan', path: 'photo.jpg' }] }];
-      mockQueryService.findLatestArchivedInspections.mockResolvedValue(expected);
+      const expected = [
+        {
+          ...mockArchivedInspection,
+          photos: [{ id: 'p1', label: 'Tampak Depan', path: 'photo.jpg' }],
+        },
+      ];
+      mockQueryService.findLatestArchivedInspections.mockResolvedValue(
+        expected,
+      );
 
       const result = await service.findLatestArchivedInspections();
 
@@ -315,9 +363,13 @@ describe('InspectionsService', () => {
     });
 
     it('should propagate errors from queryService', async () => {
-      mockQueryService.findLatestArchivedInspections.mockRejectedValue(new InternalServerErrorException('DB error'));
+      mockQueryService.findLatestArchivedInspections.mockRejectedValue(
+        new InternalServerErrorException('DB error'),
+      );
 
-      await expect(service.findLatestArchivedInspections()).rejects.toThrow(InternalServerErrorException);
+      await expect(service.findLatestArchivedInspections()).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 
@@ -327,25 +379,42 @@ describe('InspectionsService', () => {
 
   describe('processToArchive (delegated)', () => {
     it('should delegate to blockchainService.processToArchive', async () => {
-      const expected = { ...mockArchivedInspection, status: InspectionStatus.ARCHIVED };
+      const expected = {
+        ...mockArchivedInspection,
+        status: InspectionStatus.ARCHIVED,
+      };
       mockBlockchainService.processToArchive.mockResolvedValue(expected);
 
-      const result = await service.processToArchive(mockInspectionId, 'admin-id');
+      const result = await service.processToArchive(
+        mockInspectionId,
+        'admin-id',
+      );
 
-      expect(mockBlockchainService.processToArchive).toHaveBeenCalledWith(mockInspectionId, 'admin-id');
+      expect(mockBlockchainService.processToArchive).toHaveBeenCalledWith(
+        mockInspectionId,
+        'admin-id',
+      );
       expect(result).toBe(expected);
     });
 
     it('should propagate NotFoundException from blockchainService', async () => {
-      mockBlockchainService.processToArchive.mockRejectedValue(new NotFoundException('Not found'));
+      mockBlockchainService.processToArchive.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
 
-      await expect(service.processToArchive(mockInspectionId, 'admin-id')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.processToArchive(mockInspectionId, 'admin-id'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should propagate BadRequestException when status is not APPROVED', async () => {
-      mockBlockchainService.processToArchive.mockRejectedValue(new BadRequestException('Not APPROVED'));
+      mockBlockchainService.processToArchive.mockRejectedValue(
+        new BadRequestException('Not APPROVED'),
+      );
 
-      await expect(service.processToArchive(mockInspectionId, 'admin-id')).rejects.toThrow(BadRequestException);
+      await expect(
+        service.processToArchive(mockInspectionId, 'admin-id'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -354,46 +423,78 @@ describe('InspectionsService', () => {
       const deactivated = { ...mockArchivedInspection, status: 'DEACTIVATED' };
       mockBlockchainService.deactivateArchive.mockResolvedValue(deactivated);
 
-      const result = await service.deactivateArchive('mock-archived-id', 'admin-id');
+      const result = await service.deactivateArchive(
+        'mock-archived-id',
+        'admin-id',
+      );
 
-      expect(mockBlockchainService.deactivateArchive).toHaveBeenCalledWith('mock-archived-id', 'admin-id');
+      expect(mockBlockchainService.deactivateArchive).toHaveBeenCalledWith(
+        'mock-archived-id',
+        'admin-id',
+      );
       expect(result.status).toBe('DEACTIVATED');
     });
 
     it('should propagate NotFoundException from blockchainService', async () => {
-      mockBlockchainService.deactivateArchive.mockRejectedValue(new NotFoundException('Not found'));
+      mockBlockchainService.deactivateArchive.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
 
-      await expect(service.deactivateArchive('nonexistent', 'admin-id')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.deactivateArchive('nonexistent', 'admin-id'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should propagate BadRequestException for wrong status', async () => {
-      mockBlockchainService.deactivateArchive.mockRejectedValue(new BadRequestException('Wrong status'));
+      mockBlockchainService.deactivateArchive.mockRejectedValue(
+        new BadRequestException('Wrong status'),
+      );
 
-      await expect(service.deactivateArchive(mockInspectionId, 'admin-id')).rejects.toThrow(BadRequestException);
+      await expect(
+        service.deactivateArchive(mockInspectionId, 'admin-id'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
   describe('activateArchive (delegated)', () => {
     it('should delegate to blockchainService.activateArchive', async () => {
-      const reactivated = { ...mockArchivedInspection, status: 'ARCHIVED', deactivatedAt: null };
+      const reactivated = {
+        ...mockArchivedInspection,
+        status: 'ARCHIVED',
+        deactivatedAt: null,
+      };
       mockBlockchainService.activateArchive.mockResolvedValue(reactivated);
 
-      const result = await service.activateArchive(mockInspectionId, 'admin-id');
+      const result = await service.activateArchive(
+        mockInspectionId,
+        'admin-id',
+      );
 
-      expect(mockBlockchainService.activateArchive).toHaveBeenCalledWith(mockInspectionId, 'admin-id');
+      expect(mockBlockchainService.activateArchive).toHaveBeenCalledWith(
+        mockInspectionId,
+        'admin-id',
+      );
       expect(result.status).toBe('ARCHIVED');
     });
 
     it('should propagate NotFoundException from blockchainService', async () => {
-      mockBlockchainService.activateArchive.mockRejectedValue(new NotFoundException('Not found'));
+      mockBlockchainService.activateArchive.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
 
-      await expect(service.activateArchive('nonexistent', 'admin-id')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.activateArchive('nonexistent', 'admin-id'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should propagate BadRequestException for wrong status', async () => {
-      mockBlockchainService.activateArchive.mockRejectedValue(new BadRequestException('Wrong status'));
+      mockBlockchainService.activateArchive.mockRejectedValue(
+        new BadRequestException('Wrong status'),
+      );
 
-      await expect(service.activateArchive(mockInspectionId, 'admin-id')).rejects.toThrow(BadRequestException);
+      await expect(
+        service.activateArchive(mockInspectionId, 'admin-id'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -408,32 +509,54 @@ describe('InspectionsService', () => {
       };
       mockBlockchainService.confirmArchive.mockResolvedValue(expected);
 
-      const result = await service.confirmArchive('mock-archived-id', mockConfirmDto as any);
+      const result = await service.confirmArchive(
+        'mock-archived-id',
+        mockConfirmDto as any,
+      );
 
-      expect(mockBlockchainService.confirmArchive).toHaveBeenCalledWith('mock-archived-id', mockConfirmDto);
+      expect(mockBlockchainService.confirmArchive).toHaveBeenCalledWith(
+        'mock-archived-id',
+        mockConfirmDto,
+      );
       expect(result.blockchainTxHash).toBe('tx-hash-123');
     });
 
     it('should propagate NotFoundException from blockchainService', async () => {
-      mockBlockchainService.confirmArchive.mockRejectedValue(new NotFoundException('Not found'));
+      mockBlockchainService.confirmArchive.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
 
-      await expect(service.confirmArchive('nonexistent', mockConfirmDto as any)).rejects.toThrow(NotFoundException);
+      await expect(
+        service.confirmArchive('nonexistent', mockConfirmDto as any),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 
   describe('revertInspectionToApproved (delegated)', () => {
     it('should delegate to blockchainService.revertInspectionToApproved', async () => {
-      const reverted = { ...mockArchivedInspection, status: InspectionStatus.APPROVED };
-      mockBlockchainService.revertInspectionToApproved.mockResolvedValue(reverted);
+      const reverted = {
+        ...mockArchivedInspection,
+        status: InspectionStatus.APPROVED,
+      };
+      mockBlockchainService.revertInspectionToApproved.mockResolvedValue(
+        reverted,
+      );
 
-      const result = await service.revertInspectionToApproved('mock-archived-id', 'superadmin-id');
+      const result = await service.revertInspectionToApproved(
+        'mock-archived-id',
+        'superadmin-id',
+      );
 
-      expect(mockBlockchainService.revertInspectionToApproved).toHaveBeenCalledWith('mock-archived-id', 'superadmin-id');
+      expect(
+        mockBlockchainService.revertInspectionToApproved,
+      ).toHaveBeenCalledWith('mock-archived-id', 'superadmin-id');
       expect(result.status).toBe(InspectionStatus.APPROVED);
     });
 
     it('should propagate NotFoundException from blockchainService', async () => {
-      mockBlockchainService.revertInspectionToApproved.mockRejectedValue(new NotFoundException('Not found'));
+      mockBlockchainService.revertInspectionToApproved.mockRejectedValue(
+        new NotFoundException('Not found'),
+      );
 
       await expect(
         service.revertInspectionToApproved('nonexistent', 'superadmin-id'),
@@ -441,7 +564,9 @@ describe('InspectionsService', () => {
     });
 
     it('should propagate BadRequestException for wrong status', async () => {
-      mockBlockchainService.revertInspectionToApproved.mockRejectedValue(new BadRequestException('Wrong status'));
+      mockBlockchainService.revertInspectionToApproved.mockRejectedValue(
+        new BadRequestException('Wrong status'),
+      );
 
       await expect(
         service.revertInspectionToApproved(mockInspectionId, 'superadmin-id'),
@@ -632,7 +757,9 @@ describe('InspectionsService', () => {
           upsert: jest.fn().mockResolvedValue({ nextSequence: 1 }),
         },
         inspection: {
-          create: jest.fn().mockResolvedValue({ id: 'new-id', pretty_id: 'YOG-13082025-001' }),
+          create: jest
+            .fn()
+            .mockResolvedValue({ id: 'new-id', pretty_id: 'YOG-13082025-001' }),
         },
       };
       mockPrismaService.$transaction.mockImplementation((cb) => cb(txMock));
@@ -643,13 +770,23 @@ describe('InspectionsService', () => {
     });
 
     it('should throw BadRequestException when inspectorId is missing', async () => {
-      const dto = { ...mockCreateDto, identityDetails: { ...mockCreateDto.identityDetails, namaInspektor: undefined } };
-      await expect(service.create(dto, '')).rejects.toThrow(BadRequestException);
+      const dto = {
+        ...mockCreateDto,
+        identityDetails: {
+          ...mockCreateDto.identityDetails,
+          namaInspektor: undefined,
+        },
+      };
+      await expect(service.create(dto, '')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException when inspector not found', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
-      await expect(service.create(mockCreateDto, mockInspectorId)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.create(mockCreateDto, mockInspectorId),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException when branchCity not found', async () => {
@@ -658,7 +795,9 @@ describe('InspectionsService', () => {
         inspectionBranchCityId: 'mock-branch-id',
       });
       mockPrismaService.inspectionBranchCity.findUnique.mockResolvedValue(null);
-      await expect(service.create(mockCreateDto, mockInspectorId)).rejects.toThrow(BadRequestException);
+      await expect(
+        service.create(mockCreateDto, mockInspectorId),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException for invalid inspectionDate', async () => {
@@ -671,7 +810,9 @@ describe('InspectionsService', () => {
         code: 'YOG',
       });
       const dto = { ...mockCreateDto, inspectionDate: 'invalid-date' };
-      await expect(service.create(dto, mockInspectorId)).rejects.toThrow(BadRequestException);
+      await expect(service.create(dto, mockInspectorId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should use branchCity from request body when inspector has none', async () => {
@@ -691,7 +832,10 @@ describe('InspectionsService', () => {
           upsert: jest.fn().mockResolvedValue({ nextSequence: 1 }),
         },
         inspection: {
-          create: jest.fn().mockResolvedValue({ id: 'new-id-2', pretty_id: 'YOG-13082025-001' }),
+          create: jest.fn().mockResolvedValue({
+            id: 'new-id-2',
+            pretty_id: 'YOG-13082025-001',
+          }),
         },
       };
       mockPrismaService.$transaction.mockImplementation((cb) => cb(txMock));
@@ -707,9 +851,9 @@ describe('InspectionsService', () => {
   describe('deleteInspectionPermanently', () => {
     it('should throw NotFoundException when inspection not found', async () => {
       mockPrismaService.inspection.findUnique.mockResolvedValue(null);
-      await expect(service.deleteInspectionPermanently('nonexistent')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.deleteInspectionPermanently('nonexistent'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should delete inspection and associated records successfully', async () => {
@@ -719,17 +863,25 @@ describe('InspectionsService', () => {
         urlPdf: '/pdfarchived/test.pdf',
         urlPdfNoDocs: '/pdfarchived/test-no-docs.pdf',
       };
-      mockPrismaService.inspection.findUnique.mockResolvedValue(inspectionWithPhotos);
+      mockPrismaService.inspection.findUnique.mockResolvedValue(
+        inspectionWithPhotos,
+      );
 
       const txMock = {
-        inspectionChangeLog: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
+        inspectionChangeLog: {
+          deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
         photo: { deleteMany: jest.fn().mockResolvedValue({ count: 1 }) },
         inspection: { delete: jest.fn().mockResolvedValue({}) },
       };
       mockPrismaService.$transaction.mockImplementation((cb) => cb(txMock));
 
-      await expect(service.deleteInspectionPermanently('mock-archived-id')).resolves.toBeUndefined();
-      expect(txMock.inspection.delete).toHaveBeenCalledWith({ where: { id: 'mock-archived-id' } });
+      await expect(
+        service.deleteInspectionPermanently('mock-archived-id'),
+      ).resolves.toBeUndefined();
+      expect(txMock.inspection.delete).toHaveBeenCalledWith({
+        where: { id: 'mock-archived-id' },
+      });
       expect(mockQueryService.invalidateListCache).toHaveBeenCalled();
     });
 
@@ -740,12 +892,16 @@ describe('InspectionsService', () => {
         urlPdf: null,
         urlPdfNoDocs: null,
       };
-      mockPrismaService.inspection.findUnique.mockResolvedValue(inspectionWithPhotos);
-      mockPrismaService.$transaction.mockRejectedValue(new Error('Transaction failed'));
-
-      await expect(service.deleteInspectionPermanently('mock-archived-id')).rejects.toThrow(
-        InternalServerErrorException,
+      mockPrismaService.inspection.findUnique.mockResolvedValue(
+        inspectionWithPhotos,
       );
+      mockPrismaService.$transaction.mockRejectedValue(
+        new Error('Transaction failed'),
+      );
+
+      await expect(
+        service.deleteInspectionPermanently('mock-archived-id'),
+      ).rejects.toThrow(InternalServerErrorException);
     });
   });
 
@@ -754,7 +910,10 @@ describe('InspectionsService', () => {
   // ─────────────────────────────────────────────────────────────────────────
   describe('rollbackInspectionStatus', () => {
     it('should rollback inspection status to NEED_REVIEW', async () => {
-      const rolledBack = { ...mockArchivedInspection, status: InspectionStatus.NEED_REVIEW };
+      const rolledBack = {
+        ...mockArchivedInspection,
+        status: InspectionStatus.NEED_REVIEW,
+      };
       mockPrismaService.$transaction.mockImplementation(async (cb) => {
         const tx = {
           inspection: {
@@ -768,7 +927,10 @@ describe('InspectionsService', () => {
         return cb(tx);
       });
 
-      const result = await service.rollbackInspectionStatus('mock-archived-id', 'superadmin-id');
+      const result = await service.rollbackInspectionStatus(
+        'mock-archived-id',
+        'superadmin-id',
+      );
       expect(result.status).toBe(InspectionStatus.NEED_REVIEW);
       expect(mockQueryService.invalidateListCache).toHaveBeenCalled();
     });
@@ -781,22 +943,24 @@ describe('InspectionsService', () => {
         return cb(tx);
       });
 
-      await expect(service.rollbackInspectionStatus('nonexistent', 'superadmin-id')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.rollbackInspectionStatus('nonexistent', 'superadmin-id'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw BadRequestException when inspection is already NEED_REVIEW', async () => {
       mockPrismaService.$transaction.mockImplementation(async (cb) => {
         const tx = {
-          inspection: { findUnique: jest.fn().mockResolvedValue(mockInspection) }, // NEED_REVIEW
+          inspection: {
+            findUnique: jest.fn().mockResolvedValue(mockInspection),
+          }, // NEED_REVIEW
         };
         return cb(tx);
       });
 
-      await expect(service.rollbackInspectionStatus(mockInspectionId, 'superadmin-id')).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.rollbackInspectionStatus(mockInspectionId, 'superadmin-id'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -805,8 +969,12 @@ describe('InspectionsService', () => {
   // ─────────────────────────────────────────────────────────────────────────
   describe('bulkApproveInspections', () => {
     it('should return successful and failed results', async () => {
-      jest.spyOn(service, 'approveInspection')
-        .mockResolvedValueOnce({ ...mockInspection, status: InspectionStatus.APPROVED } as any)
+      jest
+        .spyOn(service, 'approveInspection')
+        .mockResolvedValueOnce({
+          ...mockInspection,
+          status: InspectionStatus.APPROVED,
+        } as any)
         .mockRejectedValueOnce(new Error('Approval failed'));
 
       const result = await service.bulkApproveInspections(
@@ -824,8 +992,10 @@ describe('InspectionsService', () => {
     }, 10000);
 
     it('should return all successful when all approvals succeed', async () => {
-      jest.spyOn(service, 'approveInspection')
-        .mockResolvedValue({ ...mockInspection, status: InspectionStatus.APPROVED } as any);
+      jest.spyOn(service, 'approveInspection').mockResolvedValue({
+        ...mockInspection,
+        status: InspectionStatus.APPROVED,
+      } as any);
 
       const result = await service.bulkApproveInspections(
         ['id-1', 'id-2'],
@@ -855,7 +1025,9 @@ describe('InspectionsService', () => {
         const tx = {
           inspection: {
             findUnique: jest.fn().mockResolvedValue(mockInspection),
-            findUniqueOrThrow: jest.fn().mockResolvedValue(inspectionAfterChanges),
+            findUniqueOrThrow: jest
+              .fn()
+              .mockResolvedValue(inspectionAfterChanges),
             update: jest.fn().mockResolvedValue(inspectionAfterChanges),
           },
           inspectionChangeLog: {
@@ -920,9 +1092,7 @@ describe('InspectionsService', () => {
       mockPrismaService.$transaction.mockImplementation(async (callback) => {
         const tx = {
           inspection: {
-            findUnique: jest
-              .fn()
-              .mockResolvedValue(wrongStatusInspection),
+            findUnique: jest.fn().mockResolvedValue(wrongStatusInspection),
           },
         };
         return await callback(tx);
@@ -943,7 +1113,9 @@ describe('InspectionsService', () => {
         const tx = {
           inspection: {
             findUnique: jest.fn().mockResolvedValue(mockInspection),
-            findUniqueOrThrow: jest.fn().mockResolvedValue(inspectionAfterChanges),
+            findUniqueOrThrow: jest
+              .fn()
+              .mockResolvedValue(inspectionAfterChanges),
             update: jest.fn().mockResolvedValue(inspectionAfterChanges),
           },
           inspectionChangeLog: {
@@ -953,7 +1125,9 @@ describe('InspectionsService', () => {
         return await callback(tx);
       });
 
-      mockPdfService.generateAndSavePdf.mockRejectedValue(new Error('PDF generation failed'));
+      mockPdfService.generateAndSavePdf.mockRejectedValue(
+        new Error('PDF generation failed'),
+      );
 
       // Spy on the rollback helper method
       const rollbackSpy = jest

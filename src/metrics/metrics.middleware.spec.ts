@@ -79,7 +79,8 @@ describe('MetricsMiddleware', () => {
     middleware.use(req, res, next);
     res.emit('finish');
 
-    const call = (metricsService.observeHttpDuration as jest.Mock).mock.calls[0];
+    const call = (metricsService.observeHttpDuration as jest.Mock).mock
+      .calls[0];
     const duration = call[3];
     expect(duration).toBeGreaterThanOrEqual(0);
   });

@@ -34,8 +34,8 @@ describe('IpfsService', () => {
   beforeEach(async () => {
     jest.clearAllMocks();
     // Access the mock function from the hoisted mock module
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    mockIpfsAdd = (require('ipfs-http-client') as any).__mockAdd;
+
+    mockIpfsAdd = require('ipfs-http-client').__mockAdd;
 
     // Default: both host and port are configured
     mockConfigService.get.mockImplementation((key: string) => {
@@ -122,7 +122,9 @@ describe('IpfsService', () => {
 
       const buffer = Buffer.from('test content');
 
-      await expect(service.add(buffer)).rejects.toThrow('IPFS node unreachable');
+      await expect(service.add(buffer)).rejects.toThrow(
+        'IPFS node unreachable',
+      );
     });
 
     it('should handle large buffers', async () => {

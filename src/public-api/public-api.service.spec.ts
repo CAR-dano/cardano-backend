@@ -101,7 +101,6 @@ describe('PublicApiService', () => {
       const inspection = makeInspection({ photos: [makePhoto()] });
       prismaMock.inspection.findUniqueOrThrow.mockResolvedValue(inspection);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = (await service.findOne('insp-1')) as any;
 
       expect(result).toEqual(inspection);
@@ -160,7 +159,6 @@ describe('PublicApiService', () => {
       const inspection = makeInspection({ photos });
       prismaMock.inspection.findUniqueOrThrow.mockResolvedValue(inspection);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = (await service.findOneWithoutDocuments('insp-1')) as any;
 
       expect(result.photos).toHaveLength(2);
@@ -175,7 +173,6 @@ describe('PublicApiService', () => {
         makeInspection({ photos }),
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = (await service.findOneWithoutDocuments('insp-1')) as any;
 
       expect(result.photos).toHaveLength(1);
@@ -191,7 +188,6 @@ describe('PublicApiService', () => {
         makeInspection({ photos }),
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = (await service.findOneWithoutDocuments('insp-1')) as any;
 
       expect(result.photos).toHaveLength(1);
@@ -207,7 +203,6 @@ describe('PublicApiService', () => {
         makeInspection({ photos }),
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = (await service.findOneWithoutDocuments('insp-1')) as any;
 
       expect(result.photos).toHaveLength(1);
@@ -222,7 +217,6 @@ describe('PublicApiService', () => {
         makeInspection({ photos }),
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = (await service.findOneWithoutDocuments('insp-1')) as any;
 
       expect(result.photos).toHaveLength(1);
@@ -237,7 +231,6 @@ describe('PublicApiService', () => {
         makeInspection({ photos }),
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = (await service.findOneWithoutDocuments('insp-1')) as any;
 
       // p1 has null label/category — kept; p2 has stnk — filtered
@@ -250,7 +243,6 @@ describe('PublicApiService', () => {
         makeInspection({ photos: null }),
       );
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const result = (await service.findOneWithoutDocuments('insp-1')) as any;
 
       expect(result.photos).toBeNull();
@@ -271,9 +263,9 @@ describe('PublicApiService', () => {
         new Error('Connection reset'),
       );
 
-      await expect(
-        service.findOneWithoutDocuments('insp-1'),
-      ).rejects.toThrow(InternalServerErrorException);
+      await expect(service.findOneWithoutDocuments('insp-1')).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 
@@ -353,9 +345,24 @@ describe('PublicApiService', () => {
 
     it('should keep separate logs for different field keys', async () => {
       const logs = [
-        makeChangeLog({ id: 'cl-1', fieldName: 'a', subFieldName: 'x', subsubfieldname: null }),
-        makeChangeLog({ id: 'cl-2', fieldName: 'a', subFieldName: 'y', subsubfieldname: null }),
-        makeChangeLog({ id: 'cl-3', fieldName: 'b', subFieldName: 'x', subsubfieldname: null }),
+        makeChangeLog({
+          id: 'cl-1',
+          fieldName: 'a',
+          subFieldName: 'x',
+          subsubfieldname: null,
+        }),
+        makeChangeLog({
+          id: 'cl-2',
+          fieldName: 'a',
+          subFieldName: 'y',
+          subsubfieldname: null,
+        }),
+        makeChangeLog({
+          id: 'cl-3',
+          fieldName: 'b',
+          subFieldName: 'x',
+          subsubfieldname: null,
+        }),
       ];
       prismaMock.inspection.findUnique.mockResolvedValue(
         makeInspection({ changeLogs: logs }),
@@ -368,8 +375,18 @@ describe('PublicApiService', () => {
 
     it('should differentiate logs by subsubfieldname', async () => {
       const logs = [
-        makeChangeLog({ id: 'cl-1', fieldName: 'a', subFieldName: 'x', subsubfieldname: 'i' }),
-        makeChangeLog({ id: 'cl-2', fieldName: 'a', subFieldName: 'x', subsubfieldname: 'ii' }),
+        makeChangeLog({
+          id: 'cl-1',
+          fieldName: 'a',
+          subFieldName: 'x',
+          subsubfieldname: 'i',
+        }),
+        makeChangeLog({
+          id: 'cl-2',
+          fieldName: 'a',
+          subFieldName: 'x',
+          subsubfieldname: 'ii',
+        }),
       ];
       prismaMock.inspection.findUnique.mockResolvedValue(
         makeInspection({ changeLogs: logs }),

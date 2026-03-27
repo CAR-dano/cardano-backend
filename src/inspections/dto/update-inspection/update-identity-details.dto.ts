@@ -7,7 +7,13 @@
  * Description: DTO for partially updating identity details.
  * --------------------------------------------------------------------------
  */
-import { IsNotEmpty, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { sanitizeString } from '../../../common/sanitize.helper';

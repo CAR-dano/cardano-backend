@@ -48,8 +48,12 @@ class InspectionDataDto {
   })
   @IsString()
   @IsNotEmpty()
-  @Length(64, 64, { message: 'pdfHash must be exactly 64 characters (SHA-256 hex)' })
-  @Matches(/^[a-f0-9]+$/, { message: 'pdfHash must contain only lowercase hex characters' })
+  @Length(64, 64, {
+    message: 'pdfHash must be exactly 64 characters (SHA-256 hex)',
+  })
+  @Matches(/^[a-f0-9]+$/, {
+    message: 'pdfHash must contain only lowercase hex characters',
+  })
   pdfHash!: string;
 
   /**

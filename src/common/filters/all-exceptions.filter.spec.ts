@@ -176,7 +176,10 @@ describe('AllExceptionsFilter', () => {
   // ═══════════════════════════════════════════════════════════════
   describe('HttpException handling', () => {
     it('should handle simple HttpException with string message', () => {
-      const error = new HttpException('Resource not found', HttpStatus.NOT_FOUND);
+      const error = new HttpException(
+        'Resource not found',
+        HttpStatus.NOT_FOUND,
+      );
 
       filter.catch(error, mockHost);
 
@@ -272,7 +275,11 @@ describe('AllExceptionsFilter', () => {
 
     it('should handle HttpException with single string message in object', () => {
       const error = new HttpException(
-        { message: 'Single error message', error: 'Bad Request', statusCode: 400 },
+        {
+          message: 'Single error message',
+          error: 'Bad Request',
+          statusCode: 400,
+        },
         HttpStatus.BAD_REQUEST,
       );
 
@@ -390,11 +397,7 @@ describe('AllExceptionsFilter', () => {
     });
 
     it('should log 4xx errors at warn level without stack trace', () => {
-      const error = new AppError(
-        'Not found',
-        ErrorCode.NOT_FOUND,
-        404,
-      );
+      const error = new AppError('Not found', ErrorCode.NOT_FOUND, 404);
 
       filter.catch(error, mockHost);
 

@@ -17,7 +17,7 @@ import * as dns from 'dns';
 import * as fs from 'fs';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
-import { SwaggerModule, DocumentBuilder, OpenAPIObject } from '@nestjs/swagger';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { json, urlencoded } from 'express';
@@ -125,10 +125,13 @@ async function bootstrap() {
   // Supports multiple origins separated by comma
   const clientUrl = configService.get<string>('CLIENT_BASE_URL');
   if (clientUrl) {
-    const allowedOrigins = clientUrl.split(',').map(url => url.trim());
+    const allowedOrigins = clientUrl.split(',').map((url) => url.trim());
     logger.log(`Enabling CORS for origins: ${allowedOrigins.join(', ')}`);
     app.enableCors({
-      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      origin: (
+        origin: string | undefined,
+        callback: (err: Error | null, allow?: boolean) => void,
+      ) => {
         // Allow requests with no origin (like mobile apps or curl)
         if (!origin) return callback(null, true);
 

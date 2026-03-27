@@ -44,7 +44,8 @@ export class RegisterUserDto {
    * @example "newuser123"
    */
   @ApiProperty({
-    description: "User's unique username (alphanumeric + underscores, 3-20 chars)",
+    description:
+      "User's unique username (alphanumeric + underscores, 3-20 chars)",
     example: 'newuser123',
     minLength: 3,
     maxLength: 20,
@@ -59,7 +60,8 @@ export class RegisterUserDto {
   @MinLength(3)
   @MaxLength(20)
   @Matches(/^[a-zA-Z0-9_]+$/, {
-    message: 'Username can only contain alphanumeric characters and underscores.',
+    message:
+      'Username can only contain alphanumeric characters and underscores.',
   })
   username!: string;
 
@@ -85,7 +87,9 @@ export class RegisterUserDto {
   // MaxLength 72 prevents bcrypt DoS (bcrypt silently truncates beyond 72 bytes)
   @MaxLength(72, { message: 'password must not exceed 72 characters' })
   @Matches(
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&\-_#^()[\]{}|~`<>,.;:'"\\\/+= ])[A-Za-z\d@$!%*?&\-_#^()[\]{}|~`<>,.;:'"\\\/+= ]{12,}$/,
+    new RegExp(
+      '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&\\-_#^()\\[\\]{}|~`<>,.;:\'"\\\\/+= ])[A-Za-z\\d@$!%*?&\\-_#^()\\[\\]{}|~`<>,.;:\'"\\\\/+= ]{12,}$',
+    ),
     {
       message:
         'password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
@@ -103,7 +107,9 @@ export class RegisterUserDto {
     required: false,
   })
   @IsOptional()
-  @Transform(({ value }: { value: unknown }) => sanitizeString(value) || undefined)
+  @Transform(
+    ({ value }: { value: unknown }) => sanitizeString(value) || undefined,
+  )
   @IsString()
   @IsNotEmpty({ message: 'Name cannot be an empty string if provided' })
   @MaxLength(255)

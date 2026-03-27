@@ -13,7 +13,12 @@
 
 import { ExtractJwt, Strategy } from 'passport-jwt'; // Import JWT Strategy components
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable, OnModuleInit, UnauthorizedException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  UnauthorizedException,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config'; // Needed for JWT secret
 import { UsersService } from '../../users/users.service'; // Needed to find user by ID
 import { JwtPayload } from '../interfaces/jwt-payload.interface'; // Type definition for the decoded payload
@@ -63,11 +68,10 @@ export class JwtStrategy
     try {
       const secrets = await this.vaultConfigService.getSecrets();
       const jwtSecret =
-        secrets.JWT_SECRET ||
-        this.configService.get<string>('JWT_SECRET');
+        secrets.JWT_SECRET || this.configService.get<string>('JWT_SECRET');
       if (jwtSecret) {
         // Patch the internal secret used by passport-jwt
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
         (this as any)._secretOrKey = jwtSecret;
       }
     } catch {
@@ -120,7 +124,7 @@ export class JwtStrategy
     if (tokenSessionVersion !== userSessionVersion) {
       this.logger.warn(
         `JWT validation failed: sessionVersion mismatch for user ID ${payload.sub}. ` +
-        `Token has v${tokenSessionVersion}, DB has v${userSessionVersion}. Token invalidated.`,
+          `Token has v${tokenSessionVersion}, DB has v${userSessionVersion}. Token invalidated.`,
       );
       throw new UnauthorizedException(
         'Token invalidated due to a security event. Please log in again.',

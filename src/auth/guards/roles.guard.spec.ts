@@ -9,7 +9,11 @@ import { Role } from '@prisma/client';
 import { RolesGuard } from './roles.guard';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 
-function buildContext(user: any, handler: any = {}, klass: any = {}): ExecutionContext {
+function buildContext(
+  user: any,
+  handler: any = {},
+  klass: any = {},
+): ExecutionContext {
   return {
     getHandler: () => handler,
     getClass: () => klass,
@@ -82,6 +86,9 @@ describe('RolesGuard', () => {
     reflector.getAllAndOverride.mockReturnValue([Role.ADMIN]);
     const ctx = buildContext({ id: '1', role: Role.ADMIN }, handler, klass);
     guard.canActivate(ctx);
-    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(ROLES_KEY, [handler, klass]);
+    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(ROLES_KEY, [
+      handler,
+      klass,
+    ]);
   });
 });

@@ -262,9 +262,10 @@ export class InspectionBlockchainService {
         let vehicleDataObj: Record<string, unknown> = {};
         try {
           if (typeof inspection.vehicleData === 'string') {
-            vehicleDataObj = JSON.parse(
-              inspection.vehicleData as string,
-            ) as Record<string, unknown>;
+            vehicleDataObj = JSON.parse(inspection.vehicleData) as Record<
+              string,
+              unknown
+            >;
           } else if (
             inspection.vehicleData &&
             typeof inspection.vehicleData === 'object'
@@ -273,7 +274,8 @@ export class InspectionBlockchainService {
           }
         } catch (err: unknown) {
           this.logger.warn(
-            `Failed to parse vehicleData for inspection ${inspectionId}: ${err instanceof Error ? err.message : String(err)
+            `Failed to parse vehicleData for inspection ${inspectionId}: ${
+              err instanceof Error ? err.message : String(err)
             }`,
           );
           vehicleDataObj = {};
@@ -315,7 +317,10 @@ export class InspectionBlockchainService {
           carType: carTypeNorm,
         } as unknown as NftMetadata & Partial<InspectionNftMetadata>;
         // Hapus field null/undefined dari metadata jika perlu (This step might be redundant now with checks above, but kept for safety)
-        const metadataAny = metadataForNft as unknown as Record<string, unknown>;
+        const metadataAny = metadataForNft as unknown as Record<
+          string,
+          unknown
+        >;
         Object.keys(metadataAny).forEach((key) =>
           metadataAny[key] === undefined || metadataAny[key] === null
             ? delete metadataAny[key]
@@ -515,36 +520,38 @@ export class InspectionBlockchainService {
     try {
       // Use update() with conditional where — returns record directly, eliminating post-query findUniqueOrThrow.
       // If the record doesn't match (not found or wrong status), Prisma throws P2025 / P2018.
-      const updated = await this.prisma.inspection.update({
-        where: {
-          id: inspectionId,
-          status: InspectionStatus.ARCHIVED,
-        },
-        data: {
-          status: InspectionStatus.DEACTIVATED,
-          deactivatedAt: new Date(),
-        },
-      }).catch(async (err: unknown) => {
-        if (
-          err instanceof Prisma.PrismaClientKnownRequestError &&
-          (err.code === 'P2025' || err.code === 'P2018')
-        ) {
-          // Record not found or condition not matched — distinguish between missing vs wrong status
-          const exists = await this.prisma.inspection.findUnique({
-            where: { id: inspectionId },
-            select: { status: true },
-          });
-          if (!exists) {
-            throw new NotFoundException(
-              `Inspection with ID "${inspectionId}" not found.`,
+      const updated = await this.prisma.inspection
+        .update({
+          where: {
+            id: inspectionId,
+            status: InspectionStatus.ARCHIVED,
+          },
+          data: {
+            status: InspectionStatus.DEACTIVATED,
+            deactivatedAt: new Date(),
+          },
+        })
+        .catch(async (err: unknown) => {
+          if (
+            err instanceof Prisma.PrismaClientKnownRequestError &&
+            (err.code === 'P2025' || err.code === 'P2018')
+          ) {
+            // Record not found or condition not matched — distinguish between missing vs wrong status
+            const exists = await this.prisma.inspection.findUnique({
+              where: { id: inspectionId },
+              select: { status: true },
+            });
+            if (!exists) {
+              throw new NotFoundException(
+                `Inspection with ID "${inspectionId}" not found.`,
+              );
+            }
+            throw new BadRequestException(
+              `Inspection ${inspectionId} cannot be deactivated because its current status is '${exists.status}', not '${InspectionStatus.ARCHIVED}'.`,
             );
           }
-          throw new BadRequestException(
-            `Inspection ${inspectionId} cannot be deactivated because its current status is '${exists.status}', not '${InspectionStatus.ARCHIVED}'.`,
-          );
-        }
-        throw err;
-      });
+          throw err;
+        });
 
       this.logger.log(
         `Inspection ${inspectionId} successfully deactivated (hidden)`,
@@ -592,35 +599,37 @@ export class InspectionBlockchainService {
     );
     try {
       // Use update() with conditional where — returns record directly, eliminating post-query findUniqueOrThrow.
-      const updated = await this.prisma.inspection.update({
-        where: {
-          id: inspectionId,
-          status: InspectionStatus.DEACTIVATED,
-        },
-        data: {
-          status: InspectionStatus.ARCHIVED,
-          deactivatedAt: null,
-        },
-      }).catch(async (err: unknown) => {
-        if (
-          err instanceof Prisma.PrismaClientKnownRequestError &&
-          (err.code === 'P2025' || err.code === 'P2018')
-        ) {
-          const exists = await this.prisma.inspection.findUnique({
-            where: { id: inspectionId },
-            select: { status: true },
-          });
-          if (!exists) {
-            throw new NotFoundException(
-              `Inspection with ID "${inspectionId}" not found.`,
+      const updated = await this.prisma.inspection
+        .update({
+          where: {
+            id: inspectionId,
+            status: InspectionStatus.DEACTIVATED,
+          },
+          data: {
+            status: InspectionStatus.ARCHIVED,
+            deactivatedAt: null,
+          },
+        })
+        .catch(async (err: unknown) => {
+          if (
+            err instanceof Prisma.PrismaClientKnownRequestError &&
+            (err.code === 'P2025' || err.code === 'P2018')
+          ) {
+            const exists = await this.prisma.inspection.findUnique({
+              where: { id: inspectionId },
+              select: { status: true },
+            });
+            if (!exists) {
+              throw new NotFoundException(
+                `Inspection with ID "${inspectionId}" not found.`,
+              );
+            }
+            throw new BadRequestException(
+              `Inspection ${inspectionId} cannot be reactivated because its current status is '${exists.status}', not '${InspectionStatus.ARCHIVED}'.`,
             );
           }
-          throw new BadRequestException(
-            `Inspection ${inspectionId} cannot be reactivated because its current status is '${exists.status}', not '${InspectionStatus.ARCHIVED}'.`,
-          );
-        }
-        throw err;
-      });
+          throw err;
+        });
 
       this.logger.log(
         `Inspection ${inspectionId} reactivated by user ${userId}`,
@@ -818,7 +827,8 @@ export class InspectionBlockchainService {
       }
 
       this.logger.error(
-        `Failed to revert inspection ${inspectionId} to APPROVED: ${error instanceof Error ? error.message : 'Unknown error'
+        `Failed to revert inspection ${inspectionId} to APPROVED: ${
+          error instanceof Error ? error.message : 'Unknown error'
         }`,
         error instanceof Error ? error.stack : 'No stack trace',
       );

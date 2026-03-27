@@ -27,11 +27,11 @@ describe('Blockchain, Metrics & Docs (e2e)', () => {
     describe('GET /api/v1/blockchain/metadata/tx/:txHash', () => {
       it('should return 200 or appropriate error for a valid-format txHash', async () => {
         // Use a dummy hash - the endpoint should handle it gracefully
-        const dummyTxHash =
-          'a'.repeat(64); // 64 hex chars (valid Cardano tx hash format)
+        const dummyTxHash = 'a'.repeat(64); // 64 hex chars (valid Cardano tx hash format)
 
-        const res = await request(ctx.app.getHttpServer())
-          .get(`/api/v1/blockchain/metadata/tx/${dummyTxHash}`);
+        const res = await request(ctx.app.getHttpServer()).get(
+          `/api/v1/blockchain/metadata/tx/${dummyTxHash}`,
+        );
 
         // Either 200 (empty array) or 404/500 from Blockfrost
         // The important thing is the endpoint is reachable and doesn't crash
@@ -52,8 +52,9 @@ describe('Blockchain, Metrics & Docs (e2e)', () => {
       it('should return 200 or appropriate error for a valid-format assetId', async () => {
         const dummyAssetId = 'a'.repeat(56); // Cardano asset ID format
 
-        const res = await request(ctx.app.getHttpServer())
-          .get(`/api/v1/blockchain/nft/${dummyAssetId}`);
+        const res = await request(ctx.app.getHttpServer()).get(
+          `/api/v1/blockchain/nft/${dummyAssetId}`,
+        );
 
         // Either 200 with data or error from Blockfrost
         expect([200, 404, 500, 502, 503]).toContain(res.status);
@@ -89,8 +90,9 @@ describe('Blockchain, Metrics & Docs (e2e)', () => {
   describe('ScalarDocsController', () => {
     describe('GET /api/v1/openapi.json', () => {
       it('should return OpenAPI JSON document or 500 if not generated', async () => {
-        const res = await request(ctx.app.getHttpServer())
-          .get('/api/v1/openapi.json');
+        const res = await request(ctx.app.getHttpServer()).get(
+          '/api/v1/openapi.json',
+        );
 
         // In test context, OpenAPI doc may not be generated (setOpenApiDocument not called)
         // so 500 is expected. In non-production with doc, returns 200.
@@ -107,8 +109,7 @@ describe('Blockchain, Metrics & Docs (e2e)', () => {
 
     describe('GET /api/v1/docs', () => {
       it('should return HTML or 404 depending on environment', async () => {
-        const res = await request(ctx.app.getHttpServer())
-          .get('/api/v1/docs');
+        const res = await request(ctx.app.getHttpServer()).get('/api/v1/docs');
 
         // Non-production: 200 with HTML
         // Production: 404

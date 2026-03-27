@@ -339,7 +339,9 @@ describe('DashboardService', () => {
       expect(result.total).toBe(10);
       expect(result.branchDistribution).toHaveLength(2);
       // Yogyakarta: 8/10 = 80%
-      const yog = result.branchDistribution.find((b) => b.branch === 'Yogyakarta');
+      const yog = result.branchDistribution.find(
+        (b) => b.branch === 'Yogyakarta',
+      );
       expect(yog?.percentage).toBe('80.0%');
     });
 
@@ -390,9 +392,9 @@ describe('DashboardService', () => {
     };
 
     it('should throw BadRequestException when dates are missing', async () => {
-      await expect(
-        service.getInspectorPerformance({} as any),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.getInspectorPerformance({} as any)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should return cached data when cache hits', async () => {
@@ -409,9 +411,7 @@ describe('DashboardService', () => {
     it('should return inspector performance data', async () => {
       redisMock.get.mockResolvedValue(null);
 
-      const inspectors = [
-        { id: 'u1', name: 'Budi' },
-      ];
+      const inspectors = [{ id: 'u1', name: 'Budi' }];
       prismaMock.user.findMany.mockResolvedValue(inspectors);
       prismaMock.inspection.groupBy.mockResolvedValue([
         { inspectorId: 'u1', _count: { id: 5 } },
@@ -420,9 +420,9 @@ describe('DashboardService', () => {
       const result = await service.getInspectorPerformance(validQuery);
 
       expect(result.data).toHaveLength(1);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       expect((result.data[0] as any).inspector).toBe('Budi');
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
       expect((result.data[0] as any).totalInspections).toBe(5);
     });
 

@@ -30,13 +30,16 @@ export class UpdateInspectorDto {
     required: false,
   })
   @IsOptional()
-  @Transform(({ value }: { value: unknown }) => sanitizeString(value) || undefined)
+  @Transform(
+    ({ value }: { value: unknown }) => sanitizeString(value) || undefined,
+  )
   @IsString()
   @MaxLength(255)
   name?: string;
 
   @ApiProperty({
-    description: "The inspector's username (alphanumeric + underscores, 3-50 chars)",
+    description:
+      "The inspector's username (alphanumeric + underscores, 3-50 chars)",
     example: 'john_doe',
     required: false,
   })
@@ -48,7 +51,8 @@ export class UpdateInspectorDto {
   @MinLength(3)
   @MaxLength(50)
   @Matches(/^[a-zA-Z0-9_]+$/, {
-    message: 'username can only contain alphanumeric characters and underscores.',
+    message:
+      'username can only contain alphanumeric characters and underscores.',
   })
   username?: string;
 

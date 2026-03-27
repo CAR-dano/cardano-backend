@@ -56,7 +56,8 @@ export class WalletStrategy extends PassportStrategy(Strategy, 'wallet') {
   async validate(req: Request): Promise<Omit<User, 'password' | 'googleId'>> {
     this.logger.verbose('WalletStrategy attempting validation...');
 
-    const { walletAddress, payload, signature } = req.body as WalletAuthRequestBody;
+    const { walletAddress, payload, signature } =
+      req.body as WalletAuthRequestBody;
 
     if (!walletAddress || !payload || !signature) {
       this.logger.warn(

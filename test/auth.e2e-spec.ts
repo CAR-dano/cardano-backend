@@ -13,7 +13,7 @@ import { INestApplication, ValidationPipe, HttpStatus } from '@nestjs/common';
 import request from 'supertest'; // Use supertest for HTTP requests
 import { AppModule } from './../src/app.module'; // Import main AppModule
 import { PrismaService } from '../src/prisma/prisma.service'; // To clean DB
-import { Role, User } from '@prisma/client'; // Import Role enum and User type
+import { Role } from '@prisma/client'; // Import Role enum and User type
 import { AuthService } from '../src/auth/auth.service'; // To generate tokens for tests
 import { randomUUID } from 'crypto';
 // UsersService might not be strictly needed if we create users via Prisma directly

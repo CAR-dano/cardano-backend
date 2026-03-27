@@ -56,12 +56,10 @@ import { VaultConfigService } from '../config/vault-config.service';
         // Prefer Vault-sourced secret; fall back to ConfigService
         const secrets = await vaultConfigService.getSecrets();
         const jwtSecret =
-          secrets.JWT_SECRET ||
-          configService.getOrThrow<string>('JWT_SECRET');
+          secrets.JWT_SECRET || configService.getOrThrow<string>('JWT_SECRET');
         return {
           secret: jwtSecret,
           signOptions: {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             expiresIn: configService.get<string>('JWT_EXPIRATION_TIME') as any,
           },
         };
@@ -96,4 +94,4 @@ import { VaultConfigService } from '../config/vault-config.service';
    */
   exports: [AuthService, JwtAuthGuard, RolesGuard, PassportModule, JwtModule], // Export service & guard if necessary in another module
 })
-export class AuthModule { }
+export class AuthModule {}

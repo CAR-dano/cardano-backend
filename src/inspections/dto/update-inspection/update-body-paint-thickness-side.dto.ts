@@ -8,7 +8,9 @@ export class UpdateBodyPaintThicknessSideDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0, { message: 'frontFender must be a non-negative number' })
-  @Max(2000, { message: 'frontFender exceeds maximum paint thickness (2000 µm)' })
+  @Max(2000, {
+    message: 'frontFender exceeds maximum paint thickness (2000 µm)',
+  })
   frontFender?: number;
 
   @ApiPropertyOptional()
@@ -32,7 +34,9 @@ export class UpdateBodyPaintThicknessSideDto {
   @Type(() => Number)
   @IsNumber()
   @Min(0, { message: 'rearFender must be a non-negative number' })
-  @Max(2000, { message: 'rearFender exceeds maximum paint thickness (2000 µm)' })
+  @Max(2000, {
+    message: 'rearFender exceeds maximum paint thickness (2000 µm)',
+  })
   rearFender?: number;
 
   @ApiPropertyOptional()

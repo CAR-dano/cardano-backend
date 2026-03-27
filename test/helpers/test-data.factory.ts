@@ -3,8 +3,6 @@
  * Each factory produces the minimum valid payload that passes ValidationPipe.
  */
 
-import { v4 as uuidv4 } from 'uuid';
-
 /**
  * Minimal valid CreateInspectionDto payload.
  * `inspectorId` is set by the controller from JWT, so not included here.

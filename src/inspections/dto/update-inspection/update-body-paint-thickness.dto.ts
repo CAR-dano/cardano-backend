@@ -1,5 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ValidateNested, IsOptional, IsNumber, Min, Max } from 'class-validator';
+import {
+  ValidateNested,
+  IsOptional,
+  IsNumber,
+  Min,
+  Max,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 import { UpdateBodyPaintThicknessSideDto } from './update-body-paint-thickness-side.dto';
 import { UpdateBodyPaintThicknessRearDto } from './update-body-paint-thickness-rear.dto';

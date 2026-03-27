@@ -51,13 +51,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
    * @returns {any} The validated user object.
    * @throws {UnauthorizedException} If authentication fails.
    */
-  handleRequest(
-    err: any,
-    user: any,
-    info: Error,
-    context: ExecutionContext,
-    status?: any,
-  ) {
+  handleRequest(err: any, user: any, info: Error, context: ExecutionContext) {
     const request = context.switchToHttp().getRequest();
     const logCtx = `${request.method} ${request.originalUrl}`; // Context for logs
 

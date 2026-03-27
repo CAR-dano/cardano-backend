@@ -204,7 +204,9 @@ describe('InspectionsController', () => {
         new BE('Validation failed'),
       );
 
-      await expect(controller.create(mockDto, mockUserId, mockReq)).rejects.toThrow();
+      await expect(
+        controller.create(mockDto, mockUserId, mockReq),
+      ).rejects.toThrow();
     });
 
     it('should throw InternalServerErrorException for unknown errors', async () => {
@@ -259,7 +261,12 @@ describe('InspectionsController', () => {
         meta: { total: 0, page: 1, pageSize: 10, totalPages: 0 },
       });
 
-      await controller.findAll(Role.ADMIN, ['NEED_REVIEW', 'APPROVED'] as any, 1, 10);
+      await controller.findAll(
+        Role.ADMIN,
+        ['NEED_REVIEW', 'APPROVED'] as any,
+        1,
+        10,
+      );
 
       expect(mockInspectionsService.findAll).toHaveBeenCalledWith(
         Role.ADMIN,
@@ -317,10 +324,7 @@ describe('InspectionsController', () => {
     it('should call service.findOne and return mapped DTO', async () => {
       mockInspectionsService.findOne.mockResolvedValue(mockArchivedInspection);
 
-      const result = await controller.findOne(
-        'mock-archived-id',
-        Role.ADMIN,
-      );
+      const result = await controller.findOne('mock-archived-id', Role.ADMIN);
 
       expect(mockInspectionsService.findOne).toHaveBeenCalledWith(
         'mock-archived-id',
@@ -356,7 +360,9 @@ describe('InspectionsController', () => {
   // ─────────────────────────────────────────────────────────────────────────
   describe('searchByKeyword', () => {
     it('should call service.searchByKeyword and return mapped paginated result', async () => {
-      mockInspectionsService.searchByKeyword.mockResolvedValue(mockPaginatedResult);
+      mockInspectionsService.searchByKeyword.mockResolvedValue(
+        mockPaginatedResult,
+      );
 
       const result = await controller.searchByKeyword('Toyota', 1, 10);
 
@@ -375,7 +381,11 @@ describe('InspectionsController', () => {
         meta: { total: 0, page: 1, pageSize: 10, totalPages: 0 },
       });
 
-      const result = await controller.searchByKeyword('nonexistent-keyword', 1, 10);
+      const result = await controller.searchByKeyword(
+        'nonexistent-keyword',
+        1,
+        10,
+      );
 
       expect(result.data).toEqual([]);
     });
@@ -385,7 +395,11 @@ describe('InspectionsController', () => {
         ...mockPaginatedResult,
         data: [
           mockInspection,
-          { ...mockInspection, id: 'mock-inspection-id-2', pretty_id: 'YOG-14082025-001' },
+          {
+            ...mockInspection,
+            id: 'mock-inspection-id-2',
+            pretty_id: 'YOG-14082025-001',
+          },
         ],
         meta: { ...mockPaginatedResult.meta, total: 2 },
       });
@@ -402,7 +416,8 @@ describe('InspectionsController', () => {
   describe('update', () => {
     it('should call service.update and return the message', async () => {
       const mockMessage = {
-        message: '1 changes have been logged for inspection ID "mock-inspection-id".',
+        message:
+          '1 changes have been logged for inspection ID "mock-inspection-id".',
       };
       mockInspectionsService.update.mockResolvedValue(mockMessage);
 
@@ -488,10 +503,19 @@ describe('InspectionsController', () => {
     } as unknown as Request;
 
     it('should call service.approveInspection with id, reviewerId, and token', async () => {
-      const approvedInspection = { ...mockInspection, status: InspectionStatus.APPROVED };
-      mockInspectionsService.approveInspection.mockResolvedValue(approvedInspection);
+      const approvedInspection = {
+        ...mockInspection,
+        status: InspectionStatus.APPROVED,
+      };
+      mockInspectionsService.approveInspection.mockResolvedValue(
+        approvedInspection,
+      );
 
-      const result = await controller.approveInspection(mockInspectionId, mockUserId, mockReq);
+      const result = await controller.approveInspection(
+        mockInspectionId,
+        mockUserId,
+        mockReq,
+      );
 
       expect(mockInspectionsService.approveInspection).toHaveBeenCalledWith(
         mockInspectionId,
@@ -503,10 +527,19 @@ describe('InspectionsController', () => {
 
     it('should pass null token when no authorization header', async () => {
       const reqWithoutAuth = { headers: {} } as unknown as Request;
-      const approvedInspection = { ...mockInspection, status: InspectionStatus.APPROVED };
-      mockInspectionsService.approveInspection.mockResolvedValue(approvedInspection);
+      const approvedInspection = {
+        ...mockInspection,
+        status: InspectionStatus.APPROVED,
+      };
+      mockInspectionsService.approveInspection.mockResolvedValue(
+        approvedInspection,
+      );
 
-      await controller.approveInspection(mockInspectionId, mockUserId, reqWithoutAuth);
+      await controller.approveInspection(
+        mockInspectionId,
+        mockUserId,
+        reqWithoutAuth,
+      );
 
       expect(mockInspectionsService.approveInspection).toHaveBeenCalledWith(
         mockInspectionId,
@@ -546,7 +579,9 @@ describe('InspectionsController', () => {
         ],
         summary: { total: 2, successful: 2, failed: 0 },
       };
-      mockInspectionsService.bulkApproveInspections.mockResolvedValue(mockResult);
+      mockInspectionsService.bulkApproveInspections.mockResolvedValue(
+        mockResult,
+      );
 
       const result = await controller.bulkApproveInspections(
         mockBulkApproveDto as any,
@@ -554,11 +589,9 @@ describe('InspectionsController', () => {
         mockReq,
       );
 
-      expect(mockInspectionsService.bulkApproveInspections).toHaveBeenCalledWith(
-        ['id-1', 'id-2'],
-        mockUserId,
-        'mock-token',
-      );
+      expect(
+        mockInspectionsService.bulkApproveInspections,
+      ).toHaveBeenCalledWith(['id-1', 'id-2'], mockUserId, 'mock-token');
       expect(result.summary.successful).toBe(2);
     });
   });
@@ -568,7 +601,9 @@ describe('InspectionsController', () => {
   // ─────────────────────────────────────────────────────────────────────────
   describe('processToArchive', () => {
     it('should call service.processToArchive and return DTO', async () => {
-      mockInspectionsService.processToArchive.mockResolvedValue(mockArchivedInspection);
+      mockInspectionsService.processToArchive.mockResolvedValue(
+        mockArchivedInspection,
+      );
 
       const result = await controller.processToArchive(
         'mock-archived-id',
@@ -607,14 +642,16 @@ describe('InspectionsController', () => {
         mockBuildResponse,
       );
 
-      const result = await controller.buildArchiveTransaction(mockInspectionId, {
-        adminAddress: 'addr1test',
-      } as any);
-
-      expect(mockInspectionsService.buildArchiveTransaction).toHaveBeenCalledWith(
+      const result = await controller.buildArchiveTransaction(
         mockInspectionId,
-        'addr1test',
+        {
+          adminAddress: 'addr1test',
+        } as any,
       );
+
+      expect(
+        mockInspectionsService.buildArchiveTransaction,
+      ).toHaveBeenCalledWith(mockInspectionId, 'addr1test');
       expect(result).toEqual(mockBuildResponse);
     });
 
@@ -623,7 +660,9 @@ describe('InspectionsController', () => {
         controller.buildArchiveTransaction(mockInspectionId, {} as any),
       ).rejects.toThrow(BadRequestException);
 
-      expect(mockInspectionsService.buildArchiveTransaction).not.toHaveBeenCalled();
+      expect(
+        mockInspectionsService.buildArchiveTransaction,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -637,7 +676,9 @@ describe('InspectionsController', () => {
     };
 
     it('should call service.confirmArchive and return DTO', async () => {
-      mockInspectionsService.confirmArchive.mockResolvedValue(mockArchivedInspection);
+      mockInspectionsService.confirmArchive.mockResolvedValue(
+        mockArchivedInspection,
+      );
 
       const result = await controller.confirmArchive(
         'mock-archived-id',
@@ -661,7 +702,9 @@ describe('InspectionsController', () => {
         ...mockArchivedInspection,
         status: InspectionStatus.DEACTIVATED,
       };
-      mockInspectionsService.deactivateArchive.mockResolvedValue(deactivatedInspection);
+      mockInspectionsService.deactivateArchive.mockResolvedValue(
+        deactivatedInspection,
+      );
 
       const result = await controller.deactivateArchive(
         'mock-archived-id',
@@ -681,7 +724,9 @@ describe('InspectionsController', () => {
   // ─────────────────────────────────────────────────────────────────────────
   describe('activateArchive', () => {
     it('should call service.activateArchive and return DTO', async () => {
-      mockInspectionsService.activateArchive.mockResolvedValue(mockArchivedInspection);
+      mockInspectionsService.activateArchive.mockResolvedValue(
+        mockArchivedInspection,
+      );
 
       const result = await controller.activateArchive(
         'mock-archived-id',
@@ -701,7 +746,9 @@ describe('InspectionsController', () => {
   // ─────────────────────────────────────────────────────────────────────────
   describe('deleteInspectionPermanently', () => {
     it('should call service.deleteInspectionPermanently', async () => {
-      mockInspectionsService.deleteInspectionPermanently.mockResolvedValue(undefined);
+      mockInspectionsService.deleteInspectionPermanently.mockResolvedValue(
+        undefined,
+      );
 
       await controller.deleteInspectionPermanently(mockInspectionId);
 
@@ -726,17 +773,18 @@ describe('InspectionsController', () => {
   // ─────────────────────────────────────────────────────────────────────────
   describe('revertInspectionToReview', () => {
     it('should call service.rollbackInspectionStatus and return void', async () => {
-      mockInspectionsService.rollbackInspectionStatus.mockResolvedValue(undefined);
+      mockInspectionsService.rollbackInspectionStatus.mockResolvedValue(
+        undefined,
+      );
 
       const result = await controller.revertInspectionToReview(
         mockInspectionId,
         mockUserId,
       );
 
-      expect(mockInspectionsService.rollbackInspectionStatus).toHaveBeenCalledWith(
-        mockInspectionId,
-        mockUserId,
-      );
+      expect(
+        mockInspectionsService.rollbackInspectionStatus,
+      ).toHaveBeenCalledWith(mockInspectionId, mockUserId);
       expect(result).toBeUndefined();
     });
   });
@@ -746,17 +794,18 @@ describe('InspectionsController', () => {
   // ─────────────────────────────────────────────────────────────────────────
   describe('revertInspectionToApproved', () => {
     it('should call service.revertInspectionToApproved and return void', async () => {
-      mockInspectionsService.revertInspectionToApproved.mockResolvedValue(undefined);
+      mockInspectionsService.revertInspectionToApproved.mockResolvedValue(
+        undefined,
+      );
 
       const result = await controller.revertInspectionToApproved(
         mockInspectionId,
         mockUserId,
       );
 
-      expect(mockInspectionsService.revertInspectionToApproved).toHaveBeenCalledWith(
-        mockInspectionId,
-        mockUserId,
-      );
+      expect(
+        mockInspectionsService.revertInspectionToApproved,
+      ).toHaveBeenCalledWith(mockInspectionId, mockUserId);
       expect(result).toBeUndefined();
     });
   });
@@ -788,7 +837,9 @@ describe('InspectionsController', () => {
 
       const result = await controller.getPhotosForInspection(mockInspectionId);
 
-      expect(mockPhotosService.findForInspection).toHaveBeenCalledWith(mockInspectionId);
+      expect(mockPhotosService.findForInspection).toHaveBeenCalledWith(
+        mockInspectionId,
+      );
       expect(result).toHaveLength(1);
       expect(result[0].id).toBe('photo-id-1');
     });
@@ -895,7 +946,9 @@ describe('InspectionsController', () => {
 
       const result = await controller.addSinglePhoto(
         mockInspectionId,
-        { metadata: JSON.stringify({ label: 'front', needAttention: 'false' }) } as any,
+        {
+          metadata: JSON.stringify({ label: 'front', needAttention: 'false' }),
+        } as any,
         mockFile,
       );
 

@@ -32,7 +32,6 @@ import {
   InternalServerErrorException,
   Query,
   NotFoundException,
-  Res,
   UseGuards,
   DefaultValuePipe,
   ParseIntPipe,
@@ -81,7 +80,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { FileValidationPipe } from './pipes/file-validation.pipe';
 import { OptionalFileValidationPipe } from './pipes/optional-file-validation.pipe';
 import { SkipThrottle, Throttle, ThrottlerGuard } from '@nestjs/throttler';
-import { skip } from 'rxjs';
+
 import { HttpErrorResponseDto } from 'src/common/dto/http-error-response.dto';
 
 // Define an interface for the expected photo metadata structure
@@ -93,7 +92,6 @@ interface PhotoMetadata {
 // --- Multer Configuration ---
 const MAX_PHOTOS_PER_REQUEST = 10; // Max files per batch upload request
 // const UPLOAD_PATH = './uploads/inspection-photos'; // Removed for S3
-
 
 /**
  * Controller managing all HTTP requests related to vehicle inspections.
@@ -115,18 +113,17 @@ export class InspectionsController {
     private readonly inspectionsService: InspectionsService,
     private readonly photosService: PhotosService,
     private readonly configService: ConfigService,
-  ) { }
+  ) {}
 
   private normalizePhotoUrl(photo: Photo): PhotoResponseDto {
     const dto = new PhotoResponseDto(photo);
-    const appUrl = this.configService.get<string>('APP_URL') || 'http://localhost:3000';
+    const appUrl =
+      this.configService.get<string>('APP_URL') || 'http://localhost:3000';
     if (dto.path && !dto.path.startsWith('http')) {
       dto.path = `${appUrl}/uploads/inspection-photos/${dto.path}`;
     }
     return dto;
   }
-
-
 
   /**
    * Handles the creation of a new inspection record.
@@ -150,9 +147,18 @@ export class InspectionsController {
       'Creates the initial inspection record containing text and JSON data. This is the first step before uploading photos or archiving. Only accessible by users with the INSPECTOR role.',
   })
   @ApiBody({ type: CreateInspectionDto })
-  @ApiCreatedResponse({ description: 'The newly created inspection record summary.', type: InspectionResponseDto })
-  @ApiBadRequestResponse({ description: 'Bad Request (e.g., invalid input data).', type: HttpErrorResponseDto })
-  @ApiInternalServerErrorResponse({ description: 'Unexpected server error.', type: HttpErrorResponseDto })
+  @ApiCreatedResponse({
+    description: 'The newly created inspection record summary.',
+    type: InspectionResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: 'Bad Request (e.g., invalid input data).',
+    type: HttpErrorResponseDto,
+  })
+  @ApiInternalServerErrorResponse({
+    description: 'Unexpected server error.',
+    type: HttpErrorResponseDto,
+  })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
     description: 'Unauthorized. User is not authenticated.',
@@ -191,9 +197,9 @@ export class InspectionsController {
       // Known HttpExceptions: preserve status and convert message to array when needed
       if (err?.getStatus && err?.getResponse) {
         const status = err.getStatus();
-        const resp = err.getResponse() as any;
+        const resp = err.getResponse();
         const messageRaw =
-          typeof resp === 'string' ? resp : resp?.message ?? err.message;
+          typeof resp === 'string' ? resp : (resp?.message ?? err.message);
         const message = Array.isArray(messageRaw)
           ? messageRaw
           : [String(messageRaw ?? 'Request failed')];
@@ -213,7 +219,7 @@ export class InspectionsController {
           `[POST /inspections] ${errorName} ${status}: ${message.join(' | ')}`,
         );
         // Re-throw with normalized body
-        throw new (err.constructor as any)(body);
+        throw new err.constructor(body);
       }
 
       // Unknown errors — return 500 with normalized body
@@ -316,10 +322,7 @@ export class InspectionsController {
   @Post(':id/photos/multiple') // Renamed endpoint
   @SkipThrottle()
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(
-    FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST),
-  )
-
+  @UseInterceptors(FilesInterceptor('photos', MAX_PHOTOS_PER_REQUEST))
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
   @ApiOperation({
@@ -387,7 +390,6 @@ export class InspectionsController {
       addBatchDto.metadata,
     );
     return newPhotos.map((p) => this.normalizePhotoUrl(p));
-
   }
 
   /**
@@ -404,10 +406,7 @@ export class InspectionsController {
   @HttpCode(HttpStatus.CREATED)
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER, Role.INSPECTOR)
-  @UseInterceptors(
-    FileInterceptor('photo'),
-  )
-
+  @UseInterceptors(FileInterceptor('photo'))
   @ApiOperation({
     summary: 'Upload a single photo for an inspection',
     description:
@@ -478,7 +477,6 @@ export class InspectionsController {
       parsedMetadata,
     );
     return this.normalizePhotoUrl(newPhoto);
-
   }
 
   // --- Photo Management Endpoints ---
@@ -528,7 +526,6 @@ export class InspectionsController {
     this.logger.log(`[GET /inspections/${id}/photos] Request received`);
     const photos = await this.photosService.findForInspection(id);
     return photos.map((p) => this.normalizePhotoUrl(p));
-
   }
 
   /**
@@ -546,10 +543,7 @@ export class InspectionsController {
   @Throttle({ default: { limit: 60, ttl: 60000 } })
   @UseGuards(ThrottlerGuard)
   @HttpCode(HttpStatus.OK)
-  @UseInterceptors(
-    FileInterceptor('photo'),
-  ) // Handle single optional file
-
+  @UseInterceptors(FileInterceptor('photo')) // Handle single optional file
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.ADMIN, Role.REVIEWER, Role.SUPERADMIN)
   @ApiBearerAuth()
@@ -618,7 +612,6 @@ export class InspectionsController {
       userId,
     );
     return this.normalizePhotoUrl(updatedPhoto);
-
   }
 
   /**
@@ -868,8 +861,10 @@ export class InspectionsController {
 
     let parsedStatuses: InspectionStatus[] | undefined = undefined;
     if (status) {
-      const statusInput = Array.isArray(status) ? status : status.split(',').map(s => s.trim());
-      parsedStatuses = statusInput.map(s => {
+      const statusInput = Array.isArray(status)
+        ? status
+        : status.split(',').map((s) => s.trim());
+      parsedStatuses = statusInput.map((s) => {
         if (!Object.values(InspectionStatus).includes(s as any)) {
           throw new BadRequestException(`Invalid inspection status: ${s}`);
         }
@@ -878,7 +873,7 @@ export class InspectionsController {
     }
 
     this.logger.warn(
-      `[GET /inspections] Applying filter for role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${status}`,
+      `[GET /inspections] Applying filter for role: ${userRole}, page: ${page}, pageSize: ${pageSize}, status: ${String(status)}`,
     );
 
     const result = await this.inspectionsService.findAll(

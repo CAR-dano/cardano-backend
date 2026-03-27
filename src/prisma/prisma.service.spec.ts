@@ -32,7 +32,9 @@ jest.mock('@prisma/client', () => {
 // Import AFTER the mock is declared
 import { PrismaService } from './prisma.service';
 
-function buildService(dbUrl = 'postgresql://localhost:5432/test'): PrismaService {
+function buildService(
+  dbUrl = 'postgresql://localhost:5432/test',
+): PrismaService {
   const configService = {
     get: jest.fn().mockReturnValue(dbUrl),
   } as unknown as ConfigService;
@@ -61,14 +63,18 @@ describe('PrismaService', () => {
   describe('onModuleInit', () => {
     it('should call $connect on module init', async () => {
       const service = buildService();
-      const connectSpy = jest.spyOn(service as any, '$connect').mockResolvedValue(undefined);
+      const connectSpy = jest
+        .spyOn(service as any, '$connect')
+        .mockResolvedValue(undefined);
       await service.onModuleInit();
       expect(connectSpy).toHaveBeenCalledTimes(1);
     });
 
     it('should not throw when $connect fails (logs error)', async () => {
       const service = buildService();
-      jest.spyOn(service as any, '$connect').mockRejectedValue(new Error('refused'));
+      jest
+        .spyOn(service as any, '$connect')
+        .mockRejectedValue(new Error('refused'));
       await expect(service.onModuleInit()).resolves.not.toThrow();
     });
   });
@@ -77,7 +83,9 @@ describe('PrismaService', () => {
   describe('onModuleDestroy', () => {
     it('should call $disconnect on module destroy', async () => {
       const service = buildService();
-      const disconnectSpy = jest.spyOn(service as any, '$disconnect').mockResolvedValue(undefined);
+      const disconnectSpy = jest
+        .spyOn(service as any, '$disconnect')
+        .mockResolvedValue(undefined);
       await service.onModuleDestroy();
       expect(disconnectSpy).toHaveBeenCalledTimes(1);
     });
@@ -97,8 +105,12 @@ describe('PrismaService', () => {
 
     it('should retry once on P1017 transient error', async () => {
       const service = buildService();
-      const disconnectSpy = jest.spyOn(service as any, '$disconnect').mockResolvedValue(undefined);
-      const connectSpy = jest.spyOn(service as any, '$connect').mockResolvedValue(undefined);
+      const disconnectSpy = jest
+        .spyOn(service as any, '$disconnect')
+        .mockResolvedValue(undefined);
+      const connectSpy = jest
+        .spyOn(service as any, '$connect')
+        .mockResolvedValue(undefined);
 
       const p1017 = new Prisma.PrismaClientKnownRequestError('Server closed', {
         code: 'P1017',
@@ -188,7 +200,9 @@ describe('PrismaService', () => {
 
     it('should continue retry flow even if $disconnect throws during reconnect', async () => {
       const service = buildService();
-      jest.spyOn(service as any, '$disconnect').mockRejectedValue(new Error('disconnect failed'));
+      jest
+        .spyOn(service as any, '$disconnect')
+        .mockRejectedValue(new Error('disconnect failed'));
       jest.spyOn(service as any, '$connect').mockResolvedValue(undefined);
 
       const p1017 = new Prisma.PrismaClientKnownRequestError('closed', {
@@ -227,7 +241,9 @@ describe('PrismaService', () => {
     it('should execute $transaction in test environment', async () => {
       process.env.NODE_ENV = 'test';
       const service = buildService();
-      const txSpy = jest.spyOn(service as any, '$transaction').mockResolvedValue([]);
+      const txSpy = jest
+        .spyOn(service as any, '$transaction')
+        .mockResolvedValue([]);
 
       await service.cleanDatabase();
 
@@ -237,7 +253,9 @@ describe('PrismaService', () => {
     it('should execute $transaction in development environment', async () => {
       process.env.NODE_ENV = 'development';
       const service = buildService();
-      const txSpy = jest.spyOn(service as any, '$transaction').mockResolvedValue([]);
+      const txSpy = jest
+        .spyOn(service as any, '$transaction')
+        .mockResolvedValue([]);
 
       await service.cleanDatabase();
 

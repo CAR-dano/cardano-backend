@@ -28,11 +28,7 @@ describe('AppError', () => {
   });
 
   it('should set custom statusCode', () => {
-    const error = new AppError(
-      'Not found',
-      ErrorCode.USER_NOT_FOUND,
-      404,
-    );
+    const error = new AppError('Not found', ErrorCode.USER_NOT_FOUND, 404);
 
     expect(error.statusCode).toBe(404);
   });
@@ -61,12 +57,9 @@ describe('AppError', () => {
   });
 
   it('should preserve readonly properties', () => {
-    const error = new AppError(
-      'test',
-      ErrorCode.INSPECTION_NOT_FOUND,
-      404,
-      { reason: 'deleted' },
-    );
+    const error = new AppError('test', ErrorCode.INSPECTION_NOT_FOUND, 404, {
+      reason: 'deleted',
+    });
 
     // TypeScript readonly enforces this at compile time,
     // but we verify the values are correct at runtime

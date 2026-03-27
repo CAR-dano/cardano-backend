@@ -7,12 +7,7 @@
 
 import request from 'supertest';
 import { HttpStatus } from '@nestjs/common';
-import {
-  getTestApp,
-  closeTestApp,
-  TestAppContext,
-  createInspectionPayload,
-} from './helpers';
+import { getTestApp, closeTestApp, TestAppContext } from './helpers';
 import { InspectionStatus } from '@prisma/client';
 
 describe('PublicApiController (e2e)', () => {
@@ -90,7 +85,11 @@ describe('PublicApiController (e2e)', () => {
           inspectionDate: new Date(),
           overallRating: '80',
           status: InspectionStatus.ARCHIVED,
-          identityDetails: { namaInspektor: ctx.tokens.inspector.id, namaCustomer: 'Test', cabangInspeksi: ctx.branchCityId },
+          identityDetails: {
+            namaInspektor: ctx.tokens.inspector.id,
+            namaCustomer: 'Test',
+            cabangInspeksi: ctx.branchCityId,
+          },
           vehicleData: { merekKendaraan: 'Toyota' },
           equipmentChecklist: {},
           inspectionSummary: {},

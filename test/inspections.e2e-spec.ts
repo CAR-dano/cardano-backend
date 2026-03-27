@@ -76,7 +76,7 @@ describe('InspectionsController (e2e)', () => {
 
       // The create endpoint uses an interactive Prisma transaction for ID
       // generation that may time out on Neon (serverless PG). Accept 201 or 500.
-      if (res.status === HttpStatus.CREATED) {
+      if (res.status === (HttpStatus.CREATED as unknown as number)) {
         expect(res.body).toHaveProperty('id');
         const dbRecord = await ctx.prisma.inspection.findUnique({
           where: { id: res.body.id },
@@ -351,12 +351,12 @@ describe('InspectionsController (e2e)', () => {
         .patch(`${inspRoute}/${inspectionId}/approve`)
         .set('Authorization', `Bearer ${ctx.tokens.admin.accessToken}`);
 
-      if (res.status === HttpStatus.OK) {
-        expect(res.body.status).toBe('APPROVED');
+      if (res.status === (HttpStatus.OK as unknown as number)) {
+        expect(res.body.status).toBe(InspectionStatus.APPROVED);
         const dbRecord = await ctx.prisma.inspection.findUnique({
           where: { id: inspectionId },
         });
-        expect(dbRecord!.status).toBe('APPROVED');
+        expect(dbRecord!.status).toBe(InspectionStatus.APPROVED);
       } else {
         // Accept 400 (circuit breaker) or 500 (transaction/infra error)
         expect([400, 500]).toContain(res.status);

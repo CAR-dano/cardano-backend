@@ -186,10 +186,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       // Server errors — log with stack trace
       const stack =
         exception instanceof Error ? exception.stack : String(exception);
-      this.logger.error(
-        `[${logContext}] ${message.join('; ')}`,
-        stack,
-      );
+      this.logger.error(`[${logContext}] ${message.join('; ')}`, stack);
     } else if (statusCode >= 400) {
       // Client errors — warn level, no stack
       this.logger.warn(`[${logContext}] ${message.join('; ')}`);

@@ -58,7 +58,9 @@ describe('InspectionBranchesController', () => {
       .useValue({ canActivate: () => true })
       .compile();
 
-    controller = module.get<InspectionBranchesController>(InspectionBranchesController);
+    controller = module.get<InspectionBranchesController>(
+      InspectionBranchesController,
+    );
     jest.clearAllMocks();
   });
 
@@ -80,7 +82,9 @@ describe('InspectionBranchesController', () => {
     });
 
     it('should propagate errors from service', async () => {
-      mockInspectionBranchesService.create.mockRejectedValue(new Error('DB error'));
+      mockInspectionBranchesService.create.mockRejectedValue(
+        new Error('DB error'),
+      );
 
       await expect(
         controller.create({ city: 'X', isActive: true } as any),
@@ -91,7 +95,10 @@ describe('InspectionBranchesController', () => {
   // -------------------------------------------------------------------------
   describe('findAll', () => {
     it('should return all branches', async () => {
-      const branches = [makeBranch(), makeBranch({ id: 'branch-2', city: 'Solo' })];
+      const branches = [
+        makeBranch(),
+        makeBranch({ id: 'branch-2', city: 'Solo' }),
+      ];
       mockInspectionBranchesService.findAll.mockResolvedValue(branches);
 
       const result = await controller.findAll();
@@ -117,7 +124,9 @@ describe('InspectionBranchesController', () => {
 
       const result = await controller.findOne('branch-1');
 
-      expect(mockInspectionBranchesService.findOne).toHaveBeenCalledWith('branch-1');
+      expect(mockInspectionBranchesService.findOne).toHaveBeenCalledWith(
+        'branch-1',
+      );
       expect(result).toEqual(branch);
     });
 
@@ -126,7 +135,9 @@ describe('InspectionBranchesController', () => {
         new NotFoundException('Branch not found'),
       );
 
-      await expect(controller.findOne('missing-id')).rejects.toThrow(NotFoundException);
+      await expect(controller.findOne('missing-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -139,7 +150,10 @@ describe('InspectionBranchesController', () => {
 
       const result = await controller.update('branch-1', dto as any);
 
-      expect(mockInspectionBranchesService.update).toHaveBeenCalledWith('branch-1', dto);
+      expect(mockInspectionBranchesService.update).toHaveBeenCalledWith(
+        'branch-1',
+        dto,
+      );
       expect(result).toEqual(updated);
     });
 
@@ -162,7 +176,9 @@ describe('InspectionBranchesController', () => {
 
       const result = await controller.remove('branch-1');
 
-      expect(mockInspectionBranchesService.remove).toHaveBeenCalledWith('branch-1');
+      expect(mockInspectionBranchesService.remove).toHaveBeenCalledWith(
+        'branch-1',
+      );
       expect(result).toEqual(branch);
     });
 
@@ -171,7 +187,9 @@ describe('InspectionBranchesController', () => {
         new NotFoundException('Branch not found'),
       );
 
-      await expect(controller.remove('missing-id')).rejects.toThrow(NotFoundException);
+      await expect(controller.remove('missing-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -183,7 +201,9 @@ describe('InspectionBranchesController', () => {
 
       const result = await controller.toggleActive('branch-1');
 
-      expect(mockInspectionBranchesService.toggleActive).toHaveBeenCalledWith('branch-1');
+      expect(mockInspectionBranchesService.toggleActive).toHaveBeenCalledWith(
+        'branch-1',
+      );
       expect(result).toEqual(toggled);
     });
 
@@ -192,7 +212,9 @@ describe('InspectionBranchesController', () => {
         new NotFoundException('Branch not found'),
       );
 
-      await expect(controller.toggleActive('missing-id')).rejects.toThrow(NotFoundException);
+      await expect(controller.toggleActive('missing-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('should return branch with toggled isActive from false to true', async () => {

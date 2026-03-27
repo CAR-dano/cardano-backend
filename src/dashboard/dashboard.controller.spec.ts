@@ -62,9 +62,13 @@ describe('DashboardController', () => {
     });
 
     it('should propagate service errors', async () => {
-      mockDashboardService.getMainCounter.mockRejectedValue(new Error('DB error'));
+      mockDashboardService.getMainCounter.mockRejectedValue(
+        new Error('DB error'),
+      );
 
-      await expect(controller.getMainStats({} as any)).rejects.toThrow('DB error');
+      await expect(controller.getMainStats({} as any)).rejects.toThrow(
+        'DB error',
+      );
     });
   });
 
@@ -94,19 +98,29 @@ describe('DashboardController', () => {
   describe('getBranchDistribution', () => {
     it('should return branch distribution data', async () => {
       const query = { startDate: '2025-01-01' };
-      const mockDistribution = [{ branchId: 'b1', city: 'Yogyakarta', count: 50 }];
-      mockDashboardService.getBranchDistribution.mockResolvedValue(mockDistribution);
+      const mockDistribution = [
+        { branchId: 'b1', city: 'Yogyakarta', count: 50 },
+      ];
+      mockDashboardService.getBranchDistribution.mockResolvedValue(
+        mockDistribution,
+      );
 
       const result = await controller.getBranchDistribution(query as any);
 
-      expect(mockDashboardService.getBranchDistribution).toHaveBeenCalledWith(query);
+      expect(mockDashboardService.getBranchDistribution).toHaveBeenCalledWith(
+        query,
+      );
       expect(result).toEqual(mockDistribution);
     });
 
     it('should propagate service errors', async () => {
-      mockDashboardService.getBranchDistribution.mockRejectedValue(new Error('branch error'));
+      mockDashboardService.getBranchDistribution.mockRejectedValue(
+        new Error('branch error'),
+      );
 
-      await expect(controller.getBranchDistribution({} as any)).rejects.toThrow('branch error');
+      await expect(controller.getBranchDistribution({} as any)).rejects.toThrow(
+        'branch error',
+      );
     });
   });
 
@@ -114,19 +128,29 @@ describe('DashboardController', () => {
   describe('getInspectorPerformance', () => {
     it('should return inspector performance data', async () => {
       const query = { period: 'weekly' };
-      const mockPerformance = [{ inspector: 'Inspector A', totalInspections: 20 }];
-      mockDashboardService.getInspectorPerformance.mockResolvedValue(mockPerformance);
+      const mockPerformance = [
+        { inspector: 'Inspector A', totalInspections: 20 },
+      ];
+      mockDashboardService.getInspectorPerformance.mockResolvedValue(
+        mockPerformance,
+      );
 
       const result = await controller.getInspectorPerformance(query as any);
 
-      expect(mockDashboardService.getInspectorPerformance).toHaveBeenCalledWith(query);
+      expect(mockDashboardService.getInspectorPerformance).toHaveBeenCalledWith(
+        query,
+      );
       expect(result).toEqual(mockPerformance);
     });
 
     it('should propagate service errors', async () => {
-      mockDashboardService.getInspectorPerformance.mockRejectedValue(new Error('perf error'));
+      mockDashboardService.getInspectorPerformance.mockRejectedValue(
+        new Error('perf error'),
+      );
 
-      await expect(controller.getInspectorPerformance({} as any)).rejects.toThrow('perf error');
+      await expect(
+        controller.getInspectorPerformance({} as any),
+      ).rejects.toThrow('perf error');
     });
   });
 });

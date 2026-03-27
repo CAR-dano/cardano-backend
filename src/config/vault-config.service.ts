@@ -205,10 +205,7 @@ export class VaultConfigService implements OnModuleInit {
       REDIS_URL: this.resolveValue('REDIS_URL', redisSecrets),
       // JWT
       JWT_SECRET: this.resolveValue('JWT_SECRET', jwtSecrets),
-      JWT_REFRESH_SECRET: this.resolveValue(
-        'JWT_REFRESH_SECRET',
-        jwtSecrets,
-      ),
+      JWT_REFRESH_SECRET: this.resolveValue('JWT_REFRESH_SECRET', jwtSecrets),
       // Google OAuth
       GOOGLE_CLIENT_ID: this.resolveValue('GOOGLE_CLIENT_ID', googleSecrets),
       GOOGLE_CLIENT_SECRET: this.resolveValue(
@@ -280,9 +277,7 @@ export class VaultConfigService implements OnModuleInit {
    * Reads a single KV v2 path from Vault.
    * Returns empty object on failure (not found, permission denied).
    */
-  private async readVaultPath(
-    path: string,
-  ): Promise<Record<string, string>> {
+  private async readVaultPath(path: string): Promise<Record<string, string>> {
     try {
       const result = await this.vaultClient!.read(path);
       return result?.data?.data ?? {};
@@ -294,9 +289,7 @@ export class VaultConfigService implements OnModuleInit {
           `Vault path "${path}" not found — will use env var fallback.`,
         );
       } else {
-        this.logger.warn(
-          `Vault read error for path "${path}": ${msg}`,
-        );
+        this.logger.warn(`Vault read error for path "${path}": ${msg}`);
       }
       return {};
     }
@@ -305,15 +298,8 @@ export class VaultConfigService implements OnModuleInit {
   /**
    * Resolves a value: Vault data first, then ConfigService/env fallback.
    */
-  private resolveValue(
-    key: string,
-    vaultData: Record<string, string>,
-  ): string {
-    return (
-      vaultData[key] ??
-      this.configService.get<string>(key) ??
-      ''
-    );
+  private resolveValue(key: string, vaultData: Record<string, string>): string {
+    return vaultData[key] ?? this.configService.get<string>(key) ?? '';
   }
 
   /**
@@ -322,10 +308,7 @@ export class VaultConfigService implements OnModuleInit {
    */
   async getSecrets(): Promise<ResolvedSecrets> {
     // Serve from cache if valid
-    if (
-      this.cache &&
-      Date.now() - this.cache.fetchedAt < this.cache.ttlMs
-    ) {
+    if (this.cache && Date.now() - this.cache.fetchedAt < this.cache.ttlMs) {
       return this.cache.secrets;
     }
 
@@ -348,8 +331,7 @@ export class VaultConfigService implements OnModuleInit {
    * Used when Vault is unreachable.
    */
   private buildEnvFallback(): ResolvedSecrets {
-    const g = (key: string) =>
-      this.configService.get<string>(key) ?? '';
+    const g = (key: string) => this.configService.get<string>(key) ?? '';
 
     return {
       DATABASE_URL: g('DATABASE_URL'),

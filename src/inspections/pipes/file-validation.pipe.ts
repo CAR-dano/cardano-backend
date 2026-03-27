@@ -19,7 +19,7 @@ export class FileValidationPipe implements PipeTransform {
 
   async transform(
     files: Express.Multer.File | Express.Multer.File[],
-    metadata: ArgumentMetadata,
+    _metadata: ArgumentMetadata,
   ) {
     if (!files) {
       throw new BadRequestException('File upload is required.');

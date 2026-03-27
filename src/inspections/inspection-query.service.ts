@@ -41,12 +41,12 @@ export class InspectionQueryService {
   /**
    * Optimizes inspection list data by removing unused fields from JSON columns.
    * Reduces payload size by ~62% while maintaining backward-compatible nested structure.
-   * 
+   *
    * Fields kept:
    * - Root: id, vehiclePlateNumber, inspectionDate, status, urlPdf
    * - identityDetails: namaCustomer, namaInspektor
    * - vehicleData: merekKendaraan, tipeKendaraan
-   * 
+   *
    * @param {any[]} inspections - Array of inspection records from database
    * @returns {any[]} Optimized inspection records with filtered fields
    */
@@ -453,9 +453,7 @@ export class InspectionQueryService {
    * @param {string} vehiclePlateNumber - The vehicle plate number to search for.
    * @returns {Promise<Inspection | null>} The found inspection record or null if not found.
    */
-  async findByVehiclePlateNumber(
-    vehiclePlateNumber: string,
-  ): Promise<any | null> {
+  async findByVehiclePlateNumber(vehiclePlateNumber: string): Promise<any> {
     this.logger.log(
       `Searching for inspection by vehicle plate number: ${vehiclePlateNumber}`,
     );
@@ -665,11 +663,9 @@ export class InspectionQueryService {
           ) @@ to_tsquery('english', $2)
       `;
 
-      const countResult = await this.prisma.$queryRawUnsafe<{ total: bigint }[]>(
-        countQuery,
-        keyword,
-        sanitizedKeyword,
-      );
+      const countResult = await this.prisma.$queryRawUnsafe<
+        { total: bigint }[]
+      >(countQuery, keyword, sanitizedKeyword);
       const total = Number(countResult[0]?.total || 0);
 
       if (total === 0) {

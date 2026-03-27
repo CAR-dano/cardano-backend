@@ -132,6 +132,7 @@ jobs:
         run: npx prisma migrate deploy
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db?schema=public
+          DIRECT_DB_URL: postgresql://postgres:postgres@localhost:5432/test_db?schema=public
 
       - name: Run E2E tests
         run: npm run test:e2e

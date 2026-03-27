@@ -35,7 +35,9 @@ describe('BusinessMetricsInterceptor', () => {
       setBlockchainSyncStatus: jest.fn(),
       incrementError: jest.fn(),
     };
-    interceptor = new BusinessMetricsInterceptor(metricsService as MetricsService);
+    interceptor = new BusinessMetricsInterceptor(
+      metricsService as MetricsService,
+    );
   });
 
   it('should be defined', () => {
@@ -46,7 +48,10 @@ describe('BusinessMetricsInterceptor', () => {
     const ctx = buildContext('/wallet/create');
     interceptor.intercept(ctx, buildHandler({})).subscribe({
       complete: () => {
-        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith('create', 'success');
+        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith(
+          'create',
+          'success',
+        );
         done();
       },
     });
@@ -57,8 +62,13 @@ describe('BusinessMetricsInterceptor', () => {
     const data = { amount: 1000000 };
     interceptor.intercept(ctx, buildHandler(data)).subscribe({
       complete: () => {
-        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith('transfer', 'success');
-        expect(metricsService.setAdaTransferVolume).toHaveBeenCalledWith(1000000);
+        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith(
+          'transfer',
+          'success',
+        );
+        expect(metricsService.setAdaTransferVolume).toHaveBeenCalledWith(
+          1000000,
+        );
         done();
       },
     });
@@ -68,7 +78,10 @@ describe('BusinessMetricsInterceptor', () => {
     const ctx = buildContext('/wallet/transfer');
     interceptor.intercept(ctx, buildHandler({})).subscribe({
       complete: () => {
-        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith('transfer', 'success');
+        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith(
+          'transfer',
+          'success',
+        );
         expect(metricsService.setAdaTransferVolume).not.toHaveBeenCalled();
         done();
       },
@@ -79,7 +92,10 @@ describe('BusinessMetricsInterceptor', () => {
     const ctx = buildContext('/wallet/balance');
     interceptor.intercept(ctx, buildHandler({})).subscribe({
       complete: () => {
-        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith('balance_check', 'success');
+        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith(
+          'balance_check',
+          'success',
+        );
         done();
       },
     });
@@ -90,8 +106,13 @@ describe('BusinessMetricsInterceptor', () => {
     const data = { syncPercentage: 98.5 };
     interceptor.intercept(ctx, buildHandler(data)).subscribe({
       complete: () => {
-        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith('sync', 'success');
-        expect(metricsService.setBlockchainSyncStatus).toHaveBeenCalledWith(98.5);
+        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith(
+          'sync',
+          'success',
+        );
+        expect(metricsService.setBlockchainSyncStatus).toHaveBeenCalledWith(
+          98.5,
+        );
         done();
       },
     });
@@ -101,7 +122,10 @@ describe('BusinessMetricsInterceptor', () => {
     const ctx = buildContext('/auth/login');
     interceptor.intercept(ctx, buildHandler({})).subscribe({
       complete: () => {
-        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith('auth_login', 'success');
+        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith(
+          'auth_login',
+          'success',
+        );
         done();
       },
     });
@@ -111,7 +135,10 @@ describe('BusinessMetricsInterceptor', () => {
     const ctx = buildContext('/auth/register');
     interceptor.intercept(ctx, buildHandler({})).subscribe({
       complete: () => {
-        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith('auth_register', 'success');
+        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith(
+          'auth_register',
+          'success',
+        );
         done();
       },
     });
@@ -121,7 +148,10 @@ describe('BusinessMetricsInterceptor', () => {
     const ctx = buildContext('/inspection/create');
     interceptor.intercept(ctx, buildHandler({})).subscribe({
       complete: () => {
-        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith('inspection_create', 'success');
+        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith(
+          'inspection_create',
+          'success',
+        );
         done();
       },
     });
@@ -131,7 +161,10 @@ describe('BusinessMetricsInterceptor', () => {
     const ctx = buildContext('/inspection/update');
     interceptor.intercept(ctx, buildHandler({})).subscribe({
       complete: () => {
-        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith('inspection_update', 'success');
+        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith(
+          'inspection_update',
+          'success',
+        );
         done();
       },
     });
@@ -143,8 +176,14 @@ describe('BusinessMetricsInterceptor', () => {
     error.name = 'AuthError';
     interceptor.intercept(ctx, buildErrorHandler(error)).subscribe({
       error: (e) => {
-        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith('auth_login', 'failure');
-        expect(metricsService.incrementError).toHaveBeenCalledWith('AuthError', '/auth/login');
+        expect(metricsService.incrementWalletOperation).toHaveBeenCalledWith(
+          'auth_login',
+          'failure',
+        );
+        expect(metricsService.incrementError).toHaveBeenCalledWith(
+          'AuthError',
+          '/auth/login',
+        );
         expect(e).toBe(error);
         done();
       },
@@ -157,7 +196,10 @@ describe('BusinessMetricsInterceptor', () => {
     Object.defineProperty(error, 'name', { value: undefined, writable: true });
     interceptor.intercept(ctx, buildErrorHandler(error)).subscribe({
       error: () => {
-        expect(metricsService.incrementError).toHaveBeenCalledWith('UnknownError', '/wallet/create');
+        expect(metricsService.incrementError).toHaveBeenCalledWith(
+          'UnknownError',
+          '/wallet/create',
+        );
         done();
       },
     });

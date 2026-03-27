@@ -1,14 +1,8 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Test, TestingModule } from '@nestjs/testing';
 import { InspectionQueryService } from './inspection-query.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
-import {
-  Inspection,
-  InspectionStatus,
-  Prisma,
-  Role,
-} from '@prisma/client';
+import { Inspection, InspectionStatus, Prisma, Role } from '@prisma/client';
 import {
   BadRequestException,
   ForbiddenException,
@@ -507,7 +501,7 @@ describe('InspectionQueryService', () => {
       mockPrismaService.$queryRaw.mockResolvedValue([dbRow]);
 
       const result = await service.findByVehiclePlateNumber('AB 1234 CD');
-      
+
       // Should return optimized structure
       expect(result).toHaveProperty('id', 'db-id');
       expect(result).toHaveProperty('vehiclePlateNumber', 'AB 1234 CD');
@@ -579,7 +573,7 @@ describe('InspectionQueryService', () => {
       mockPrismaService.$queryRaw.mockResolvedValue([dbRow]);
 
       const result = await service.findByVehiclePlateNumber('AB 1234 CD');
-      
+
       // Should return optimized structure even when cache fails
       expect(result).toHaveProperty('id', 'db-id');
       expect(result).toHaveProperty('vehiclePlateNumber', 'AB 1234 CD');
@@ -650,7 +644,9 @@ describe('InspectionQueryService', () => {
     });
 
     it('should return empty data when count is 0 (skip data query)', async () => {
-      mockPrismaService.$queryRawUnsafe.mockResolvedValueOnce([{ total: BigInt(0) }]);
+      mockPrismaService.$queryRawUnsafe.mockResolvedValueOnce([
+        { total: BigInt(0) },
+      ]);
 
       const result = await service.searchByKeyword('nonexistent');
 
@@ -661,7 +657,9 @@ describe('InspectionQueryService', () => {
 
     it('should throw InternalServerErrorException on DB error', async () => {
       mockPrismaService.$queryRawUnsafe.mockReset();
-      mockPrismaService.$queryRawUnsafe.mockRejectedValue(new Error('DB error'));
+      mockPrismaService.$queryRawUnsafe.mockRejectedValue(
+        new Error('DB error'),
+      );
 
       await expect(service.searchByKeyword('test')).rejects.toThrow(
         InternalServerErrorException,
@@ -693,9 +691,7 @@ describe('InspectionQueryService', () => {
       const archivedWithPhotos = [
         {
           ...mockArchivedInspection,
-          photos: [
-            { id: 'p1', label: 'Tampak Depan', path: 'photo.jpg' },
-          ],
+          photos: [{ id: 'p1', label: 'Tampak Depan', path: 'photo.jpg' }],
         },
       ];
       mockPrismaService.inspection.findMany.mockResolvedValue(
@@ -708,9 +704,7 @@ describe('InspectionQueryService', () => {
     });
 
     it('should filter out inspections without Tampak Depan photo', async () => {
-      const archivedWithoutPhotos = [
-        { ...mockArchivedInspection, photos: [] },
-      ];
+      const archivedWithoutPhotos = [{ ...mockArchivedInspection, photos: [] }];
       mockPrismaService.inspection.findMany.mockResolvedValue(
         archivedWithoutPhotos,
       );
@@ -752,9 +746,9 @@ describe('InspectionQueryService', () => {
       mockPrismaService.inspection.findMany.mockRejectedValue(
         new Error('DB error'),
       );
-      await expect(
-        service.findLatestArchivedInspections(),
-      ).rejects.toThrow(InternalServerErrorException);
+      await expect(service.findLatestArchivedInspections()).rejects.toThrow(
+        InternalServerErrorException,
+      );
     });
   });
 

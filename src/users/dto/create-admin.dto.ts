@@ -24,7 +24,8 @@ import { sanitizeString } from '../../common/sanitize.helper';
 
 export class CreateAdminDto {
   @ApiProperty({
-    description: 'The username for the new user (alphanumeric + underscores, 3-50 chars).',
+    description:
+      'The username for the new user (alphanumeric + underscores, 3-50 chars).',
     example: 'newadmin',
   })
   @Transform(({ value }: { value: unknown }) =>
@@ -35,7 +36,8 @@ export class CreateAdminDto {
   @MinLength(3)
   @MaxLength(50)
   @Matches(/^[a-zA-Z0-9_]+$/, {
-    message: 'username can only contain alphanumeric characters and underscores.',
+    message:
+      'username can only contain alphanumeric characters and underscores.',
   })
   username!: string;
 
@@ -74,7 +76,9 @@ export class CreateAdminDto {
   @MaxLength(72, { message: 'password must not exceed 72 characters' })
   @IsNotEmpty()
   @Matches(
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&\-_#^()[\]{}|~`<>,.;:'"\\\/+= ])[A-Za-z\d@$!%*?&\-_#^()[\]{}|~`<>,.;:'"\\\/+= ]{12,}$/,
+    new RegExp(
+      '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&\\-_#^()\\[\\]{}|~`<>,.;:\'"\\\\/+= ])[A-Za-z\\d@$!%*?&\\-_#^()\\[\\]{}|~`<>,.;:\'"\\\\/+= ]{12,}$',
+    ),
     {
       message:
         'password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',

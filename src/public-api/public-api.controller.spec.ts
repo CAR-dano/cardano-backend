@@ -14,7 +14,10 @@ import { UsersService } from '../users/users.service';
 import { InspectionsService } from '../inspections/inspections.service';
 import { PublicApiService } from './public-api.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Role } from '@prisma/client';
 import { UserResponseDto } from '../users/dto/user-response.dto';
 
@@ -67,7 +70,12 @@ const buildMockInspection = (id: string, overrides: any = {}) => ({
   vehicleData: { merekKendaraan: 'Toyota', tipeKendaraan: 'Avanza' },
   status: 'ARCHIVED',
   photos: [
-    { id: 'photo-1', path: 'front-view.jpg', label: 'Tampak Depan', inspectionId: id },
+    {
+      id: 'photo-1',
+      path: 'front-view.jpg',
+      label: 'Tampak Depan',
+      inspectionId: id,
+    },
   ],
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -114,7 +122,9 @@ describe('PublicApiController', () => {
     });
 
     it('should throw InternalServerErrorException when DB check fails', async () => {
-      mockPrismaService.executeWithReconnect.mockRejectedValue(new Error('Connection refused'));
+      mockPrismaService.executeWithReconnect.mockRejectedValue(
+        new Error('Connection refused'),
+      );
 
       await expect(controller.dbHealthCheck()).rejects.toThrow(
         InternalServerErrorException,
@@ -146,7 +156,9 @@ describe('PublicApiController', () => {
     });
 
     it('should propagate errors from usersService.findAllInspectors', async () => {
-      mockUsersService.findAllInspectors.mockRejectedValue(new Error('DB Error'));
+      mockUsersService.findAllInspectors.mockRejectedValue(
+        new Error('DB Error'),
+      );
 
       await expect(controller.findAllInspectors()).rejects.toThrow('DB Error');
     });
@@ -158,7 +170,9 @@ describe('PublicApiController', () => {
   describe('getLatestArchivedInspections', () => {
     it('should return array of LatestArchivedInspectionResponseDto', async () => {
       const inspection = buildMockInspection('insp-1');
-      mockInspectionsService.findLatestArchivedInspections.mockResolvedValue([inspection]);
+      mockInspectionsService.findLatestArchivedInspections.mockResolvedValue([
+        inspection,
+      ]);
 
       const result = await controller.getLatestArchivedInspections();
 
@@ -168,7 +182,9 @@ describe('PublicApiController', () => {
     });
 
     it('should return empty array when no archived inspections', async () => {
-      mockInspectionsService.findLatestArchivedInspections.mockResolvedValue([]);
+      mockInspectionsService.findLatestArchivedInspections.mockResolvedValue(
+        [],
+      );
 
       const result = await controller.getLatestArchivedInspections();
 
@@ -177,7 +193,9 @@ describe('PublicApiController', () => {
 
     it('should throw InternalServerErrorException when inspection missing Tampak Depan photo', async () => {
       const inspection = buildMockInspection('insp-2', { photos: [] });
-      mockInspectionsService.findLatestArchivedInspections.mockResolvedValue([inspection]);
+      mockInspectionsService.findLatestArchivedInspections.mockResolvedValue([
+        inspection,
+      ]);
 
       await expect(controller.getLatestArchivedInspections()).rejects.toThrow(
         InternalServerErrorException,
@@ -189,7 +207,9 @@ describe('PublicApiController', () => {
         new Error('DB Error'),
       );
 
-      await expect(controller.getLatestArchivedInspections()).rejects.toThrow('DB Error');
+      await expect(controller.getLatestArchivedInspections()).rejects.toThrow(
+        'DB Error',
+      );
     });
   });
 
@@ -214,7 +234,9 @@ describe('PublicApiController', () => {
         new NotFoundException('Inspection not found'),
       );
 
-      await expect(controller.findOne(inspectionId)).rejects.toThrow(NotFoundException);
+      await expect(controller.findOne(inspectionId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -226,11 +248,15 @@ describe('PublicApiController', () => {
 
     it('should return InspectionResponseDto without sensitive documents', async () => {
       const mockInspection = buildMockInspection(inspectionId);
-      mockPublicApiService.findOneWithoutDocuments.mockResolvedValue(mockInspection);
+      mockPublicApiService.findOneWithoutDocuments.mockResolvedValue(
+        mockInspection,
+      );
 
       const result = await controller.findOneWithoutDocuments(inspectionId);
 
-      expect(mockPublicApiService.findOneWithoutDocuments).toHaveBeenCalledWith(inspectionId);
+      expect(mockPublicApiService.findOneWithoutDocuments).toHaveBeenCalledWith(
+        inspectionId,
+      );
       expect(result).toBeDefined();
     });
 
@@ -256,13 +282,15 @@ describe('PublicApiController', () => {
         { id: 'log-1', inspectionId, changes: {} },
         { id: 'log-2', inspectionId, changes: {} },
       ];
-      mockPublicApiService.findChangesByInspectionId.mockResolvedValue(mockChangeLogs);
+      mockPublicApiService.findChangesByInspectionId.mockResolvedValue(
+        mockChangeLogs,
+      );
 
       const result = await controller.findChangesByInspectionId(inspectionId);
 
-      expect(mockPublicApiService.findChangesByInspectionId).toHaveBeenCalledWith(
-        inspectionId,
-      );
+      expect(
+        mockPublicApiService.findChangesByInspectionId,
+      ).toHaveBeenCalledWith(inspectionId);
       expect(result).toHaveLength(2);
     });
 

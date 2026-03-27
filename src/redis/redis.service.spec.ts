@@ -120,11 +120,17 @@ describe('RedisService', () => {
     });
 
     it('should register event handlers', () => {
-      expect(clientMock.on).toHaveBeenCalledWith('connect', expect.any(Function));
+      expect(clientMock.on).toHaveBeenCalledWith(
+        'connect',
+        expect.any(Function),
+      );
       expect(clientMock.on).toHaveBeenCalledWith('ready', expect.any(Function));
       expect(clientMock.on).toHaveBeenCalledWith('error', expect.any(Function));
       expect(clientMock.on).toHaveBeenCalledWith('close', expect.any(Function));
-      expect(clientMock.on).toHaveBeenCalledWith('reconnecting', expect.any(Function));
+      expect(clientMock.on).toHaveBeenCalledWith(
+        'reconnecting',
+        expect.any(Function),
+      );
     });
   });
 
@@ -412,14 +418,18 @@ describe('RedisService', () => {
     });
 
     it('should log when connect event fires', () => {
-      const handler = clientMock.on.mock.calls.find(([e]) => e === 'connect')?.[1] as () => void;
+      const handler = clientMock.on.mock.calls.find(
+        ([e]) => e === 'connect',
+      )?.[1] as () => void;
       expect(handler).toBeDefined();
       // Just fires without throwing
       expect(() => handler()).not.toThrow();
     });
 
     it('should set isConnected=false when error event fires', () => {
-      const handler = clientMock.on.mock.calls.find(([e]) => e === 'error')?.[1] as (e: Error) => void;
+      const handler = clientMock.on.mock.calls.find(
+        ([e]) => e === 'error',
+      )?.[1] as (e: Error) => void;
       expect(handler).toBeDefined();
       expect(() => handler(new Error('some error'))).not.toThrow();
     });
@@ -427,16 +437,22 @@ describe('RedisService', () => {
     it('should set isConnected=false and stopKeepalive when close event fires', () => {
       // First fire 'ready' to set isConnected=true and start keepalive
       jest.useFakeTimers();
-      const readyHandler = clientMock.on.mock.calls.find(([e]) => e === 'ready')?.[1] as () => void;
+      const readyHandler = clientMock.on.mock.calls.find(
+        ([e]) => e === 'ready',
+      )?.[1] as () => void;
       if (readyHandler) readyHandler();
 
-      const closeHandler = clientMock.on.mock.calls.find(([e]) => e === 'close')?.[1] as () => void;
+      const closeHandler = clientMock.on.mock.calls.find(
+        ([e]) => e === 'close',
+      )?.[1] as () => void;
       expect(closeHandler).toBeDefined();
       expect(() => closeHandler()).not.toThrow();
     });
 
     it('should log when reconnecting event fires', () => {
-      const handler = clientMock.on.mock.calls.find(([e]) => e === 'reconnecting')?.[1] as () => void;
+      const handler = clientMock.on.mock.calls.find(
+        ([e]) => e === 'reconnecting',
+      )?.[1] as () => void;
       expect(handler).toBeDefined();
       expect(() => handler()).not.toThrow();
     });
@@ -447,10 +463,14 @@ describe('RedisService', () => {
     it('should return a delay up to 2000ms for retries <= 3', async () => {
       await createModule('redis://localhost:6379');
       const constructorCalls = MockRedis.mock.calls as any[];
-      const withOptions = constructorCalls.find((args: any[]) => args.length >= 2 && args[1]?.retryStrategy);
+      const withOptions = constructorCalls.find(
+        (args: any[]) => args.length >= 2 && args[1]?.retryStrategy,
+      );
       if (!withOptions) return;
 
-      const retryStrategy = withOptions[1].retryStrategy as (times: number) => number | null;
+      const retryStrategy = withOptions[1].retryStrategy as (
+        times: number,
+      ) => number | null;
       expect(retryStrategy(1)).toBeGreaterThan(0);
       expect(retryStrategy(2)).toBeGreaterThan(0);
       expect(retryStrategy(3)).toBeGreaterThan(0);
@@ -459,10 +479,14 @@ describe('RedisService', () => {
     it('should return null (stop retrying) after 3 retries', async () => {
       await createModule('redis://localhost:6379');
       const constructorCalls = MockRedis.mock.calls as any[];
-      const withOptions = constructorCalls.find((args: any[]) => args.length >= 2 && args[1]?.retryStrategy);
+      const withOptions = constructorCalls.find(
+        (args: any[]) => args.length >= 2 && args[1]?.retryStrategy,
+      );
       if (!withOptions) return;
 
-      const retryStrategy = withOptions[1].retryStrategy as (times: number) => number | null;
+      const retryStrategy = withOptions[1].retryStrategy as (
+        times: number,
+      ) => number | null;
       expect(retryStrategy(4)).toBeNull();
       expect(retryStrategy(10)).toBeNull();
     });
@@ -475,7 +499,9 @@ describe('RedisService', () => {
       await createModule('redis://localhost:6379');
 
       // Fire ready to start keepalive
-      const readyHandler = clientMock.on.mock.calls.find(([e]) => e === 'ready')?.[1] as () => void;
+      const readyHandler = clientMock.on.mock.calls.find(
+        ([e]) => e === 'ready',
+      )?.[1] as () => void;
       if (readyHandler) readyHandler();
 
       // Advance timer past 2 minutes (120000ms) to trigger ping
@@ -488,7 +514,9 @@ describe('RedisService', () => {
       jest.useFakeTimers();
       await createModule('redis://localhost:6379');
 
-      const readyHandler = clientMock.on.mock.calls.find(([e]) => e === 'ready')?.[1] as () => void;
+      const readyHandler = clientMock.on.mock.calls.find(
+        ([e]) => e === 'ready',
+      )?.[1] as () => void;
       if (readyHandler) readyHandler();
 
       clientMock.ping.mockRejectedValue(new Error('ping failed'));
@@ -530,7 +558,9 @@ describe('RedisService', () => {
           RedisService,
           {
             provide: ConfigService,
-            useValue: { get: jest.fn().mockReturnValue('redis://bad-host:9999') },
+            useValue: {
+              get: jest.fn().mockReturnValue('redis://bad-host:9999'),
+            },
           },
           {
             provide: VaultConfigService,

@@ -8,7 +8,11 @@ import { JsonWebTokenError, TokenExpiredError } from '@nestjs/jwt';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { TokenBlacklistedException } from '../exceptions/token-blacklisted.exception';
 
-function buildContext(method = 'GET', url = '/api/test', originalUrl = '/api/test'): ExecutionContext {
+function buildContext(
+  method = 'GET',
+  url = '/api/test',
+  originalUrl = '/api/test',
+): ExecutionContext {
   return {
     switchToHttp: () => ({
       getRequest: () => ({ method, url, originalUrl }),
@@ -94,9 +98,9 @@ describe('JwtAuthGuard', () => {
     });
 
     it('should throw UnauthorizedException with message "Unauthorized access" when no user', () => {
-      expect(() =>
-        guard.handleRequest(null, null, null as any, ctx),
-      ).toThrow(/Unauthorized access/);
+      expect(() => guard.handleRequest(null, null, null as any, ctx)).toThrow(
+        /Unauthorized access/,
+      );
     });
   });
 });

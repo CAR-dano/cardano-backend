@@ -3,7 +3,7 @@
  * File: optional-file-validation.pipe.spec.ts
  * --------------------------------------------------------------------------
  */
-import { BadRequestException } from '@nestjs/common';
+
 import { OptionalFileValidationPipe } from './optional-file-validation.pipe';
 
 jest.mock('fs/promises', () => ({
@@ -12,7 +12,9 @@ jest.mock('fs/promises', () => ({
 }));
 
 // fileTypeFromBuffer mock — used by the eval-intercepted import
-const mockFileTypeFromBuffer = jest.fn().mockResolvedValue({ mime: 'image/png', ext: 'png' });
+const mockFileTypeFromBuffer = jest
+  .fn()
+  .mockResolvedValue({ mime: 'image/png', ext: 'png' });
 
 // Override eval globally to intercept the dynamic import('file-type') inside the pipe.
 // jest.mock('file-type', ...) cannot work here because file-type is ESM-only.
@@ -29,7 +31,9 @@ afterAll(() => {
   (global as any).eval = originalEval;
 });
 
-function makeFile(overrides: Partial<Express.Multer.File> = {}): Express.Multer.File {
+function makeFile(
+  overrides: Partial<Express.Multer.File> = {},
+): Express.Multer.File {
   return {
     fieldname: 'file',
     originalname: 'photo.png',
@@ -83,21 +87,30 @@ describe('OptionalFileValidationPipe', () => {
   });
 
   it('should throw BadRequestException for invalid mimetype', async () => {
-    const pdfFile = makeFile({ mimetype: 'application/pdf', originalname: 'doc.pdf' });
+    const pdfFile = makeFile({
+      mimetype: 'application/pdf',
+      originalname: 'doc.pdf',
+    });
     await expect(pipe.transform(pdfFile, {} as any)).rejects.toThrow(
       /invalid type/,
     );
   });
 
   it('should throw BadRequestException for invalid extension', async () => {
-    const bmpFile = makeFile({ originalname: 'image.bmp', mimetype: 'image/png' });
+    const bmpFile = makeFile({
+      originalname: 'image.bmp',
+      mimetype: 'image/png',
+    });
     await expect(pipe.transform(bmpFile, {} as any)).rejects.toThrow(
       /invalid type/,
     );
   });
 
   it('should throw BadRequestException when file type does not match buffer content', async () => {
-    mockFileTypeFromBuffer.mockResolvedValueOnce({ mime: 'application/pdf', ext: 'pdf' });
+    mockFileTypeFromBuffer.mockResolvedValueOnce({
+      mime: 'application/pdf',
+      ext: 'pdf',
+    });
     const file = makeFile({ buffer: Buffer.from('fake pdf') });
     await expect(pipe.transform(file, {} as any)).rejects.toThrow(
       /does not match its extension/,

@@ -51,9 +51,7 @@ export async function getTestApp(): Promise<TestAppContext> {
   // This is the most reliable way because NestJS APP_GUARD multi-providers
   // and @UseGuards(ThrottlerGuard) both create instances of ThrottlerGuard
   // that aren't easily overridden via .overrideProvider() or .overrideGuard().
-  jest
-    .spyOn(ThrottlerGuard.prototype, 'canActivate')
-    .mockResolvedValue(true);
+  jest.spyOn(ThrottlerGuard.prototype, 'canActivate').mockResolvedValue(true);
 
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [AppModule],
@@ -151,7 +149,11 @@ async function createTestUsers(
   authService: AuthService,
   branchCityId: string,
 ): Promise<TestTokens> {
-  const roles: { key: keyof TestTokens; role: Role; extra?: Record<string, any> }[] = [
+  const roles: {
+    key: keyof TestTokens;
+    role: Role;
+    extra?: Record<string, any>;
+  }[] = [
     { key: 'superadmin', role: Role.SUPERADMIN },
     { key: 'admin', role: Role.ADMIN },
     { key: 'reviewer', role: Role.REVIEWER },

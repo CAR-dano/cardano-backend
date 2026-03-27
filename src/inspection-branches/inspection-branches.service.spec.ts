@@ -118,7 +118,9 @@ describe('InspectionBranchesService', () => {
       await service.create(dto);
 
       expect(prismaMock.inspectionBranchCity.create).toHaveBeenCalledWith(
-        expect.objectContaining({ data: expect.objectContaining({ code: 'BAN' }) }),
+        expect.objectContaining({
+          data: expect.objectContaining({ code: 'BAN' }),
+        }),
       );
     });
   });

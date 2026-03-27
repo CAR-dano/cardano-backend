@@ -1,5 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsNumber, IsOptional, MaxLength, Min } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { sanitizeString } from '../../../common/sanitize.helper';
 
