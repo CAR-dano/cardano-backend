@@ -103,6 +103,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -126,9 +135,34 @@ jobs:
       - name: Run E2E tests
         run: npm run test:e2e
         env:
+          # Database
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db?schema=public
+          # App
           NODE_ENV: test
           PORT: 3010
+          CLIENT_BASE_URL: http://localhost:3000
+          # JWT (dummy secrets — only for signing test tokens)
+          JWT_SECRET: ci-test-jwt-secret-not-for-production
+          JWT_REFRESH_SECRET: ci-test-jwt-refresh-secret-not-for-production
+          JWT_EXPIRATION: 1h
+          JWT_REFRESH_EXPIRATION: 7d
+          # Redis (service container above)
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          # IPFS (disabled — point to localhost, tests should gracefully handle no IPFS)
+          IPFS_URL: http://localhost:5001
+          # Blockfrost / Cardano (dummy — blockchain tests should be skipped in unit/e2e CI)
+          BLOCKFROST_API_KEY: testnotarealkey
+          BLOCKFROST_NETWORK: preprod
+          # S3 / Storage (dummy)
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_REGION: ap-southeast-1
+          AWS_S3_BUCKET: test-bucket
+          # HashiCorp Vault (disabled — falls back to env vars)
+          VAULT_ENABLED: false
+          VAULT_ADDR: http://localhost:8200
+          VAULT_TOKEN: dummy-vault-token
 
   # ──────────────────────────────────────────
   # Job 4: SAST — npm audit
