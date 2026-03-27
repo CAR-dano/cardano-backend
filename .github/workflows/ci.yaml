@@ -62,17 +62,18 @@ jobs:
 
       - name: Check coverage threshold
         run: |
-          if [ -f coverage/coverage-summary.json ]; then
-            COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
-            echo "📊 Line coverage: ${COVERAGE}%"
-            if (( $(echo "$COVERAGE < 60" | bc -l) )); then
-              echo "❌ Coverage below 60% threshold!"
-              exit 1
-            fi
-            echo "✅ Coverage meets threshold"
-          else
-            echo "⚠️ No coverage report found, skipping threshold check"
+          if [ ! -f coverage/coverage-summary.json ]; then
+            echo "❌ coverage-summary.json not found — did Jest run with json-summary reporter?"
+            exit 1
           fi
+          COVERAGE=$(jq '.total.lines.pct' coverage/coverage-summary.json)
+          echo "📊 Line coverage: ${COVERAGE}%"
+          PASS=$(awk "BEGIN { print ($COVERAGE >= 60) ? \"yes\" : \"no\" }")
+          if [ "$PASS" = "no" ]; then
+            echo "❌ Coverage ${COVERAGE}% is below the 60% threshold!"
+            exit 1
+          fi
+          echo "✅ Coverage meets threshold"
 
       - name: Upload coverage artifact
         if: always()
