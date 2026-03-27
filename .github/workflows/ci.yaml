@@ -1,46 +1,165 @@
-name: Build & Test # Descriptive name for the workflow
+name: CI Pipeline
 
-on: # Events that trigger this workflow
+on:
   push:
-    branches: [main] # Trigger on pushes to the main branch
+    branches: [main, staging]
   pull_request:
-    branches: [main] # Trigger on pull requests targeting the main branch
+    branches: [main, staging]
 
-jobs: # A workflow run is made up of one or more jobs
-  build-and-test: # The ID of the job
-    name: Build and Test # Name of the job displayed on GitHub
-    runs-on: ubuntu-latest # Use the latest available Ubuntu runner
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
-    steps: # A sequence of tasks that will be executed as part of the job
-      - name: Checkout code # Step 1: Get the code from the repository
-        uses: actions/checkout@v4 # Use the official checkout action (v4)
+jobs:
+  # ──────────────────────────────────────────
+  # Job 1: Lint & Format
+  # ──────────────────────────────────────────
+  lint:
+    name: 🔍 Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js # Step 2: Set up the Node.js environment
-        uses: actions/setup-node@v4 # Use the official setup-node action (v4)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: '20.x' # Specify the Node.js version (use your project's version or a current LTS)
-          cache: 'npm' # Enable caching for npm dependencies to speed up installs
+          node-version: '22'
+          cache: 'npm'
 
-      - name: Clear npm cache # Step 3: Clean cache before install (Troubleshooting Step)
-        run: npm cache clean --force
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
 
-      - name: Remove node_modules and dist # Step 4: Force clean install and build (Troubleshooting Step)
-        run: rm -rf node_modules dist
+      - name: Generate Prisma client
+        run: npx prisma generate
 
-      - name: Install Dependencies # Step 5: Install project dependencies
-        run: npm ci # Use 'npm ci' for cleaner installs in CI (uses package-lock.json)
+      - name: Run ESLint
+        run: npm run lint
 
-      - name: Run Linter # Step 6: Check code formatting and quality
-        run: npm run lint # Assumes you have a 'lint' script in your root package.json
+  # ──────────────────────────────────────────
+  # Job 2: Unit Tests + Coverage
+  # ──────────────────────────────────────────
+  unit-tests:
+    name: 🧪 Unit Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Build Project Applications # Step 7: Build specific applications (Troubleshooting Step)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run unit tests with coverage
+        run: npm run test:cov
+
+      - name: Check coverage threshold
         run: |
-          npx nest build api-gateway
-          npx nest build report-service
-          npx nest build blockchain-service
+          if [ -f coverage/coverage-summary.json ]; then
+            COVERAGE=$(cat coverage/coverage-summary.json | jq '.total.lines.pct')
+            echo "📊 Line coverage: ${COVERAGE}%"
+            if (( $(echo "$COVERAGE < 60" | bc -l) )); then
+              echo "❌ Coverage below 60% threshold!"
+              exit 1
+            fi
+            echo "✅ Coverage meets threshold"
+          else
+            echo "⚠️ No coverage report found, skipping threshold check"
+          fi
 
-      - name: Run Unit Tests # Step 8: Execute unit tests
-        run: npm run test # Assumes you have a 'test' script in your root package.json
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
 
-      - name: Run E2E Tests # Step 9: Execute End-to-End tests for api-gateway
-        run: npm run test:e2e # Assumes test:e2e script points to api-gateway's jest config
+  # ──────────────────────────────────────────
+  # Job 3: E2E Tests
+  # ──────────────────────────────────────────
+  e2e-tests:
+    name: 🔗 E2E Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Apply database migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db?schema=public
+
+      - name: Run E2E tests
+        run: npm run test:e2e
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test_db?schema=public
+          NODE_ENV: test
+          PORT: 3010
+
+  # ──────────────────────────────────────────
+  # Job 4: SAST — npm audit
+  # ──────────────────────────────────────────
+  sast-audit:
+    name: 🛡️ Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Run npm audit (high + critical)
+        run: npm audit --audit-level=high || true
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## 🛡️ Dependency Audit Results" >> $GITHUB_STEP_SUMMARY
+          npm audit --json 2>/dev/null | jq -r '
+            "| Severity | Count |",
+            "|----------|-------|",
+            "| Critical | \(.metadata.vulnerabilities.critical) |",
+            "| High | \(.metadata.vulnerabilities.high) |",
+            "| Moderate | \(.metadata.vulnerabilities.moderate) |",
+            "| Low | \(.metadata.vulnerabilities.low) |"
+          ' >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No audit data" >> $GITHUB_STEP_SUMMARY

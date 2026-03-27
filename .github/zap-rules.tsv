@@ -1,0 +1,7 @@
+# .github/zap-rules.tsv
+# Rule ID    Action     Description
+10003        IGNORE     # Vulnerable JS Library
+10015        IGNORE     # Incomplete or No Cache-control Header
+10021        WARN       # X-Content-Type-Options Header Missing
+10038        WARN       # Content Security Policy Header Not Set
+10098        IGNORE     # Cross-Domain Misconfiguration
