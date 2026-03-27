@@ -60,6 +60,31 @@ describe('MetricsMiddleware', () => {
     expect(metricsService.decrementActiveConnections).toHaveBeenCalledTimes(1);
   });
 
+  it('should decrement active connections on close without recording HTTP metrics', () => {
+    const req: any = { method: 'GET', path: '/api/v1/inspections/123' };
+    const res: any = new EventEmitter();
+    res.statusCode = 499;
+
+    middleware.use(req, res, jest.fn());
+    res.emit('close');
+
+    expect(metricsService.decrementActiveConnections).toHaveBeenCalledTimes(1);
+    expect(metricsService.incrementHttpRequests).not.toHaveBeenCalled();
+    expect(metricsService.observeHttpDuration).not.toHaveBeenCalled();
+  });
+
+  it('should decrement active connections only once when finish and close both fire', () => {
+    const req: any = { method: 'GET', path: '/api/v1/inspections/123' };
+    const res: any = new EventEmitter();
+    res.statusCode = 200;
+
+    middleware.use(req, res, jest.fn());
+    res.emit('finish');
+    res.emit('close');
+
+    expect(metricsService.decrementActiveConnections).toHaveBeenCalledTimes(1);
+  });
+
   it('should normalize dynamic numeric routes to :id', () => {
     const req: any = { method: 'GET', path: '/api/v1/inspections/123' };
     const res: any = new EventEmitter();

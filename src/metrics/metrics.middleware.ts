@@ -17,10 +17,21 @@ export class MetricsMiddleware implements NestMiddleware {
 
   use(req: Request, res: Response, next: NextFunction) {
     const startTime = process.hrtime.bigint();
+    let finalized = false;
 
     this.metricsService.incrementActiveConnections();
 
-    res.on('finish', () => {
+    const cleanup = () => {
+      res.removeListener('finish', onFinish);
+      res.removeListener('close', onClose);
+    };
+
+    const onFinish = () => {
+      if (finalized) {
+        return;
+      }
+      finalized = true;
+
       const elapsedNs = process.hrtime.bigint() - startTime;
       const duration = Number(elapsedNs) / 1_000_000_000;
       const route = this.resolveRouteTemplate(req as RequestWithRoute);
@@ -37,7 +48,20 @@ export class MetricsMiddleware implements NestMiddleware {
       }
 
       this.metricsService.decrementActiveConnections();
-    });
+      cleanup();
+    };
+
+    const onClose = () => {
+      if (finalized) {
+        return;
+      }
+      finalized = true;
+      this.metricsService.decrementActiveConnections();
+      cleanup();
+    };
+
+    res.on('finish', onFinish);
+    res.on('close', onClose);
 
     next();
   }
