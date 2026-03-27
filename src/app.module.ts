@@ -37,6 +37,7 @@ import { MetricsModule } from './metrics/metrics.module';
 import { MetricsMiddleware } from './metrics/metrics.middleware';
 import { RedisModule } from './redis/redis.module';
 import { SecurityLoggerModule } from './security-logger/security-logger.module';
+import { RequestIdMiddleware } from './common/request-id.middleware';
 
 @Module({
   imports: [
@@ -122,6 +123,6 @@ import { SecurityLoggerModule } from './security-logger/security-logger.module';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(MetricsMiddleware).forRoutes('*');
+    consumer.apply(RequestIdMiddleware, MetricsMiddleware).forRoutes('*');
   }
 }

@@ -205,6 +205,22 @@ describe('BusinessMetricsInterceptor', () => {
     });
   });
 
+  it('should normalize dynamic route when tracking errors', (done) => {
+    const ctx = buildContext('/inspections/123?include=details');
+    const error = new Error('broken');
+    error.name = 'BadRequestError';
+
+    interceptor.intercept(ctx, buildErrorHandler(error)).subscribe({
+      error: () => {
+        expect(metricsService.incrementError).toHaveBeenCalledWith(
+          'BadRequestError',
+          '/inspections/:id',
+        );
+        done();
+      },
+    });
+  });
+
   it('should not call any metrics for untracked endpoints', (done) => {
     const ctx = buildContext('/health');
     interceptor.intercept(ctx, buildHandler({})).subscribe({

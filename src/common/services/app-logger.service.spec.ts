@@ -11,6 +11,7 @@
 import { Test } from '@nestjs/testing';
 import { AppLoggerService } from './app-logger.service';
 import { ConfigService } from '@nestjs/config';
+import { RequestContext } from '../request-context';
 
 function buildModule(logLevel: string, timestamp = true, colors = true) {
   const mockConfigService = {
@@ -145,6 +146,24 @@ describe('AppLoggerService', () => {
         .mockImplementation(() => {});
       s.log('msg', 'MyContext');
       expect(spy).toHaveBeenCalledWith('msg', 'MyContext');
+      spy.mockRestore();
+    });
+
+    it('should include requestId from request context in log message', async () => {
+      const module = await buildModule('info');
+      const s = await module.resolve(AppLoggerService);
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'log')
+        .mockImplementation(() => {});
+
+      RequestContext.run({ requestId: 'req-ctx-1' }, () => {
+        s.log('test message');
+      });
+
+      expect(spy).toHaveBeenCalledWith(
+        '[requestId=req-ctx-1] test message',
+        undefined,
+      );
       spy.mockRestore();
     });
   });
