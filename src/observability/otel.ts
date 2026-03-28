@@ -31,7 +31,7 @@ export function setupOpenTelemetry(): void {
     url: config.tracesEndpoint,
   });
 
-  const sampler = buildSampler();
+  const sampler = buildSampler(config.sampler, config.samplingRatio);
   const spanProcessor = new BatchSpanProcessor(traceExporter);
   const resource = new Resource(getOtelResourceAttributes(config));
 
@@ -65,11 +65,8 @@ export async function shutdownOpenTelemetry(): Promise<void> {
   await sdk.shutdown();
 }
 
-function buildSampler(): Sampler {
-  const ratioRaw = process.env.OTEL_TRACES_SAMPLER_ARG || '1';
-  const ratio = Number(ratioRaw);
-
-  if (!Number.isFinite(ratio) || ratio < 0 || ratio > 1) {
+function buildSampler(samplerName: string, ratio: number): Sampler {
+  if (samplerName !== 'parentbased_traceidratio') {
     return new ParentBasedSampler({
       root: new TraceIdRatioBasedSampler(1),
     });
