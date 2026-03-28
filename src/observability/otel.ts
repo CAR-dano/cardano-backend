@@ -1,4 +1,5 @@
 import { diag, DiagConsoleLogger, DiagLogLevel } from '@opentelemetry/api';
+import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { NodeSDK } from '@opentelemetry/sdk-node';
 import { Resource } from '@opentelemetry/resources';
@@ -38,6 +39,17 @@ export function setupOpenTelemetry(): void {
     resource,
     sampler,
     spanProcessor,
+    instrumentations: [
+      getNodeAutoInstrumentations({
+        '@opentelemetry/instrumentation-fs': {
+          enabled: false,
+        },
+        '@opentelemetry/instrumentation-http': {
+          ignoreIncomingRequestHook: (request) =>
+            request.url?.includes('/api/v1/metrics') || false,
+        },
+      }),
+    ],
   });
 
   otelSdk.start();

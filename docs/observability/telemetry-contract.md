@@ -96,6 +96,16 @@ Sprint 2 extends to full structured JSON logging with `traceId` and `spanId` cor
   - tracing starts before Nest app bootstrap
   - tracing flush/shutdown runs on process termination signals
 
+## Span instrumentation baseline (Sprint 2)
+
+- HTTP inbound requests are auto-instrumented via Node auto-instrumentations.
+- Metrics endpoint (`/api/v1/metrics`) is excluded from HTTP tracing to avoid noise.
+- Prisma database calls are instrumented using Prisma middleware spans with attributes:
+  - `db.system=postgresql`
+  - `db.operation`
+  - `db.prisma.model`
+  - `db.response_time_ms`
+
 ## Metrics endpoint
 
 - Endpoint: `GET /api/v1/metrics`

@@ -20,6 +20,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaClient } from '@prisma/client';
 import { ConfigService } from '@nestjs/config';
+import { SpanStatusCode, context, trace } from '@opentelemetry/api';
 
 @Injectable()
 export class PrismaService
@@ -44,6 +45,51 @@ export class PrismaService
           url: dbUrl,
         },
       },
+    });
+
+    this.setupTracingMiddleware();
+  }
+
+  private setupTracingMiddleware() {
+    const tracer = trace.getTracer('prisma-client');
+
+    this.$use(async (params, next) => {
+      const model = params.model || 'unknown';
+      const action = params.action || 'unknown';
+      const spanName = `db.${model}.${action}`;
+
+      return await tracer.startActiveSpan(spanName, async (span) => {
+        const startTime = process.hrtime.bigint();
+
+        span.setAttribute('db.system', 'postgresql');
+        span.setAttribute('db.operation', action);
+        span.setAttribute('db.prisma.model', model);
+
+        try {
+          const result = await context.with(
+            trace.setSpan(context.active(), span),
+            () => next(params),
+          );
+
+          const elapsedMs =
+            Number(process.hrtime.bigint() - startTime) / 1_000_000;
+          span.setAttribute('db.response_time_ms', elapsedMs);
+
+          return result;
+        } catch (error) {
+          span.setStatus({
+            code: SpanStatusCode.ERROR,
+            message:
+              error instanceof Error ? error.message : 'Unknown DB error',
+          });
+          if (error instanceof Error) {
+            span.recordException(error);
+          }
+          throw error;
+        } finally {
+          span.end();
+        }
+      });
     });
   }
 

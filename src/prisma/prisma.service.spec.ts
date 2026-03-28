@@ -20,6 +20,7 @@ jest.mock('@prisma/client', () => {
     $connect = jest.fn().mockResolvedValue(undefined);
     $disconnect = jest.fn().mockResolvedValue(undefined);
     $transaction = jest.fn().mockResolvedValue([]);
+    $use = jest.fn();
     user = { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) };
   }
 
@@ -47,6 +48,14 @@ describe('PrismaService', () => {
     it('should be instantiated when DATABASE_URL is provided', () => {
       const service = buildService();
       expect(service).toBeDefined();
+    });
+
+    it('should register prisma tracing middleware via $use', () => {
+      const service = buildService();
+      const useSpy = (service as unknown as { $use: jest.Mock }).$use;
+
+      expect(useSpy).toHaveBeenCalledTimes(1);
+      expect(typeof useSpy.mock.calls[0][0]).toBe('function');
     });
 
     it('should throw when DATABASE_URL is missing', () => {
