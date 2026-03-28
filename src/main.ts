@@ -25,6 +25,7 @@ import compression from 'compression';
 import { getLoggerConfig } from './config/logger.config';
 import { AllExceptionsFilter } from './common/filters';
 import { setOpenApiDocument } from './openapi-document';
+import { shutdownOpenTelemetry, setupOpenTelemetry } from './observability/otel';
 
 // Re-export for backward compatibility (unit tests, etc.)
 export { getOpenApiDocument } from './openapi-document';
@@ -33,6 +34,8 @@ export { getOpenApiDocument } from './openapi-document';
  * The main bootstrap function to initialize and start the NestJS application.
  */
 async function bootstrap() {
+  await setupOpenTelemetry();
+
   // Get logger configuration from environment
   const loggerConfig = getLoggerConfig();
 
@@ -201,4 +204,17 @@ async function bootstrap() {
 bootstrap().catch((error) => {
   console.error('Error starting application:', error);
   process.exit(1);
+});
+
+const shutdownSignals: NodeJS.Signals[] = ['SIGINT', 'SIGTERM'];
+shutdownSignals.forEach((signal) => {
+  process.once(signal, () => {
+    shutdownOpenTelemetry()
+      .catch((error) => {
+        console.error('Error shutting down OpenTelemetry:', error);
+      })
+      .finally(() => {
+        process.exit(0);
+      });
+  });
 });
