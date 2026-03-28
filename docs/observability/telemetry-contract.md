@@ -82,6 +82,11 @@ Sprint 1 baseline guarantees:
 
 Sprint 2 extends to full structured JSON logging with `traceId` and `spanId` correlation.
 
+Current correlation baseline includes:
+
+- logger output enriched with active span `traceId` and `spanId`
+- standardized error responses include optional `traceId` and `spanId` when span context exists
+
 ## Tracing bootstrap contract (Sprint 2 start)
 
 - OpenTelemetry SDK bootstrap is controlled by `OTEL_ENABLED`

@@ -22,6 +22,7 @@ import {
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+import { trace } from '@opentelemetry/api';
 import { Request, Response } from 'express';
 import { AppError } from '../errors/app-error';
 import { ErrorCode } from '../errors/error-codes.enum';
@@ -38,6 +39,8 @@ export interface StandardErrorResponse {
   path: string;
   timestamp: string;
   requestId?: string;
+  traceId?: string;
+  spanId?: string;
 }
 
 @Catch()
@@ -73,6 +76,9 @@ export class AllExceptionsFilter implements ExceptionFilter {
         : Array.isArray(requestIdHeader)
           ? requestIdHeader[0]
           : undefined;
+    const spanContext = trace.getActiveSpan()?.spanContext();
+    const traceId = spanContext?.traceId;
+    const spanId = spanContext?.spanId;
 
     // ── 1. AppError (custom domain errors) ─────────────────────────
     if (exception instanceof AppError) {
@@ -84,6 +90,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
         path,
         timestamp,
         requestId,
+        traceId,
+        spanId,
       };
     }
 
@@ -109,6 +117,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
         path,
         timestamp,
         requestId,
+        traceId,
+        spanId,
       };
     }
 
@@ -121,6 +131,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       path,
       timestamp,
       requestId,
+      traceId,
+      spanId,
     };
   }
 
@@ -194,7 +206,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const requestInfo = errorResponse.requestId
       ? ` | requestId=${errorResponse.requestId}`
       : '';
-    const logContext = `${errorCode} | ${path}${requestInfo}`;
+    const traceInfo = errorResponse.traceId
+      ? ` | traceId=${errorResponse.traceId}`
+      : '';
+    const spanInfo = errorResponse.spanId
+      ? ` | spanId=${errorResponse.spanId}`
+      : '';
+    const logContext = `${errorCode} | ${path}${requestInfo}${traceInfo}${spanInfo}`;
 
     if (statusCode >= 500) {
       // Server errors — log with stack trace

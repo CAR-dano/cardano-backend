@@ -11,6 +11,7 @@
 
 import { Injectable, Logger, LoggerService, Scope } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { trace } from '@opentelemetry/api';
 import { RequestContext } from '../request-context';
 
 @Injectable({ scope: Scope.TRANSIENT })
@@ -122,19 +123,37 @@ export class AppLoggerService extends Logger implements LoggerService {
 
   private withRequestId(message: any): any {
     const requestId = RequestContext.getRequestId();
-    if (!requestId) {
+    const spanContext = trace.getActiveSpan()?.spanContext();
+
+    const correlationParts: string[] = [];
+    if (requestId) {
+      correlationParts.push(`requestId=${requestId}`);
+    }
+    if (spanContext?.traceId) {
+      correlationParts.push(`traceId=${spanContext.traceId}`);
+    }
+    if (spanContext?.spanId) {
+      correlationParts.push(`spanId=${spanContext.spanId}`);
+    }
+
+    if (correlationParts.length === 0) {
       return message;
     }
 
     if (typeof message === 'string') {
-      return `[requestId=${requestId}] ${message}`;
+      return `[${correlationParts.join(' ')}] ${message}`;
     }
 
     if (message && typeof message === 'object') {
-      return { requestId, ...message };
+      return {
+        ...(requestId ? { requestId } : {}),
+        ...(spanContext?.traceId ? { traceId: spanContext.traceId } : {}),
+        ...(spanContext?.spanId ? { spanId: spanContext.spanId } : {}),
+        ...message,
+      };
     }
 
-    return `[requestId=${requestId}] ${String(message)}`;
+    return `[${correlationParts.join(' ')}] ${String(message)}`;
   }
 
   /**

@@ -11,6 +11,7 @@
  */
 
 import { ArgumentsHost, HttpException, HttpStatus } from '@nestjs/common';
+import { trace } from '@opentelemetry/api';
 import {
   AllExceptionsFilter,
   StandardErrorResponse,
@@ -460,6 +461,23 @@ describe('AllExceptionsFilter', () => {
 
       const body = getResponseBody();
       expect(body.requestId).toBeUndefined();
+    });
+
+    it('should include traceId and spanId when active span exists', () => {
+      const activeSpanSpy = jest.spyOn(trace, 'getActiveSpan').mockReturnValue({
+        spanContext: () => ({
+          traceId: '11111111111111111111111111111111',
+          spanId: '2222222222222222',
+          traceFlags: 1,
+        }),
+      } as any);
+
+      filter.catch(new Error('trace context error'), mockHost);
+
+      const body = getResponseBody();
+      expect(body.traceId).toBeDefined();
+      expect(body.spanId).toBeDefined();
+      activeSpanSpy.mockRestore();
     });
   });
 });
