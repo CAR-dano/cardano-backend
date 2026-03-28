@@ -82,6 +82,20 @@ Sprint 1 baseline guarantees:
 
 Sprint 2 extends to full structured JSON logging with `traceId` and `spanId` correlation.
 
+## Tracing bootstrap contract (Sprint 2 start)
+
+- OpenTelemetry SDK bootstrap is controlled by `OTEL_ENABLED`
+- OTLP traces export endpoint:
+  - `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` (explicit), or
+  - `OTEL_EXPORTER_OTLP_ENDPOINT` (base, app appends `/v1/traces`)
+- Resource attributes emitted:
+  - `service.name`
+  - `deployment.environment`
+  - `service.version`
+- Startup/shutdown lifecycle:
+  - tracing starts before Nest app bootstrap
+  - tracing flush/shutdown runs on process termination signals
+
 ## Metrics endpoint
 
 - Endpoint: `GET /api/v1/metrics`
