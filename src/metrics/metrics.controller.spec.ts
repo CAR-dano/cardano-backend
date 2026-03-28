@@ -12,6 +12,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { MetricsController } from './metrics.controller';
 import { MetricsService } from './metrics.service';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { MetricsAuthGuard } from './metrics-auth.guard';
 
 const mockMetricsService = {
   getMetrics: jest.fn(),
@@ -19,18 +20,26 @@ const mockMetricsService = {
 
 describe('MetricsController', () => {
   let controller: MetricsController;
+  const originalEnv = process.env;
 
   beforeEach(async () => {
+    process.env = { ...originalEnv };
     const module: TestingModule = await Test.createTestingModule({
       controllers: [MetricsController],
       providers: [{ provide: MetricsService, useValue: mockMetricsService }],
     })
       .overrideGuard(ThrottlerGuard)
       .useValue({ canActivate: () => true })
+      .overrideGuard(MetricsAuthGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     controller = module.get<MetricsController>(MetricsController);
     jest.clearAllMocks();
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
   });
 
   it('should be defined', () => {

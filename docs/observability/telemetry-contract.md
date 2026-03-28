@@ -86,11 +86,27 @@ Sprint 2 extends to full structured JSON logging with `traceId` and `spanId` cor
 
 - Endpoint: `GET /api/v1/metrics`
 - Content type: `text/plain`
+- Response header: `Cache-Control: no-store`
 - Intended scraper: Prometheus
 - Recommended scrape config:
   - interval: `15s`
   - timeout: `5s`
-- Access control: enforce at reverse proxy/network layer (internal allowlist/basic auth)
+- Access control (defense in depth):
+  - network/reverse proxy allowlist + auth
+  - app-layer `MetricsAuthGuard` (bearer or basic auth)
+
+### Security env vars for `/metrics`
+
+- `METRICS_ENABLED` (optional, default enabled; set `false` to disable endpoint)
+- `METRICS_BEARER_TOKEN` (optional)
+- `METRICS_BASIC_AUTH_USER` (optional)
+- `METRICS_BASIC_AUTH_PASSWORD` (optional)
+
+Security behavior:
+
+- In `production` with no auth configured, app-layer guard denies access.
+- In non-production with no auth configured, endpoint is allowed for local development.
+- If bearer/basic auth is configured, valid `Authorization` header is required.
 
 ## Validation checklist
 
