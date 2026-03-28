@@ -32,14 +32,14 @@ describe('MetricsService', () => {
   describe('incrementHttpRequests', () => {
     it('should increment httpRequestsTotal counter without throwing', () => {
       expect(() =>
-        service.incrementHttpRequests('GET', '/api/v1/users', '200'),
+        service.incrementHttpRequests('GET', '/api/v1/users', '2xx'),
       ).not.toThrow();
     });
 
     it('should handle multiple calls with different labels', () => {
-      service.incrementHttpRequests('POST', '/api/v1/inspections', '201');
-      service.incrementHttpRequests('GET', '/api/v1/inspections', '200');
-      service.incrementHttpRequests('DELETE', '/api/v1/inspections/1', '404');
+      service.incrementHttpRequests('POST', '/api/v1/inspections', '2xx');
+      service.incrementHttpRequests('GET', '/api/v1/inspections', '2xx');
+      service.incrementHttpRequests('DELETE', '/api/v1/inspections/:id', '4xx');
       // No assertion on values — just ensure no errors thrown
     });
   });
@@ -47,20 +47,24 @@ describe('MetricsService', () => {
   // ---------------------------------------------------------------------------
   describe('observeHttpDuration', () => {
     it('should observe http request duration without throwing', () => {
-      expect(() =>
-        service.observeHttpDuration('GET', '/api/health', '200', 0.123),
-      ).not.toThrow();
+      expect(() => service.observeHttpDuration('GET', '/api/health', 0.123)).not
+        .toThrow();
     });
 
     it('should accept zero duration', () => {
-      expect(() =>
-        service.observeHttpDuration('GET', '/fast', '200', 0),
-      ).not.toThrow();
+      expect(() => service.observeHttpDuration('GET', '/fast', 0)).not.toThrow();
     });
 
     it('should accept large duration values', () => {
+      expect(() => service.observeHttpDuration('POST', '/slow', 15.5)).not.toThrow();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  describe('incrementHttpErrors', () => {
+    it('should increment HTTP error counter without throwing', () => {
       expect(() =>
-        service.observeHttpDuration('POST', '/slow', '500', 15.5),
+        service.incrementHttpErrors('GET', '/api/v1/users/:id', 'client_error'),
       ).not.toThrow();
     });
   });

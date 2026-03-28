@@ -11,6 +11,7 @@
 
 import { Injectable, Logger, LoggerService, Scope } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { RequestContext } from '../request-context';
 
 @Injectable({ scope: Scope.TRANSIENT })
 export class AppLoggerService extends Logger implements LoggerService {
@@ -79,7 +80,7 @@ export class AppLoggerService extends Logger implements LoggerService {
    */
   log(message: any, context?: string) {
     if (this.enabledLevels.has('log')) {
-      super.log(message, context || this.context);
+      super.log(this.withRequestId(message), context || this.context);
     }
   }
 
@@ -88,7 +89,7 @@ export class AppLoggerService extends Logger implements LoggerService {
    */
   error(message: any, trace?: string, context?: string) {
     if (this.enabledLevels.has('error')) {
-      super.error(message, trace, context || this.context);
+      super.error(this.withRequestId(message), trace, context || this.context);
     }
   }
 
@@ -97,7 +98,7 @@ export class AppLoggerService extends Logger implements LoggerService {
    */
   warn(message: any, context?: string) {
     if (this.enabledLevels.has('warn')) {
-      super.warn(message, context || this.context);
+      super.warn(this.withRequestId(message), context || this.context);
     }
   }
 
@@ -106,7 +107,7 @@ export class AppLoggerService extends Logger implements LoggerService {
    */
   debug(message: any, context?: string) {
     if (this.enabledLevels.has('debug')) {
-      super.debug(message, context || this.context);
+      super.debug(this.withRequestId(message), context || this.context);
     }
   }
 
@@ -115,8 +116,25 @@ export class AppLoggerService extends Logger implements LoggerService {
    */
   verbose(message: any, context?: string) {
     if (this.enabledLevels.has('verbose')) {
-      super.verbose(message, context || this.context);
+      super.verbose(this.withRequestId(message), context || this.context);
     }
+  }
+
+  private withRequestId(message: any): any {
+    const requestId = RequestContext.getRequestId();
+    if (!requestId) {
+      return message;
+    }
+
+    if (typeof message === 'string') {
+      return `[requestId=${requestId}] ${message}`;
+    }
+
+    if (message && typeof message === 'object') {
+      return { requestId, ...message };
+    }
+
+    return `[requestId=${requestId}] ${String(message)}`;
   }
 
   /**

@@ -3,8 +3,11 @@ import { Counter, Histogram, Gauge, register } from 'prom-client';
 
 @Injectable()
 export class MetricsService {
+  private readonly serviceName: string;
+  private readonly environment: string;
   private readonly httpRequestsTotal: Counter<string>;
   private readonly httpRequestDuration: Histogram<string>;
+  private readonly httpRequestErrorsTotal: Counter<string>;
   private readonly activeConnections: Gauge<string>;
   private readonly databaseConnections: Gauge<string>;
   private readonly walletOperations: Counter<string>;
@@ -13,18 +16,27 @@ export class MetricsService {
   private readonly errorCount: Counter<string>;
 
   constructor() {
+    this.serviceName = process.env.OBS_SERVICE_NAME || 'cardano-backend';
+    this.environment = process.env.OBS_ENV || process.env.NODE_ENV || 'development';
+
     // HTTP Metrics
     this.httpRequestsTotal = new Counter({
       name: 'http_requests_total',
       help: 'Total number of HTTP requests',
-      labelNames: ['method', 'route', 'status'],
+      labelNames: ['service', 'env', 'method', 'route', 'status_class'],
     });
 
     this.httpRequestDuration = new Histogram({
       name: 'http_request_duration_seconds',
       help: 'Duration of HTTP requests in seconds',
-      labelNames: ['method', 'route', 'status'],
-      buckets: [0.1, 0.5, 1, 2, 5, 10],
+      labelNames: ['service', 'env', 'method', 'route'],
+      buckets: [0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
+    });
+
+    this.httpRequestErrorsTotal = new Counter({
+      name: 'http_request_errors_total',
+      help: 'Total number of HTTP request errors',
+      labelNames: ['service', 'env', 'method', 'route', 'error_type'],
     });
 
     this.activeConnections = new Gauge({
@@ -59,12 +71,13 @@ export class MetricsService {
     this.errorCount = new Counter({
       name: 'application_errors_total',
       help: 'Total application errors',
-      labelNames: ['error_type', 'endpoint'],
+      labelNames: ['service', 'env', 'error_type', 'route'],
     });
 
     // Register all metrics
     register.registerMetric(this.httpRequestsTotal);
     register.registerMetric(this.httpRequestDuration);
+    register.registerMetric(this.httpRequestErrorsTotal);
     register.registerMetric(this.activeConnections);
     register.registerMetric(this.databaseConnections);
     register.registerMetric(this.walletOperations);
@@ -74,21 +87,52 @@ export class MetricsService {
   }
 
   // HTTP Metrics Methods
-  incrementHttpRequests(method: string, route: string, status: string) {
-    this.httpRequestsTotal.inc({ method, route, status });
+  incrementHttpRequests(method: string, route: string, statusClass: string) {
+    this.httpRequestsTotal.inc({
+      service: this.serviceName,
+      env: this.environment,
+      method,
+      route,
+      status_class: statusClass,
+    });
   }
 
-  observeHttpDuration(
+  observeHttpDuration(method: string, route: string, duration: number) {
+    this.httpRequestDuration.observe(
+      {
+        service: this.serviceName,
+        env: this.environment,
+        method,
+        route,
+      },
+      duration,
+    );
+  }
+
+  incrementHttpErrors(
     method: string,
     route: string,
-    status: string,
-    duration: number,
+    errorType: string,
   ) {
-    this.httpRequestDuration.observe({ method, route, status }, duration);
+    this.httpRequestErrorsTotal.inc({
+      service: this.serviceName,
+      env: this.environment,
+      method,
+      route,
+      error_type: errorType,
+    });
   }
 
   setActiveConnections(count: number) {
     this.activeConnections.set(count);
+  }
+
+  incrementActiveConnections() {
+    this.activeConnections.inc();
+  }
+
+  decrementActiveConnections() {
+    this.activeConnections.dec();
   }
 
   // Database Metrics Methods
@@ -110,8 +154,13 @@ export class MetricsService {
   }
 
   // Error Metrics Methods
-  incrementError(errorType: string, endpoint: string) {
-    this.errorCount.inc({ error_type: errorType, endpoint });
+  incrementError(errorType: string, route: string) {
+    this.errorCount.inc({
+      service: this.serviceName,
+      env: this.environment,
+      error_type: errorType,
+      route,
+    });
   }
 
   // Get all metrics

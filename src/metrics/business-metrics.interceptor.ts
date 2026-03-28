@@ -16,6 +16,10 @@ interface SyncData {
   syncPercentage?: number;
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const HEX_REGEX = /^[0-9a-f]{16,}$/i;
+
 @Injectable()
 export class BusinessMetricsInterceptor implements NestInterceptor {
   constructor(private readonly metricsService: MetricsService) {}
@@ -32,13 +36,43 @@ export class BusinessMetricsInterceptor implements NestInterceptor {
       catchError((error: Error) => {
         // Track failed operations
         this.trackBusinessMetrics(endpoint, 'failure', null);
+        const normalizedRoute = this.normalizeRoute(endpoint);
         this.metricsService.incrementError(
           error.name || 'UnknownError',
-          endpoint,
+          normalizedRoute,
         );
         throw error;
       }),
     );
+  }
+
+  private normalizeRoute(url: string): string {
+    const path = url.split('?')[0] || '/unknown';
+
+    const segments = path
+      .split('/')
+      .filter(Boolean)
+      .map((segment) => {
+        if (segment.startsWith(':')) {
+          return segment;
+        }
+
+        if (/^\d+$/.test(segment)) {
+          return ':id';
+        }
+
+        if (UUID_REGEX.test(segment)) {
+          return ':uuid';
+        }
+
+        if (HEX_REGEX.test(segment)) {
+          return ':hash';
+        }
+
+        return segment;
+      });
+
+    return `/${segments.join('/')}`;
   }
 
   private trackBusinessMetrics(endpoint: string, status: string, data: any) {

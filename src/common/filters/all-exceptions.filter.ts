@@ -37,6 +37,7 @@ export interface StandardErrorResponse {
   errorCode: string;
   path: string;
   timestamp: string;
+  requestId?: string;
 }
 
 @Catch()
@@ -65,6 +66,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
   ): StandardErrorResponse {
     const timestamp = new Date().toISOString();
     const path = request.url;
+    const requestIdHeader = request.headers['x-request-id'];
+    const requestId =
+      typeof requestIdHeader === 'string'
+        ? requestIdHeader
+        : Array.isArray(requestIdHeader)
+          ? requestIdHeader[0]
+          : undefined;
 
     // ── 1. AppError (custom domain errors) ─────────────────────────
     if (exception instanceof AppError) {
@@ -75,6 +83,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         errorCode: exception.code,
         path,
         timestamp,
+        requestId,
       };
     }
 
@@ -99,6 +108,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         errorCode: this.mapHttpStatusToErrorCode(status),
         path,
         timestamp,
+        requestId,
       };
     }
 
@@ -110,6 +120,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       errorCode: ErrorCode.INTERNAL_ERROR,
       path,
       timestamp,
+      requestId,
     };
   }
 
@@ -180,7 +191,10 @@ export class AllExceptionsFilter implements ExceptionFilter {
     errorResponse: StandardErrorResponse,
   ): void {
     const { statusCode, errorCode, path, message } = errorResponse;
-    const logContext = `${errorCode} | ${path}`;
+    const requestInfo = errorResponse.requestId
+      ? ` | requestId=${errorResponse.requestId}`
+      : '';
+    const logContext = `${errorCode} | ${path}${requestInfo}`;
 
     if (statusCode >= 500) {
       // Server errors — log with stack trace

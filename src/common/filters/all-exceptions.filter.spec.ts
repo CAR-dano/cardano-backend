@@ -24,7 +24,7 @@ describe('AllExceptionsFilter', () => {
     status: jest.Mock;
     json: jest.Mock;
   };
-  let mockRequest: { url: string };
+  let mockRequest: { url: string; headers: Record<string, string> };
   let mockHost: ArgumentsHost;
 
   beforeEach(() => {
@@ -35,7 +35,7 @@ describe('AllExceptionsFilter', () => {
       json: jest.fn().mockReturnThis(),
     };
 
-    mockRequest = { url: '/api/v1/test' };
+    mockRequest = { url: '/api/v1/test', headers: { 'x-request-id': 'req-1' } };
 
     mockHost = {
       switchToHttp: jest.fn().mockReturnValue({
@@ -63,6 +63,7 @@ describe('AllExceptionsFilter', () => {
     expect(body).toHaveProperty('errorCode');
     expect(body).toHaveProperty('path');
     expect(body).toHaveProperty('timestamp');
+    expect(body).toHaveProperty('requestId');
 
     expect(typeof body.statusCode).toBe('number');
     expect(Array.isArray(body.message)).toBe(true);
@@ -70,12 +71,14 @@ describe('AllExceptionsFilter', () => {
     expect(typeof body.errorCode).toBe('string');
     expect(typeof body.path).toBe('string');
     expect(typeof body.timestamp).toBe('string');
+    expect(typeof body.requestId).toBe('string');
 
     // Timestamp should be a valid ISO string
     expect(new Date(body.timestamp).toISOString()).toBe(body.timestamp);
 
     // Path should match request URL
     expect(body.path).toBe('/api/v1/test');
+    expect(body.requestId).toBe('req-1');
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -448,6 +451,15 @@ describe('AllExceptionsFilter', () => {
 
       expect(body.timestamp >= before).toBe(true);
       expect(body.timestamp <= after).toBe(true);
+    });
+
+    it('should omit requestId when request header is missing', () => {
+      mockRequest.headers = {};
+
+      filter.catch(new Error('test'), mockHost);
+
+      const body = getResponseBody();
+      expect(body.requestId).toBeUndefined();
     });
   });
 });
