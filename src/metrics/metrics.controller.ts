@@ -2,7 +2,6 @@ import {
   Controller,
   Get,
   Header,
-  NotFoundException,
   UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
@@ -31,11 +30,6 @@ export class MetricsController {
     description: 'Metrics endpoint disabled',
   })
   async getMetrics(): Promise<string> {
-    const metricsEnabled = process.env.METRICS_ENABLED;
-    if (metricsEnabled && metricsEnabled.toLowerCase() === 'false') {
-      throw new NotFoundException('Metrics endpoint is disabled');
-    }
-
     return await this.metricsService.getMetrics();
   }
 }

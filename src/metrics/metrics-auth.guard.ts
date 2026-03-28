@@ -1,8 +1,18 @@
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 @Injectable()
 export class MetricsAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
+    const metricsEnabled = process.env.METRICS_ENABLED;
+    if (metricsEnabled && metricsEnabled.toLowerCase() === 'false') {
+      throw new NotFoundException('Metrics endpoint is disabled');
+    }
+
     const request = context.switchToHttp().getRequest<{
       headers?: Record<string, string | string[] | undefined>;
     }>();
@@ -59,7 +69,7 @@ export class MetricsAuthGuard implements CanActivate {
 
   private isValidBearer(authorization: string, expectedToken: string): boolean {
     const [scheme, token] = authorization.split(' ');
-    return scheme === 'Bearer' && token === expectedToken;
+    return scheme?.toLowerCase() === 'bearer' && token === expectedToken;
   }
 
   private isValidBasic(
@@ -68,7 +78,7 @@ export class MetricsAuthGuard implements CanActivate {
     expectedPassword: string,
   ): boolean {
     const [scheme, encoded] = authorization.split(' ');
-    if (scheme !== 'Basic' || !encoded) {
+    if (scheme?.toLowerCase() !== 'basic' || !encoded) {
       return false;
     }
 

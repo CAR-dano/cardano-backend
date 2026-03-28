@@ -1,4 +1,4 @@
-import { ExecutionContext } from '@nestjs/common';
+import { ExecutionContext, NotFoundException } from '@nestjs/common';
 import { MetricsAuthGuard } from './metrics-auth.guard';
 
 function buildExecutionContext(
@@ -25,6 +25,7 @@ describe('MetricsAuthGuard', () => {
     delete process.env.METRICS_BASIC_AUTH_USER;
     delete process.env.METRICS_BASIC_AUTH_PASSWORD;
     delete process.env.NODE_ENV;
+    delete process.env.METRICS_ENABLED;
 
     guard = new MetricsAuthGuard();
   });
@@ -45,6 +46,14 @@ describe('MetricsAuthGuard', () => {
     expect(guard.canActivate(buildExecutionContext())).toBe(false);
   });
 
+  it('throws 404 when metrics are explicitly disabled', () => {
+    process.env.METRICS_ENABLED = 'false';
+
+    expect(() => guard.canActivate(buildExecutionContext())).toThrow(
+      NotFoundException,
+    );
+  });
+
   it('allows valid bearer token', () => {
     process.env.METRICS_BEARER_TOKEN = 'secret-token';
 
@@ -59,6 +68,14 @@ describe('MetricsAuthGuard', () => {
     expect(
       guard.canActivate(buildExecutionContext('Bearer invalid-token')),
     ).toBe(false);
+  });
+
+  it('accepts lowercase bearer scheme', () => {
+    process.env.METRICS_BEARER_TOKEN = 'secret-token';
+
+    expect(
+      guard.canActivate(buildExecutionContext('bearer secret-token')),
+    ).toBe(true);
   });
 
   it('allows valid basic auth credentials', () => {
@@ -78,6 +95,16 @@ describe('MetricsAuthGuard', () => {
     const encoded = Buffer.from('metrics:wrong-password').toString('base64');
     expect(guard.canActivate(buildExecutionContext(`Basic ${encoded}`))).toBe(
       false,
+    );
+  });
+
+  it('accepts lowercase basic scheme', () => {
+    process.env.METRICS_BASIC_AUTH_USER = 'metrics';
+    process.env.METRICS_BASIC_AUTH_PASSWORD = 'strong-password';
+
+    const encoded = Buffer.from('metrics:strong-password').toString('base64');
+    expect(guard.canActivate(buildExecutionContext(`basic ${encoded}`))).toBe(
+      true,
     );
   });
 });
