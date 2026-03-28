@@ -18,6 +18,12 @@ describe('OTel config helpers', () => {
     delete process.env.npm_package_version;
     delete process.env.OTEL_EXPORTER_OTLP_ENDPOINT;
     delete process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT;
+    delete process.env.OTEL_TRACES_SAMPLER;
+    delete process.env.OTEL_TRACES_SAMPLER_ARG;
+    delete process.env.OTEL_TRACES_SAMPLER_ARG_DEVELOPMENT;
+    delete process.env.OTEL_TRACES_SAMPLER_ARG_TEST;
+    delete process.env.OTEL_TRACES_SAMPLER_ARG_STAGING;
+    delete process.env.OTEL_TRACES_SAMPLER_ARG_PRODUCTION;
   });
 
   afterAll(() => {
@@ -31,6 +37,45 @@ describe('OTel config helpers', () => {
     expect(config.serviceName).toBe('cardano-backend');
     expect(config.environment).toBe('development');
     expect(config.serviceVersion).toBe('0.0.1');
+    expect(config.sampler).toBe('parentbased_traceidratio');
+    expect(config.samplingRatio).toBe(1);
+  });
+
+  it('uses staging default sampling ratio when no explicit sampler arg', () => {
+    process.env.OBS_ENV = 'staging';
+
+    const config = getOtelConfig();
+    expect(config.samplingRatio).toBe(0.2);
+  });
+
+  it('uses production default sampling ratio when no explicit sampler arg', () => {
+    process.env.OBS_ENV = 'production';
+
+    const config = getOtelConfig();
+    expect(config.samplingRatio).toBe(0.1);
+  });
+
+  it('uses explicit global sampler arg when valid', () => {
+    process.env.OTEL_TRACES_SAMPLER_ARG = '0.33';
+
+    const config = getOtelConfig();
+    expect(config.samplingRatio).toBe(0.33);
+  });
+
+  it('uses env-specific sampler arg when global is missing', () => {
+    process.env.OBS_ENV = 'staging';
+    process.env.OTEL_TRACES_SAMPLER_ARG_STAGING = '0.44';
+
+    const config = getOtelConfig();
+    expect(config.samplingRatio).toBe(0.44);
+  });
+
+  it('falls back to default ratio when explicit sampler arg is invalid', () => {
+    process.env.OBS_ENV = 'production';
+    process.env.OTEL_TRACES_SAMPLER_ARG = 'not-a-number';
+
+    const config = getOtelConfig();
+    expect(config.samplingRatio).toBe(0.1);
   });
 
   it('builds traces endpoint from OTLP base endpoint', () => {

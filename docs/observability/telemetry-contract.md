@@ -101,6 +101,19 @@ Current correlation baseline includes:
   - tracing starts before Nest app bootstrap
   - tracing flush/shutdown runs on process termination signals
 
+### Sampling policy by environment
+
+- Default sampler: `parentbased_traceidratio`
+- Default sampling ratios:
+  - `development`: `1.0`
+  - `test`: `1.0`
+  - `staging`: `0.2`
+  - `production`: `0.1`
+- Configuration precedence:
+  1. `OTEL_TRACES_SAMPLER_ARG` (global override)
+  2. environment-specific arg (`OTEL_TRACES_SAMPLER_ARG_<ENV>`)
+  3. default policy by environment
+
 ## Span instrumentation baseline (Sprint 2)
 
 - HTTP inbound requests are auto-instrumented via Node auto-instrumentations.
