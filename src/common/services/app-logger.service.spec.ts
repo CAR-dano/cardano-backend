@@ -11,6 +11,7 @@
 import { Test } from '@nestjs/testing';
 import { AppLoggerService } from './app-logger.service';
 import { ConfigService } from '@nestjs/config';
+import { trace } from '@opentelemetry/api';
 import { RequestContext } from '../request-context';
 
 function buildModule(logLevel: string, timestamp = true, colors = true) {
@@ -164,6 +165,58 @@ describe('AppLoggerService', () => {
         '[requestId=req-ctx-1] test message',
         undefined,
       );
+      spy.mockRestore();
+    });
+
+    it('should include traceId and spanId from active span context', async () => {
+      const module = await buildModule('info');
+      const s = await module.resolve(AppLoggerService);
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'log')
+        .mockImplementation(() => {});
+
+      const activeSpanSpy = jest.spyOn(trace, 'getActiveSpan').mockReturnValue({
+        spanContext: () => ({
+          traceId: '0123456789abcdef0123456789abcdef',
+          spanId: '0123456789abcdef',
+          traceFlags: 1,
+        }),
+      } as any);
+
+      s.log('trace message');
+
+      const loggedMessage = spy.mock.calls[0][0] as string;
+      expect(loggedMessage).toContain('traceId=');
+      expect(loggedMessage).toContain('spanId=');
+      expect(loggedMessage).toContain('trace message');
+      activeSpanSpy.mockRestore();
+      spy.mockRestore();
+    });
+
+    it('should include both requestId and trace context when both available', async () => {
+      const module = await buildModule('info');
+      const s = await module.resolve(AppLoggerService);
+      const spy = jest
+        .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(s)), 'log')
+        .mockImplementation(() => {});
+
+      const activeSpanSpy = jest.spyOn(trace, 'getActiveSpan').mockReturnValue({
+        spanContext: () => ({
+          traceId: 'abcdef0123456789abcdef0123456789',
+          spanId: 'abcdef0123456789',
+          traceFlags: 1,
+        }),
+      } as any);
+
+      RequestContext.run({ requestId: 'req-and-trace' }, () => {
+        s.log('combined message');
+      });
+
+      const loggedMessage = spy.mock.calls[0][0] as string;
+      expect(loggedMessage).toContain('requestId=req-and-trace');
+      expect(loggedMessage).toContain('traceId=');
+      expect(loggedMessage).toContain('spanId=');
+      activeSpanSpy.mockRestore();
       spy.mockRestore();
     });
   });
