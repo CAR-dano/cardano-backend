@@ -35,21 +35,21 @@ describe('OTel config helpers', () => {
 
   it('builds traces endpoint from OTLP base endpoint', () => {
     process.env.OTEL_ENABLED = 'true';
-    process.env.OTEL_EXPORTER_OTLP_ENDPOINT =
-      'http://otel-collector:4318';
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://otel-collector:4318';
 
     const config = getOtelConfig();
     expect(config.tracesEndpoint).toBe('http://otel-collector:4318/v1/traces');
   });
 
   it('prefers explicit OTLP traces endpoint over base endpoint', () => {
-    process.env.OTEL_EXPORTER_OTLP_ENDPOINT =
-      'http://otel-collector:4318';
+    process.env.OTEL_EXPORTER_OTLP_ENDPOINT = 'http://otel-collector:4318';
     process.env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT =
       'http://otel-collector:4318/custom/traces';
 
     const config = getOtelConfig();
-    expect(config.tracesEndpoint).toBe('http://otel-collector:4318/custom/traces');
+    expect(config.tracesEndpoint).toBe(
+      'http://otel-collector:4318/custom/traces',
+    );
   });
 
   it('maps semantic resource attributes correctly', () => {
@@ -69,9 +69,7 @@ describe('OTel config helpers', () => {
   it('keeps traces endpoint unchanged when already on /v1/traces', () => {
     expect(
       normalizeTracesEndpoint('http://localhost:4318/v1/traces', true),
-    ).toBe(
-      'http://localhost:4318/v1/traces',
-    );
+    ).toBe('http://localhost:4318/v1/traces');
   });
 
   it('returns explicit endpoint unchanged when default append is disabled', () => {

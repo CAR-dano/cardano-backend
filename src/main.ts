@@ -25,7 +25,10 @@ import compression from 'compression';
 import { getLoggerConfig } from './config/logger.config';
 import { AllExceptionsFilter } from './common/filters';
 import { setOpenApiDocument } from './openapi-document';
-import { shutdownOpenTelemetry, setupOpenTelemetry } from './observability/otel';
+import {
+  shutdownOpenTelemetry,
+  setupOpenTelemetry,
+} from './observability/otel';
 
 // Re-export for backward compatibility (unit tests, etc.)
 export { getOpenApiDocument } from './openapi-document';
@@ -34,7 +37,7 @@ export { getOpenApiDocument } from './openapi-document';
  * The main bootstrap function to initialize and start the NestJS application.
  */
 async function bootstrap() {
-  await setupOpenTelemetry();
+  setupOpenTelemetry();
 
   // Get logger configuration from environment
   const loggerConfig = getLoggerConfig();

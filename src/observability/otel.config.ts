@@ -19,7 +19,9 @@ export function getOtelConfig(): OTelConfig {
     (process.env.OTEL_ENABLED || 'false').trim().toLowerCase() === 'true';
 
   const serviceName =
-    process.env.OBS_SERVICE_NAME || process.env.OTEL_SERVICE_NAME || 'cardano-backend';
+    process.env.OBS_SERVICE_NAME ||
+    process.env.OTEL_SERVICE_NAME ||
+    'cardano-backend';
 
   const environment =
     process.env.OBS_ENV || process.env.NODE_ENV || 'development';
@@ -44,7 +46,9 @@ export function getOtelConfig(): OTelConfig {
   };
 }
 
-export function getOtelResourceAttributes(config: OTelConfig): Record<string, string> {
+export function getOtelResourceAttributes(
+  config: OTelConfig,
+): Record<string, string> {
   return {
     [SEMRESATTRS_SERVICE_NAME]: config.serviceName,
     [SEMRESATTRS_DEPLOYMENT_ENVIRONMENT]: config.environment,

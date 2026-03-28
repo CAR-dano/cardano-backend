@@ -12,7 +12,7 @@ import { getOtelConfig, getOtelResourceAttributes } from './otel.config';
 
 let otelSdk: NodeSDK | undefined;
 
-export async function setupOpenTelemetry(): Promise<void> {
+export function setupOpenTelemetry(): void {
   const config = getOtelConfig();
   if (!config.enabled || !config.tracesEndpoint) {
     return;
@@ -40,7 +40,7 @@ export async function setupOpenTelemetry(): Promise<void> {
     spanProcessor,
   });
 
-  await otelSdk.start();
+  otelSdk.start();
 }
 
 export async function shutdownOpenTelemetry(): Promise<void> {
