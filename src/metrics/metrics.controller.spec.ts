@@ -9,9 +9,11 @@
  */
 
 import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
 import { MetricsController } from './metrics.controller';
 import { MetricsService } from './metrics.service';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { MetricsAuthGuard } from './metrics-auth.guard';
 
 const mockMetricsService = {
   getMetrics: jest.fn(),
@@ -19,18 +21,28 @@ const mockMetricsService = {
 
 describe('MetricsController', () => {
   let controller: MetricsController;
+  const originalEnv = process.env;
 
   beforeEach(async () => {
+    process.env = { ...originalEnv };
+    delete process.env.METRICS_ENABLED;
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [MetricsController],
       providers: [{ provide: MetricsService, useValue: mockMetricsService }],
     })
       .overrideGuard(ThrottlerGuard)
       .useValue({ canActivate: () => true })
+      .overrideGuard(MetricsAuthGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     controller = module.get<MetricsController>(MetricsController);
     jest.clearAllMocks();
+  });
+
+  afterAll(() => {
+    process.env = originalEnv;
   });
 
   it('should be defined', () => {
@@ -56,6 +68,13 @@ process_cpu_user_seconds_total 0.5`;
       );
 
       await expect(controller.getMetrics()).rejects.toThrow('Registry error');
+    });
+
+    it('should return not found when metrics endpoint is disabled', async () => {
+      process.env.METRICS_ENABLED = 'false';
+
+      await expect(controller.getMetrics()).rejects.toThrow(NotFoundException);
+      expect(mockMetricsService.getMetrics).not.toHaveBeenCalled();
     });
   });
 });
