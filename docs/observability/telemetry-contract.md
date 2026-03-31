@@ -87,6 +87,31 @@ Current correlation baseline includes:
 - logger output enriched with active span `traceId` and `spanId`
 - standardized error responses include optional `traceId` and `spanId` when span context exists
 
+### Structured JSON logging schema
+
+Baseline structured fields:
+
+- `timestamp`
+- `level`
+- `service`
+- `env`
+- `message`
+- `context` (when available)
+- `requestId` (when available)
+- `traceId` / `spanId` (when available)
+
+HTTP request log fields (when using `logHttpRequest`):
+
+- `method`
+- `route`
+- `statusCode`
+- `durationMs`
+
+Controls:
+
+- `LOG_FORMAT` (`json` default)
+- `LOG_INCLUDE_STACK` (`false` recommended in production)
+
 ## Tracing bootstrap contract (Sprint 2 start)
 
 - OpenTelemetry SDK bootstrap is controlled by `OTEL_ENABLED`
