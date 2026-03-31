@@ -14,11 +14,15 @@ import { ConfigService } from '@nestjs/config';
 import { trace } from '@opentelemetry/api';
 import { RequestContext } from '../request-context';
 
+type LogLevelName = 'log' | 'error' | 'warn' | 'debug' | 'verbose';
+
 @Injectable({ scope: Scope.TRANSIENT })
 export class AppLoggerService extends Logger implements LoggerService {
   private enabledLevels!: Set<string>;
-  private enableTimestamp!: boolean;
-  private enableColors!: boolean;
+  private serviceName!: string;
+  private environment!: string;
+  private useJsonFormat!: boolean;
+  private includeStack!: boolean;
 
   constructor(private configService: ConfigService) {
     super();
@@ -27,11 +31,18 @@ export class AppLoggerService extends Logger implements LoggerService {
 
   private initializeConfig() {
     const logLevel = this.configService.get<string>('LOG_LEVEL', 'info');
-    this.enableTimestamp = this.configService.get<boolean>(
-      'LOG_TIMESTAMP',
-      true,
-    );
-    this.enableColors = this.configService.get<boolean>('LOG_COLORS', true);
+    this.serviceName =
+      this.configService.get<string>('OBS_SERVICE_NAME') || 'cardano-backend';
+    this.environment =
+      this.configService.get<string>('OBS_ENV') ||
+      this.configService.get<string>('NODE_ENV', 'development');
+    this.useJsonFormat =
+      (
+        this.configService.get<string>('LOG_FORMAT', 'json') || 'json'
+      ).toLowerCase() === 'json';
+    this.includeStack =
+      (this.configService.get<string>('LOG_INCLUDE_STACK') ||
+        (this.environment === 'production' ? 'false' : 'true')) === 'true';
 
     // Set enabled levels based on configuration
     this.enabledLevels = new Set();
@@ -81,7 +92,7 @@ export class AppLoggerService extends Logger implements LoggerService {
    */
   log(message: any, context?: string) {
     if (this.enabledLevels.has('log')) {
-      super.log(this.withRequestId(message), context || this.context);
+      super.log(this.formatLog('log', message, context || this.context));
     }
   }
 
@@ -90,7 +101,11 @@ export class AppLoggerService extends Logger implements LoggerService {
    */
   error(message: any, trace?: string, context?: string) {
     if (this.enabledLevels.has('error')) {
-      super.error(this.withRequestId(message), trace, context || this.context);
+      super.error(
+        this.formatLog('error', message, context || this.context, {
+          ...(trace && this.includeStack ? { stack: trace } : {}),
+        }),
+      );
     }
   }
 
@@ -99,7 +114,7 @@ export class AppLoggerService extends Logger implements LoggerService {
    */
   warn(message: any, context?: string) {
     if (this.enabledLevels.has('warn')) {
-      super.warn(this.withRequestId(message), context || this.context);
+      super.warn(this.formatLog('warn', message, context || this.context));
     }
   }
 
@@ -108,7 +123,7 @@ export class AppLoggerService extends Logger implements LoggerService {
    */
   debug(message: any, context?: string) {
     if (this.enabledLevels.has('debug')) {
-      super.debug(this.withRequestId(message), context || this.context);
+      super.debug(this.formatLog('debug', message, context || this.context));
     }
   }
 
@@ -117,43 +132,70 @@ export class AppLoggerService extends Logger implements LoggerService {
    */
   verbose(message: any, context?: string) {
     if (this.enabledLevels.has('verbose')) {
-      super.verbose(this.withRequestId(message), context || this.context);
+      super.verbose(
+        this.formatLog('verbose', message, context || this.context),
+      );
     }
   }
 
-  private withRequestId(message: any): any {
+  private buildCorrelationContext(): Record<string, string> {
     const requestId = RequestContext.getRequestId();
     const spanContext = trace.getActiveSpan()?.spanContext();
 
-    const correlationParts: string[] = [];
-    if (requestId) {
-      correlationParts.push(`requestId=${requestId}`);
-    }
-    if (spanContext?.traceId) {
-      correlationParts.push(`traceId=${spanContext.traceId}`);
-    }
-    if (spanContext?.spanId) {
-      correlationParts.push(`spanId=${spanContext.spanId}`);
+    return {
+      ...(requestId ? { requestId } : {}),
+      ...(spanContext?.traceId ? { traceId: spanContext.traceId } : {}),
+      ...(spanContext?.spanId ? { spanId: spanContext.spanId } : {}),
+    };
+  }
+
+  private formatLog(
+    level: LogLevelName,
+    message: any,
+    context?: string,
+    metadata?: Record<string, unknown>,
+  ): string {
+    const correlation = this.buildCorrelationContext();
+    const payload = {
+      timestamp: new Date().toISOString(),
+      level,
+      service: this.serviceName,
+      env: this.environment,
+      ...(context ? { context } : {}),
+      message: this.serializeMessage(message),
+      ...correlation,
+      ...(metadata || {}),
+    } as Record<string, unknown>;
+
+    if (message instanceof Error && this.includeStack && message.stack) {
+      payload.stack = message.stack;
     }
 
-    if (correlationParts.length === 0) {
+    if (!this.useJsonFormat) {
+      return String(payload.message);
+    }
+
+    return JSON.stringify(payload);
+  }
+
+  private serializeMessage(message: unknown): string {
+    if (typeof message === 'string') {
       return message;
     }
 
-    if (typeof message === 'string') {
-      return `[${correlationParts.join(' ')}] ${message}`;
+    if (message instanceof Error) {
+      return message.message;
     }
 
-    if (message && typeof message === 'object') {
-      return {
-        ...(requestId ? { requestId } : {}),
-        ...(spanContext?.traceId ? { traceId: spanContext.traceId } : {}),
-        ...(spanContext?.spanId ? { spanId: spanContext.spanId } : {}),
-        ...message,
-      };
+    if (typeof message === 'object' && message !== null) {
+      try {
+        return JSON.stringify(message);
+      } catch {
+        return '[unserializable-object]';
+      }
     }
 
-    return `[${correlationParts.join(' ')}] ${String(message)}`;
+    return String(message);
   }
 
   /**
@@ -169,11 +211,34 @@ export class AppLoggerService extends Logger implements LoggerService {
       return;
     }
 
-    const logMessage = metadata
-      ? `${message} ${JSON.stringify(metadata)}`
-      : message;
+    const formatted = this.formatLog(
+      level,
+      message,
+      context || this.context,
+      metadata,
+    );
 
-    this[level](logMessage, context || this.context);
+    if (level === 'error') {
+      super.error(formatted);
+      return;
+    }
+
+    if (level === 'warn') {
+      super.warn(formatted);
+      return;
+    }
+
+    if (level === 'debug') {
+      super.debug(formatted);
+      return;
+    }
+
+    if (level === 'verbose') {
+      super.verbose(formatted);
+      return;
+    }
+
+    super.log(formatted);
   }
 
   /**
@@ -186,12 +251,23 @@ export class AppLoggerService extends Logger implements LoggerService {
     responseTime: number,
     context?: string,
   ) {
-    const message = `${method} ${url} ${statusCode} - ${responseTime}ms`;
+    const level = statusCode >= 400 ? 'warn' : 'log';
+    const logMessage = this.formatLog(
+      level,
+      'http_request',
+      context || 'HTTP',
+      {
+        method,
+        route: url,
+        statusCode,
+        durationMs: responseTime,
+      },
+    );
 
     if (statusCode >= 400) {
-      this.warn(message, context || 'HTTP');
+      super.warn(logMessage);
     } else {
-      this.log(message, context || 'HTTP');
+      super.log(logMessage);
     }
   }
 
@@ -204,9 +280,16 @@ export class AppLoggerService extends Logger implements LoggerService {
     duration: number,
     context?: string,
   ) {
-    this.debug(
-      `DB ${operation} on ${table} - ${duration}ms`,
-      context || 'Database',
+    if (!this.enabledLevels.has('debug')) {
+      return;
+    }
+
+    super.debug(
+      this.formatLog('debug', 'database_operation', context || 'Database', {
+        operation,
+        table,
+        durationMs: duration,
+      }),
     );
   }
 
